@@ -1,8 +1,8 @@
 const net = require('net');
 const http = require('http');
 const fs = require('fs');
-const mysql = require('mysql');
-const Redis = require("ioredis");
+//const mysql = require('mysql');
+//const Redis = require("ioredis");
 const uuid = require('uuid');
 const { createLogger, format, transports } = require('winston');
 
@@ -28,7 +28,7 @@ const logger = createLogger(
           zippedArchive: true})
   ]
 });
-const isLP = process.argv.length == 2;
+const isLP = process.argv.length == 2; // For hackathon, only do LocalProxy
 const conf_path = 'config.' + (isLP ? 'LP':'TP') + '.json';
 const config = JSON.parse(fs.readFileSync(conf_path));
 const proxy_id = process.argv.length > 2 ? Number(process.argv[2]) : 1;
@@ -46,13 +46,13 @@ let upstream = null;            // LPT session
 let redis;
 let listen_port = 8580;
 let listen_host = '127.0.0.1';
-let pool_port;
-let pool_ip;
-let pool_user;
-let pool_id;
+let pool_port; //Updated from Contract
+let pool_ip; //Updated from Contract
+let pool_user; //Updated from Contract
+let pool_id; //Hardcode
 server.on('connection', server_accept);
 
-if (!isLP)
+/*if (!isLP)
 {
     logger.info('Running as TcpProxy');
     const db = new mysql.createConnection(config.mysql);
@@ -98,7 +98,7 @@ if (!isLP)
     });
 }
 else
-{
+{*/
     logger.info('Running LocalProxy');
     logger.info('Proxying to: %s', config.upstream);
     let hp = config.listen.split(':');
@@ -114,7 +114,7 @@ else
         var addr = server.address();
         logger.info('Listening on %s:%d', addr.address, addr.port);
     });
-}
+//}
 
 function header_buf(str)
 {
@@ -237,7 +237,7 @@ PoolSession.prototype.processLine = function(line)
     // - store shares/responses to redis
 
     if (line.length == 0)
-        return line;
+        return line; // As per Jethro, return line
 
     if (this.pool_user == null)
         return line;
@@ -312,7 +312,11 @@ PoolSession.prototype.processLine = function(line)
             redis.hincrby(key, 'difficulty', this.last_diff);
             redis.expire(key, 600);
             // and update the share hash
-            key = `shares:${this.deviceGUID}:${pool_id}:${this.UUID}:${id}`;
+
+            // As pet Jethro advice, hard code to bypass Redis 
+            //key = `shares:${this.deviceGUID}:${pool_id}:${this.UUID}:${id}`;
+            key = `shares:${this.deviceGUID}:$pool_id:$UUID:$id`; // Hard code it and Redis should still allow to be run
+
             if (jo.error != null || jo.result != true)
             {
                 redis.hmset(key, 'status', share_status.rejected,
