@@ -1,11 +1,10 @@
 const net = require('net');
 const http = require('http');
 const fs = require('fs');
-//const mysql = require('mysql');
-const Redis = require("ioredis");
 const uuid = require('uuid');
 const { createLogger, format, transports } = require('winston');
 
+const Web3 = require('web3');
 
 const logger = createLogger(
 {
@@ -28,9 +27,14 @@ const logger = createLogger(
           zippedArchive: true})
   ]
 });
-const isLP = process.argv.length == 2; // For hackathon, only do LocalProxy
-const conf_path = 'config.' + (isLP ? 'LP':'TP') + '.json';
-const config = JSON.parse(fs.readFileSync(conf_path));
+
+
+const config = JSON.parse(fs.readFileSync("config.json"));
+const isVal = config.isVal;
+
+let web3;
+
+
 const proxy_id = process.argv.length > 2 ? Number(process.argv[2]) : 1;
 const server = net.createServer();
 const stale_timeout = 90e3;
@@ -43,78 +47,38 @@ const clients = new Map();      // Header string to a PM or TPT session
 const header_pool = new Map();  // PM header string to a PP session
 const sock_pool = new Map();    // PP socket to a PP session
 let upstream = null;            // LPT session
-let redis;
-let listen_port = 8580;
-let listen_host = '127.0.0.1';
-let pool_port; //Updated from Contract
-let pool_ip; //Updated from Contract
-let pool_user; //Updated from Contract
-let pool_id; //Hardcode
+
+
+
+let listen_host = config.listen_host;
+let listen_port = config.listen_port;
+
+
+let pool_ip = config.default_pool.host;
+let pool_port = config.default_pool.port;
+let pool_user = config.default_pool.username;
+
 server.on('connection', server_accept);
 
-/*if (!isLP)
+if (isVal)
 {
-    logger.info('Running as TcpProxy');
-    const db = new mysql.createConnection(config.mysql);
-    db.query(
-        'select * from poolproxies pp join pools p on p.id=pp.poolid where pp.id=?',
-        [proxy_id], function(error, results, fields)
-    {
-        if (error)
-            throw error;
-        if (process.argv.length == 4)
-        {
-            logger.info("Assumed running from Docker");
-            listen_port = results[0].ProxyDockerPort;
-            listen_host = '0.0.0.0';
-            let php = results[0].ProxyHealthPort;
-            if (php != null)
-            {
-                logger.info('Health-check listener on: %d', php);
-                http.createServer((req, res) =>
-                {
-                    res.writeHead(200);
-                    res.end('OK\n');
-                }).listen(php).unref();
-            }
-        }
-        else
-        {
-            listen_port = results[0].LbPort;
-            listen_host = results[0].ProxyAddress;
-        }
-        pool_id = results[0].PoolId;
-        pool_port = results[0].Port;
-        pool_ip = results[0].Address;
-        pool_user = results[0].Username;
-        logger.info('Proxying to: %s:%d', pool_ip, pool_port);
-        db.end();
-        redis = new Redis(results[0].RedisAddress, results[0].RedisPort, {db:3});
-        server.listen(listen_port, listen_host, 6144, function()
-        {
-            var addr = server.address();
-            logger.info('Listening on %s:%d', addr.address, addr.port);
-        });
-    });
+    logger.info('Running as Validator');
+
+    web3 = new Web3(new Web3.providers.WebsocketProvider("ws://" + config.node.host + ":" + config.node.port + "/"));
+    block_listener();
+
 }
 else
-{*/
-    logger.info('Running LocalProxy');
-    logger.info('Proxying to: %s', config.upstream);
-    let hp = config.listen.split(':');
-    if (hp.length > 1)
-    {
-        listen_host = hp[0];
-        listen_port = Number(hp[1]);
-    }
-    else
-        listen_port = Number(hp[0]);
+{
+    logger.info('Running Local Proxy');
+    logger.info('Proxying to: %s', config.validator_host);
+
     server.listen(listen_port, listen_host, 6144, function()
     {
         var addr = server.address();
         logger.info('Listening on %s:%d', addr.address, addr.port);
     });
-//}
+}
 
 function header_buf(str)
 {
@@ -254,8 +218,7 @@ PoolSession.prototype.processLine = function(line)
         {
             case 'mining.authorize':
                 this.deviceGUID = jo.params[0];
-                this.workerName = this.pool_user + '.' +
-                    this.deviceGUID.replace(/-/g,'').substr(0,15);
+                this.workerName = this.pool_user + '.' + this.deviceGUID.replace(/-/g,'').substr(0,15);
                 // rewrite the worker name
                 idx = line.indexOf(this.deviceGUID);
                 start = line.slice(0, idx);
@@ -266,11 +229,13 @@ PoolSession.prototype.processLine = function(line)
                 if (idx == -1)
                     return line;
                 this.submitIDs.push(id);
+
+                /*
                 // push the submit to redis
                 key = `shares:${this.deviceGUID}:${this.pool_id}:${this.UUID}:${id}`;
-                redis.hmset(key, 'status', share_status.pending,
-                    'difficulty', this.last_diff, 'timestamp', now);
+                redis.hmset(key, 'status', share_status.pending, 'difficulty', this.last_diff, 'timestamp', now);
                 redis.expire(key, 43200);
+
                 // and add/update the session hash
                 key = `${this.deviceGUID}:session`;
                 let that = this;
@@ -280,6 +245,8 @@ PoolSession.prototype.processLine = function(line)
                         redis.hmset(key, 'start', now, 'difficulty', that.last_diff);
                 });
                 redis.expire(key, 600);
+                */
+
                 // rewrite the worker name
                 start = line.slice(0, idx);
                 end = line.slice(idx + this.deviceGUID.length);
@@ -296,10 +263,11 @@ PoolSession.prototype.processLine = function(line)
         if (idx != -1)
         {
             this.submitIDs.splice(idx, 1);
+
+            /*
             // push the submit result to redis
             let share = Buffer.allocUnsafe(44);
-            Buffer.from(dotnet_guid_shuffle(uuid.parse(this.deviceGUID)))
-                .copy(share);
+            Buffer.from(dotnet_guid_shuffle(uuid.parse(this.deviceGUID))).copy(share);
             share.writeUInt32LE(pool_id, 16);
             Buffer.from(uuid.parse(this.UUID)).copy(share, 20);
             share.writeUInt32LE(id, 36);
@@ -326,6 +294,7 @@ PoolSession.prototype.processLine = function(line)
             {
                 redis.hset(key, 'status', share_status.accepted);
             }
+            */
         }
     }
     catch (e) {}
@@ -341,16 +310,16 @@ function server_accept(con)
     con.setTimeout(stale_timeout, con.destroy);
     let ra = con.remoteAddress + ':' + con.remotePort;
     logger.info('New client: %s', ra);
-    if (isLP)
+    if (!isVal)
     {
         if (upstream == null)
         {
-            let hp = config.upstream.split(':');
-            logger.info('Creating our single upstream trunk to: %s',
-                config.upstream);
-            let sock = net.createConnection(Number(hp[1]), hp[0]);
+            logger.info('Creating our single upstream trunk to: %s', config.validator_host + ":" + config.validator_port);
+            let sock = net.createConnection(Number(config.validator_port), config.validator_host);
+
             upstream = new Session(sock);
             upstream.expects_headers = true;
+
             sock.setNoDelay(true);
             sock.setTimeout(stale_timeout, () =>
             {
@@ -366,8 +335,7 @@ function server_accept(con)
         pm.trunk = upstream;
         pm.header = header_buf(ra);
         clients.set(ra, pm);
-        logger.info('Proxy with pid: %d, has %d miners connected',
-            process.pid, clients.size);
+        logger.info('Proxy with pid: %d, has %d miners connected', process.pid, clients.size);
     }
     else
     {
@@ -435,8 +403,7 @@ function tpt_data(data)
             pp.trunk = tpt;
             pp.header = hb;
             sock_pool.set(sock, pp);
-            logger.info('Proxy id: %d, pid: %d, has %d pool sockets', proxy_id,
-                process.pid, sock_pool.size);
+            logger.info('Proxy id: %d, pid: %d, has %d pool sockets', proxy_id, process.pid, sock_pool.size);
         }
         else
         {
@@ -471,7 +438,7 @@ function miner_data(data)
 // Read a PM or TPT
 function client_data(data)
 {
-    if (isLP)
+    if (!isVal)
         miner_data.call(this, data);
     else
         tpt_data.call(this, data);
@@ -480,14 +447,14 @@ function client_data(data)
 function client_close()
 {
     let ra = this.remoteAddress + ':' + this.remotePort;
-    logger.info('%s close: %s', isLP ? 'PM' : 'TPT',  ra);
+    logger.info('%s close: %s', !isVal ? 'PM' : 'TPT',  ra);
     clients.delete(ra);
 }
 
 function client_error(err)
 {
     let ra = this.remoteAddress + ':' + this.remotePort;
-    logger.info('%s %s with error: %s', isLP ? 'PM' : 'TPT', ra, err.message);
+    logger.info('%s %s with error: %s', !isVal ? 'PM' : 'TPT', ra, err.message);
     clients.delete(ra);
 }
 
@@ -590,3 +557,26 @@ function pool_error(err)
 }
 
 // vim: sw=4 ts=4 et
+
+//-------------------------
+
+function block_listener(){
+/*
+    var subscription = web3.eth.subscribe('newBlockHeaders', function(error, block){
+        if (error) {
+            logger.info(error);
+        } else {
+
+            
+            //var contract = "0x2d9a998fa591ef40563dc56bac835d03680f8d23";
+            //var cmd = "0x70a08231";
+            //var results = await ethCall("", contract, cmd);
+
+            //pool_ip = results[0].Host;
+            //pool_port = results[0].Port;
+            //pool_user = results[0].Username;
+            
+        }    
+         
+    }); */ 
+}
