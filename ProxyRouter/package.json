@@ -1,0 +1,20 @@
+{
+  "name": "ttn-proxy",
+  "version": "1.0.0",
+  "description": "",
+  "main": "ttn-proxy.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "fs": "0.0.1-security",
+    "http": "0.0.1-security",
+    "ioredis": "^4.17.3",
+    "mysql": "^2.18.1",
+    "net": "^1.0.2",
+    "uuid": "^8.3.2",
+    "winston": "^3.3.3"
+  }
+}
