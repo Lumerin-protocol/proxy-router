@@ -2,7 +2,7 @@ const net = require('net');
 const http = require('http');
 const fs = require('fs');
 //const mysql = require('mysql');
-//const Redis = require("ioredis");
+const Redis = require("ioredis");
 const uuid = require('uuid');
 const { createLogger, format, transports } = require('winston');
 
