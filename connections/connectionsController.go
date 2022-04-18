@@ -63,7 +63,7 @@ func (c *ConnectionsController) Run() {
 
 					log.Printf("miner connection read error: %v;  with miner buffer: %v", minerReadError, string(minerBuffer))
 
-					// minerConnection.Close()
+					defer minerConnection.Close()
 
 					break
 				}
