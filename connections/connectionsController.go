@@ -15,7 +15,8 @@ type ConnectionsController struct {
 	interfaces.IConnectionsController
 	interfaces.Subscriber
 
-	poolAddr string
+	poolConnection net.Conn
+	poolAddr       string
 }
 
 func (c *ConnectionsController) Run() {
@@ -23,22 +24,24 @@ func (c *ConnectionsController) Run() {
 
 	link, err := net.ListenTCP("tcp", &net.TCPAddr{Port: 3333})
 
+	if err != nil {
+		log.Fatalf("Error listening to port 3333 - %v", err)
+	}
+
+	fmt.Println("proxy : listening on port 3333")
+
 	poolConnection, poolConnectionError := net.DialTimeout("tcp", c.poolAddr, 30*time.Second)
+
+	c.poolConnection = poolConnection
 
 	if poolConnectionError != nil {
 		log.Fatalf("pool connection dial error: %v", poolConnectionError)
 	}
 
-	log.Println("connected to pool")
-
-	fmt.Println("proxy : listening on port 3333")
-
-	if err != nil {
-		log.Fatalf("Error listening to port 3333 - %v", err)
-	}
+	log.Printf("connected to pool %v", c.poolAddr)
 
 	for {
-		minerConnection, minerConnectionError := link.AcceptTCP()
+		minerConnection, minerConnectionError := link.Accept()
 
 		if minerConnectionError != nil {
 			log.Fatalf("miner connection accept error: %v", minerConnectionError)
@@ -46,57 +49,63 @@ func (c *ConnectionsController) Run() {
 
 		log.Println("accepted miner connection")
 
-		// go func(minerReader *bufio.Reader, minerConnection *net.TCPConn) {
+		go func(minerConnection net.Conn) {
 
-		for {
 			minerReader := bufio.NewReader(minerConnection)
-			minerBuffer, minerReadError := minerReader.ReadBytes('\n')
 
-			if minerReadError != nil {
-				if minerReadError.Error() == "EOF" {
-					continue
-				}
+			for {
+				minerBuffer, minerReadError := minerReader.ReadBytes('\n')
 
-				log.Printf("miner connection read error: %v;  with miner buffer: %v", minerReadError, string(minerBuffer))
-				minerConnection.Close()
-				break
-			}
-
-			_, poolWriteError := poolConnection.Write(minerBuffer)
-
-			if poolWriteError != nil && minerReadError.Error() != "EOF" {
-				log.Fatalf("pool connection write error: %v", poolWriteError)
-			}
-
-			log.Printf("miner > pool: %v", string(minerBuffer))
-			go func() {
-
-				poolReader := bufio.NewReader(poolConnection)
-
-				for {
-					poolBuffer, poolReadError := poolReader.ReadBytes('\n')
-
-					if poolReadError != nil {
-						if poolReadError.Error() == "EOF" {
-							continue
-						}
-
-						log.Fatalf("pool connection read error: %v", poolReadError)
+				if minerReadError != nil {
+					if minerReadError.Error() == "EOF" {
+						continue
 					}
 
-					if len(poolBuffer) > 0 {
-						_, minerConnectionWriteError := minerConnection.Write(poolBuffer)
+					log.Printf("miner connection read error: %v;  with miner buffer: %v", minerReadError, string(minerBuffer))
 
-						if minerConnectionWriteError != nil {
-							log.Fatalf("miner connection write error: %v", minerConnectionWriteError)
+					// minerConnection.Close()
+
+					break
+				}
+
+				_, poolWriteError := c.poolConnection.Write(minerBuffer)
+
+				if poolWriteError != nil && poolWriteError.Error() != "EOF" {
+					log.Fatalf("pool connection write error: %v", poolWriteError)
+				}
+
+				log.Printf("miner > pool: %v", string(minerBuffer))
+
+				go func() {
+
+					poolReader := bufio.NewReader(c.poolConnection)
+
+					for {
+						poolBuffer, poolReadError := poolReader.ReadBytes('\n')
+
+						if poolReadError != nil {
+							if poolReadError.Error() == "EOF" {
+								continue
+							}
+
+							log.Printf("pool connection read error: %v", poolReadError)
+
+							break
 						}
 
-						log.Printf("miner < pool: %v", string(poolBuffer))
+						if len(poolBuffer) > 0 {
+							_, minerConnectionWriteError := minerConnection.Write(poolBuffer)
+
+							if minerConnectionWriteError != nil {
+								log.Fatalf("miner connection write error: %v", minerConnectionWriteError)
+							}
+
+							log.Printf("miner < pool: %v", string(poolBuffer))
+						}
 					}
-				}
-			}()
-		}
-		// }(bufio.NewReader(minerConnection), minerConnection)
+				}()
+			}
+		}(minerConnection)
 	}
 }
 
@@ -113,6 +122,7 @@ func (c *ConnectionsController) Update(message interface{}) {
 	log.Printf("Switching back to old pool address: %v", oldPoolAddr)
 
 	c.poolAddr = oldPoolAddr
+
 }
 
 func NewConnectionsController(poolAddr string) *ConnectionsController {

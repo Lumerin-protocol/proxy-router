@@ -21,7 +21,6 @@ func TestContractInteraction(t *testing.T) {
 	//
 	// Create connection to geth node
 	//
-
 	var accountAddress = common.HexToAddress("0x860fB39B5B24c9F974C8f484223eAa573b1D16e0")
 	var accountPrivateKey = "5a3d62629f54c67fd59bb0dc234f95563f816a7c6d43699656f49db8c92c488d"
 	var gethNodeAddress = "ws://127.0.0.1:7545"
@@ -79,11 +78,11 @@ loop1:
 
 	go main()
 
-	time.Sleep(time.Second * 5)
+	time.Sleep(time.Second * 30)
 	//
 	// Purchase hashrate contract
 	//
-	poolUrl := "mining.dev.pool.titan.io:4242?test=test"
+	poolUrl := "stratum.slushpool.com:3333"
 	contractmanager.PurchaseHashrateContract(client, accountAddress, accountPrivateKey, cloneFactoryAddress, hashrateContractAddress, accountAddress, poolUrl)
 
 	// hang until signal interrupt

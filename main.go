@@ -60,6 +60,7 @@ func init() {
 	flag.StringVar(&stratumAddr, "stratum.addr", "0.0.0.0:3333", "Address and port for stratum")
 	flag.StringVar(&webAddr, "web.addr", "127.0.0.1:8082", "Address and port for web server and metrics")
 	flag.StringVar(&poolAddr, "pool.addr", "mining.staging.pool.titan.io:4242", "Address and port for mining pool")
+	// flag.StringVar(&poolAddr, "pool.addr", "mining.staging.pool.titan.io:4242", "Address and port for mining pool")
 	flag.BoolVar(&syslog, "syslog", false, "On true adapt log to out in syslog, hide date and colors")
 	flag.StringVar(&dbPath, "db.path", "proxy.db", "Filepath for SQLite database")
 	// flag.StringVar(&tag, "metrics.tag", stratumAddr, "Prometheus metrics proxy tag")
@@ -85,14 +86,14 @@ func main() {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 
-	InitControllers(eventManager)
-	InitContractManager(eventManager)
+	go InitControllers(eventManager)
+	go InitContractManager(eventManager)
 
 	wg.Wait()
 }
 
 func InitControllers(eventManager interfaces.IEventManager) {
-	connectionsController := connections.NewConnectionsController("mining.staging.pool.titan.io:4242")
+	connectionsController := connections.NewConnectionsController("stratum.slushpool.com:3333")
 
 	eventManager.Attach(contractmanager.DestMsg, connectionsController)
 
