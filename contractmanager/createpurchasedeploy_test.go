@@ -9,13 +9,13 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-var accountAddress = common.HexToAddress("0x620aC5f3DE8F33B71302Ef73F8Baf34619dd6643")
-var accountPrivateKey = "c30698f013d4ea14e8db1ae975411a0bbb627e853c58a9c14f1cab36967fe827"
+var accountAddress = common.HexToAddress("0x860fB39B5B24c9F974C8f484223eAa573b1D16e0")
+var accountPrivateKey = "5a3d62629f54c67fd59bb0dc234f95563f816a7c6d43699656f49db8c92c488d"
 var gethNodeAddress = "ws://127.0.0.1:7545"
 
-var clonefactoryAddress = common.HexToAddress("0xEA3C21BF6aE276B8d084E79D6Ef45d8BfE1ce7B3")
+var clonefactoryAddress common.Address // = common.HexToAddress("0xEA3C21BF6aE276B8d084E79D6Ef45d8BfE1ce7B3")
 
-var hashrateContractAddress = common.HexToAddress("0x3ED63115D92a95538EB111D32f07Ef80C455e12b")
+var hashrateContractAddress common.Address //= common.HexToAddress("0x3ED63115D92a95538EB111D32f07Ef80C455e12b")
 var poolUrl = "stratum+tcp://stratum.slushpool.com:3333"
 
 func TestHashrateContractCreation(t *testing.T) {
