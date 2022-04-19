@@ -2,9 +2,11 @@ package connections
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"time"
 
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
@@ -18,6 +20,7 @@ type ConnectionsController struct {
 	miningRequestProcessor interfaces.IMiningRequestProcessor
 	poolConnection         net.Conn
 	poolAddr               string
+	connections            []*ConnectionInfo
 }
 
 func (c *ConnectionsController) Run() {
@@ -99,7 +102,6 @@ func (c *ConnectionsController) Run() {
 
 						poolMessage := c.miningRequestProcessor.ProcessPoolMessage(poolBuffer)
 						_, minerConnectionWriteError := minerConnection.Write(poolMessage)
-						// _, minerConnectionWriteError := minerConnection.Write(poolBuffer)
 
 						if minerConnectionWriteError != nil {
 							log.Printf("miner connection write error: %v", minerConnectionWriteError)
@@ -110,7 +112,8 @@ func (c *ConnectionsController) Run() {
 						}
 
 						log.Printf("miner < pool: %v", string(poolMessage))
-						// log.Printf("miner < pool: %v", string(poolBuffer))
+
+						c.updateConnectionStatus(minerConnection)
 					}
 				}()
 			}
@@ -128,6 +131,23 @@ func (c *ConnectionsController) connectToPool() {
 	}
 
 	log.Printf("connected to pool %v", c.poolAddr)
+	c.createConnection(poolConnection)
+}
+
+func (c *ConnectionsController) updateConnectionStatus(workerConnection net.Conn) {
+	connection := c.connections[0]
+	connection.IpAddress = workerConnection.RemoteAddr().String()
+	connection.Status = "Running"
+}
+
+func (c *ConnectionsController) createConnection(poolConnection net.Conn) {
+	c.connections = []*ConnectionInfo{
+		{
+			Id:            "1",
+			SocketAddress: poolConnection.RemoteAddr().String(),
+			Status:        "Available",
+		},
+	}
 }
 
 func (c *ConnectionsController) Update(message interface{}) {
@@ -146,6 +166,41 @@ func (c *ConnectionsController) Update(message interface{}) {
 
 }
 
+func (c *ConnectionsController) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+	connectionsResponse, err := json.Marshal(c.connections)
+
+	if err != nil {
+		log.Printf("API /connections error: Failed to marshal connections to json byte array; %v", "", err)
+	}
+	w.Write(connectionsResponse)
+}
+
+// func BuildConnectionInfo(worker *Worker) *ConnectionInfo {
+// 	status := "Running"
+
+// 	if worker.pool.client == nil {
+// 		status = "Available"
+// 	}
+
+// 	return &ConnectionInfo{
+// 		Id:            worker.id,
+// 		IpAddress:     worker.addr,
+// 		Status:        status,
+// 		SocketAddress: worker.pool.addr,
+// 	}
+// }
+
 func NewConnectionsController(poolAddr string, miningRequestProcessor interfaces.IMiningRequestProcessor) *ConnectionsController {
-	return &ConnectionsController{poolAddr: poolAddr, miningRequestProcessor: miningRequestProcessor}
+	return &ConnectionsController{poolAddr: poolAddr, miningRequestProcessor: miningRequestProcessor, connections: []*ConnectionInfo{}}
+}
+
+type ConnectionInfo struct {
+	Id            string
+	IpAddress     string `json:"ipAddress"`
+	Status        string `json:"status"`
+	SocketAddress string `json:"socketAddress"`
+	Total         string `json:"total"`
+	Accepted      string `json:"accepted"`
+	Rejected      string `json:"rejected"`
 }
