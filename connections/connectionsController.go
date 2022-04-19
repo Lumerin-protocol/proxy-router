@@ -108,7 +108,7 @@ func (c *ConnectionsController) Run() {
 
 							defer minerConnection.Close()
 
-							continue
+							break
 						}
 
 						log.Printf("miner < pool: %v", string(poolMessage))
