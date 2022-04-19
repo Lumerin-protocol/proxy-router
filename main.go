@@ -8,13 +8,16 @@ import (
 	"context"
 	"flag"
 	"log"
+	"os"
 	"regexp"
 	"sync"
 
+	dotenv "github.com/joho/godotenv"
 	"gitlab.com/TitanInd/hashrouter/connections"
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
 	"gitlab.com/TitanInd/hashrouter/events"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/mining"
 )
 
 /*
@@ -74,7 +77,7 @@ func init() {
 Main function.
 */
 func main() {
-
+	dotenv.Load(".env")
 	flag.Parse()
 
 	if syslog {
@@ -93,9 +96,12 @@ func main() {
 }
 
 func InitControllers(eventManager interfaces.IEventManager) {
-	connectionsController := connections.NewConnectionsController("stratum.slushpool.com:3333")
+	miningController := &mining.MiningController{}
+	connectionsController := connections.NewConnectionsController(os.Getenv("DEFAULT_POOL_ADDRESS"), miningController)
 
+	miningController.SetAuth(os.Getenv("DEFAULT_POOL_USER"), os.Getenv("DEFAULT_POOL_PASSWORD"))
 	eventManager.Attach(contractmanager.DestMsg, connectionsController)
+	eventManager.Attach(contractmanager.DestMsg, miningController)
 
 	connectionsController.Run()
 }

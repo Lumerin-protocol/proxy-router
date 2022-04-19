@@ -135,14 +135,6 @@ const (
 	LogMsg                   string = "LogMsg"
 )
 
-type ContractMsgHandler struct{}
-
-func (c *ContractMsgHandler) Update(eventState interface{}) {
-
-}
-
-var contractMsgHandler = &ContractMsgHandler{}
-
 func Run(ctx *context.Context, contractManager *SellerContractManager, eventManager i.IEventManager, contractAddr string, ethNodeAddr string) (err error) {
 	contractManagerCtx, _ := context.WithCancel(*ctx)
 

@@ -2,89 +2,58 @@ package mining
 
 import (
 	"encoding/json"
-	"fmt"
+	"strings"
 )
 
-type MiningMessage struct {
-	rawMessage     string
-	messagePayload *MiningMethodCallPayload
+type MiningMessageBase struct {
+	Id     int           `json:"id"`
+	Method string        `json:"method"`
+	Params []interface{} `json:"params"`
 }
 
-func (m *MiningMessage) UnmarshalJSON(buf []byte) (err error) {
+func CreateMinerMessage(messageRaw []byte) (*MiningMessageBase, error) {
+	message := &MiningMessageBase{}
 
-	m.rawMessage = string(buf)
-	m.messagePayload, err = unMarshalEmbedded(buf)
+	err := json.Unmarshal(messageRaw, message)
 
-	if err != nil {
-		return fmt.Errorf("MiningMessage.UnmarshalJSON Failed to unmarshal MiningMessage.messagePayload from byte array - Inner Exception: %w", err)
+	return message, err
+}
+
+func (m *MiningMessageBase) Process() ([]byte, error) {
+	return cleanJson(json.Marshal(m))
+}
+
+func (m *MiningMessageBase) ProcessMessage(user string, password string) ([]byte, error) {
+
+	switch m.Method {
+
+	case "mining.authorize":
+		message := &MiningAuthorizeMethodCallPayload{MiningMessageBase: *m, userParam: user, passwordParam: password}
+		return message.Process()
+
+	case "mining.submit":
+		message := &MiningSubmitMethodCallPayload{MiningMessageBase: *m, userParam: user}
+		return message.Process()
 	}
 
-	return nil
+	return m.Process()
 }
 
-type TMiningMethodCallPayload interface {
-	MiningSubscribeMethodCallPayload | MiningAuthorizeMethodCallPayload
-}
+func unMarshalEmbedded(buf []byte) (*MiningMessageBase, error) {
 
-type miningMethodCallPayload struct {
-	Id     int      `json:"id"`
-	Method string   `json:"method"`
-	Params []string `json:"params"`
-}
-
-type MiningMethodCallPayload struct {
-	miningMethodCallPayload
-}
-
-func unMarshalEmbedded(buf []byte) (*MiningMethodCallPayload, error) {
-	tempPayload := &MiningMethodCallPayload{}
-	err := json.Unmarshal(buf, &tempPayload.miningMethodCallPayload)
+	tempPayload := &MiningMessageBase{}
+	err := json.Unmarshal(buf, tempPayload)
 
 	return tempPayload, err
 }
 
-type MiningSubscribeMethodCallPayload struct {
-	// MiningMethodCallPayload
-	workerNameParam   string
-	workerNumberParam int
-}
-
-// func (m *MiningSubscribeMethodCallPayload) UnmarshalJSON(buf []byte) (err error) {
-// 	return jsonToMiningMethodCallPayload(buf, &m.MiningMethodCallPayload, []interface{}{&m.workerNameParam, &m.workerNumberParam})
-// }
-
-type MiningAuthorizeMethodCallPayload struct {
-	// MiningMethodCallPayload
-	userParam     string
-	passwordParam string
-}
-
-// func (m *MiningAuthorizeMethodCallPayload) UnmarshalJSON(buf []byte) (err error) {
-// 	return jsonToMiningMethodCallPayload(buf, &m.MiningMethodCallPayload, []interface{}{&m.userParam, &m.passwordParam})
-// }
-
-// type MiningSubmitMethodCallPayload struct {
-// 	MiningMethodCallPayload
-// 	userParam   string
-// 	workIdParam string
-// }
-
-// func (m *MiningSubmitMethodCallPayload) UnmarshalJSON(buf []byte) (err error) {
-// 	return jsonToMiningMethodCallPayload(buf, &m.MiningMethodCallPayload, []interface{}{&m.userParam, &m.workIdParam})
-// }
-
-func jsonToMiningMethodCallPayload(buf []byte, instance *MiningMethodCallPayload, params interface{}) (err error) {
-	instance, err = unMarshalEmbedded(buf)
+func cleanJson(buf []byte, err error) ([]byte, error) {
 
 	if err != nil {
-		return err
+		return buf, err
 	}
 
-	if err := json.Unmarshal(buf, params); err != nil {
-		return err
-	}
-
-	return nil
+	return []byte(strings.ReplaceAll(strings.ReplaceAll(string(buf), ":", ": "), ",", ", ") + "\n"), nil
 }
 
 // authorize message payload {"id": 47, "method": "mining.authorize", "params": ["lumrrin.workername", ""]}

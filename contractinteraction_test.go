@@ -78,7 +78,7 @@ loop1:
 
 	go main()
 
-	time.Sleep(time.Second * 30)
+	<-time.After(time.Second * 60)
 	//
 	// Purchase hashrate contract
 	//
