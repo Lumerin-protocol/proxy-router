@@ -55,7 +55,7 @@ func (c *ConnectionsController) Run() {
 
 				if minerReadError != nil {
 
-					log.Printf("miner connection read error: %v;  with miner buffer: %v", minerReadError, string(minerBuffer))
+					log.Printf("miner connection read error: %v;  with miner buffer: %v; address: %v", minerReadError, string(minerBuffer), minerConnection.RemoteAddr().String())
 
 					defer minerConnection.Close()
 
@@ -113,7 +113,7 @@ func (c *ConnectionsController) Run() {
 
 						log.Printf("miner < pool: %v", string(poolMessage))
 
-						c.updateConnectionStatus(minerConnection)
+						c.updateConnectionStatusToConnected(minerConnection)
 					}
 				}()
 			}
@@ -131,16 +131,22 @@ func (c *ConnectionsController) connectToPool() {
 	}
 
 	log.Printf("connected to pool %v", c.poolAddr)
-	c.createConnection(poolConnection)
+	c.setConnection(poolConnection)
 }
 
-func (c *ConnectionsController) updateConnectionStatus(workerConnection net.Conn) {
+func (c *ConnectionsController) updateConnectionStatusToConnected(workerConnection net.Conn) {
 	connection := c.connections[0]
 	connection.IpAddress = workerConnection.RemoteAddr().String()
 	connection.Status = "Running"
 }
 
-func (c *ConnectionsController) createConnection(poolConnection net.Conn) {
+func (c *ConnectionsController) updateConnectionStatusToDisconnected(workerConnection net.Conn) {
+	connection := c.connections[0]
+	connection.IpAddress = workerConnection.RemoteAddr().String()
+	connection.Status = "Running"
+}
+
+func (c *ConnectionsController) setConnection(poolConnection net.Conn) {
 	c.connections = []*ConnectionInfo{
 		{
 			Id:            "1",

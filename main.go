@@ -93,11 +93,6 @@ func main() {
 	go InitControllers(eventManager)
 	go InitContractManager(eventManager)
 
-	go func() {
-		if err := http.ListenAndServe(webAddr, nil); err != nil {
-			log.Fatalf("Web address listening at 8080 has suffered a fatal error: %v", err)
-		}
-	}()
 	wg.Wait()
 }
 
@@ -109,9 +104,16 @@ func InitControllers(eventManager interfaces.IEventManager) {
 	eventManager.Attach(contractmanager.DestMsg, connectionsController)
 	eventManager.Attach(contractmanager.DestMsg, miningController)
 
-	connectionsController.Run()
+	go connectionsController.Run()
 
 	http.Handle("/connections", connectionsController)
+
+	go func() {
+		log.Printf("Listening for api requests at %v", webAddr)
+		if err := http.ListenAndServe(webAddr, nil); err != nil {
+			log.Fatalf("Web address listening at %v has suffered a fatal error: %v", webAddr, err)
+		}
+	}()
 }
 
 func InitContractManager(eventManager interfaces.IEventManager) {

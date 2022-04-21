@@ -151,6 +151,7 @@ func Run(ctx *context.Context, contractManager *SellerContractManager, eventMana
 }
 
 func (seller *SellerContractManager) init(ctx *context.Context, ethNodeAddr string, eventManager i.IEventManager) (err error) {
+
 	// func (seller *SellerContractManager) init(ctx *context.Context, contractManagerConfigID IDString, nodeOperatorMsg *NodeOperator) (err error) {
 	seller.ctx = *ctx
 	// cs := contextlib.GetContextStruct(seller.ctx)
