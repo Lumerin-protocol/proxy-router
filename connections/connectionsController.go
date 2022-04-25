@@ -134,14 +134,6 @@ func (c *ConnectionsController) connectToPool() {
 		log.Fatalf("pool connect error;  failed to parse url: % v; %v", uri, err)
 	}
 
-	if uri.Host == "" {
-		uri, err = url.ParseRequestURI(c.poolAddr)
-
-		if err != nil {
-			log.Fatalf("pool connect error;  failed to parse request uri: % v; %v", uri, err)
-		}
-	}
-
 	log.Printf("Dialing pool at %v", uri)
 	poolConnection, poolConnectionError := net.DialTimeout("tcp", uri.String(), 30*time.Second)
 
