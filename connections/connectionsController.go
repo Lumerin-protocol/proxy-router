@@ -130,12 +130,16 @@ func (c *ConnectionsController) connectToPool() {
 
 	uri, err := url.Parse(c.poolAddr)
 
+	if uri.Scheme != "" {
+		c.poolAddr = fmt.Sprintf("%v%v", uri.Host, uri.Path)
+	}
+
 	if err != nil {
 		log.Fatalf("pool connect error;  failed to parse url: % v; %v", uri, err)
 	}
 
 	log.Printf("Dialing pool at %v", uri)
-	poolConnection, poolConnectionError := net.DialTimeout("tcp", uri.String(), 30*time.Second)
+	poolConnection, poolConnectionError := net.DialTimeout("tcp", c.poolAddr, 30*time.Second)
 
 	c.poolConnection = poolConnection
 
