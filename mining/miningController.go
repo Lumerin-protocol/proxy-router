@@ -16,13 +16,15 @@ func (m *MiningController) ProcessMiningMessage(messageRaw []byte) []byte {
 	message, err := CreateMinerMessage(messageRaw)
 
 	if err != nil {
-		log.Fatalf("Failed to process miner message - failed to create model from byte array - %v - %v", string(messageRaw), err)
+		log.Printf("Failed to process miner message - failed to create model from byte array - %v - %v", string(messageRaw), err)
+		return messageRaw
 	}
 
 	result, err := message.ProcessMessage(m.user, m.password)
 
 	if err != nil {
-		log.Fatalf("Failed to process miner message - failed to create byte array from model - %v", err)
+		log.Printf("Failed to process miner message - failed to create byte array from model - %v", err)
+		return messageRaw
 	}
 
 	return result

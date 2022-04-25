@@ -13,7 +13,7 @@ import (
 	"regexp"
 	"sync"
 
-	dotenv "github.com/joho/godotenv"
+	"github.com/joho/godotenv"
 	"gitlab.com/TitanInd/hashrouter/connections"
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
 	"gitlab.com/TitanInd/hashrouter/events"
@@ -60,16 +60,16 @@ var (
 )
 
 func init() {
-	// godotenv.Load(".env")
+	godotenv.Load(".env")
 	flag.StringVar(&stratumAddr, "stratum.addr", "0.0.0.0:3333", "Address and port for stratum")
-	flag.StringVar(&webAddr, "web.addr", "127.0.0.1:8082", "Address and port for web server and metrics")
+	flag.StringVar(&webAddr, "web.addr", "127.0.0.1:8080", "Address and port for web server and metrics")
 	flag.StringVar(&poolAddr, "pool.addr", "mining.staging.pool.titan.io:4242", "Address and port for mining pool")
 	// flag.StringVar(&poolAddr, "pool.addr", "mining.staging.pool.titan.io:4242", "Address and port for mining pool")
 	flag.BoolVar(&syslog, "syslog", false, "On true adapt log to out in syslog, hide date and colors")
 	flag.StringVar(&dbPath, "db.path", "proxy.db", "Filepath for SQLite database")
 	// flag.StringVar(&tag, "metrics.tag", stratumAddr, "Prometheus metrics proxy tag")
-	flag.StringVar(&hashrateContract, "contract.addr", "", "Address of smart contract that node is servicing")
-	flag.StringVar(&ethNodeAddr, "ethNode.addr", "", "Address of Ethereum RPC node to connect to via websocket")
+	flag.StringVar(&hashrateContract, "contract.addr", os.Getenv("DEFAULT_CONTRACT_ADDRESS"), "Address of smart contract that node is servicing")
+	flag.StringVar(&ethNodeAddr, "ethNode.addr", os.Getenv("DEFAULT_EHTHEREUM_NODE_ADDRESS"), "Address of Ethereum RPC node to connect to via websocket")
 
 	// fmt.Println("listening on  socket...", "")
 }
@@ -78,7 +78,6 @@ func init() {
 Main function.
 */
 func main() {
-	dotenv.Load(".env")
 	flag.Parse()
 
 	if syslog {

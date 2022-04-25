@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
@@ -19,6 +20,7 @@ type ConnectionsController struct {
 
 	miningRequestProcessor interfaces.IMiningRequestProcessor
 	poolConnection         net.Conn
+	minerConnections       []net.Conn
 	poolAddr               string
 	connections            []*ConnectionInfo
 }
@@ -38,6 +40,7 @@ func (c *ConnectionsController) Run() {
 
 	for {
 		minerConnection, minerConnectionError := link.Accept()
+		c.minerConnections = append(c.minerConnections, minerConnection)
 
 		if minerConnectionError != nil {
 			log.Fatalf("miner connection accept error: %v", minerConnectionError)
@@ -58,6 +61,7 @@ func (c *ConnectionsController) Run() {
 					log.Printf("miner connection read error: %v;  with miner buffer: %v; address: %v", minerReadError, string(minerBuffer), minerConnection.RemoteAddr().String())
 
 					defer minerConnection.Close()
+					c.minerConnections = removeIt(minerConnection, c.minerConnections)
 
 					break
 				}
@@ -107,6 +111,7 @@ func (c *ConnectionsController) Run() {
 							log.Printf("miner connection write error: %v", minerConnectionWriteError)
 
 							defer minerConnection.Close()
+							c.minerConnections = removeIt(minerConnection, c.minerConnections)
 
 							break
 						}
@@ -122,7 +127,14 @@ func (c *ConnectionsController) Run() {
 }
 
 func (c *ConnectionsController) connectToPool() {
-	poolConnection, poolConnectionError := net.DialTimeout("tcp", c.poolAddr, 30*time.Second)
+
+	uri, err := url.Parse(c.poolAddr)
+
+	if err != nil {
+		log.Fatalf("pool connect error;  failed to parse url: % v; %v", uri, err)
+	}
+
+	poolConnection, poolConnectionError := net.DialTimeout("tcp", fmt.Sprintf("%v%v", uri.Host, uri.Path), 30*time.Second)
 
 	c.poolConnection = poolConnection
 
@@ -132,8 +144,17 @@ func (c *ConnectionsController) connectToPool() {
 
 	log.Printf("connected to pool %v", c.poolAddr)
 	c.setConnection(poolConnection)
+
+	c.resetMinerConnections()
 }
 
+func (c *ConnectionsController) resetMinerConnections() {
+	for _, connection := range c.minerConnections {
+		connection.Close()
+	}
+
+	c.minerConnections = []net.Conn{}
+}
 func (c *ConnectionsController) updateConnectionStatusToConnected(workerConnection net.Conn) {
 	connection := c.connections[0]
 	connection.IpAddress = workerConnection.RemoteAddr().String()
@@ -143,7 +164,7 @@ func (c *ConnectionsController) updateConnectionStatusToConnected(workerConnecti
 func (c *ConnectionsController) updateConnectionStatusToDisconnected(workerConnection net.Conn) {
 	connection := c.connections[0]
 	connection.IpAddress = workerConnection.RemoteAddr().String()
-	connection.Status = "Running"
+	connection.Status = "Available"
 }
 
 func (c *ConnectionsController) setConnection(poolConnection net.Conn) {
@@ -164,12 +185,15 @@ func (c *ConnectionsController) Update(message interface{}) {
 
 	log.Printf("Switching to new pool address: %v", destinationMessage.NetUrl)
 
+	c.connectToPool()
+
 	<-time.After(1 * time.Minute)
 
 	log.Printf("Switching back to old pool address: %v", oldPoolAddr)
 
 	c.poolAddr = oldPoolAddr
 
+	c.connectToPool()
 }
 
 func (c *ConnectionsController) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -198,7 +222,7 @@ func (c *ConnectionsController) ServeHTTP(w http.ResponseWriter, r *http.Request
 // }
 
 func NewConnectionsController(poolAddr string, miningRequestProcessor interfaces.IMiningRequestProcessor) *ConnectionsController {
-	return &ConnectionsController{poolAddr: poolAddr, miningRequestProcessor: miningRequestProcessor, connections: []*ConnectionInfo{}}
+	return &ConnectionsController{poolAddr: poolAddr, miningRequestProcessor: miningRequestProcessor, connections: []*ConnectionInfo{}, minerConnections: []net.Conn{}}
 }
 
 type ConnectionInfo struct {
@@ -209,4 +233,13 @@ type ConnectionInfo struct {
 	Total         string `json:"total"`
 	Accepted      string `json:"accepted"`
 	Rejected      string `json:"rejected"`
+}
+
+func removeIt(ss net.Conn, ssSlice []net.Conn) []net.Conn {
+	for idx, v := range ssSlice {
+		if v == ss {
+			return append(ssSlice[0:idx], ssSlice[idx+1:]...)
+		}
+	}
+	return ssSlice
 }
