@@ -130,7 +130,7 @@ func (c *ConnectionsController) connectToPool() {
 
 	uri, err := url.Parse(c.poolAddr)
 
-	if uri.Scheme != "" {
+	if uri.Scheme != "" && uri.Host != "" {
 		c.poolAddr = fmt.Sprintf("%v%v", uri.Host, uri.Path)
 	}
 
