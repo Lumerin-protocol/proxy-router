@@ -1,0 +1,122 @@
+[2021-08-31 05:28:28] > {"id": 1, "method": "mining.subscribe", "params": ["cpuminer/2.5.1"]}
+[2021-08-31 05:28:28] < {"result":[[["mining.notify","612df442"]],"42f42d61",8],"id":1,"error":null}
+[2021-08-31 05:28:28] Stratum session id: 612df442
+
+[2021-08-31 05:28:28] > {"id": 2, "method": "mining.authorize", "params": ["testrig", ""]}
+
+[2021-08-31 05:28:28] < {"params":[42],"id":null,"method":"mining.set_difficulty"}
+[2021-08-31 05:28:28] Stratum difficulty set to 42
+[2021-08-31 05:28:28] < {"params":["612df43b00000010","73bdbe81e219715e489947cdad13ae5035bfcb9e0000dcd90000000000000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff36031aa80a000439f62d61049ae5f3000c","0a636b706f6f6c122f6d696e6564206279204c756d6572696e2fffffffff03d7ab4225000000001976a91422ddd9233f44ac2e9f183ec755adf134c12cdbf188ac0000000000000000266a24aa21a9ed46f35ebe6b0d5c8226ff125effa91be4cbb637fc452dfd0a95139d5ce18f9ce1daee2f00000000001976a91422ddd9233f44ac2e9f183ec755adf134c12cdbf188ac00000000",["4c69c93636b92a1b533833b884f0ad7c503bf77364b45ed506b0c1a34d497275","8128e9dec6c369248b546b98fdfca56b6cb76657e5c60066ad0b87dfcfabf057","32cf06b876bbc3d91c03b6258a679bfa83591787d3c48ece94927bba13cc982b","37792610fd9ad40c1270b5c234bf30b12f2f23c33c2dea2f7a22705541313975","0b2b30e42707ebd92717806809e01ca58caed2aeeefa25f1683e77e7f7115513","c084c1efc77ed9a3f43b61022c8b461eb4ad1118bbee7534f48ae98e538b8b33","fdea984b577071caf3e2e72a65d06d29ebe7590b57118143158e2754e99ea554","516d3fdc95307ae347cdaca2d19f2f3526ce70b5f84797eff9fb0170bfaeeef5","cc6c0f851b0b7919f9f2e836d547de7e7f16c8c3a53641e8d82e29f5955222e0","62c415ab7f09a46e8bc91456601ca00202ce335b149af5a8f812fb1248e88a9f","37f5f5a80f020d76c1345abb71c94753bca9600989ac6e683daa76cc17cf30f2"],"20000000","170ffaa0","612df637",true],"id":null,"method":"mining.notify"}
+[2021-08-31 05:28:28] < {"result":true,"error":null,"id":2}
+
+[2021-08-31 05:28:28] DEBUG: job_id='612df43b00000010' extranonce2=0000000000000000 ntime=612df637
+[2021-08-31 05:28:28] Stratum requested work restart
+
+
+
+#1 Subscribe
+> {"id": 1, "method": "mining.subscribe", "params": ["cpuminer/2.5.1"]}
+{
+   "id":1,
+   "method":"mining.subscribe",
+   "params":[
+      "cpuminer/2.5.1"
+   ]
+}
+< {"result":[[["mining.notify","61320eae"]],"ae0e3261",8],"id":1,"error":null}
+{
+   "result":[
+      [
+         [
+            "mining.notify",
+            "61320eae"
+         ]
+      ],
+      "ae0e3261",
+      8
+   ],
+   "id":1,
+   "error":null
+}
+
+
+#2 authorize
+> {"id": 2, "method": "mining.authorize", "params": ["testrig", ""]}
+{
+   "id":2,
+   "method":"mining.authorize",
+   "params":[
+      "testrig",
+      ""
+   ]
+}
+
+Notify: mining_setdificulty
+< {"params":[32],"id":null,"method":"mining.set_difficulty"}
+{
+   "params":[
+      32
+   ],
+   "id":null,
+   "method":"mining.set_difficulty"
+}
+Stratum difficulty set to 32
+
+Notify: "mining_notify"
+< {"params":["61320eab00000002","eb512fe8d37a95d03fafdffa404fddd564bc4fd5000c59800000000000000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff3603d2a90a0004e40e32610403d805010c","0a636b706f6f6c122f6d696e6564206279204c756d6572696e2fffffffff039091db25000000001976a91422ddd9233f44ac2e9f183ec755adf134c12cdbf188ac0000000000000000266a24aa21a9ed36fe9adfaa9dcd43c35dffc071078b381e81364f36ed6dc2dfb1bfe003b2cc3f8bb33000000000001976a91422ddd9233f44ac2e9f183ec755adf134c12cdbf188ac00000000",["3a5ec2dee1ee13d4819a33c2150a37d6df088249b56d25b653d76e77417d4b9b","eb3dfaf01e8858723c60c2cbb0a0461a63b715ca4bcd2ea5905672479d7cc9aa","7acd7e6f55a523fbd8ecb9519d25895226c049e948f64ffb7ae4bab292f3413f","1f36a5790e8914017ab135c5dcba1e36871418042693827c3e408d2a9707dd4b","7839928bfce353867386a72385797a2f07c839c47d5f02237f968f0495d45dd9","5ca3dfa427ee11c4dd0aaabe08de8cdd4101cebf053dd4df3b42f687a9641203","31c6ade9ed2b0adaef1931ce483878141271df93e8ea5f38bd4190675d20b3c5","e079e090bf0547159ac7ede01fc7f5a456a6ce286c37c37f9625833da10f05ba","a22c1e535f22d435c00027c8d028d93f26c98f558d9a0dc01dec81fe2eae0da0","7daafea5b4dc0eb3eeec496a29d7107d57f7b6de8bea17990e5254c7553ce365","7fd0247e230781826bd397295f7470d27b06e82eb3a05f87d7e51d63ac84efa0"],"20000000","170ffaa0","61320ee2",true],"id":null,"method":"mining.notify"}
+{
+   "params":[
+      "61320eab00000002",
+      "eb512fe8d37a95d03fafdffa404fddd564bc4fd5000c59800000000000000000",
+      "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff3603d2a90a0004e40e32610403d805010c",
+      "0a636b706f6f6c122f6d696e6564206279204c756d6572696e2fffffffff039091db25000000001976a91422ddd9233f44ac2e9f183ec755adf134c12cdbf188ac0000000000000000266a24aa21a9ed36fe9adfaa9dcd43c35dffc071078b381e81364f36ed6dc2dfb1bfe003b2cc3f8bb33000000000001976a91422ddd9233f44ac2e9f183ec755adf134c12cdbf188ac00000000",
+      [
+         "3a5ec2dee1ee13d4819a33c2150a37d6df088249b56d25b653d76e77417d4b9b",
+         "eb3dfaf01e8858723c60c2cbb0a0461a63b715ca4bcd2ea5905672479d7cc9aa",
+         "7acd7e6f55a523fbd8ecb9519d25895226c049e948f64ffb7ae4bab292f3413f",
+         "1f36a5790e8914017ab135c5dcba1e36871418042693827c3e408d2a9707dd4b",
+         "7839928bfce353867386a72385797a2f07c839c47d5f02237f968f0495d45dd9",
+         "5ca3dfa427ee11c4dd0aaabe08de8cdd4101cebf053dd4df3b42f687a9641203",
+         "31c6ade9ed2b0adaef1931ce483878141271df93e8ea5f38bd4190675d20b3c5",
+         "e079e090bf0547159ac7ede01fc7f5a456a6ce286c37c37f9625833da10f05ba",
+         "a22c1e535f22d435c00027c8d028d93f26c98f558d9a0dc01dec81fe2eae0da0",
+         "7daafea5b4dc0eb3eeec496a29d7107d57f7b6de8bea17990e5254c7553ce365",
+         "7fd0247e230781826bd397295f7470d27b06e82eb3a05f87d7e51d63ac84efa0"
+      ],
+      "20000000",
+      "170ffaa0",
+      "61320ee2",
+      true
+   ],
+   "id":null,
+   "method":"mining.notify"
+}
+#2
+< {"result":true,"error":null,"id":2}
+{
+   "result":true,
+   "error":null,
+   "id":2
+}
+#3 ??
+
+#4 mining.submit
+> {"method": "mining.submit", "params": ["testrig", "61320eab00000002", "0000000000000000", "61320ee2", "b6810280"], "id":4}
+{
+   "method":"mining.submit",
+   "params":[
+      "testrig",
+      "61320eab00000002",
+      "0000000000000000",
+      "61320ee2",
+      "b6810280"
+   ],
+   "id":4
+}
+< {"reject-reason":"Above target","result":false,"error":null,"id":4}
+{
+   "reject-reason":"Above target",
+   "result":false,
+   "error":null,
+   "id":4
+}

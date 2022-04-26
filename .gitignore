@@ -1,0 +1,25 @@
+
+# Builds
+/bin
+.DS_Store
+/cmd/cmd
+*go.mod
+*json
+*txt
+lumerin
+
+# Mac OS
+.DS_Store
+
+*.env
+*.environment
+
+# editors
+.vscode
+.idea
+
+# Lumerin config
+ropstenconfig.json
+lumerinconfig.json
+ganacheconfig.json
+*.log
