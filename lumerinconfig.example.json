@@ -1,0 +1,42 @@
+{
+    "version": 1,
+
+    "config": {
+        "buyerNode": false
+    },
+
+    "connection": {
+        "disable": false,
+        "disableStratumv1": false,
+        "listenIP": "127.0.0.1",
+        "listenPort": "3333",
+        "defaultPoolAddr": "stratum+tcp://127.0.0.1:33334/"
+    },
+
+    "schedule": {
+        "disable": false,
+        "passthrough": false
+    },
+
+    "contract": {
+        "disable": false,
+        "mnemonic": "YOUR MNEMONIC GOES HERE --- ADD TO GITIGNORE BEFORE PUSHING TO A PUBLIC REPOSITORY",
+        "accountIndex": 0,
+        "ethNodeAddr": "ws://127.0.0.1:7545",
+        "claimFunds": true,
+        "timeThreshold": 10,
+        "cloneFactoryAddress": "0x15BdE7774F4A69A7d1fdb66CE94CDF26FCd8F45e",
+        "lumerinTokenAddress": "0x84E00a18a36dFa31560aC216da1A9bef2164647D",
+        "validatorAddress": "0x508CD3988E2b4B8f1d243b961a855347349f6F63"
+    },
+
+    "api": {
+        "disable": false,
+        "port": "8080"
+    },
+
+    "logging": {
+        "level": 4,
+        "filePath": "/tmp/lumerin1.log"
+    }
+}
