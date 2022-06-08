@@ -52,6 +52,9 @@ var defaultOutput = os.Stdout
 func New() *Logger {
 	l := logrus.New()
 	l.SetOutput(defaultOutput)
+	l.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: true,
+	})
 
 	return &Logger{
 		l,

@@ -303,10 +303,11 @@ func (svs *StratumV1Struct) handleMsgUnpublishEvent(event *simple.SimpleMsgBusEv
 	contextlib.Logf(svs.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" Called")
 
 	switch event.Msg {
+	case simple.MinerMsg:
+		contextlib.Logf(svs.Ctx(), contextlib.LevelInfo, lumerinlib.FileLineFunc()+" Miner Record:%s:%s", event.EventType, event.ID)
 	default:
 		contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Unknown event message:%s:%s", event.EventType, event.ID)
 	}
-
 }
 
 //

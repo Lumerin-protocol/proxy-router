@@ -263,7 +263,14 @@ FORLOOP:
 		count, e := l.Read(data)
 		data = data[:count]
 
+		//
+		// If there is an error from the Read, deal with it here
+		//
 		if e != nil {
+
+			//
+			// Notate the error Here
+			//
 			switch e {
 			case io.EOF:
 				contextlib.Logf(cs.ctx, contextlib.LevelInfo, fmt.Sprintf(lumerinlib.FileLineFunc()+" %s Read() index:%d returned EOF", name, index))
@@ -273,11 +280,11 @@ FORLOOP:
 				contextlib.Logf(cs.ctx, contextlib.LevelError, fmt.Sprintf(lumerinlib.FileLineFunc()+" %s Read() on index:%d returned error:%s", name, index, e))
 			}
 
-			// Src closed = shutdown the whole shebang
-			// if Dst closed pass the error up
+			// Src closed = shutdown the whole shebang and pass the error up the stack
+			// if Dst closed pass the error up the stack
+			// index = -1 (SRC) index >= 0 (DST)
 			if index < 0 {
-				cs.Close()
-				break FORLOOP
+				e = ErrConnMgrClosed
 			} else {
 				e = ErrConnDstClosed
 			}
@@ -302,12 +309,12 @@ FORLOOP:
 		}
 	}
 
+	// Something errored or closed, so call close to be sure nothing is hanging
+	contextlib.Logf(cs.ctx, contextlib.LevelTrace, fmt.Sprintf(lumerinlib.FileLineFunc()+" %s UID:%d Exiting", name, index))
+
 	if index < 0 {
 		cs.Close()
 	}
-
-	// Something errored or closed, so call close to be sure nothing is hanging
-	contextlib.Logf(cs.ctx, contextlib.LevelTrace, fmt.Sprintf(lumerinlib.FileLineFunc()+" %s UID:%d Exiting", name, index))
 
 }
 

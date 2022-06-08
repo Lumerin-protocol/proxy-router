@@ -71,7 +71,7 @@ func TestConnMgr(t *testing.T) {
 	// Setup MsgBus
 	//
 	//ps := msgbus.New(10, l)
-	ps := msgbus.New(10, nil)
+	ps := msgbus.New(10, l)
 
 	mainContext := context.Background()
 

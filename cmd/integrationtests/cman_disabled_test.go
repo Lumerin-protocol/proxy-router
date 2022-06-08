@@ -13,6 +13,7 @@ import (
 
 	"gitlab.com/TitanInd/lumerin/cmd/connectionscheduler"
 	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
+	"gitlab.com/TitanInd/lumerin/cmd/log"
 	"gitlab.com/TitanInd/lumerin/connections"
 	"gitlab.com/TitanInd/lumerin/cmd/protocol/stratumv1"
 	"gitlab.com/TitanInd/lumerin/lumerinlib"
@@ -163,7 +164,8 @@ func TestDisabled(t *testing.T) {
 
 	var sleepTime time.Duration = 10 * time.Second
 
-	ps := msgbus.New(10, nil)
+	l := log.New()
+	ps := msgbus.New(10, l)
 
 	defaultDestID := DisabledSimMain(ps, configs)
 
@@ -244,7 +246,7 @@ func TestDisabled(t *testing.T) {
 	miners, _ = ps.MinerGetAllWait()
 	for _, v := range miners {
 		miner, _ := ps.MinerGetWait(msgbus.MinerID(v))
-		if !miner.Contracts["ContractID01"] || miner.Dest != targetDest.ID {
+		if _,ok := miner.Contracts["ContractID01"]; !ok || miner.Dest != targetDest.ID {
 			t.Errorf("Miner contract and dest not set correctly")
 		}
 	}
@@ -299,13 +301,13 @@ func TestDisabled(t *testing.T) {
 		minersArr = append(minersArr, *miner)
 	}
 
-	if !minersArr[0].Contracts["ContractID01"] && miner.Dest != targetDest.ID {
+	if _,ok := minersArr[0].Contracts["ContractID01"]; !ok && miner.Dest != targetDest.ID {
 		t.Errorf("Miner 1 contract and dest not set correctly")
 	}
-	if !minersArr[1].Contracts["ContractID02"] && miner.Dest != targetDest2.ID {
+	if _,ok := minersArr[1].Contracts["ContractID02"]; !ok && miner.Dest != targetDest2.ID {
 		t.Errorf("Miner 2 contract and dest not set correctly")
 	}
-	if !minersArr[2].Contracts["ContractID03"] && miner.Dest != targetDest2.ID {
+	if _,ok := minersArr[2].Contracts["ContractID03"]; !ok && miner.Dest != targetDest2.ID {
 		t.Errorf("Miner 3 contract and dest not set correctly")
 	}
 

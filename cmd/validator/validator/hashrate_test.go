@@ -7,11 +7,13 @@ import(
 	"fmt"
 
 	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
+	"gitlab.com/TitanInd/lumerin/cmd/log"
 	contextlib "gitlab.com/TitanInd/lumerin/lumerinlib/context"
 )
 
 func TestHashrate(t *testing.T) {
-	ps := msgbus.New(10, nil)
+	l := log.New()
+	ps := msgbus.New(10, l)
 
 	defaultpooladdr := "stratum+tcp://127.0.0.1:33334/"
 	defaultDest := msgbus.Dest{
@@ -36,7 +38,7 @@ func TestHashrate(t *testing.T) {
 		CurrentHashRate:      0,
 		State:                msgbus.OnlineState,
 		Dest:                 defaultDest.ID,
-		Contracts: 			  make(map[msgbus.ContractID]bool),	
+		Contracts: 			  make(map[msgbus.ContractID]float64),	
 	}
 	miner2 := msgbus.Miner{
 		ID:                   msgbus.MinerID("MinerID02"),
@@ -44,7 +46,7 @@ func TestHashrate(t *testing.T) {
 		CurrentHashRate:      0,
 		State:                msgbus.OnlineState,
 		Dest:                 defaultDest.ID,
-		Contracts: 			  make(map[msgbus.ContractID]bool),	
+		Contracts: 			  make(map[msgbus.ContractID]float64),	
 	}
 	miner3 := msgbus.Miner{
 		ID:                   msgbus.MinerID("MinerID03"),
@@ -52,7 +54,7 @@ func TestHashrate(t *testing.T) {
 		CurrentHashRate:      0,
 		State:                msgbus.OnlineState,
 		Dest:                 defaultDest.ID,
-		Contracts: 			  make(map[msgbus.ContractID]bool),	
+		Contracts: 			  make(map[msgbus.ContractID]float64),	
 	}
 	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner.ID), miner)
 	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner2.ID), miner2)
@@ -135,7 +137,7 @@ func TestHashrate(t *testing.T) {
 	notifyGen2s := [3]string{"5f546974616e2e696f5fffffffff0247953d26000000001976a914288913831abe556f331ed13f73c98126f7a03a7588ac0000000000000000266a24aa21a9ed96534de5e5fcddf2860d91401338b407be05094d29778ad9f3113c1a3d13ff9c00000000", "5f546974616e2e696f5fffffffff0236d94226000000001976a914288913831abe556f331ed13f73c98126f7a03a7588ac0000000000000000266a24aa21a9ed050f8413de5f3275dcc6705c123af22dde01508831fc34c2936ca1549283250c00000000", "5f546974616e2e696f5fffffffff02de1a4826000000001976a914288913831abe556f331ed13f73c98126f7a03a7588ac0000000000000000266a24aa21a9edbc839b3065fd92f12c559f1800244f5532afb0e11db84fbe3e8801ce372a48b900000000"}
 	notifyMerkless := [][]interface{}{{"dd8452432335af3ed3fc0f05713a66e82e20371b0ee34b269f47155014d825c5","118a329a1d4455ddb98907045e5cbf7c5015c0d0f1239ff67eb44703c731cee1","f74f37f9ef87eaf474767bbf28cdd74f9af8698299f433b8b35368378578178b","cc74d73de09e0c405c1768efa3117cac67f6450d930ec773c37ba5881f43a36a","2b264b87d1c9c3632e583ca05af81f311d43ca2a0e2dee070965577bd84b8276","a5f69ee2f635c8a0a034fc1300ab588b8ab103d6c530e57a602d195c012d07d3","428b99f9860efc0c39873f4e654f5a08d74a0d880698526ace13906e30329236","ca64a7e8892ccba4145bbe40aeaecc35d4b02eb0fc1d90bc4e0fb60b6aa84c77","f98d67e0a826cdb1ad7c542922792c5bef43cfb10bea6725b139060d211fcb91","0ff1acba2d0a8ac624b0c2b1577a19d5344a06c4c528f895ebd72c28ebb69d58","7817abd43474b4dbf702167676020a2f34c79a31c6d285943bd70617f56bcbb7"},
 	{"dd8452432335af3ed3fc0f05713a66e82e20371b0ee34b269f47155014d825c5","118a329a1d4455ddb98907045e5cbf7c5015c0d0f1239ff67eb44703c731cee1","f74f37f9ef87eaf474767bbf28cdd74f9af8698299f433b8b35368378578178b","cc74d73de09e0c405c1768efa3117cac67f6450d930ec773c37ba5881f43a36a","8d213def94c673bc8559a2aafc580d8791ccdd3200a6618569f49b7563a47bb4","6fbb06074fad7921afd284c7a6b721df6ce67996b500186382f6b56c3b8d8ca7","dd4b547d6acc835244010bba91cb071d39c12eb9f9fb21c1d8f881125ff0e29c","e8fef97dee58968910b7c16364238f8118031b0826a3aff7940b5455989f530c","06561b286dac7144c5f8f5c97b154572a2bfe15d70cdaba8485bbdce92156b9a","b62142c70208eb01b060446d58fd69f92b4812e085a5c35bca1e7fc95b126aa7","9dc2c631246a453e61c18422148fc4ac9bf627b09db1e95d3fcbf9e610b7849e"},
-	{"9533d69c1f998f31a4111892e31789587c7c730aff9b6df10f80a2085f84277e","542fc015cd88514b933d637290c84d37fbdad62373a27108f3a378656d9a302e","e90e5deb1bfc01549ba3df32620457203c167d637122274d1122fff144a268d4","2e62f2fbbc6114c31d6f7679a87863f91279d2979122a928f6c63282229811f1","a25f0657130532193f1b8f0f84ebf6e8574a3ee6532bacb254c1faff2f89e06b","ba8429ce07e2486b96f1466703940893c789c44b72daa340a4f97a7e30650542","98281d658ace8d4808164db9cd8fbf623160273c30b589e300d33eb5ba63f249","894683c961f32adaab68110fe8149a3b5c2c19bfd027d9a4a0cf579dacc7fa7d","c95e1f0ce91a93d41a9a094071e04007eb56bcda114e0ecc09b58032d0f88102","a6ae2ad41ced116c26cae2f7ff28c436b479dcdfb4159a7206d68cada960ac14","033730dc20535745dec00d6c9f631496b262f63460a5fecb1c26e9cf8d58b510"}}
+	{}}//{"9533d69c1f998f31a4111892e31789587c7c730aff9b6df10f80a2085f84277e","542fc015cd88514b933d637290c84d37fbdad62373a27108f3a378656d9a302e","e90e5deb1bfc01549ba3df32620457203c167d637122274d1122fff144a268d4","2e62f2fbbc6114c31d6f7679a87863f91279d2979122a928f6c63282229811f1","a25f0657130532193f1b8f0f84ebf6e8574a3ee6532bacb254c1faff2f89e06b","ba8429ce07e2486b96f1466703940893c789c44b72daa340a4f97a7e30650542","98281d658ace8d4808164db9cd8fbf623160273c30b589e300d33eb5ba63f249","894683c961f32adaab68110fe8149a3b5c2c19bfd027d9a4a0cf579dacc7fa7d","c95e1f0ce91a93d41a9a094071e04007eb56bcda114e0ecc09b58032d0f88102","a6ae2ad41ced116c26cae2f7ff28c436b479dcdfb4159a7206d68cada960ac14","033730dc20535745dec00d6c9f631496b262f63460a5fecb1c26e9cf8d58b510"}}
 	notifyVersions := [3]string{"20000000","20000000","20000000"}
 	notifyNbitss := [3]string{"170901ba","170901ba","170901ba"}
 	notifyNtimes := [3]string{"62817ca5" ,"62817ce1","62817d1d"}

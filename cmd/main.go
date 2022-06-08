@@ -11,12 +11,12 @@ import (
 
 	"gitlab.com/TitanInd/lumerin/cmd/config"
 	"gitlab.com/TitanInd/lumerin/cmd/connectionscheduler"
-	"gitlab.com/TitanInd/lumerin/cmd/validator/validator"
 	"gitlab.com/TitanInd/lumerin/cmd/contractmanager"
 	"gitlab.com/TitanInd/lumerin/cmd/externalapi"
 	"gitlab.com/TitanInd/lumerin/cmd/log"
 	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
 	"gitlab.com/TitanInd/lumerin/cmd/protocol/stratumv1"
+	"gitlab.com/TitanInd/lumerin/cmd/validator/validator"
 	"gitlab.com/TitanInd/lumerin/connections"
 	"gitlab.com/TitanInd/lumerin/lumerinlib"
 	contextlib "gitlab.com/TitanInd/lumerin/lumerinlib/context"
@@ -39,6 +39,7 @@ func main() {
 	l := log.New()
 
 	configs := config.ReadConfigs()
+	l.SetLevel(log.Level(configs.LogLevel))
 
 	logFile, err := os.OpenFile(configs.LogFilePath, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0666)
 	if err != nil {
@@ -71,7 +72,7 @@ func main() {
 	//
 	// the proro argument (#1) gets set in the Protocol sus-system
 	//
-	cs := contextlib.NewContextStruct(nil, ps, nil, src, dst)
+	cs := contextlib.NewContextStruct(nil, ps, l, src, dst)
 
 	//
 	// All of the various needed subsystem values get passed into the context here.
@@ -122,7 +123,7 @@ func main() {
 			lumerinlib.PanicHere("")
 		}
 
-		fmt.Printf("Listening for stratum messages on %v\n\n", src.String())
+		l.Logf(log.LevelInfo, "Listening for stratum messages on %v\n\n", src.String())
 
 		stratum, err := stratumv1.NewListener(mainContext, src, dest)
 		scheduler := configs.Scheduler
@@ -211,7 +212,7 @@ func main() {
 
 	select {
 	case <-sigInt:
-		fmt.Println("Signal Interupt: Cancelling all contexts and shuting down program")
+		l.Logf(log.LevelWarn, "Signal Interupt: Cancelling all contexts and shuting down program")
 		mainCancel()
 	case <-mainContext.Done():
 		time.Sleep(time.Second * 5)

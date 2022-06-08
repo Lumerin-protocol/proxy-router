@@ -244,10 +244,16 @@ func (v *MainValidator) validateHandler(ch msgbus.EventChan) {
 						merkelBranchesStr = append(merkelBranchesStr, m.(string))
 					}
 
-					merkelRoot, err := ConvertMerkleBranchesToRoot(merkelBranchesStr)
-					if err != nil {
-						contextlib.Logf(v.Ctx, log.LevelPanic, "Failed to convert merkel branches to merkel root, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+					merkelRootStr := ""
+					if len(merkelBranchesStr) != 0 {
+						merkelRoot, err := ConvertMerkleBranchesToRoot(merkelBranchesStr)
+						if err != nil {
+							contextlib.Logf(v.Ctx, log.LevelPanic, "Failed to convert merkel branches to merkel root, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+						}
+						merkelRootStr = merkelRoot.String()
 					}
+					
+
 					// Version:           "00000002",                                                         //bitcoin difficulty big endian
 					// PreviousBlockHash: "000000000000000067ecc744b5ae34eebbde14d21ca4db51652e4d67e155f07e", //big-endian expected
 					// MerkleRoot:        "915c887a2d9ec3f566a648bedcf4ed30d0988e22268cfe43ab5b0cf8638999d3", //big-endian expected
@@ -257,7 +263,7 @@ func (v *MainValidator) validateHandler(ch msgbus.EventChan) {
 					blockHeader := ConvertBlockHeaderToString(BlockHeader{
 						Version:           version,
 						PreviousBlockHash: previousBlockHash,
-						MerkleRoot:        merkelRoot.String(),
+						MerkleRoot:        merkelRootStr,
 						Time:              time,
 						Difficulty:        nBits,
 					})
@@ -282,7 +288,7 @@ func (v *MainValidator) validateHandler(ch msgbus.EventChan) {
 						updateMessage.Message = ConvertMessageToString(UpdateBlockHeader{
 							Version:           version,
 							PreviousBlockHash: previousBlockHash,
-							MerkleRoot:        merkelRoot.String(),
+							MerkleRoot:        merkelRootStr,
 							Time:              time,
 							Difficulty:        nBits,
 						})

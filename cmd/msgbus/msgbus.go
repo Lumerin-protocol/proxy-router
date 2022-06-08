@@ -152,7 +152,6 @@ func New(capacity int, l *log.Logger) *PubSub {
 		requestIDChan: make(chan int),
 		logger:        l,
 	}
-
 	go ps.start()
 
 	return ps
@@ -879,8 +878,7 @@ func (ps *PubSub) start() {
 
 loop:
 	for cmdptr := range ps.cmdChan {
-
-		fmt.Printf("MSGBUS: %+v\n", *cmdptr)
+		ps.logger.Logf(log.LevelInfo, "MSGBUS: %+v", *cmdptr)
 
 		if cmdptr.op == opNop {
 			continue loop

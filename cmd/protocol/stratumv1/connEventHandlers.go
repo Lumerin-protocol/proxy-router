@@ -658,10 +658,10 @@ func (svs *StratumV1Struct) handleSrcReqConfigure(request *stratumRequest) (e er
 	switch state {
 	case SrcStateNew:
 		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Got Configure")
-		return ErrBadSrcState
+		// return ErrBadSrcState
 	case SrcStateSubscribed:
 		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Got Configure")
-		return ErrBadSrcState
+		// return ErrBadSrcState
 	case SrcStateAuthorized:
 	case SrcStateRunning:
 	default:

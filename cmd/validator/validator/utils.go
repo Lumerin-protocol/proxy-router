@@ -1,11 +1,14 @@
 package validator
 
-import "strings"
-import "math"
-import "strconv"
-import "encoding/json"
-import "github.com/btcsuite/btcd/chaincfg/chainhash"
-import "github.com/btcsuite/btcd/blockchain"
+import (
+	"encoding/json"
+	"math"
+	"strconv"
+	"strings"
+
+	"github.com/btcsuite/btcd/blockchain"
+	"github.com/btcsuite/btcd/chaincfg/chainhash"
+)
 
 //take in a string and return split to inclue the nonce and hash being submitted
 func ParseIncomingHash(message string) (uint, []byte) {
@@ -60,13 +63,16 @@ func nextPowerOfTwo(n int) int {
 }
 
 func ConvertMerkleBranchesToRoot(merkle_branches []string) (*chainhash.Hash, error) {
-
+	if len(merkle_branches) == 0 {
+		var zeroReturn *chainhash.Hash
+		return zeroReturn, nil
+	}
 
 	nextPOT := nextPowerOfTwo(len(merkle_branches))
-	arraySize := nextPOT*2-1
+	arraySize := nextPOT*2 - 1
 	merkle_branch_hashes := make([]*chainhash.Hash, arraySize)
 	for i, br := range merkle_branches {
-	//iterate through list of strings and convert each item to a chainhash.Hash
+		//iterate through list of strings and convert each item to a chainhash.Hash
 		c_hash, err := chainhash.NewHashFromStr(br)
 		if err != nil {
 			return nil, err
@@ -96,10 +102,7 @@ func ConvertMerkleBranchesToRoot(merkle_branches []string) (*chainhash.Hash, err
 		offset++
 	}
 
-	
-
 	//convert each chainhash.Hash to a wire.MsgTx
 
 	return merkle_branch_hashes[len(merkle_branch_hashes)-1], nil
-
 }

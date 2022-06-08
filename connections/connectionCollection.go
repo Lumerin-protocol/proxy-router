@@ -6,7 +6,6 @@ import (
 	"log"
 	"sync"
 
-	"github.com/beevik/guid"
 	"gitlab.com/TitanInd/lumerin/interfaces"
 )
 
@@ -43,20 +42,20 @@ func (m *ConnectionCollection) getCollectionItem(query func(interfaces.IConnecti
 		}
 	}
 
-	return nil, errors.New(fmt.Sprintf("Failed to retrieve connection from internal collection - ConnectionCollection.getCollectionItem"))
+	return nil, fmt.Errorf("failed to retrieve connection from internal collection - ConnectionCollection.getCollectionItem")
 }
 
-func (m *ConnectionCollection) CreateNewConnection(connectionAddress string, destinationAddress string, status string) interfaces.IConnectionModel {
+func (m *ConnectionCollection) CreateNewConnection(id string, connectionAddress string, destinationAddress string, status string) interfaces.IConnectionModel {
 	return &Connection{
-		Id:          guid.NewString(),
+		Id:          id,
 		Address:     connectionAddress,
 		Destination: destinationAddress,
 		isAvailable: false,
 	}
 }
 
-func (m *ConnectionCollection) AddConnection(connectionAddress string, destinationAddress string, status string, id string) (interfaces.IConnectionModel, error) {
-	model := m.CreateNewConnection(connectionAddress, destinationAddress, status)
+func (m *ConnectionCollection) AddConnection(id string, connectionAddress string, destinationAddress string, status string) (interfaces.IConnectionModel, error) {
+	model := m.CreateNewConnection(id, connectionAddress, destinationAddress, status)
 
 	collection, err := m.getCollection()
 
@@ -72,41 +71,22 @@ func (m *ConnectionCollection) AddConnection(connectionAddress string, destinati
 }
 
 func (m *ConnectionCollection) RemoveConnection(id string) error {
-	// collection, err := m.getCollection()
+	collection, err := m.getCollection()
 
-	// if err != nil {
-	// 	return err
-	// }
+	if err != nil {
+		return err
+	}
 
-	// newCollection := []interfaces.IConnectionModel{}
-
-	// for index, model := range collection {
-	// 	if model.GetId() == id {
-	// 		newCollection = append(newCollection[:index], collection[index+1:]...)
-	// 	}
-	// }
-
-	m.connections.Delete(id)
-
-	return nil
-}
-
-func (m *ConnectionCollection) GetOrAddConnection(connectionAddress string, destinationAddress string, status string, id string) (interfaces.IConnectionModel, error) {
-
-	connection, ok := m.connections.Load(id)
-
-	if !ok {
-		var err error
-		connection, err = m.AddConnection(connectionAddress, destinationAddress, status, id)
-
-		if err != nil {
-			log.Printf("Failed to get or add connection %v", id)
-
-			return connection.(interfaces.IConnectionModel), err
+	for index, model := range collection {
+		if model.GetId() == id {
+			collection = append(collection[:index], collection[index+1:]...)
 		}
 	}
 
-	return connection.(interfaces.IConnectionModel), nil
+	m.connections.Delete(id)
+	m.connections.Store("collection", collection)
+
+	return nil
 }
 
 func (m *ConnectionCollection) GetConnection(id string) interfaces.IConnectionModel {

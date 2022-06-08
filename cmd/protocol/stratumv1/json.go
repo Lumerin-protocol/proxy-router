@@ -359,6 +359,7 @@ func (r *stratumRequest) getID() (id int, err error) {
 	switch r.Method {
 	case string(CLIENT_MINING_AUTHORIZE):
 	case string(CLIENT_MINING_CAPABILITIES):
+	case string(CLIENT_MINING_CONFIGURE):
 	case string(CLIENT_MINING_EXTRANONCE):
 	case string(CLIENT_MINING_SUBMIT):
 	case string(CLIENT_MINING_SUBSCRIBE):
