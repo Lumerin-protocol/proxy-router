@@ -853,91 +853,124 @@ func (svs *StratumV1Struct) handleSrcReqExtranonce(request *stratumRequest) (e e
 	contextlib.Logf(svs.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" enter")
 
 	state := svs.GetSrcState()
-	// Validate the current sstate of the SRC connection
-	switch state {
-	case SrcStateNew:
-		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Got Configure")
-		return ErrBadSrcState
-	case SrcStateSubscribed:
-	case SrcStateAuthorized:
-	case SrcStateRunning:
-	default:
-		contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Src state:%s", state)
+
+	//	// Validate the current sstate of the SRC connection
+	//	switch state {
+	//	case SrcStateNew:
+	//		contextlib.Logf(svs.Ctx(), contextlib.LevelInfo, lumerinlib.FileLineFunc()+" Got Extranonce.Subscribe State:%s", state)
+	//		// return ErrBadSrcState
+	//	case SrcStateSubscribed:
+	//	case SrcStateAuthorized:
+	//	case SrcStateRunning:
+	//	default:
+	//		contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Src state:%s", state)
+	//	}
+
+	contextlib.Logf(svs.Ctx(), contextlib.LevelInfo, lumerinlib.FileLineFunc()+" Got Extranonce.Subscribe State:%s", state)
+
+	// Just return an acknoledgement....  we support this.
+
+	response := &stratumResponse{
+		ID:     request.ID,
+		Error:  nil,
+		Result: true,
+		Reject: nil,
 	}
 
-	//
-	// Get the current default route UID
-	//
-	uid, _ := svs.protocol.GetDefaultRouteUID()
-	if uid < 0 {
-		// Need to store this for later use
-		msg, e := request.createRequestMsg()
-		if e != nil {
-			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" createRequestMsg error:%s", e)
-			return e
-		}
-
-		LogJson(svs.Ctx(), lumerinlib.FileLineFunc(), JSON_STOR_SRC, msg)
-
-		svs.srcConfigure = request
-
-		response := &stratumResponse{
-			ID:     request.ID,
-			Error:  nil,
-			Result: nil,
-			Reject: nil,
-		}
-
-		respmsg, e := response.createSrcExtranonceResponseMsg()
-		if e != nil {
-			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" createResponsMsg() error:%s", e)
-			return e
-		}
-
-		LogJson(svs.Ctx(), lumerinlib.FileLineFunc(), JSON_SEND_STOR2SRC, respmsg)
-
-		count, e := svs.protocol.WriteSrc(respmsg)
-		if e != nil {
-			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write error:%s", e)
-			return e
-		}
-		if count != len(respmsg) {
-			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write bad count:%d, %d", count, len(msg))
-			e = fmt.Errorf(lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
-			return e
-		}
-
-		r := *request
-		svs.srcConfigure = &r
-
+	respmsg, e := response.createSrcExtranonceResponseMsg()
+	if e != nil {
+		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" createResponsMsg() error:%s", e)
 		return e
-	} else {
-
-		dstID := contextlib.GetDest(svs.Ctx())
-		if dstID == nil {
-			contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" GetDest() returned nil")
-		}
-
-		msg, e := request.createRequestMsg()
-		if e != nil {
-			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" createRequestMsg error:%s", e)
-			return e
-		}
-
-		LogJson(svs.Ctx(), lumerinlib.FileLineFunc(), JSON_SEND_SRC2DST, msg)
-		count, e := svs.protocol.Write(msg)
-		if e != nil {
-			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write error:%s", e)
-			return e
-		}
-		if count != len(msg) {
-			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write bad count:%d, %d", count, len(msg))
-			e = fmt.Errorf(lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
-			return e
-		}
-
 	}
+
+	LogJson(svs.Ctx(), lumerinlib.FileLineFunc(), JSON_SEND_STOR2SRC, respmsg)
+
+	count, e := svs.protocol.WriteSrc(respmsg)
+	if e != nil {
+		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write error:%s", e)
+		return e
+	}
+	if count != len(respmsg) {
+		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write bad count:%d, %d", count, len(respmsg))
+		e = fmt.Errorf(lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(respmsg))
+		return e
+	}
+
 	return e
+	//
+	//	//
+	//	// Get the current default route UID
+	//	//
+	//	uid, _ := svs.protocol.GetDefaultRouteUID()
+	//	if uid < 0 {
+	//		// Need to store this for later use
+	//		msg, e := request.createRequestMsg()
+	//		if e != nil {
+	//			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" createRequestMsg error:%s", e)
+	//			return e
+	//		}
+	//
+	//		LogJson(svs.Ctx(), lumerinlib.FileLineFunc(), JSON_STOR_SRC, msg)
+	//
+	//		svs.srcConfigure = request
+	//
+	//		response := &stratumResponse{
+	//			ID:     request.ID,
+	//			Error:  nil,
+	//			Result: nil,
+	//			Reject: nil,
+	//		}
+	//
+	//		respmsg, e := response.createSrcExtranonceResponseMsg()
+	//		if e != nil {
+	//			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" createResponsMsg() error:%s", e)
+	//			return e
+	//		}
+	//
+	//		LogJson(svs.Ctx(), lumerinlib.FileLineFunc(), JSON_SEND_STOR2SRC, respmsg)
+	//
+	//		count, e := svs.protocol.WriteSrc(respmsg)
+	//		if e != nil {
+	//			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write error:%s", e)
+	//			return e
+	//		}
+	//		if count != len(respmsg) {
+	//			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write bad count:%d, %d", count, len(msg))
+	//			e = fmt.Errorf(lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
+	//			return e
+	//		}
+	//
+	//		r := *request
+	//		svs.srcConfigure = &r
+	//
+	//		return e
+	//	} else {
+	//
+	//		dstID := contextlib.GetDest(svs.Ctx())
+	//		if dstID == nil {
+	//			contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" GetDest() returned nil")
+	//		}
+	//
+	//		msg, e := request.createRequestMsg()
+	//		if e != nil {
+	//			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" createRequestMsg error:%s", e)
+	//			return e
+	//		}
+	//
+	//		LogJson(svs.Ctx(), lumerinlib.FileLineFunc(), JSON_SEND_SRC2DST, msg)
+	//		count, e := svs.protocol.Write(msg)
+	//		if e != nil {
+	//			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write error:%s", e)
+	//			return e
+	//		}
+	//		if count != len(msg) {
+	//			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write bad count:%d, %d", count, len(msg))
+	//			e = fmt.Errorf(lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
+	//			return e
+	//		}
+	//
+	//	}
+	//	return e
 
 }
 
