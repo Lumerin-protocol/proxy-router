@@ -1089,15 +1089,19 @@ func (r *stratumResponse) createSrcSubscribeResponseMsg(id int) (msg []byte, err
 //------------------------------------------------------
 // createSrcConfigureResponseMsg
 //
+//	{\"id\":24,\"jsonrpc\":\"2.0\",\"result\":{ \"version-rolling\": true, \"version-rolling.mask\": \"1fffe000\" },\"error\":null}\n"
 //------------------------------------------------------
-func (r *stratumResponse) createSrcConfigureResponseMsg() (msg []byte, err error) {
+func (r *stratumResponse) createSrcConfigureResponseMsg(mask string, bitcount int) (msg []byte, err error) {
 
 	// Move this to JSON file
 
 	result := make(map[string]interface{})
-	result["minimum-difficulty"] = false
-	result["version-rolling"] = false
-	// result["version-rolling.mask"] = "0"
+
+	if mask != "" {
+		result["minimum-difficulty"] = bitcount
+		result["version-rolling"] = true
+		result["version-rolling.mask"] = mask
+	}
 
 	response := &stratumResponse{
 		ID:     r.ID,
