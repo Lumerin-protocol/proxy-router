@@ -6,24 +6,30 @@ import (
 )
 
 type ConfigRead struct {
+	AccountIndex        int
+	ApiPort             string
 	BuyerNode           bool
+	ClaimFunds          bool
+	CloneFactoryAddress string
+	DefaultPoolAddr     string
+	DisableApi          bool
 	DisableConnection   bool
+	DisableContract     bool
+	DisableSchedule     bool
 	DisableStratumv1    bool
+	DisableValidate     bool
+	EthNodeAddr         string
+	HashrateCalcLagTime int
 	ListenIP            string
 	ListenPort          string
-	DefaultPoolAddr     string
-	DisableSchedule     bool
-	SchedulePassthrough bool
-	HashrateCalcLagTime int
-	DisableValidate		bool
-	DisableContract     bool
-	Mnemonic            string
-	AccountIndex        int
-	EthNodeAddr         string
-	ClaimFunds          bool
-	TimeThreshold       int
-	CloneFactoryAddress string
+	LogFilePath         string
+	LogLevel            int
 	LumerinTokenAddress string
+	Mnemonic            string
+	ProxyAddress        string
+	SchedulePassthrough bool
+	Scheduler           string
+	TimeThreshold       int
 	ValidatorAddress    string
 	ProxyAddress        string
 	DisableApi          bool
