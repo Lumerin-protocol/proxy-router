@@ -1,17 +1,24 @@
 package externalapi
 
 import (
+	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc"
 
 	"gitlab.com/TitanInd/lumerin/cmd/externalapi/handlers"
 	"gitlab.com/TitanInd/lumerin/cmd/log"
 	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
 	"gitlab.com/TitanInd/lumerin/cmd/msgbus/msgdata"
 	"gitlab.com/TitanInd/lumerin/interfaces"
+
+	runtime "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+
+	configv1 "github.com/lsheva/lumerin-sdk-go/config/v1"
 )
 
 // api holds dependencies for an external API.
@@ -134,9 +141,47 @@ func (api *api) Run(ctx context.Context, port string, grpcAddress string, grpcWe
 		MaxHeaderBytes:    http.DefaultMaxHeaderBytes,
 	}
 
-	fmt.Printf("REST listening on port :%v\n", port)
+	grpcServer := grpc.NewServer([]grpc.ServerOption{}...)
+	httpMux := runtime.NewServeMux()
 
-	if err := server.ListenAndServe(); err != nil {
-		l.Logf(log.LevelError, "serving REST API: %v", err)
-	}
+	api.registerHandlers(context.Background(), grpcServer, httpMux)
+
+	// legacy http server
+	go func() {
+		l.Logf(log.LevelInfo, "REST listening on port: %v", port)
+		if err := server.ListenAndServe(); err != nil {
+			l.Logf(log.LevelError, "Error serving REST API: %v", err)
+		}
+	}()
+
+	// grpc server
+	go func() {
+		l.Logf(log.LevelInfo, "gRPC server is listening on %v", grpcAddress)
+		lis, err := net.Listen("tcp", grpcAddress)
+		if err != nil {
+			l.Logf(log.LevelError, "Error listening gRPC: %v", err)
+		}
+		if err := grpcServer.Serve(lis); err != nil {
+			l.Logf(log.LevelError, "Error serving gRPC: %v", err)
+		}
+	}()
+
+	// grpc-web http server mux
+	go func() {
+		l.Logf(log.LevelInfo, "gRPC-Web server mux is listening on %v", grpcWebPort)
+
+		if err := http.ListenAndServe(fmt.Sprintf(":%s", grpcWebPort), httpMux); err != nil {
+			l.Logf(log.LevelError, "Error serving gRPC: %v", err)
+		}
+	}()
+
+}
+
+func (api *api) registerHandlers(ctx context.Context, grpcServer grpc.ServiceRegistrar, httpMux *runtime.ServeMux) error {
+	configv1Server := handlers.NewConfigHandlers(api.configRepo)
+	// registers grpc api
+	configv1.RegisterConfigsServiceServer(grpcServer, configv1Server)
+
+	// registers rest api mux, according to grpc-web annotations
+	return configv1.RegisterConfigsServiceHandlerServer(ctx, httpMux, configv1Server)
 }
