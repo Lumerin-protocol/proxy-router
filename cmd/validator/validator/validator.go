@@ -217,7 +217,7 @@ func (v *MainValidator) validateHandler(ch msgbus.EventChan) {
 				case *msgbus.SetDifficulty:
 					contextlib.Logf(v.Ctx, log.LevelTrace, lumerinlib.Funcname()+" Got Set Difficulty Msg: %v", event)
 					setDifficultyMsg := validateMsg.Data.(*msgbus.SetDifficulty)
-					diffStr := strconv.Itoa(setDifficultyMsg.Diff + 570425344) // + 0x22000000
+					diffStr := strconv.Itoa(setDifficultyMsg.Diff) // + 0x22000000
 					diffEndian, _ := uintToLittleEndian(diffStr)
 					diffBigEndian := SwitchEndian(diffEndian)
 					v.MinerDiffs.Set(string(minerID), diffBigEndian)
