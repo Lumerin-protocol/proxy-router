@@ -42,6 +42,7 @@ const SrcStateError SrcState = "stateError"
 //
 const DstStateNew DstState = "stateNew"
 const DstStateOpen DstState = "stateOpen"
+const DstStateConfiguring DstState = "stateConfiguring" // Sent Configure
 const DstStateSubscribing DstState = "stateSubscribing" // Sent Subscribe
 const DstStateAuthorizing DstState = "stateAuthorizing" // Recieved Sub-response and Sent Authorize
 const DstStateRunning DstState = "stateRunning"         // Recieved Auth-response (there should only be one dst connection running at any time)
