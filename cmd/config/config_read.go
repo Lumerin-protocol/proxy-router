@@ -19,8 +19,6 @@ type ConfigRead struct {
 	DisableStratumv1    bool
 	DisableValidate     bool
 	EthNodeAddr         string
-	GRPCAddress         string
-	GRPCWebPort         string
 	HashrateCalcLagTime int
 	ListenIP            string
 	ListenPort          string
@@ -112,8 +110,6 @@ func ReadConfigs() (configs ConfigRead) {
 		}
 		configs.DisableApi = apiConfig["disable"].(bool)
 		configs.ApiPort = apiConfig["port"].(string)
-		configs.GRPCAddress = apiConfig["grpcAddress"].(string)
-		configs.GRPCWebPort = apiConfig["grpcWebPort"].(string)
 
 		//
 		// Logging Configs

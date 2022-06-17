@@ -3,11 +3,16 @@ package externalapi
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/http"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
+	"github.com/improbable-eng/grpc-web/go/grpcweb"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
 
 	"gitlab.com/TitanInd/lumerin/cmd/externalapi/handlers"
@@ -18,8 +23,14 @@ import (
 
 	runtime "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 
-	configv1 "github.com/lsheva/lumerin-sdk-go/config/v1"
+	configv1 "github.com/lsheva/lumerin-sdk-go/proto/config/v1"
+	contextlib "gitlab.com/TitanInd/lumerin/lumerinlib/context"
 )
+
+const ContentTypeHeader = "Content-Type"
+const ContentTypeApplicationGRPC = "application/grpc"
+
+var restApiMatcher = regexp.MustCompile(`^\/v\d+?\/`)
 
 // api holds dependencies for an external API.
 type api struct {
@@ -53,7 +64,7 @@ func New(ps *msgbus.PubSub, connectionCollection interfaces.IConnectionControlle
 }
 
 // Run will start up the API on the given port, with a given logger.
-func (api *api) Run(ctx context.Context, port string, grpcAddress string, grpcWebPort string, l *log.Logger) {
+func (api *api) Run(ctx context.Context, port string) {
 	go api.configRepo.SubscribeToConfigInfoMsgBus()
 	go api.contractManagerConfigRepo.SubscribeToContractManagerConfigMsgBus()
 	go api.connectionRepo.SubscribeToConnectionMsgBus()
@@ -63,6 +74,54 @@ func (api *api) Run(ctx context.Context, port string, grpcAddress string, grpcWe
 	go api.nodeOperatorRepo.SubscribeToNodeOperatorMsgBus()
 
 	time.Sleep(time.Millisecond * 2000)
+
+	api.registerLegacyHttpHandlers()
+
+	restMux := runtime.NewServeMux()
+	grpcServer := grpc.NewServer([]grpc.ServerOption{}...)
+	if err := api.registerHandlers(ctx, grpcServer, restMux); err != nil {
+		contextlib.Logf(ctx, log.LevelError, "Cannot register handlers: %v", err)
+	}
+
+	grpcWebServer := grpcweb.WrapServer(grpcServer, grpcweb.WithWebsockets(true))
+	httpsSrv := &http.Server{
+		// These interfere with websocket streams, disable for now
+		// ReadTimeout: 5 * time.Second,
+		// WriteTimeout: 10 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		Addr:              fmt.Sprintf("0.0.0.0:%s", port),
+		Handler:           h2c.NewHandler(api.universalHandler(grpcWebServer, restMux), &http2.Server{}),
+	}
+
+	err := httpsSrv.ListenAndServe()
+	if err != nil {
+		contextlib.Logf(ctx, log.LevelError, "Cannot start server: %v", err)
+	}
+}
+
+func (api *api) universalHandler(grpcSrv http.Handler, restSrv http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isGRPCRequest(r) || websocket.IsWebSocketUpgrade(r) {
+			// grpc and grpc-web api
+			grpcSrv.ServeHTTP(w, r)
+		} else if restApiMatcher.Match([]byte(r.URL.Path)) {
+			// new rest api
+			restSrv.ServeHTTP(w, r)
+		} else {
+			// old rest api
+			api.ServeHTTP(w, r)
+		}
+	})
+}
+
+func (api *api) registerHandlers(ctx context.Context, grpc grpc.ServiceRegistrar, rest *runtime.ServeMux) error {
+	configv1Mux := handlers.NewConfigHandlers(api.configRepo)
+	configv1.RegisterConfigsServiceServer(grpc, configv1Mux)
+	return configv1.RegisterConfigsServiceHandlerServer(ctx, rest, configv1Mux)
+}
+
+func (api *api) registerLegacyHttpHandlers() {
 
 	configRoutes := api.Group("/config")
 	{
@@ -131,57 +190,8 @@ func (api *api) Run(ctx context.Context, port string, grpcAddress string, grpcWe
 		nodeOperatorRoutes.PUT("/:id", handlers.NodeOperatorPUT(api.nodeOperatorRepo))
 		nodeOperatorRoutes.DELETE("/:id", handlers.NodeOperatorDELETE(api.nodeOperatorRepo))
 	}
-
-	server := &http.Server{
-		Addr:              fmt.Sprintf(":%s", port),
-		Handler:           api,
-		IdleTimeout:       20 * time.Second,
-		WriteTimeout:      60 * time.Second,
-		ReadHeaderTimeout: 20 * time.Second,
-		MaxHeaderBytes:    http.DefaultMaxHeaderBytes,
-	}
-
-	grpcServer := grpc.NewServer([]grpc.ServerOption{}...)
-	httpMux := runtime.NewServeMux()
-
-	api.registerHandlers(context.Background(), grpcServer, httpMux)
-
-	// legacy http server
-	go func() {
-		l.Logf(log.LevelInfo, "REST listening on port: %v", port)
-		if err := server.ListenAndServe(); err != nil {
-			l.Logf(log.LevelError, "Error serving REST API: %v", err)
-		}
-	}()
-
-	// grpc server
-	go func() {
-		l.Logf(log.LevelInfo, "gRPC server is listening on %v", grpcAddress)
-		lis, err := net.Listen("tcp", grpcAddress)
-		if err != nil {
-			l.Logf(log.LevelError, "Error listening gRPC: %v", err)
-		}
-		if err := grpcServer.Serve(lis); err != nil {
-			l.Logf(log.LevelError, "Error serving gRPC: %v", err)
-		}
-	}()
-
-	// grpc-web http server mux
-	go func() {
-		l.Logf(log.LevelInfo, "gRPC-Web server mux is listening on %v", grpcWebPort)
-
-		if err := http.ListenAndServe(fmt.Sprintf(":%s", grpcWebPort), httpMux); err != nil {
-			l.Logf(log.LevelError, "Error serving gRPC: %v", err)
-		}
-	}()
-
 }
 
-func (api *api) registerHandlers(ctx context.Context, grpcServer grpc.ServiceRegistrar, httpMux *runtime.ServeMux) error {
-	configv1Server := handlers.NewConfigHandlers(api.configRepo)
-	// registers grpc api
-	configv1.RegisterConfigsServiceServer(grpcServer, configv1Server)
-
-	// registers rest api mux, according to grpc-web annotations
-	return configv1.RegisterConfigsServiceHandlerServer(ctx, httpMux, configv1Server)
+func isGRPCRequest(r *http.Request) bool {
+	return strings.Contains(r.Header.Get(ContentTypeHeader), ContentTypeApplicationGRPC)
 }

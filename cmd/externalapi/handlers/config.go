@@ -5,7 +5,7 @@ import (
 	"errors"
 	"log"
 
-	configv1 "github.com/lsheva/lumerin-sdk-go/config/v1"
+	configv1 "github.com/lsheva/lumerin-sdk-go/proto/config/v1"
 	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
 	"gitlab.com/TitanInd/lumerin/cmd/msgbus/msgdata"
 )
