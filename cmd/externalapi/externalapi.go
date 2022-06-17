@@ -27,8 +27,10 @@ import (
 	contextlib "gitlab.com/TitanInd/lumerin/lumerinlib/context"
 )
 
-const ContentTypeHeader = "Content-Type"
+const HeaderContentType = "Content-Type"
+const HeaderAccessControlRequestHeaders = "Access-Control-Request-Headers"
 const ContentTypeApplicationGRPC = "application/grpc"
+const ContentTypeXGRPCWeb = "x-grpc-web"
 
 var restApiMatcher = regexp.MustCompile(`^\/v\d+?\/`)
 
@@ -83,7 +85,13 @@ func (api *api) Run(ctx context.Context, port string) {
 		contextlib.Logf(ctx, log.LevelError, "Cannot register handlers: %v", err)
 	}
 
-	grpcWebServer := grpcweb.WrapServer(grpcServer, grpcweb.WithWebsockets(true))
+	grpcWebServer := grpcweb.WrapServer(
+		grpcServer,
+		grpcweb.WithWebsockets(true),
+		grpcweb.WithOriginFunc(func(origin string) bool {
+			return true
+		}),
+	)
 	httpsSrv := &http.Server{
 		// These interfere with websocket streams, disable for now
 		// ReadTimeout: 5 * time.Second,
@@ -193,5 +201,6 @@ func (api *api) registerLegacyHttpHandlers() {
 }
 
 func isGRPCRequest(r *http.Request) bool {
-	return strings.Contains(r.Header.Get(ContentTypeHeader), ContentTypeApplicationGRPC)
+	return strings.Contains(r.Header.Get(HeaderContentType), ContentTypeApplicationGRPC) ||
+		strings.Contains(r.Header.Get(HeaderAccessControlRequestHeaders), ContentTypeXGRPCWeb)
 }
