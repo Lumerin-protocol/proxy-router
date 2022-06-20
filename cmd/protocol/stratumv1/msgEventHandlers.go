@@ -180,15 +180,16 @@ func (svs *StratumV1Struct) handleMsgGetEvent(event *simple.SimpleMsgBusEvent) {
 			// Fire up the default destination connction here
 			// If default is not already set, set it
 			var dest msgbus.Dest
-			switch event.Data.(type) {
+			switch data := event.Data.(type) {
 			case msgbus.Dest:
-				dest = event.Data.(msgbus.Dest)
+				dest = data
 			case *msgbus.Dest:
-				d := event.Data.(*msgbus.Dest)
+				d := data
 				if d == nil {
 					contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" DestMsg: is nil")
+				} else {
+					dest = *d
 				}
-				dest = *d
 			default:
 				contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" DestMsg: bad data:%t", event.Data)
 			}
