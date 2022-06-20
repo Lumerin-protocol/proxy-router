@@ -80,6 +80,7 @@ type StratumV1Struct struct {
 	dstLastSetDiff      map[simple.ConnUniqueID]int
 	dstLastMiningNotice map[simple.ConnUniqueID]*stratumNotice
 	dstLastReqNotify    map[simple.ConnUniqueID]*stratumRequest
+	dstLastSubmit       *stratumDstLastSubmitStruct
 	switchToDestID      msgbus.DestID
 
 	// Add in stratum state information here
@@ -248,6 +249,7 @@ func (s *StratumV1ListenStruct) Cancel() {
 //
 func NewStratumV1Struct(ctx context.Context, ps *protocol.ProtocolStruct, scheduler StratumConnectionScheduler) (n *StratumV1Struct) {
 	ctx, cancel := context.WithCancel(ctx)
+	_ = cancel
 	ds := make(map[simple.ConnUniqueID]DstState)
 	dd := make(map[simple.ConnUniqueID]*msgbus.Dest)
 	rd := make(map[simple.ConnUniqueID]int)
@@ -257,7 +259,7 @@ func NewStratumV1Struct(ctx context.Context, ps *protocol.ProtocolStruct, schedu
 	vm := make(map[simple.ConnUniqueID]string)
 	lmn := make(map[simple.ConnUniqueID]*stratumNotice)
 	lrn := make(map[simple.ConnUniqueID]*stratumRequest)
-	id := fmt.Sprintf("MinerID:%d", <-MinerCountChan)
+	dls := newDstLastSubmit(ctx)
 	defdest := contextlib.GetContextStruct(ctx).GetDest()
 	if defdest == nil {
 		contextlib.Logf(ctx, contextlib.LevelPanic, lumerinlib.FileLineFunc()+" GetDest() return nil")
@@ -277,8 +279,9 @@ func NewStratumV1Struct(ctx context.Context, ps *protocol.ProtocolStruct, schedu
 		contextlib.Logf(ctx, contextlib.LevelError, lumerinlib.FileLineFunc()+" strconv.Atoi() for str:%s error:%s", addrstr, e)
 	}
 
+	id := fmt.Sprintf("MinerID:%d", <-MinerCountChan)
 	miner := &msgbus.Miner{
-		ID:                      msgbus.MinerID(id),
+		ID:                      msgbus.MinerID(id), // Do this later when actual messages have been recieved
 		Name:                    "",
 		IP:                      ip,
 		Port:                    port,
@@ -310,6 +313,7 @@ func NewStratumV1Struct(ctx context.Context, ps *protocol.ProtocolStruct, schedu
 		dstVersionMask:      vm,
 		dstLastMiningNotice: lmn,
 		dstLastReqNotify:    lrn,
+		dstLastSubmit:       dls,
 		switchToDestID:      "",
 	}
 

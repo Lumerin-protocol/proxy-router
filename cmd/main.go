@@ -43,7 +43,8 @@ func main() {
 
 	logFile, err := os.OpenFile(configs.LogFilePath, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0666)
 	if err != nil {
-		l.Logf(log.LevelFatal, "error opening log file: %v", err)
+		l.Logf(log.LevelError, "error opening log file: %v", err)
+		return
 	}
 	defer logFile.Close()
 
@@ -89,10 +90,12 @@ func main() {
 
 	event, err := ps.PubWait(msgbus.DestMsg, msgbus.IDString(msgbus.DEFAULT_DEST_ID), dest)
 	if err != nil {
-		panic(fmt.Sprintf("Adding Default Dest Failed: %s", err))
+		l.Logf(log.LevelError, "Adding Default Dest Failed: %s", err)
+		return
 	}
 	if event.Err != nil {
-		panic(fmt.Sprintf("Adding Default Dest Failed: %s", event.Err))
+		l.Logf(log.LevelError, "Adding Default Dest Failed: %s", event.Err)
+		return
 	}
 
 	//
@@ -105,10 +108,12 @@ func main() {
 	}
 	event, err = ps.PubWait(msgbus.NodeOperatorMsg, msgbus.IDString(nodeOperator.ID), nodeOperator)
 	if err != nil {
-		panic(fmt.Sprintf("Adding Node Operator Failed: %s", err))
+		l.Logf(log.LevelError, "Adding Node Operator Failed: %s", err)
+		return
 	}
 	if event.Err != nil {
-		panic(fmt.Sprintf("Adding Node Operator Failed: %s", event.Err))
+		l.Logf(log.LevelError, "Adding Node Operator Failed: %s", event.Err)
+		return
 	}
 
 	//
@@ -120,12 +125,18 @@ func main() {
 
 		src, err := net.ResolveTCPAddr("tcp", listenAddress)
 		if err != nil {
-			lumerinlib.PanicHere("")
+			l.Logf(log.LevelError, "Unable to resolve TCP Addr: %s", listenAddress)
+			return
 		}
 
 		l.Logf(log.LevelInfo, "Listening for stratum messages on %v\n\n", src.String())
 
 		stratum, err := stratumv1.NewListener(mainContext, src, dest)
+		if err != nil {
+			l.Logf(log.LevelError, "NewListener Error: %s", err)
+			return
+		}
+
 		scheduler := configs.Scheduler
 		scheduler = strings.ToLower(scheduler)
 
@@ -135,11 +146,8 @@ func main() {
 		case "onsubmit":
 			stratum.SetScheduler(stratumv1.OnSubmit)
 		default:
-			l.Logf(log.LevelPanic, "Scheduler value: %s Not Supported", scheduler)
-		}
-
-		if err != nil {
-			panic(fmt.Sprintf("Stratum Protocol New() failed:%s", err))
+			l.Logf(log.LevelError, "Scheduler value: %s Not Supported", scheduler)
+			return
 		}
 
 		stratum.Run()

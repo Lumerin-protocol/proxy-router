@@ -275,7 +275,7 @@ FORLOOP:
 			case io.EOF:
 				contextlib.Logf(cs.ctx, contextlib.LevelInfo, fmt.Sprintf(lumerinlib.FileLineFunc()+" %s Read() index:%d returned EOF", name, index))
 			case lumerinconnection.ErrLumConSocketClosed:
-				contextlib.Logf(cs.ctx, contextlib.LevelInfo, fmt.Sprintf(lumerinlib.FileLineFunc()+" %s Read() index:%d returned %s", name, index, e))
+				contextlib.Logf(cs.ctx, contextlib.LevelTrace, fmt.Sprintf(lumerinlib.FileLineFunc()+" %s Read() index:%d returned %s", name, index, e))
 			default:
 				contextlib.Logf(cs.ctx, contextlib.LevelError, fmt.Sprintf(lumerinlib.FileLineFunc()+" %s Read() on index:%d returned error:%s", name, index, e))
 			}
