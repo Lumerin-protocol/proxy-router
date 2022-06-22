@@ -24,11 +24,28 @@ import (
 //
 //
 
+// func NewListen(ctx context.Context, addr net.Addr) (l *LumerinListenStruct, e error)
+// func (ll *LumerinListenStruct) Run()
+// func (ll *LumerinListenStruct) goListenAccept()
+// func (ll *LumerinListenStruct) GetAcceptChan() <-chan *LumerinSocketStruct
+// func (ll *LumerinListenStruct) Close() (e error)
+// func (ll *LumerinListenStruct) Cancel()
+// func (ll *LumerinListenStruct) Done() bool
+
+// func Dial(ctx context.Context, addr net.Addr) (lci *LumerinSocketStruct, e error)
+// func (l *LumerinSocketStruct) Read(buf []byte) (count int, e error)
+// func (l *LumerinSocketStruct) Write(buf []byte) (count int, e error)
+// func (l *LumerinSocketStruct) Status() (stat *LumerinConnectionStatusStruct, e error)
+// func (l *LumerinSocketStruct) Close() (e error)
+// func (l *LumerinSocketStruct) GetRemoteAddr() (addr net.Addr, e error)
+// func (l *LumerinSocketStruct) Cancel()
+// func (l *LumerinSocketStruct) Done() bool
+
 const LumerinAcceptChannelLen int = 2
 const LumerinReadChannelLen int = 10
 
-var ErrLumConListenClosed = errors.New("Lumerin Connection Listen Socket closed")
-var ErrLumConSocketClosed = errors.New("Lumerin Connection Listen Socket closed")
+var ErrLumConListenClosed = errors.New("lumerin connection listen closed")
+var ErrLumConSocketClosed = errors.New("lumerin connection socket closed")
 
 type LumProto string
 
@@ -98,6 +115,7 @@ func NewListen(ctx context.Context, addr net.Addr) (l *LumerinListenStruct, e er
 	contextlib.Logf(ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
 
 	ctx, cancel := context.WithCancel(ctx)
+	_ = cancel
 
 	proto := addr.Network()
 	ipaddr := addr.String()
