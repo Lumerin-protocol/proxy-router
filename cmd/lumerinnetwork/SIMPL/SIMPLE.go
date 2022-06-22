@@ -15,6 +15,49 @@ import (
 	contextlib "gitlab.com/TitanInd/lumerin/lumerinlib/context"
 )
 
+// func (s *SimpleConnReadEvent) UniqueID() ConnUniqueID
+// func (s *SimpleConnReadEvent) Data() []byte
+// func (s *SimpleConnReadEvent) Count() int
+// func (s *SimpleConnReadEvent) Err() error
+// func (s *SimpleConnOpenEvent) UniqueID() ConnUniqueID
+// func (s *SimpleConnOpenEvent) Dest() *msgbus.Dest
+// func (s *SimpleConnOpenEvent) Err() error
+
+// func NewListen(ctx context.Context) (sls *SimpleListenStruct, e error)
+// func (s *SimpleListenStruct) Run()
+// func (s *SimpleListenStruct) goListenAccept()
+// func (s *SimpleListenStruct) GetAccept() <-chan *SimpleStruct
+// func (s *SimpleListenStruct) Done() bool
+// func (s *SimpleListenStruct) Close()
+// func (s *SimpleListenStruct) Cancel()
+
+// func (s *SimpleStruct) GetEventChan() <-chan *SimpleEvent
+// func (s *SimpleStruct) Run()
+// func (s *SimpleStruct) goEvent()
+// func (s *SimpleStruct) Done() bool
+// func (s *SimpleStruct) Close()
+// func (s *SimpleStruct) Cancel()
+// func (s *SimpleStruct) Ctx() context.Context
+// func (s *SimpleStruct) AsyncDial(dest *msgbus.Dest) (e error)
+// func (s *SimpleStruct) AsyncReDial(uid ConnUniqueID) error
+// func (s *SimpleStruct) SetRoute(u ConnUniqueID) error
+// func (s *SimpleStruct) GetRoute() (uid ConnUniqueID, e error)
+// func (s *SimpleStruct) GetRemoteAddrIdx(uid ConnUniqueID) (addr net.Addr, e error)
+// func (s *SimpleStruct) Write(uid ConnUniqueID, msg []byte) (count int, e error)
+// func (s *SimpleStruct) CloseConnection(uid ConnUniqueID) (e error)
+// func (s *SimpleStruct) DupWrite()
+// func (s *SimpleStruct) Flush()
+// func (s *SimpleStruct) Status()
+// func (s *SimpleStruct) Pub(msgtype MsgType, id IDString, data interface{}) (rid int, e error)
+// func (s *SimpleStruct) Unpub(msgtype MsgType, id IDString) (rid int, e error)
+// func (s *SimpleStruct) Sub(msgtype MsgType, id IDString) (rid int, e error)
+// func (s *SimpleStruct) Unsub(msgtype MsgType, id IDString) (rid int, e error)
+// func (s *SimpleStruct) Get(msgtype MsgType, id IDString) (rid int, e error)
+// func (s *SimpleStruct) Set(msgtype MsgType, id IDString, data interface{}) (rid int, e error)
+// func (s *SimpleStruct) SearchIP(msgtype MsgType, search string) (rid int, e error)
+// func (s *SimpleStruct) SearchMac(msgtype MsgType, search string) (rid int, e error)
+// func (s *SimpleStruct) SearchName(msgtype MsgType, name string) (rid int, e error)
+
 var reDialTimeDealySec = 5
 
 type ConnUniqueID int
@@ -496,6 +539,13 @@ func (s *SimpleStruct) Cancel() {
 }
 
 //
+// Ctx()
+//
+func (s *SimpleStruct) Ctx() context.Context {
+	return s.ctx
+}
+
+//
 // Dial the a destination address (DST)
 // Takes in a net.Addr object and feeds into the net.Dial function
 // the resulting Conn is then added to the SimpleStructs mapping and and associated
@@ -764,11 +814,4 @@ func (s *SimpleStruct) SearchName(msgtype MsgType, name string) (rid int, e erro
 
 	rid, e = s.msgbus.SearchName(msgbus.MsgType(msgtype), name, s.msgbusChan)
 	return rid, e
-}
-
-//
-// Ctx()
-//
-func (s *SimpleStruct) Ctx() context.Context {
-	return s.ctx
 }

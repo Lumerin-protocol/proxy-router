@@ -12,6 +12,44 @@ import (
 	contextlib "gitlab.com/TitanInd/lumerin/lumerinlib/context"
 )
 
+// func init()
+// func goDstCounter(c chan int)
+
+// func (c *ConnectionReadEvent) Index() int
+// func (c *ConnectionReadEvent) Data() []byte
+// func (c *ConnectionReadEvent) Count() int
+// func (c *ConnectionReadEvent) Err() error
+
+// func NewListen(ctx context.Context) (cls *ConnectionListenStruct, e error)
+// func (cls *ConnectionListenStruct) Run()
+// func (cls *ConnectionListenStruct) Accept() <-chan *ConnectionStruct
+// func (cls *ConnectionListenStruct) Close() (e error)
+// func (cls *ConnectionListenStruct) Cancel()
+// func (cs *ConnectionStruct) GetReadChan() <-chan *ConnectionReadEvent
+// func (cs *ConnectionStruct) Close()
+// func (cs *ConnectionStruct) Cancel()
+// func (cs *ConnectionStruct) Dial(addr net.Addr) (idx int, e error)
+// func (cs *ConnectionStruct) GetRemoteAddrIdx(idx int) (addr net.Addr, e error)
+// func (cs *ConnectionStruct) ReDialIdx(idx int) (e error)
+// func (cs *ConnectionStruct) SetRoute(idx int) (e error)
+// func (cs *ConnectionStruct) GetRoute() (idx int, e error)
+// func (cs *ConnectionStruct) SrcGetSocket() (s *lumerinconnection.LumerinSocketStruct, e error)
+// func (cs *ConnectionStruct) SrcGetRemoteAddr() (addr net.Addr, e error)
+// func (cs *ConnectionStruct) SrcRead(buf []byte) (count int, e error)
+// func (cs *ConnectionStruct) SrcWrite(buf []byte) (count int, e error)
+// func (cs *ConnectionStruct) SrcClose()
+// func (cs *ConnectionStruct) DstGetSocket() (s *lumerinconnection.LumerinSocketStruct, e error)
+// func (cs *ConnectionStruct) DstGetRemoteAddr() (addr net.Addr, e error)
+// func (cs *ConnectionStruct) DstRead(buf []byte) (count int, e error)
+// func (cs *ConnectionStruct) DstWrite(buf []byte) (count int, e error)
+// func (cs *ConnectionStruct) DstClose() (e error)
+// func (cs *ConnectionStruct) IdxGetSocket(idx int) (s *lumerinconnection.LumerinSocketStruct, e error)
+// func (cs *ConnectionStruct) IdxGetRemoteAddr(idx int) (addr net.Addr, e error)
+// func (cs *ConnectionStruct) IdxRead(idx int, buf []byte) (count int, e error)
+// func (cs *ConnectionStruct) IdxWrite(idx int, buf []byte) (count int, e error)
+// func (cs *ConnectionStruct) IdxClose(idx int) (e error)
+// func (cs *ConnectionStruct) Done() bool
+
 const DefaultDstSlots int = 8
 const MaxDstSlots int = 16
 const DefaultReadBufSize = 2048
@@ -93,7 +131,9 @@ func (c *ConnectionReadEvent) Count() int   { return c.count }
 func (c *ConnectionReadEvent) Err() error   { return c.err }
 
 //
-//
+// NewListen()
+// Creates a listening struct using the SRC address from the context
+// Returns a *ConnectionListenStruct
 //
 func NewListen(ctx context.Context) (cls *ConnectionListenStruct, e error) {
 
