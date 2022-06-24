@@ -14,6 +14,8 @@ package validator
 import (
 	"context"
 	"fmt"
+	"math"
+	"math/big"
 	"strconv"
 	"time"
 
@@ -23,6 +25,13 @@ import (
 	contextlib "gitlab.com/TitanInd/lumerin/lumerinlib/context"
 )
 
+const EMA_INTERVAL = 600
+
+type diffEMA struct {
+	diff		int
+	lastCalc	time.Time
+}
+
 //creates a channel object which can be used to access created validators
 type MainValidator struct {
 	channel    Channels
@@ -30,11 +39,12 @@ type MainValidator struct {
 	Ctx        context.Context
 	MinerDiffs lumerinlib.ConcurrentMap // current difficulty target for each miner
 	MinersVal  lumerinlib.ConcurrentMap // miners with a validation channel open for them
+	newDiff	   chan int
 }
 
 //creates a validator
 //func createValidator(bh blockHeader.BlockHeader, hashRate uint, limit uint, diff uint, messages chan message.Message) error{
-func createValidator(bh BlockHeader, hashRate uint, limit uint, diff uint, pc string, messages chan Message) {
+func (v *MainValidator) createValidator(minerId msgbus.MinerID, bh BlockHeader, hashRate uint, limit uint, diff uint, pc string, messages chan Message) {
 	go func() {
 		myValidator := Validator{
 			BH:               bh,
@@ -45,6 +55,7 @@ func createValidator(bh BlockHeader, hashRate uint, limit uint, diff uint, pc st
 			ContractLimit:    limit,
 			PoolCredentials:  pc, // pool login credentials
 		}
+		go v.hashrateCalculator(&myValidator, minerId)
 		for {
 			//message is of type message, with messageType and content values
 			m := <-messages
@@ -112,7 +123,8 @@ func (v *MainValidator) SendMessageToValidator(m Message) *Message {
 		}
 		useDiff, _ := strconv.ParseUint(creation.Diff, 16, 32)
 		//fmt.Println("useDiff:",useDiff)
-		createValidator( //creation["BH"] is an embedded JSON object
+		v.createValidator( //creation["BH"] is an embedded JSON object
+			msgbus.MinerID(m.Address),
 			ConvertToBlockHeader(creation.BH),
 			ConvertStringToUint(creation.HashRate),
 			ConvertStringToUint(creation.Limit),
@@ -171,6 +183,7 @@ func MakeNewValidator(Ctx *context.Context) *MainValidator {
 	}
 	validator.MinerDiffs.M = make(map[string]interface{})
 	validator.MinersVal.M = make(map[string]interface{})
+	validator.newDiff = make(chan int)
 	return &validator
 }
 
@@ -202,10 +215,10 @@ func (v *MainValidator) validateHandler(ch msgbus.EventChan) {
 				validateMsg := event.Data.(*msgbus.Validate)
 				minerID := msgbus.MinerID(validateMsg.MinerID)
 				//destID := msgbus.DestID(validateMsg.DestID)
-				miner, err := v.Ps.MinerGetWait(minerID)
-				if err != nil {
-					contextlib.Logf(v.Ctx, log.LevelPanic, "Failed to get miner, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
-				}
+				// miner, err := v.Ps.MinerGetWait(minerID)
+				// if err != nil {
+				// 	contextlib.Logf(v.Ctx, log.LevelPanic, "Failed to get miner, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+				// }
 				// dest,err := v.Ps.DestGetWait(destID)
 				// if err != nil {
 				// 	contextlib.Logf(v.Ctx, log.LevelPanic, "Failed to get miner dest, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
@@ -217,10 +230,16 @@ func (v *MainValidator) validateHandler(ch msgbus.EventChan) {
 				case *msgbus.SetDifficulty:
 					contextlib.Logf(v.Ctx, log.LevelTrace, lumerinlib.Funcname()+" Got Set Difficulty Msg: %v", event)
 					setDifficultyMsg := validateMsg.Data.(*msgbus.SetDifficulty)
-					diffStr := strconv.Itoa(setDifficultyMsg.Diff) // + 0x22000000
-					diffEndian, _ := uintToLittleEndian(diffStr)
-					diffBigEndian := SwitchEndian(diffEndian)
-					v.MinerDiffs.Set(string(minerID), diffBigEndian)
+					newDiff := diffEMA{
+						diff: setDifficultyMsg.Diff,
+					}
+					if !v.MinerDiffs.Exists(string(minerID)) { // initialze ema of diff
+						newDiff.lastCalc = time.Now()
+						v.MinerDiffs.Set(string(minerID), newDiff)
+						go v.difficultyEMA(minerID)
+					} else {
+						v.newDiff <- setDifficultyMsg.Diff
+					}
 					if !v.MinersVal.Exists(string(minerID)) { // first time seeing miner
 						v.MinersVal.Set(string(minerID), false)
 					}
@@ -236,7 +255,10 @@ func (v *MainValidator) validateHandler(ch msgbus.EventChan) {
 					previousBlockHash := notifyMsg.PrevBlockHash
 					nBits := notifyMsg.Nbits
 					time := notifyMsg.Ntime
-					difficulty := v.MinerDiffs.Get(string(minerID)).(string)
+					difficulty := v.MinerDiffs.Get(string(minerID)).(diffEMA)
+					diffStr := strconv.Itoa(difficulty.diff) // + 0x22000000
+					diffEndian, _ := uintToLittleEndian(diffStr)
+					diffBigEndian := SwitchEndian(diffEndian)
 
 					merkelBranches := notifyMsg.MerkelBranches
 					merkelBranchesStr := []string{}
@@ -276,7 +298,7 @@ func (v *MainValidator) validateHandler(ch msgbus.EventChan) {
 							BH:         blockHeader,
 							HashRate:   "",                   // not needed for now
 							Limit:      "",                   // not needed for now
-							Diff:       difficulty,           // highest difficulty allowed using difficulty encoding
+							Diff:       diffBigEndian,        // highest difficulty allowed using difficulty encoding
 							WorkerName: username, 		  // worker name assigned to an individual mining rig. used to ensure that attempts are being allocated correctly
 						})
 						v.SendMessageToValidator(createMessage)
@@ -315,42 +337,115 @@ func (v *MainValidator) validateHandler(ch msgbus.EventChan) {
 					tabulationMessage.MessageType = "tabulate"
 					tabulationMessage.Message = ConvertMessageToString(mySubmit)
 
-					m := v.SendMessageToValidator(tabulationMessage)
-					hashCountStr,err := ReceiveHashCount(m.Message)
-					if err != nil {
-						contextlib.Logf(v.Ctx, log.LevelPanic, "Failed to receive hashcount msg, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
-					}
+					v.SendMessageToValidator(tabulationMessage)
+					//m := v.SendMessageToValidator(tabulationMessage)
+					// hashCountStr,err := ReceiveHashCount(m.Message)
+					// if err != nil {
+					// 	contextlib.Logf(v.Ctx, log.LevelPanic, "Failed to receive hashcount msg, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+					// }
 
-					// parse hashcount field returned (need to fix how its returned e.g. {"HashCount":"%!s(uint=1537228672809129301)"}})
-					hashCountRunes := []rune{}
-					startFound := false
-					for _,v := range m.Message {
-						if v == ')' {
-							break
-						}
-						if startFound {
-							hashCountRunes = append(hashCountRunes, v)
-						}
-						if v == '=' {
-							startFound = true
-						}
-					}
-					hashCountStr.HashCount = string(hashCountRunes)
+					// // parse hashcount field returned (need to fix how its returned e.g. {"HashCount":"%!s(uint=1537228672809129301)"}})
+					// hashCountRunes := []rune{}
+					// startFound := false
+					// for _,v := range m.Message {
+					// 	if v == ')' {
+					// 		break
+					// 	}
+					// 	if startFound {
+					// 		hashCountRunes = append(hashCountRunes, v)
+					// 	}
+					// 	if v == '=' {
+					// 		startFound = true
+					// 	}
+					// }
+					// hashCountStr.HashCount = string(hashCountRunes)
 					
-					contextlib.Logf(v.Ctx, log.LevelTrace, lumerinlib.Funcname()+" Hashrate Calculated for Miner %s: %s", miner.ID, hashCountStr.HashCount)
+					// contextlib.Logf(v.Ctx, log.LevelTrace, lumerinlib.Funcname()+" Hashrate Calculated for Miner %s: %s", miner.ID, hashCountStr.HashCount)
 
-					hashCount, err := strconv.Atoi(hashCountStr.HashCount)
-					if err != nil {
-						contextlib.Logf(v.Ctx, log.LevelPanic, "Failed to convert hashrate string to int, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
-					}
+					// hashCount, err := strconv.Atoi(hashCountStr.HashCount)
+					// if err != nil {
+					// 	contextlib.Logf(v.Ctx, log.LevelPanic, "Failed to convert hashrate string to int, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+					// }
 
-					// set hashrate in miner
-					miner.CurrentHashRate = hashCount
-					v.Ps.MinerSetWait(*miner)
+					// // set hashrate in miner
+					// miner.CurrentHashRate = hashCount
+					// v.Ps.MinerSetWait(*miner)
 				default:
 					contextlib.Logf(v.Ctx, log.LevelTrace, lumerinlib.Funcname()+" Got Validate Msg with different type: %v", event)
 				}
 			}
 		}
+	}
+}
+
+func (v *MainValidator) difficultyEMA(minerId msgbus.MinerID) {
+	for {
+		select {
+		case diff := <- v.newDiff:
+			currDiff := v.MinerDiffs.Get(string(minerId)).(diffEMA)
+
+			timePassed := time.Now().Sub(currDiff.lastCalc).Seconds()
+			timeRatio := timePassed/EMA_INTERVAL
+
+			alpha := 1 - 1.0/math.Exp(timeRatio)
+			r := int(alpha*float64(diff) + (1 - alpha)*float64(currDiff.diff))
+			currDiff.diff = r
+			currDiff.lastCalc = time.Now()
+
+			v.MinerDiffs.Set(string(minerId), currDiff)
+		}
+	}
+}
+
+func (v *MainValidator) hashrateCalculator(instance *Validator, minerId msgbus.MinerID) {
+	for {
+		if !v.Ps.MinerExistsWait(minerId) {
+			return // miner unpublished
+		} 
+		miner, err := v.Ps.MinerGetWait(minerId)
+		if err != nil {
+			contextlib.Logf(v.Ctx, log.LevelPanic, "Failed to get miner, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+		}
+
+		// calculate 5 minute moving average of hashrate
+		startHashCount := instance.HashesAnalyzed
+		timeInterval := time.Second * EMA_INTERVAL
+		time.Sleep(timeInterval)
+		endHashCount := instance.HashesAnalyzed
+		hashesAnalyzed := endHashCount - startHashCount
+		poolDifficulty := v.MinerDiffs.Get(string(minerId)).(diffEMA)
+
+		contextlib.Logf(v.Ctx, log.LevelTrace, lumerinlib.Funcname()+" Current Pool Difficulty: %d", poolDifficulty.diff)
+		contextlib.Logf(v.Ctx, log.LevelTrace, lumerinlib.Funcname()+" Current Hashes Analyzed in this interval: %d", hashesAnalyzed)
+
+		//calculate the number of hashes represented by the pool difficulty target
+		bigDiffTarget := big.NewInt(int64(poolDifficulty.diff))
+		bigHashesAnalyzed := big.NewInt(int64(hashesAnalyzed))
+
+		result := new(big.Int).Exp(big.NewInt(2), big.NewInt(32), nil)
+		hashesPerSubmission := new(big.Int).Mul(bigDiffTarget, result)
+		totalHashes := new(big.Int).Mul(hashesPerSubmission, bigHashesAnalyzed)
+
+		//divide represented hashes by time duration
+		rateBigInt := new(big.Int).Div(totalHashes, big.NewInt(int64(timeInterval.Seconds())))
+		hashrate := int(rateBigInt.Int64())
+
+		// take average hourly average of hashrate
+		if len(instance.Hashrates) < 6 {
+			instance.Hashrates = instance.Hashrates[1:]
+		} 
+		hashSum := 0
+		for _,h := range instance.Hashrates {
+			hashSum += h
+		}
+		hashSum += hashrate
+		newHashrate := hashSum/(len(instance.Hashrates) + 1)
+		instance.Hashrates = append(instance.Hashrates, newHashrate)
+		
+		contextlib.Logf(v.Ctx, log.LevelTrace, lumerinlib.Funcname()+" Current Hashrate Moving Average for Miner %s: %d", miner.ID, newHashrate)
+
+		// update miner with new hashrate value
+		miner.CurrentHashRate = newHashrate
+		v.Ps.MinerSetWait(*miner)
 	}
 }

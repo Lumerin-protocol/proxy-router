@@ -11,6 +11,7 @@ import (
 type Validator struct {
 	BH               BlockHeader
 	StartTime        time.Time
+	Hashrates		 []int
 	HashesAnalyzed   uint
 	DifficultyTarget uint
 	ContractHashRate uint
