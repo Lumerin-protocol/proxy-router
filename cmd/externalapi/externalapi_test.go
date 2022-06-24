@@ -60,7 +60,7 @@ func TestMsgBusDataAddedToApiRepos(t *testing.T) {
 		StartDate: time.Date(2021, 9, 1, 0, 0, 0, 0, time.UTC),
 	}
 
-	api := New(ps)
+	api := New(ps, nil)
 	time.Sleep(time.Millisecond * 1000)
 
 	go api.Run("8080", l)
