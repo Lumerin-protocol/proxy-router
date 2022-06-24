@@ -202,7 +202,7 @@ loop2:
 	// connection scheduler sets contract to correct miner
 	m1, _ := ps.MinerGetWait(miner1.ID)
 	m2, _ := ps.MinerGetWait(miner2.ID)
-	if m1.Contracts[msgbus.ContractID(hashrateContractAddress[0].Hex())] {
+	if _,ok := m1.Contracts[msgbus.ContractID(hashrateContractAddress[0].Hex())]; ok {
 		t.Errorf("Miner contracts not set correctly")
 	}
 	if len(m2.Contracts) == 0 {
@@ -263,7 +263,7 @@ loop4:
 	if len(m1.Contracts) == 0 {
 		t.Errorf("Miner contracts not set correctly")
 	}
-	if m2.Contracts[msgbus.ContractID(hashrateContractAddress[1].Hex())] {
+	if _,ok := m2.Contracts[msgbus.ContractID(hashrateContractAddress[1].Hex())]; ok {
 		t.Errorf("Miner contracts not set correctly")
 	}
 
@@ -339,7 +339,7 @@ loop6:
 	if len(m2.Contracts) == 0 {
 		t.Errorf("Miner contracts not set correctly")
 	}
-	if m3.Contracts[msgbus.ContractID(hashrateContractAddress[2].Hex())] {
+	if _,ok := m3.Contracts[msgbus.ContractID(hashrateContractAddress[2].Hex())]; ok {
 		t.Errorf("Miner contracts not set correctly")
 	}
 
@@ -415,7 +415,7 @@ loop8:
 	if len(m3.Contracts) == 0 {
 		t.Errorf("Miner contracts not set correctly")
 	}
-	if m4.Contracts[msgbus.ContractID(hashrateContractAddress[3].Hex())] {
+	if _,ok := m4.Contracts[msgbus.ContractID(hashrateContractAddress[3].Hex())]; ok {
 		t.Errorf("Miner contracts not set correctly")
 	}
 

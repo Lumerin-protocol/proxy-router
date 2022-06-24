@@ -16,6 +16,7 @@ import (
 
 	"gitlab.com/TitanInd/lumerin/cmd/connectionscheduler"
 	"gitlab.com/TitanInd/lumerin/cmd/contractmanager"
+	"gitlab.com/TitanInd/lumerin/cmd/log"
 	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
 	"gitlab.com/TitanInd/lumerin/connections"
 	"gitlab.com/TitanInd/lumerin/cmd/protocol/stratumv1"
