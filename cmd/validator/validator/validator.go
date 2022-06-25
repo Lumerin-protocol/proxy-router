@@ -404,6 +404,9 @@ func (v *MainValidator) hashrateCalculator(instance *Validator, minerId msgbus.M
 		time.Sleep(timeInterval)
 		endHashCount := instance.HashesAnalyzed
 		hashesAnalyzed := endHashCount - startHashCount
+		if !v.MinerDiffs.Exists(string(minerId)) {
+			return
+		}
 		poolDifficulty := v.MinerDiffs.Get(string(minerId)).(diffEMA)
 
 		contextlib.Logf(v.Ctx, log.LevelTrace, lumerinlib.Funcname()+" Current Pool Difficulty: %d", poolDifficulty.diff)
