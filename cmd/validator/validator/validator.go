@@ -373,6 +373,9 @@ func (v *MainValidator) difficultyEMA(minerId msgbus.MinerID) {
 				v.MinerDiffs.Delete(string(id))
 			}
 		case diff := <- v.newDiff:
+			if !v.MinerDiffs.Exists(string(minerId)) {
+				return
+			}
 			currDiff := v.MinerDiffs.Get(string(minerId)).(diffEMA)
 
 			timePassed := time.Now().Sub(currDiff.lastCalc).Seconds()
