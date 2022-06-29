@@ -215,9 +215,8 @@ func (ps *PubSub) MinersContainContract(contract ContractID) (result []Miner) {
 	for _,m := range miners {
 		miner,err := ps.MinerGetWait(m)
 		if err != nil {
-			panic(fmt.Sprintf(lumerinlib.Funcname()+" Error gettig miner, error %v\n", err))
-		}
-		if _,ok := miner.Contracts[contract]; ok {	
+			fmt.Println(lumerinlib.Funcname()+" Error gettig miner, error %v\n", err)
+		} else if _,ok := miner.Contracts[contract]; ok {	
 			result = append(result, *miner)
 		}
 	}
