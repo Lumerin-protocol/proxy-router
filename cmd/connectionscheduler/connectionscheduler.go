@@ -624,6 +624,9 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract) {
 					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
 				}
 				contract = event.Data.(msgbus.Contract)
+				if !cs.Ps.MinerExistsWait(m.ID) {
+					break loop2
+				}
 				miner, err := cs.Ps.MinerSetDestWait(m.ID, contract.Dest)
 				if err != nil {
 					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
@@ -640,6 +643,9 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract) {
 			}
 			if (i == len(slicedMiners)-1) && (durationPassed < totalDuration) {
 				contextlib.Logf(cs.Ctx, log.LevelInfo, "Switching Sliced Miner Dest to Default Dest, Miner: %s", m.ID)
+				if !cs.Ps.MinerExistsWait(m.ID) {
+					break loop2
+				}
 				miner, err := cs.Ps.MinerSetDestWait(m.ID, cs.NodeOperator.DefaultDest)
 				if err != nil {
 					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
