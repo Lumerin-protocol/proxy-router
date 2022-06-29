@@ -17,13 +17,13 @@ var gethNodeAddress = "wss://ropsten.infura.io/ws/v3/4b68229d56fe496e899f07c3d41
 
 var clonefactoryAddress common.Address = common.HexToAddress("0xe91be01493f4ae28297790277303926aaec604dc")
 
-var hashrateContractAddress common.Address = common.HexToAddress("0xecA5878daB5Bd7a4052Dc5BE3cd993a1507AA040") // 0x597e311EEB16a4d213389F1661272B26BDE0E698 0x7E4f2cea58705482dBE8F1269996b5120db321a2
+var hashrateContractAddress common.Address = common.HexToAddress("0x29D55D3ca1824A0ecCe93CffA7025B0D875d6A27") // 0x597e311EEB16a4d213389F1661272B26BDE0E698 0x7E4f2cea58705482dBE8F1269996b5120db321a2
 var poolUrl = "stratum+tcp://rbajollari.contract1:@btc.f2pool.com:3333"
 
 func TestHashrateContractCreation(t *testing.T) {
 	// hashrate contract params
 	price := 0
-	limit := 20
+	limit := 0
 	speed := 50000000000000
 	length := 7200
 
