@@ -2,6 +2,7 @@ package connectionscheduler
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"sort"
 	"sync"
@@ -710,7 +711,10 @@ func (cs *ConnectionScheduler) sortMinersByHashrate(contractId msgbus.ContractID
 
 	miners := cs.ReadyMiners.GetAll()
 	for _, v := range miners {
-		m = append(m, Miner{v.(msgbus.Miner).ID, v.(msgbus.Miner).CurrentHashRate, 1})
+		miner := v.(msgbus.Miner)
+		if miner.CurrentHashRate != 0 {
+			m = append(m, Miner{miner.ID, miner.CurrentHashRate, 1})
+		}
 	}
 
 	// include busy miners that are already associated with contract and sliced miners with extra contract space
@@ -726,7 +730,11 @@ func (cs *ConnectionScheduler) sortMinersByHashrate(contractId msgbus.ContractID
 	}
 
 	sort.Sort(m)
-	return m
+	if len(m) > 9 {
+		return m[:9]
+	} else {
+		return m
+	}
 }
 
 func sumSubsets(sortedMiners MinerList, n int, targetHashrate int, hashrateTolerance float64) (m MinerList, sum int) {
@@ -775,6 +783,7 @@ func findSubsets(sortedMiners MinerList, targetHashrate int, hashrateTolerance f
 	MAX := int(float64(targetHashrate) * (1 + hashrateTolerance))
 	minerCombinationsSums := []int{}
 
+	fmt.Println("tot: ", tot)
 	for i := 0; i < int(tot); i++ {
 		m, s := sumSubsets(sortedMiners, i, targetHashrate, hashrateTolerance)
 		if m != nil {
@@ -782,6 +791,7 @@ func findSubsets(sortedMiners MinerList, targetHashrate int, hashrateTolerance f
 			minerCombinationsSums = append(minerCombinationsSums, s)
 		}
 	}
+	fmt.Println("here")
 
 	if len(minerCombinations) == 0 {
 		return []MinerList{}
