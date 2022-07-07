@@ -2,7 +2,6 @@ package connectionscheduler
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"sort"
 	"sync"
@@ -16,7 +15,7 @@ import (
 )
 
 const (
-	HASHRATE_LIMIT = 10
+	HASHRATE_LIMIT = 20
 	MIN_SLICE      = 0.10
 )
 
@@ -25,6 +24,7 @@ type ConnectionScheduler struct {
 	Contracts            lumerinlib.ConcurrentMap
 	ReadyMiners          lumerinlib.ConcurrentMap // miners with no contract
 	BusyMiners           lumerinlib.ConcurrentMap // miners fulfilling a contract
+	BestMinerCombos		 lumerinlib.ConcurrentMap
 	RunningContracts     []msgbus.ContractID
 	ServiceContractChan  chan msgbus.ContractID
 	wg                   sync.WaitGroup
@@ -59,6 +59,7 @@ func New(Ctx *context.Context, NodeOperator *msgbus.NodeOperator, Passthrough bo
 	cs.Contracts.M = make(map[string]interface{})
 	cs.ReadyMiners.M = make(map[string]interface{})
 	cs.BusyMiners.M = make(map[string]interface{})
+	cs.BestMinerCombos.M = make(map[string]interface{})
 	cs.ServiceContractChan = make(chan msgbus.ContractID, 5)
 	cs.connectionController = minerController
 	return cs, err
@@ -534,7 +535,22 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract) {
 	contextlib.Logf(cs.Ctx, log.LevelInfo, "Valid Miner Combinations for Contract %s: %v", contract.ID, minerCombinations)
 
 	// find best combination of miners
-	minerCombination := bestCombination(minerCombinations, promisedHashrate)
+	minerCombination, index := bestCombination(minerCombinations, promisedHashrate)
+
+	cs.BestMinerCombos.Set(string(contract.ID), minerCombination)
+
+	// check miner combo doesn't conflict with another contract
+	bestMinerCombos := cs.BestMinerCombos.GetMap()
+	validCombo := bestCombinationConflict(bestMinerCombos, minerCombination, contract.ID)
+
+	// find new best combination
+	for !validCombo {
+		minerCombinations = append(minerCombinations[:index], minerCombinations[index+1:]...)
+		minerCombination, index = bestCombination(minerCombinations, promisedHashrate)
+		bestMinerCombos := cs.BestMinerCombos.GetMap()
+		validCombo = bestCombinationConflict(bestMinerCombos, minerCombination, contract.ID)
+		cs.BestMinerCombos.Set(string(contract.ID), minerCombination)
+	}
 
 	contextlib.Logf(cs.Ctx, log.LevelInfo, "Best Miner Combination for Contract %s: %v", contract.ID, minerCombination)
 
@@ -545,16 +561,15 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract) {
 		if err != nil {
 			contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
 		}
-		slicePercent := float64(v.hashrate) / float64(miner.CurrentHashRate)
 
-		if slicePercent < 1 {
-			_, err = cs.Ps.MinerSetContractWait(v.id, contract.ID, slicePercent, true)
+		if v.slicePercent < 1 {
+			_, err = cs.Ps.MinerSetContractWait(v.id, contract.ID, v.slicePercent, true)
 			if err != nil {
 				contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
 			}
 			slicedMiners = append(slicedMiners, *miner)
 		} else {
-			_, err = cs.Ps.MinerSetContractWait(v.id, contract.ID, slicePercent, false)
+			_, err = cs.Ps.MinerSetContractWait(v.id, contract.ID, v.slicePercent, false)
 			if err != nil {
 				contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
 			}
@@ -562,9 +577,9 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract) {
 			if err != nil {
 				contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
 			}
-			cs.ReadyMiners.Delete(string(miner.ID))
-			cs.BusyMiners.Set(string(miner.ID), *miner)
 		}
+		cs.ReadyMiners.Delete(string(miner.ID))
+		cs.BusyMiners.Set(string(miner.ID), *miner)
 	}
 
 	totalDuration := time.Second * time.Duration(cs.HashrateCalcLagTime)
@@ -628,13 +643,13 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract) {
 				if !cs.Ps.MinerExistsWait(m.ID) {
 					break loop2
 				}
-				miner, err := cs.Ps.MinerSetDestWait(m.ID, contract.Dest)
+				_, err = cs.Ps.MinerSetDestWait(m.ID, contract.Dest)
 				if err != nil {
 					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
 				}
 				slicedDuration := time.Second * time.Duration(int(float64(cs.HashrateCalcLagTime)*v))
-				cs.ReadyMiners.Delete(string(miner.ID))
-				cs.BusyMiners.Set(string(miner.ID), *miner)
+				// cs.ReadyMiners.Delete(string(miner.ID))
+				// cs.BusyMiners.Set(string(miner.ID), *miner)
 				readyMiners := cs.ReadyMiners.GetAll()
 				busyMiners := cs.BusyMiners.GetAll()
 				contextlib.Logf(cs.Ctx, log.LevelInfo, "Ready Miners In Contract %s Set Target Func: %v", contract.ID, readyMiners)
@@ -647,12 +662,12 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract) {
 				if !cs.Ps.MinerExistsWait(m.ID) {
 					break loop2
 				}
-				miner, err := cs.Ps.MinerSetDestWait(m.ID, cs.NodeOperator.DefaultDest)
+				_, err := cs.Ps.MinerSetDestWait(m.ID, cs.NodeOperator.DefaultDest)
 				if err != nil {
 					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
 				}
-				cs.ReadyMiners.Delete(string(miner.ID))
-				cs.BusyMiners.Set(string(miner.ID), *miner)
+				// cs.ReadyMiners.Delete(string(miner.ID))
+				// cs.BusyMiners.Set(string(miner.ID), *miner)
 				readyMiners := cs.ReadyMiners.GetAll()
 				busyMiners := cs.BusyMiners.GetAll()
 				contextlib.Logf(cs.Ctx, log.LevelInfo, "Ready Miners In Contract %s Set Target Func: %v", contract.ID, readyMiners)
@@ -783,7 +798,6 @@ func findSubsets(sortedMiners MinerList, targetHashrate int, hashrateTolerance f
 	MAX := int(float64(targetHashrate) * (1 + hashrateTolerance))
 	minerCombinationsSums := []int{}
 
-	fmt.Println("tot: ", tot)
 	for i := 0; i < int(tot); i++ {
 		m, s := sumSubsets(sortedMiners, i, targetHashrate, hashrateTolerance)
 		if m != nil {
@@ -791,7 +805,6 @@ func findSubsets(sortedMiners MinerList, targetHashrate int, hashrateTolerance f
 			minerCombinationsSums = append(minerCombinationsSums, s)
 		}
 	}
-	fmt.Println("here")
 
 	if len(minerCombinations) == 0 {
 		return []MinerList{}
@@ -815,7 +828,7 @@ func findSubsets(sortedMiners MinerList, targetHashrate int, hashrateTolerance f
 	return minerCombinations
 }
 
-func bestCombination(minerCombinations []MinerList, targetHashrate int) MinerList {
+func bestCombination(minerCombinations []MinerList, targetHashrate int) (MinerList, int) {
 	hashrates := make([]int, len(minerCombinations))
 	numMiners := make([]int, len(minerCombinations))
 
@@ -843,7 +856,7 @@ func bestCombination(minerCombinations []MinerList, targetHashrate int) MinerLis
 		res1 := math.Abs(float64(targetHashrate) - float64(hashrates[index]))
 		res2 := math.Abs(float64(targetHashrate) - float64(hashrates[i]))
 		if res1 > res2 {
-			index = i
+				index = i
 		}
 	}
 
@@ -855,5 +868,23 @@ func bestCombination(minerCombinations []MinerList, targetHashrate int) MinerLis
 		}
 	}
 
-	return minerCombinations[newIndex]
+	return minerCombinations[newIndex], newIndex
+}
+
+func bestCombinationConflict(bestMinerCombos map[string]interface{}, minerCombination MinerList, contractId msgbus.ContractID) (bool) {
+	for i, v := range bestMinerCombos {
+		bestMinerCombo := v.(MinerList)
+		if i != string(contractId) {
+			for _, bM := range bestMinerCombo {
+				for _, mC := range minerCombination {
+					if bM == mC {
+						if (bM.slicePercent + mC.slicePercent) > 1 {
+							return false
+						}
+					}
+				}
+			}
+		}
+	}
+	return true
 }

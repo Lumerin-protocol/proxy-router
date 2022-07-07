@@ -235,3 +235,18 @@ func (ps *PubSub) MinerSlicedUtilization(id MinerID) float64 {
 
 	return (1 - contractSlicedPercent)
 }
+
+func (ps *PubSub) MinerContractSlicedUtilization(minerId MinerID, contractId ContractID) float64 {
+	miner,err := ps.MinerGetWait(minerId)
+	if err != nil {
+		panic(fmt.Sprintf(lumerinlib.Funcname()+" Error gettig miner, error %v\n", err))
+	}
+	var contractSlicedPercent float64
+	for i,v := range miner.Contracts {
+		if i != contractId {
+			contractSlicedPercent += v
+		}
+	}
+
+	return (1 - contractSlicedPercent)
+}

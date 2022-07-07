@@ -546,9 +546,14 @@ func (svs *StratumV1Struct) checkDstResponseSubmit(uid simple.ConnUniqueID, resp
 	case bool:
 		accepted = response.Result.(bool)
 	default:
-		contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" default reached on type:%t", response.Result)
+		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" default reached on type:%t", response.Result)
 	}
 
+	if response.Error != nil {
+		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Error returned on ID:%d %s", id, *response.Error)
+	}
+
+	// Pull the request
 	request, e := svs.dstLastSubmit.GetAndRemoveRequest(uid, id)
 	if e != nil {
 		contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" error:%s", e)
@@ -599,8 +604,9 @@ func (svs *StratumV1Struct) handleNotice(uid simple.ConnUniqueID, notice *stratu
 			svs.handleDstNoticeSetExtranonce(uid, notice)
 		case string(SERVER_MINING_SET_DIFFICULTY):
 			svs.handleDstNoticeSetDifficulty(uid, notice)
-		//case string(SERVER_MINING_SET_VERSION_MASK):
-		//	svs.handleDstNoticeSetVersionMask(uid, notice)
+		case string(SERVER_MINING_SET_VERSION_MASK):
+			contextlib.Logf(svs.Ctx(), contextlib.LevelWarn, lumerinlib.FileLineFunc()+" Droppping Set Version Mask Message Type Recieved:%s", notice.Method)
+			//svs.handleDstNoticeSetVersionMask(uid, notice)
 		case string(SERVER_RECONNECT):
 			svs.handleDstNoticeReconnect(uid, notice)
 		default:
@@ -819,6 +825,8 @@ func (svs *StratumV1Struct) handleSrcReqConfigure(request *stratumRequest) (e er
 		// This is generated up front before the pool is connected
 		// So it is a bit of a kludge for now
 		//
+		// respmsg, e := response.createSrcConfigureResponseMsg("", 0)
+		// respmsg, e := response.createSrcConfigureResponseMsg("ffffffff", 16)
 		respmsg, e := response.createSrcConfigureResponseMsg("1fffe000", 16)
 		if e != nil {
 			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" createResponsMsg() error:%s", e)
@@ -1149,7 +1157,7 @@ func (svs *StratumV1Struct) handleDstReqSetGoal(UID simple.ConnUniqueID, request
 
 //
 // handleDstReqSetDifficulty()
-// handles incomin set difficulty message from a pool connection
+// handles incoming set difficulty message from a pool connection
 //
 func (svs *StratumV1Struct) handleDstReqSetDifficulty(uid simple.ConnUniqueID, request *stratumRequest) (e error) {
 
@@ -1287,7 +1295,7 @@ func (svs *StratumV1Struct) handleDstNoticeNotify(uid simple.ConnUniqueID, notic
 
 //
 // handleDstSetNoticeDifficulty()
-// handles incomin set difficulty message from a pool connection
+// handles incoming set difficulty message from a pool connection
 //
 func (svs *StratumV1Struct) handleDstNoticeSetDifficulty(uid simple.ConnUniqueID, notice *stratumNotice) (e error) {
 
@@ -1303,39 +1311,29 @@ func (svs *StratumV1Struct) handleDstNoticeSetDifficulty(uid simple.ConnUniqueID
 		fallthrough
 	case DstStateAuthorizing:
 		fallthrough
-	case DstStateStandBy:
-		contextlib.Logf(svs.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" storing difficulty for state:%s", dststate)
-
-		e = svs.setLastSetDifficultyNotice(uid, notice)
-		return e
-
 	case DstStateRunning:
-		contextlib.Logf(svs.Ctx(), contextlib.LevelInfo, lumerinlib.FileLineFunc()+" passing set diff for state:%s", dststate)
+		fallthrough
+	case DstStateStandBy:
+		contextlib.Logf(svs.Ctx(), contextlib.LevelDebug, lumerinlib.FileLineFunc()+" storing difficulty for state:%s", dststate)
+		msg, e := notice.createNoticeSetDifficultyMsg()
+		if e != nil {
+			contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" createResponseMsg() error:%s", e)
+		}
+		LogJson(svs.Ctx(), lumerinlib.FileLineFunc(), JSON_STOR_DST, msg)
 
-		e = svs.setLastSetDifficultyNotice(uid, notice)
-		return e
+		svs.setLastSetDifficultyNotice(uid, notice)
 
 	default:
 		contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+"  state:%s not handled", dststate)
+		return ErrDstReqNotSupported
 	}
 
 	//
 	// If Default Route not set, set it.
 	//
 	defRouteUid, _ := svs.protocol.GetDefaultRouteUID()
-	if defRouteUid < 0 {
-		e = svs.protocol.SetDefaultRouteUID(uid)
-		if e != nil {
-			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" SetDefaultRouteUID() error:%s", e)
-			return e
-		}
-
-		defRouteUid = uid
-	}
-
 	// This is the default route
 	if defRouteUid == uid {
-
 		diff, e := notice.getSetDifficulty()
 		if e != nil {
 			return e
@@ -1355,7 +1353,6 @@ func (svs *StratumV1Struct) handleDstNoticeSetDifficulty(uid simple.ConnUniqueID
 
 		svs.protocol.WriteSrc(msg)
 	} else {
-		// Store or drop the message?
 		contextlib.Logf(svs.Ctx(), contextlib.LevelInfo, lumerinlib.FileLineFunc()+" uid:%d is not the default dst:%d, should we store or drop the message", uid, defRouteUid)
 	}
 
@@ -1364,7 +1361,7 @@ func (svs *StratumV1Struct) handleDstNoticeSetDifficulty(uid simple.ConnUniqueID
 
 //
 // handleDstSetNoticeExtranonce()
-// handles incomin set difficulty message from a pool connection
+// handles incoming set extranonce message from a pool connection
 //
 func (svs *StratumV1Struct) handleDstNoticeSetExtranonce(uid simple.ConnUniqueID, notice *stratumNotice) (e error) {
 
