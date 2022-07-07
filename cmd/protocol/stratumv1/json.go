@@ -13,7 +13,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
 	"strconv"
+	"time"
 
 	"gitlab.com/TitanInd/lumerin/lumerinlib"
 	contextlib "gitlab.com/TitanInd/lumerin/lumerinlib/context"
@@ -1039,10 +1041,12 @@ func (r *stratumResponse) createResponseMsg() (msg []byte, err error) {
 //------------------------------------------------------
 func (r *stratumResponse) createSrcSubscribeResponseMsg(id int) (msg []byte, err error) {
 
-	// Move this to JSON file
-
-	extranonce := "deadbeef"
-	extranonce2 := 2 // 0 will result in subscribe erroring out
+	//
+	// Create random extranonce
+	//
+	rand.Seed(time.Now().UnixNano())
+	extranonce := fmt.Sprintf("%08x", rand.Intn(4294967294)+1)
+	extranonce2 := 8 
 
 	notify := make([]string, 2)
 	notify[0] = string(SERVER_MINING_NOTIFY)
