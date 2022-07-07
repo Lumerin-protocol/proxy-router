@@ -137,18 +137,21 @@ func main() {
 			return
 		}
 
-		scheduler := configs.Scheduler
-		scheduler = strings.ToLower(scheduler)
+		switchMethod := configs.SwitchMethod
+		switchMethod = strings.ToLower(switchMethod)
 
-		switch scheduler {
+		switch switchMethod {
 		case "ondemand":
 			stratum.SetScheduler(stratumv1.OnDemand)
 		case "onsubmit":
 			stratum.SetScheduler(stratumv1.OnSubmit)
 		default:
-			l.Logf(log.LevelError, "Scheduler value: %s Not Supported", scheduler)
+			l.Logf(log.LevelError, "Scheduler value: %s Not Supported", switchMethod)
 			return
 		}
+
+		serialize := configs.Serialize
+		stratum.SetSerialize(serialize)
 
 		stratum.Run()
 

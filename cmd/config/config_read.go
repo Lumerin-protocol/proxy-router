@@ -15,7 +15,7 @@ type ConfigRead struct {
 	DisableSchedule     bool
 	SchedulePassthrough bool
 	HashrateCalcLagTime int
-	DisableValidate		bool
+	DisableValidate     bool
 	DisableContract     bool
 	Mnemonic            string
 	AccountIndex        int
@@ -30,7 +30,8 @@ type ConfigRead struct {
 	ApiPort             string
 	LogLevel            int
 	LogFilePath         string
-	Scheduler           string
+	SwitchMethod        string
+	Serialize           bool
 }
 
 func ReadConfigs() (configs ConfigRead) {
@@ -40,6 +41,8 @@ func ReadConfigs() (configs ConfigRead) {
 	}
 
 	if configFile != "" { // if a config file was specified use it instead of flag params
+
+		var ok bool
 		//
 		// Config Configs
 		//
@@ -56,12 +59,48 @@ func ReadConfigs() (configs ConfigRead) {
 		if err != nil {
 			panic(fmt.Sprintf("Failed to load connection configuration: %v", err))
 		}
-		configs.DisableConnection = connectionConfig["disable"].(bool)
-		configs.DisableStratumv1 = connectionConfig["disableStratumv1"].(bool)
-		configs.ListenIP = connectionConfig["listenIP"].(string)
-		configs.ListenPort = connectionConfig["listenPort"].(string)
-		configs.DefaultPoolAddr = connectionConfig["defaultPoolAddr"].(string)
-		configs.Scheduler = connectionConfig["schedulermethod"].(string)
+
+		configs.DisableConnection, ok = connectionConfig["disable"].(bool)
+		if !ok {
+			configs.DisableConnection = false
+		}
+
+		configs.DisableStratumv1, ok = connectionConfig["disableStratumv1"].(bool)
+		if !ok {
+			configs.DisableConnection = false
+		}
+
+		configs.ListenIP, ok = connectionConfig["listenIP"].(string)
+		if !ok {
+			panic(fmt.Sprintf("Failed to load Connection Listen IP Address"))
+		}
+
+		configs.ListenPort, ok = connectionConfig["listenPort"].(string)
+		if !ok {
+			panic(fmt.Sprintf("Failed to load Connection Listen Port"))
+		}
+
+		configs.DefaultPoolAddr, ok = connectionConfig["defaultPoolAddr"].(string)
+		if !ok {
+			panic(fmt.Sprintf("Failed to load Connection Default Pool Address"))
+		}
+
+		configs.SwitchMethod, ok = connectionConfig["switchmethod"].(string)
+		if !ok {
+			configs.SwitchMethod = ConfigMap[ConfigConnectionSwitchMethod].defval
+		}
+		if !(configs.SwitchMethod == "ondemand" || configs.SwitchMethod == "onsubmit") {
+			panic(fmt.Sprintf("Switch Method '%s' not supported", configs.SwitchMethod))
+		}
+
+		configs.Serialize, ok = connectionConfig["serializeworker"].(bool)
+		if !ok {
+			if ConfigMap[ConfigConnectionSerializeWorker].defval == "true" {
+				configs.Serialize = true
+			} else {
+				configs.Serialize = false
+			}
+		}
 
 		//
 		// Scheduler Configs
@@ -120,6 +159,10 @@ func ReadConfigs() (configs ConfigRead) {
 		}
 		configs.LogLevel = int(loggingConfig["level"].(float64))
 		configs.LogFilePath = loggingConfig["filePath"].(string)
+
+		//
+		// Load Defaults
+		//
 	} else {
 		//
 		// Config Configs
@@ -136,22 +179,20 @@ func ReadConfigs() (configs ConfigRead) {
 		//
 		// Connection Configs
 		//
+
 		configs.DisableConnection = false
 		configs.DisableStratumv1 = false
+		configs.SwitchMethod = "OnDemand"
+
 		disableConnectionStr, err := ConfigGetVal(DisableConnection)
-		if err != nil {
-			panic(fmt.Sprintf("Getting Disable Connection val failed: %s\n", err))
-		}
-		if disableConnectionStr == "true" {
+		if err == nil && disableConnectionStr == "true" {
 			configs.DisableConnection = true
 		}
 		disableStratumv1Str, err := ConfigGetVal(DisableStratumv1)
-		if err != nil {
-			panic(fmt.Sprintf("Getting Disable StratumV1 val failed: %s\n", err))
-		}
-		if disableStratumv1Str == "true" {
+		if err == nil && disableStratumv1Str == "true" {
 			configs.DisableStratumv1 = true
 		}
+
 		configs.ListenIP, err = ConfigGetVal(ConfigConnectionListenIP)
 		if err != nil {
 			panic(fmt.Sprintf("Getting Listen IP val failed: %s\n", err))
@@ -163,6 +204,16 @@ func ReadConfigs() (configs ConfigRead) {
 		configs.DefaultPoolAddr, err = ConfigGetVal(DefaultPoolAddr)
 		if err != nil {
 			panic(fmt.Sprintf("Getting Default Pool Addr val failed: %s\n", err))
+		}
+
+		switchMethodStr, err := ConfigGetVal(ConfigConnectionSwitchMethod)
+		if err == nil && switchMethodStr == "onsubmit" {
+			configs.SwitchMethod = "OnSubmit"
+		}
+
+		enableSerializeWorker, err := ConfigGetVal(ConfigConnectionSerializeWorker)
+		if err == nil && enableSerializeWorker == "true" {
+			configs.Serialize = true
 		}
 
 		//

@@ -58,6 +58,7 @@ const MaxRedials int = 5
 type StratumV1ListenStruct struct {
 	protocollisten *protocol.ProtocolListenStruct
 	scheduler      StratumConnectionScheduler
+	serialize      bool
 }
 
 type StratumV1Struct struct {
@@ -66,6 +67,7 @@ type StratumV1Struct struct {
 	protocol            *protocol.ProtocolStruct
 	minerRec            *msgbus.Miner
 	scheduler           StratumConnectionScheduler
+	serialize           bool
 	srcSubscribeRequest *stratumRequest // Copy of recieved Subscribe Request from Source
 	srcAuthRequest      *stratumRequest // Copy of recieved Authorize Request from Source
 	srcConfigure        *stratumRequest // Copy of recieved Configure Request from Source
@@ -73,6 +75,7 @@ type StratumV1Struct struct {
 	srcState            SrcState
 	dstState            map[simple.ConnUniqueID]DstState
 	dstDest             map[simple.ConnUniqueID]*msgbus.Dest
+	dstUsername         map[simple.ConnUniqueID]string
 	dstReDialCount      map[simple.ConnUniqueID]int
 	dstExtranonce       map[simple.ConnUniqueID]string
 	dstExtranonce2size  map[simple.ConnUniqueID]int
@@ -87,6 +90,7 @@ type StratumV1Struct struct {
 }
 
 var MinerCountChan chan int
+var serializechan chan int
 
 //
 // init()
@@ -95,6 +99,8 @@ var MinerCountChan chan int
 func init() {
 	MinerCountChan = make(chan int, 5)
 	lumerinlib.RunGoCounter(MinerCountChan)
+	serializechan = make(chan int, 5)
+	lumerinlib.RunGoCounter(serializechan)
 }
 
 //
@@ -126,6 +132,7 @@ func NewListener(ctx context.Context, src net.Addr, dest *msgbus.Dest) (sls *Str
 		sls = &StratumV1ListenStruct{
 			protocollisten: protocollisten,
 			scheduler:      OnDemand, // OnDemand is the Default
+			serialize:      false,    // false is the Default
 		}
 	}
 
@@ -150,6 +157,21 @@ func (s *StratumV1ListenStruct) GetScheduler() (scheduler StratumConnectionSched
 //
 //
 //
+func (s *StratumV1ListenStruct) SetSerialize(serialize bool) {
+	s.serialize = serialize
+}
+
+//
+//
+//
+func (s *StratumV1ListenStruct) GetSerialize() (serialize bool) {
+	serialize = s.serialize
+	return serialize
+}
+
+//
+//
+//
 func (s *StratumV1ListenStruct) goListenAccept() {
 
 	contextlib.Logf(s.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
@@ -164,7 +186,7 @@ FORLOOP:
 			contextlib.Logf(s.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" context canceled")
 			break FORLOOP
 		case ps := <-protocolStructChan:
-			ss := NewStratumV1Struct(s.Ctx(), ps, s.scheduler)
+			ss := NewStratumV1Struct(s.Ctx(), ps, s.scheduler, s.serialize)
 			if ss != nil {
 				ss.Run()
 			}
@@ -187,7 +209,7 @@ func (s *StratumV1ListenStruct) goListenAcceptOnce() {
 	case <-s.Ctx().Done():
 		contextlib.Logf(s.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" context canceled")
 	case ps := <-protocolStructChan:
-		ss := NewStratumV1Struct(s.Ctx(), ps, s.scheduler)
+		ss := NewStratumV1Struct(s.Ctx(), ps, s.scheduler, s.serialize)
 		if ss != nil {
 			ss.Run()
 		}
@@ -247,13 +269,14 @@ func (s *StratumV1ListenStruct) Cancel() {
 //
 //
 //
-func NewStratumV1Struct(ctx context.Context, ps *protocol.ProtocolStruct, scheduler StratumConnectionScheduler) (n *StratumV1Struct) {
+func NewStratumV1Struct(ctx context.Context, ps *protocol.ProtocolStruct, scheduler StratumConnectionScheduler, serialize bool) (n *StratumV1Struct) {
 	ctx, cancel := context.WithCancel(ctx)
 	_ = cancel
 	ds := make(map[simple.ConnUniqueID]DstState)
 	dd := make(map[simple.ConnUniqueID]*msgbus.Dest)
 	rd := make(map[simple.ConnUniqueID]int)
 	de := make(map[simple.ConnUniqueID]string)
+	du := make(map[simple.ConnUniqueID]string)
 	de2 := make(map[simple.ConnUniqueID]int)
 	lsd := make(map[simple.ConnUniqueID]int)
 	vm := make(map[simple.ConnUniqueID]string)
@@ -299,6 +322,7 @@ func NewStratumV1Struct(ctx context.Context, ps *protocol.ProtocolStruct, schedu
 		protocol:            ps,
 		minerRec:            miner,
 		scheduler:           scheduler,
+		serialize:           serialize,
 		srcSubscribeRequest: nil,
 		srcAuthRequest:      nil,
 		srcConfigure:        nil,
@@ -306,6 +330,7 @@ func NewStratumV1Struct(ctx context.Context, ps *protocol.ProtocolStruct, schedu
 		srcState:            SrcStateNew,
 		dstState:            ds,
 		dstDest:             dd,
+		dstUsername:         du,
 		dstReDialCount:      rd,
 		dstExtranonce:       de,
 		dstExtranonce2size:  de2,
@@ -326,6 +351,14 @@ func NewStratumV1Struct(ctx context.Context, ps *protocol.ProtocolStruct, schedu
 func (svs *StratumV1Struct) GetScheduler() (scheduler StratumConnectionScheduler) {
 	scheduler = svs.scheduler
 	return scheduler
+}
+
+//
+//
+//
+func (svs *StratumV1Struct) GetSerialize() (serialize bool) {
+	serialize = svs.serialize
+	return serialize
 }
 
 //
@@ -516,8 +549,17 @@ func (s *StratumV1Struct) GetDstDestUid(uid simple.ConnUniqueID) (dest *msgbus.D
 //
 //
 func (s *StratumV1Struct) GetDstUsernameUid(uid simple.ConnUniqueID) (username string) {
-	dest := s.dstDest[uid]
-	username = dest.Username()
+	var ok bool
+	username, ok = s.dstUsername[uid]
+	if !ok {
+		username = s.dstDest[uid].Username()
+		if s.serialize {
+			username = fmt.Sprintf("%s.%05d", username, <-serializechan)
+			contextlib.Logf(s.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" Username:%s", username)
+		}
+
+		s.dstUsername[uid] = username
+	}
 	return username
 }
 

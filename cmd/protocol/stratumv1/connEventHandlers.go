@@ -424,8 +424,8 @@ func (svs *StratumV1Struct) handleResponse(uid simple.ConnUniqueID, response *st
 			//
 			svs.SetDstStateUid(uid, DstStateAuthorizing)
 			request := svs.srcAuthRequest
-			username := svs.dstDest[uid].Username()
-			password := svs.dstDest[uid].Password()
+			username := svs.GetDstUsernameUid(uid)
+			password := svs.GetDstPasswordUid(uid)
 
 			msg, e := request.createAuthorizeRequestMsg(username, password)
 
@@ -565,7 +565,8 @@ func (svs *StratumV1Struct) checkDstResponseSubmit(uid simple.ConnUniqueID, resp
 	if request != nil && accepted {
 
 		// Lots of error checking needed here, or a better way of pulling out parameters in a controlled manner
-		username := svs.dstDest[uid].Username()
+		// username := svs.dstDest[uid].Username()
+		username := svs.GetDstUsernameUid(uid)
 		minerID := svs.minerRec.ID
 		destID := svs.minerRec.Dest
 		jobID := request.Params[1].(string)
@@ -911,7 +912,8 @@ func (svs *StratumV1Struct) handleSrcReqSubmit(request *stratumRequest) (e error
 	}
 
 	// Lots of error checking needed here, or a better way of pulling out parameters in a controlled manner
-	username := svs.dstDest[uid].Username()
+	// username := svs.dstDest[uid].Username()
+	username := svs.GetDstUsernameUid(uid)
 	ID := request.ID
 
 	//
