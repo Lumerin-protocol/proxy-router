@@ -17,6 +17,7 @@ const (
 	ConfigContractTimeThreshold       ConfigConst = "ConfigContractTimeThreshold"
 	ConfigConnectionListenIP          ConfigConst = "ConfigConnectionListenIP"
 	ConfigConnectionListenPort        ConfigConst = "ConfigConnectionListenPort"
+	ConfigConnectionSerializeWorker   ConfigConst = "ConfigConnectionSerializeWorker"
 	ConfigConnectionSwitchMethod      ConfigConst = "ConfigConnectionSwitchMethod"
 	ConfigConfigFilePath              ConfigConst = "ConfigConfigFilePath"
 	ConfigConfigDownloadPath          ConfigConst = "ConfigConfigDownloadPath"
@@ -89,11 +90,21 @@ var ConfigMap = map[ConfigConst]configitem{
 		envval:     nil,
 		flagval:    nil,
 	},
+	ConfigConnectionSerializeWorker: {
+		flagname:   "serializeworker",
+		flagusage:  "Connection Manager Seralize Worker Thread Name",
+		envname:    "SERIALIZEWORKER",
+		configname: "connection.seralize",
+		defval:     "false",
+		configval:  nil,
+		envval:     nil,
+		flagval:    nil,
+	},
 	ConfigConnectionSwitchMethod: {
-		flagname:   "schedulemethod",
+		flagname:   "switchmethod",
 		flagusage:  "Connection Manager scheduling method: ondemand, onsubmit",
-		envname:    "SCHEDULEMETHOD",
-		configname: "connection.scheduler",
+		envname:    "SWITCHMETHOD",
+		configname: "connection.switchmethod",
 		defval:     "ondemand",
 		configval:  nil,
 		envval:     nil,
