@@ -446,10 +446,12 @@ func TestMultiTimeSlicing(t *testing.T) {
 		minerTemp.ID = msgbus.MinerID("MinerID0" + strconv.Itoa(i))
 		minerTemp.IP = "IpAddress" + strconv.Itoa(i)
 		minerTemp.Contracts = make(map[msgbus.ContractID]float64)
-		if i < 11 {
-			minerTemp.CurrentHashRate = 100
+		if i < 4 {
+			minerTemp.CurrentHashRate = 50
+		} else if i < 8 {
+			minerTemp.CurrentHashRate = 70
 		} else {
-			minerTemp.CurrentHashRate = 0
+			minerTemp.CurrentHashRate = 100
 		}
 		ps.PubWait(msgbus.MinerMsg, msgbus.IDString(minerTemp.ID), minerTemp)
 	}
