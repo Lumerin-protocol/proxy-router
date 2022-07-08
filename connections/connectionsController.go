@@ -23,9 +23,16 @@ type ConnectionsController struct {
 	minerConnections       []net.Conn
 	poolAddr               string
 	connections            []*ConnectionInfo
+	eventManager           interfaces.IEventManager
 }
 
 func (c *ConnectionsController) Run() {
+	c.eventManager.Attach(contractmanager.DestMsg, c)
+	go c.run()
+}
+
+func (c *ConnectionsController) run() {
+
 	log.Printf("Running main...")
 
 	link, err := net.ListenTCP("tcp", &net.TCPAddr{Port: 3333})
@@ -226,8 +233,14 @@ func (c *ConnectionsController) ServeHTTP(w http.ResponseWriter, r *http.Request
 // 	}
 // }
 
-func NewConnectionsController(poolAddr string, miningRequestProcessor interfaces.IMiningRequestProcessor) *ConnectionsController {
-	return &ConnectionsController{poolAddr: poolAddr, miningRequestProcessor: miningRequestProcessor, connections: []*ConnectionInfo{}, minerConnections: []net.Conn{}}
+func NewConnectionsController(poolAddr string, miningRequestProcessor interfaces.IMiningRequestProcessor, eventManager interfaces.IEventManager) *ConnectionsController {
+	return &ConnectionsController{
+		poolAddr:               poolAddr,
+		miningRequestProcessor: miningRequestProcessor,
+		connections:            []*ConnectionInfo{},
+		minerConnections:       []net.Conn{},
+		eventManager:           eventManager,
+	}
 }
 
 type ConnectionInfo struct {

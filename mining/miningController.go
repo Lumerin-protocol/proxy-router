@@ -4,15 +4,30 @@ import (
 	"log"
 	"os"
 	"time"
+
+	"gitlab.com/TitanInd/hashrouter/contractmanager"
+	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
 
 type MiningController struct {
-	user     string
-	password string
+	user         string
+	password     string
+	eventManager interfaces.IEventManager
+}
+
+func NewMiningController(user string, password string, eventManager interfaces.IEventManager) *MiningController {
+	return &MiningController{
+		user:         user,
+		password:     password,
+		eventManager: eventManager,
+	}
+}
+
+func (m *MiningController) Run() {
+	m.eventManager.Attach(contractmanager.DestMsg, m)
 }
 
 func (m *MiningController) ProcessMiningMessage(messageRaw []byte) []byte {
-
 	message, err := CreateMinerMessage(messageRaw)
 
 	if err != nil {
