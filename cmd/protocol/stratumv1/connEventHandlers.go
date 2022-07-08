@@ -280,7 +280,7 @@ func (svs *StratumV1Struct) handleRequest(uid simple.ConnUniqueID, request *stra
 		case string(CLIENT_MINING_SUBMIT):
 			svs.handleSrcReqSubmit(request)
 		case string(CLIENT_MINING_SUGGEST_DIFFICULTY):
-			svs.handleSrcReqDifficulty(request)
+			svs.handleSrcReqSuggestDifficulty(request)
 		case string(CLIENT_MINING_SUGGEST_TARGET):
 			svs.handleSrcReqSuggestTarget(request)
 		case string(CLIENT_MINING_MULTI_VERSION):
@@ -961,12 +961,50 @@ func (svs *StratumV1Struct) handleSrcReqCapabilities(request *stratumRequest) (e
 }
 
 //
+// handleSrcReqSuggestDifficulty()
+//  This will just reply to the miner and acknoledge the message
 //
-//
-func (svs *StratumV1Struct) handleSrcReqDifficulty(request *stratumRequest) (e error) {
+func (svs *StratumV1Struct) handleSrcReqSuggestDifficulty(request *stratumRequest) (e error) {
 
-	contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" this is not handled yet")
-	return ErrSrcReqNotSupported
+	contextlib.Logf(svs.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
+
+	state := svs.GetSrcState()
+	// Validate the current sstate of the SRC connection
+	switch state {
+	case SrcStateNew:
+		fallthrough
+	case SrcStateSubscribed:
+		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Bad State:%s", state)
+		e = ErrBadSrcState
+	case SrcStateAuthorized:
+		fallthrough
+	case SrcStateRunning:
+		id := request.ID
+		response := Response(id, false)
+		respmsg, e := response.createResponseMsg()
+		if e != nil {
+		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" createResponsMsg() error:%s", e)
+		return e
+		}
+
+	LogJson(svs.Ctx(), lumerinlib.FileLineFunc(), JSON_SEND_STOR2SRC, respmsg)
+
+	count, e := svs.protocol.WriteSrc(respmsg)
+	if e != nil {
+		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write error:%s", e)
+		return e
+	}
+	if count != len(respmsg) {
+		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write bad count:%d, %d", count, len(respmsg))
+		e = fmt.Errorf(lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(respmsg))
+		return e
+	}
+
+	default:
+		contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Src state:%s", state)
+	}
+
+	return e
 
 }
 
