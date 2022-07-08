@@ -1,8 +1,9 @@
 install:
 	go mod download
 
-run: 
-	go run main.go
+run:
+	wire
+	go run .
 
 test:
 	go test ./...

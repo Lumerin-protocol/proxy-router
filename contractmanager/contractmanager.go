@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"log"
 	"sync"
 
 	//"encoding/hex"
@@ -14,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"go.uber.org/zap"
 
 	//"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -52,7 +52,7 @@ type nonce struct {
 //TODO: replace logging
 type SellerContractManager struct {
 	ps                  i.IEventManager
-	l                   *log.Logger
+	l                   *zap.SugaredLogger
 	ethClient           *ethclient.Client
 	cloneFactoryAddress common.Address
 	account             common.Address
@@ -60,10 +60,7 @@ type SellerContractManager struct {
 	claimFunds          bool
 	currentNonce        nonce
 	nodeOperator        NodeOperator
-}
-
-func (s *SellerContractManager) SetLogger(l *log.Logger) {
-	s.l = l
+	contractAddress     string
 }
 
 type MinerState string
@@ -134,7 +131,7 @@ const (
 	LogMsg                   string = "LogMsg"
 )
 
-func NewSellerContractManager(logger *log.Logger, eventManager i.IEventManager, ethClient *ethclient.Client) *SellerContractManager {
+func NewSellerContractManager(logger *zap.SugaredLogger, eventManager i.IEventManager, ethClient *ethclient.Client, contractAddress string) *SellerContractManager {
 
 	return &SellerContractManager{
 		l:         logger,
@@ -143,11 +140,12 @@ func NewSellerContractManager(logger *log.Logger, eventManager i.IEventManager, 
 		nodeOperator: NodeOperator{
 			Contracts: make(map[string]string),
 		},
+		contractAddress: contractAddress,
 	}
 }
 
-func (seller *SellerContractManager) Run(ctx context.Context, addr string) {
-	go seller.run(ctx, addr)
+func (seller *SellerContractManager) Run(ctx context.Context) {
+	go seller.run(ctx, seller.contractAddress)
 }
 
 func (seller *SellerContractManager) run(ctx context.Context, addr string) (err error) {
@@ -418,19 +416,19 @@ func (seller *SellerContractManager) watchHashrateContract(ctx context.Context, 
 		for {
 			select {
 			case err := <-hrSub.Err():
-				seller.l.Printf("Panic %v", fmt.Sprintf("Funcname::%v, Error::%v", "watchHashrateContract", err))
+				seller.l.Errorf("Panic %v", fmt.Sprintf("Funcname::%v, Error::%v", "watchHashrateContract", err))
 			case <-ctx.Done():
-				seller.l.Printf("Info %v", "Cancelling current contract manager context: cancelling watchHashrateContract go routine")
+				seller.l.Info("Info %v", "Cancelling current contract manager context: cancelling watchHashrateContract go routine")
 				return
 			case hLog := <-hrLogs:
 				switch hLog.Topics[0].Hex() {
 				case contractPurchasedSigHash.Hex():
 					buyer := common.HexToAddress(hLog.Topics[1].Hex())
-					seller.l.Printf("Info %v purchased Hashrate Contract: %v\n\n", buyer.Hex(), addr)
+					seller.l.Info("Info %v purchased Hashrate Contract: %v\n\n", buyer.Hex(), addr)
 
 					destUrl, err := readDestUrl(seller.ethClient, common.HexToAddress(string(addr)), seller.privateKey)
 					if err != nil {
-						seller.l.Printf("Panic %v Reading dest url failed, Error::%v", "\r\n", err)
+						seller.l.Errorf("Panic %v Reading dest url failed, Error::%v", "\r\n", err)
 					}
 					destMsg := Dest{
 						ID:     GetRandomIDString(),
@@ -441,14 +439,14 @@ func (seller *SellerContractManager) watchHashrateContract(ctx context.Context, 
 
 					// event, err := seller.ps.GetWait(ContractMsg, string(addr))
 					if err != nil {
-						seller.l.Printf("panic Getting Purchased Contract Failed: %v", err)
+						seller.l.Errorf("panic Getting Purchased Contract Failed: %v", err)
 					}
 					// if event.Err != nil {
 					// 	seller.l.Printf("panic", "Getting Purchased Contract Failed: %v", event.Err)
 					// }
 					contractValues, err := readHashrateContract(seller.ethClient, common.HexToAddress(string(addr)))
 					if err != nil {
-						seller.l.Printf("panic Reading hashrate contract failed, Error::%v", err)
+						seller.l.Errorf("panic Reading hashrate contract failed, Error::%v", err)
 					}
 					contractMsg := createContractMsg(common.HexToAddress(string(addr)), contractValues, true)
 					contractMsg.Dest = destMsg.ID
