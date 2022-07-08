@@ -17,39 +17,39 @@ import (
 )
 
 type App struct {
-	connectionsController *connections.ConnectionsController
-	miningController      *mining.MiningController
-	server                *api.Server
-	sellerManager         *contractmanager.SellerContractManager
+	ConnectionsController *connections.ConnectionsController
+	MiningController      *mining.MiningController
+	Server                *api.Server
+	SellerManager         *contractmanager.SellerContractManager
 }
 
 func (a *App) Run() {
 	ctx, _ := context.WithCancel(context.Background())
-	a.connectionsController.Run()
-	a.miningController.Run()
-	a.sellerManager.Run(ctx)
-	a.server.Run(ctx)
+	a.ConnectionsController.Run()
+	a.MiningController.Run()
+	a.SellerManager.Run(ctx)
+	a.Server.Run(ctx)
 	<-ctx.Done()
 }
 
 func provideMiningController(cfg *config.Config, em interfaces.IEventManager) *mining.MiningController {
-	return mining.NewMiningController(cfg.PoolUser, cfg.PoolPassword, em)
+	return mining.NewMiningController(cfg.Pool.User, cfg.Pool.Password, em)
 }
 
 func provideConnectionController(cfg *config.Config, mc *mining.MiningController, em interfaces.IEventManager) *connections.ConnectionsController {
-	return connections.NewConnectionsController(cfg.PoolAddress, mc, em)
+	return connections.NewConnectionsController(cfg.Pool.Address, mc, em)
 }
 
 func provideServer(cfg *config.Config, cc *connections.ConnectionsController) *api.Server {
-	return api.NewServer(cfg.WebAddress, cc)
+	return api.NewServer(cfg.Web.Address, cc)
 }
 
 func provideEthClient(cfg *config.Config) (*ethclient.Client, error) {
-	return contractmanager.NewEthClient(cfg.EthNodeAddress)
+	return contractmanager.NewEthClient(cfg.EthNode.Address)
 }
 
 func provideSellerContractManager(cfg *config.Config, em interfaces.IEventManager, ethClient *ethclient.Client, logger *zap.SugaredLogger) *contractmanager.SellerContractManager {
-	return contractmanager.NewSellerContractManager(logger, em, ethClient, cfg.ContractAddress)
+	return contractmanager.NewSellerContractManager(logger, em, ethClient, cfg.Contract.Address)
 }
 
 func InitApp() (*App, error) {

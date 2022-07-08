@@ -2,8 +2,7 @@ install:
 	go mod download
 
 run:
-	wire
-	go run .
+	wire && go run .
 
 test:
 	go test ./...

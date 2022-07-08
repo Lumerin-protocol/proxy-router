@@ -7,9 +7,9 @@
 package main
 
 import (
-	"context"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"gitlab.com/TitanInd/hashrouter/api"
+	"gitlab.com/TitanInd/hashrouter/app"
 	"gitlab.com/TitanInd/hashrouter/config"
 	"gitlab.com/TitanInd/hashrouter/connections"
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
@@ -22,7 +22,7 @@ import (
 
 // Injectors from main.go:
 
-func InitApp() (*App, error) {
+func InitApp() (*app.App, error) {
 	configConfig, err := config.NewConfig()
 	if err != nil {
 		return nil, err
@@ -40,8 +40,13 @@ func InitApp() (*App, error) {
 		return nil, err
 	}
 	sellerContractManager := provideSellerContractManager(configConfig, iEventManager, client, sugaredLogger)
-	app := provideApp(connectionsController, miningController, server, sellerContractManager)
-	return app, nil
+	appApp := &app.App{
+		ConnectionsController: connectionsController,
+		MiningController:      miningController,
+		Server:                server,
+		SellerManager:         sellerContractManager,
+	}
+	return appApp, nil
 }
 
 // main.go:
@@ -49,59 +54,30 @@ func InitApp() (*App, error) {
 const VERSION = "0.01"
 
 func main() {
-	app, err := InitApp()
+	appInstance, err := InitApp()
 	if err != nil {
 		panic(err)
 	}
-	app.Run()
-}
 
-type App struct {
-	connectionsController *connections.ConnectionsController
-	miningController      *mining.MiningController
-	server                *api.Server
-	sellerManager         *contractmanager.SellerContractManager
-}
-
-func (a *App) Run() {
-	ctx, _ := context.WithCancel(context.Background())
-	a.connectionsController.Run()
-	a.miningController.Run()
-	a.sellerManager.Run(ctx)
-	a.server.Run(ctx)
-	<-ctx.Done()
+	appInstance.Run()
 }
 
 func provideMiningController(cfg *config.Config, em interfaces.IEventManager) *mining.MiningController {
-	return mining.NewMiningController(cfg.PoolUser, cfg.PoolPassword, em)
+	return mining.NewMiningController(cfg.Pool.User, cfg.Pool.Password, em)
 }
 
 func provideConnectionController(cfg *config.Config, mc *mining.MiningController, em interfaces.IEventManager) *connections.ConnectionsController {
-	return connections.NewConnectionsController(cfg.PoolAddress, mc, em)
+	return connections.NewConnectionsController(cfg.Pool.Address, mc, em)
 }
 
 func provideServer(cfg *config.Config, cc *connections.ConnectionsController) *api.Server {
-	return api.NewServer(cfg.WebAddress, cc)
+	return api.NewServer(cfg.Web.Address, cc)
 }
 
 func provideEthClient(cfg *config.Config) (*ethclient.Client, error) {
-	return contractmanager.NewEthClient(cfg.EthNodeAddress)
+	return contractmanager.NewEthClient(cfg.EthNode.Address)
 }
 
 func provideSellerContractManager(cfg *config.Config, em interfaces.IEventManager, ethClient *ethclient.Client, logger *zap.SugaredLogger) *contractmanager.SellerContractManager {
-	return contractmanager.NewSellerContractManager(logger, em, ethClient, cfg.ContractAddress)
-}
-
-func provideApp(
-	connectionsController *connections.ConnectionsController,
-	miningController *mining.MiningController,
-	server *api.Server,
-	sellerManager *contractmanager.SellerContractManager,
-) *App {
-	return &App{
-		connectionsController: connectionsController,
-		miningController:      miningController,
-		server:                server,
-		sellerManager:         sellerManager,
-	}
+	return contractmanager.NewSellerContractManager(logger, em, ethClient, cfg.Contract.Address)
 }
