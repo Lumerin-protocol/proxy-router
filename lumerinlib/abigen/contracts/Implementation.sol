@@ -153,13 +153,19 @@ contract Implementation is Initializable, Escrow {
         buyer = seller;
         encryptedPoolData = "";
         contractState = ContractState.Available;
+        startingBlockTimestamp = 0;
     }
 
+    //purpose is to calculate how many tokens the buyer is owed incase the contract
+    //is canceled early
     function buyerPayoutCalc() internal view returns (uint256) {
         uint256 durationOfContract = block.timestamp - startingBlockTimestamp;
-        return
-            uint256(price * uint256(length - durationOfContract)) /
-            uint256(length);
+        if (durationOfContract <= length) {
+            return
+                uint256(price * uint256(length - durationOfContract)) /
+                uint256(length);
+        }
+        return 0;
     }
 
     function setContractCloseOut(uint256 closeOutType) public {
@@ -171,7 +177,9 @@ contract Implementation is Initializable, Escrow {
                 "this account is not authorized to trigger an early closeout"
             );
             uint256 buyerPayout = buyerPayoutCalc();
-            withdrawFunds(price - buyerPayout, buyerPayout);
+            if (buyerPayout > 0) {
+                withdrawFunds(myToken.balanceOf(address(this))-buyerPayout, buyerPayout);
+            }
             setContractVariableUpdate();
             emit contractClosed();
         } else if (closeOutType == 1) {
@@ -181,25 +189,21 @@ contract Implementation is Initializable, Escrow {
                 msg.sender == seller,
                 "this account is not authorized to trigger a mid-contract closeout"
             );
-            getDepositContractHodlingsToSeller(price - buyerPayoutCalc());
+            getDepositContractHodlingsToSeller(buyerPayoutCalc());
         } else if (closeOutType == 2 || closeOutType == 3) {
             require(
                 block.timestamp - startingBlockTimestamp >= length,
                 "the contract has yet to be carried to term"
             );
             if (closeOutType == 3) {
-                withdrawFunds(price, 0);
+                withdrawFunds(myToken.balanceOf(address(this)), 0);
             }
             setContractVariableUpdate();
             emit contractClosed();
-        } else {
-            require(
-                closeOutType < 4,
-                "you must make a selection between 0 and 3"
-            );
         }
     }
 }
+
 
 
 

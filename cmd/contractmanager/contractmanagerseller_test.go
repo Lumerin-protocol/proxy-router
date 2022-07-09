@@ -175,6 +175,7 @@ loop2:
 		CurrentHashRate: 20,
 		State:           msgbus.OnlineState,
 		Dest:            defaultDest.ID,
+		Contracts:       make(map[msgbus.ContractID]float64),
 	}
 	miner2 := msgbus.Miner{
 		ID:              msgbus.MinerID("MinerID02"),
@@ -182,6 +183,7 @@ loop2:
 		CurrentHashRate: 10,
 		State:           msgbus.OnlineState,
 		Dest:            defaultDest.ID,
+		Contracts:       make(map[msgbus.ContractID]float64),
 	}
 	ps.Pub(msgbus.MinerMsg, msgbus.IDString(miner1.ID), miner1)
 	ps.Pub(msgbus.MinerMsg, msgbus.IDString(miner2.ID), miner2)
@@ -300,6 +302,7 @@ loop4:
 		CurrentHashRate: 30,
 		State:           msgbus.OnlineState,
 		Dest:            defaultDest.ID,
+		Contracts:       make(map[msgbus.ContractID]float64),
 	}
 	ps.Pub(msgbus.MinerMsg, msgbus.IDString(miner3.ID), miner3)
 
@@ -371,6 +374,7 @@ loop6:
 		CurrentHashRate: 15,
 		State:           msgbus.OnlineState,
 		Dest:            defaultDest.ID,
+		Contracts:       make(map[msgbus.ContractID]float64),
 	}
 	ps.Pub(msgbus.MinerMsg, msgbus.IDString(miner4.ID), miner4)
 

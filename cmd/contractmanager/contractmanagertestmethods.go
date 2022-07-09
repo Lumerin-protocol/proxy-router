@@ -119,7 +119,7 @@ func DeployContract(client *ethclient.Client,
 		}
 		return address, ltransaction
 	case "CloneFactory":
-		address, cftransaction, _, err := clonefactory.DeployClonefactory(auth, client, lmnAddress, ValidatorAddress)
+		address, cftransaction, _, err := clonefactory.DeployClonefactory(auth, client, lmnAddress, ValidatorAddress, fromAddress)
 		if err != nil {
 			log.Fatalf("Funcname::%s, Fileline::%s, Error::%v", lumerinlib.Funcname(), lumerinlib.FileLine(), err)
 		}

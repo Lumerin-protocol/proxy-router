@@ -223,7 +223,7 @@ func (seller *SellerContractManager) setupExistingContracts() (err error) {
 	if err != nil {
 		return err
 	}
-	contextlib.Logf(seller.Ctx, log.LevelInfo, "Existing Buyer Contracts: %v", sellerContracts)
+	contextlib.Logf(seller.Ctx, log.LevelInfo, "Existing Seller Contracts: %v", sellerContracts)
 
 	for i := range sellerContracts {
 		id := msgbus.ContractID(sellerContracts[i].Hex())
