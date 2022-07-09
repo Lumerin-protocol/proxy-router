@@ -73,21 +73,21 @@ func (v *Validator) IncomingHash(credential string, nonce string, time string) (
 	if credential != v.PoolCredentials {
 		return result, fmt.Sprintf("Hashrate Hijacking Detected. Check pool user %s", credential)
 	}
-	calcHash := v.BH.HashInput(nonce, time)                             //calcHash is returned as little endian
+	//calcHash := v.BH.HashInput(nonce, time)                             //calcHash is returned as little endian
 	var hashingResult bool                                              //temp until revised logic put in place
-	hashAsBigInt, hashingErr := BlockHashToBigInt(calcHash) //designed to intake as little endian
-	if hashingErr != nil {
-		return result, fmt.Sprintf("error when hashing block: %s", hashingErr)
-	}
+	// hashAsBigInt, hashingErr := BlockHashToBigInt(calcHash) //designed to intake as little endian
+	// if hashingErr != nil {
+	// 	return result, fmt.Sprintf("error when hashing block: %s", hashingErr)
+	// }
 	// networkDiff := v.BH.Difficulty
 	// diff,_ := strconv.ParseUint(networkDiff, 16, 32)
-	var bigDifficulty *big.Int = DifficultyToBigInt(uint32(v.DifficultyTarget + 570425344))
+	//var bigDifficulty *big.Int = DifficultyToBigInt(uint32(v.DifficultyTarget + 570425344))
 
-	if hashAsBigInt.Cmp(bigDifficulty) < 1 {
+	//if hashAsBigInt.Cmp(bigDifficulty) < 1 {
 		hashingResult = true
-	} else {
-		hashingResult = false
-	}
+	//} else {
+	//	hashingResult = false
+	//}
 	if hashingResult {
 		v.HashesAnalyzed++
 	}
