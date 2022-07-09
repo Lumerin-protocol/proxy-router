@@ -60,7 +60,7 @@ func New(Ctx *context.Context, NodeOperator *msgbus.NodeOperator, Passthrough bo
 	cs.ReadyMiners.M = make(map[string]interface{})
 	cs.BusyMiners.M = make(map[string]interface{})
 	cs.BestMinerCombos.M = make(map[string]interface{})
-	cs.ServiceContractChan = make(chan msgbus.ContractID, 5)
+	cs.ServiceContractChan = make(chan msgbus.ContractID, 100)
 	cs.connectionController = minerController
 	return cs, err
 }
@@ -499,6 +499,7 @@ func (cs *ConnectionScheduler) ContractRunning(contractId msgbus.ContractID) {
 				}
 			}
 		}
+		cs.ServiceContractChan <- contractId
 		return
 	}
 
