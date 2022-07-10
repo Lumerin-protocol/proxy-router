@@ -499,8 +499,7 @@ func (cs *ConnectionScheduler) ContractRunning(contractId msgbus.ContractID) {
 				}
 			}
 		}
-		cs.ServiceContractChan <- contractId
-		return
+		time.Sleep(time.Second * time.Duration(cs.HashrateCalcLagTime))
 	}
 
 	cs.ServiceContractChan <- contractId
