@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -130,10 +131,18 @@ func TestEnvRequired(t *testing.T) {
 	if err == nil {
 		t.Fatal("should error if required field missing")
 	}
-	validationErr := err.(validator.ValidationErrors)[0]
-	if validationErr.Field() != "RequiredVal" || validationErr.ActualTag() != "required" {
+	var vErrs validator.ValidationErrors
+
+	if !errors.As(err, &vErrs) {
+		fmt.Printf("%v\n\n\n", err)
+		t.Fatal("invalid error type")
+	}
+	vErr := vErrs[0]
+
+	if vErr.Field() != "RequiredVal" || vErr.ActualTag() != "required" {
 		t.Fatal("unexpected field/tag")
 	}
+
 }
 
 func TestFlagRequired(t *testing.T) {
@@ -143,8 +152,13 @@ func TestFlagRequired(t *testing.T) {
 	if err == nil {
 		t.Fatal("should error if required field missing")
 	}
-	validationErr := err.(validator.ValidationErrors)[0]
-	if validationErr.Field() != "RequiredVal" || validationErr.ActualTag() != "required" {
+	var vErrs validator.ValidationErrors
+	if !errors.As(err, &vErrs) {
+		t.Fatal("invalid error type")
+	}
+	vErr := vErrs[0]
+
+	if vErr.Field() != "RequiredVal" || vErr.ActualTag() != "required" {
 		t.Fatal("unexpected field/tag")
 	}
 }
