@@ -33,12 +33,12 @@ func provideMiningController(cfg *config.Config, em interfaces.IEventManager) *m
 	return mining.NewMiningController(cfg.Pool.User, cfg.Pool.Password, em)
 }
 
-func provideConnectionController(cfg *config.Config, mc *mining.MiningController, em interfaces.IEventManager) *connections.ConnectionsController {
-	return connections.NewConnectionsController(cfg.Pool.Address, mc, em)
+func provideConnectionController(cfg *config.Config, mc *mining.MiningController, em interfaces.IEventManager, l *zap.SugaredLogger) *connections.ConnectionsController {
+	return connections.NewConnectionsController(cfg.Pool.Address, mc, em, l)
 }
 
-func provideServer(cfg *config.Config, cc *connections.ConnectionsController) *api.Server {
-	return api.NewServer(cfg.Web.Address, cc)
+func provideServer(cfg *config.Config, cc *connections.ConnectionsController, l *zap.SugaredLogger) *api.Server {
+	return api.NewServer(cfg.Web.Address, cc, l)
 }
 
 func provideEthClient(cfg *config.Config) (*ethclient.Client, error) {
@@ -49,9 +49,13 @@ func provideSellerContractManager(cfg *config.Config, em interfaces.IEventManage
 	return contractmanager.NewSellerContractManager(logger, em, ethClient, cfg.Contract.Address)
 }
 
+func provideLogger(cfg *config.Config) (*zap.SugaredLogger, error) {
+	return lib.NewLogger(cfg.Log.Syslog)
+}
+
 func InitApp() (*app.App, error) {
 	wire.Build(
-		lib.NewLogger,
+		provideLogger,
 		config.NewConfig,
 		events.NewEventManager,
 		provideMiningController,

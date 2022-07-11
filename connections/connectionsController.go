@@ -2,6 +2,7 @@ package connections
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -12,6 +13,7 @@ import (
 
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"go.uber.org/zap"
 )
 
 type ConnectionsController struct {
@@ -24,14 +26,30 @@ type ConnectionsController struct {
 	poolAddr               string
 	connections            []*ConnectionInfo
 	eventManager           interfaces.IEventManager
+	logger                 *zap.SugaredLogger
 }
 
-func (c *ConnectionsController) Run() {
+func (c *ConnectionsController) Run(ctx context.Context) error {
 	c.eventManager.Attach(contractmanager.DestMsg, c)
-	go c.run()
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- c.run(ctx)
+	}()
+
+	var err error
+
+	select {
+	case err = <-errCh:
+	case <-ctx.Done():
+		err = ctx.Err()
+	}
+
+	c.logger.Info("Conroller cancelled")
+	c.eventManager.DeAttach(contractmanager.DestMsg, c)
+	return err
 }
 
-func (c *ConnectionsController) run() {
+func (c *ConnectionsController) run(ctx context.Context) (err error) {
 
 	log.Printf("Running main...")
 
@@ -233,13 +251,14 @@ func (c *ConnectionsController) ServeHTTP(w http.ResponseWriter, r *http.Request
 // 	}
 // }
 
-func NewConnectionsController(poolAddr string, miningRequestProcessor interfaces.IMiningRequestProcessor, eventManager interfaces.IEventManager) *ConnectionsController {
+func NewConnectionsController(poolAddr string, miningRequestProcessor interfaces.IMiningRequestProcessor, eventManager interfaces.IEventManager, logger *zap.SugaredLogger) *ConnectionsController {
 	return &ConnectionsController{
 		poolAddr:               poolAddr,
 		miningRequestProcessor: miningRequestProcessor,
 		connections:            []*ConnectionInfo{},
 		minerConnections:       []net.Conn{},
 		eventManager:           eventManager,
+		logger:                 logger,
 	}
 }
 

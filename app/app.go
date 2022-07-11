@@ -2,18 +2,16 @@ package app
 
 import (
 	"context"
+	"os"
+	"os/signal"
+	"syscall"
 
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/google/wire"
 	"gitlab.com/TitanInd/hashrouter/api"
-	"gitlab.com/TitanInd/hashrouter/config"
 	"gitlab.com/TitanInd/hashrouter/connections"
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
-	"gitlab.com/TitanInd/hashrouter/events"
-	"gitlab.com/TitanInd/hashrouter/interfaces"
-	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/mining"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 type App struct {
@@ -21,48 +19,39 @@ type App struct {
 	MiningController      *mining.MiningController
 	Server                *api.Server
 	SellerManager         *contractmanager.SellerContractManager
+	Logger                *zap.SugaredLogger
 }
 
 func (a *App) Run() {
-	ctx, _ := context.WithCancel(context.Background())
-	a.ConnectionsController.Run()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	shutdownChan := make(chan os.Signal, 1)
+	signal.Notify(shutdownChan, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		s := <-shutdownChan
+		a.Logger.Infof("Received signal: %s", s)
+		cancel()
+	}()
+
+	defer a.Logger.Sync()
+
+	g, subCtx := errgroup.WithContext(ctx)
+
 	a.MiningController.Run()
-	a.SellerManager.Run(ctx)
-	a.Server.Run(ctx)
-	<-ctx.Done()
-}
 
-func provideMiningController(cfg *config.Config, em interfaces.IEventManager) *mining.MiningController {
-	return mining.NewMiningController(cfg.Pool.User, cfg.Pool.Password, em)
-}
+	g.Go(func() error {
+		return a.ConnectionsController.Run(subCtx)
+	})
 
-func provideConnectionController(cfg *config.Config, mc *mining.MiningController, em interfaces.IEventManager) *connections.ConnectionsController {
-	return connections.NewConnectionsController(cfg.Pool.Address, mc, em)
-}
+	g.Go(func() error {
+		return a.SellerManager.Run(subCtx)
+	})
 
-func provideServer(cfg *config.Config, cc *connections.ConnectionsController) *api.Server {
-	return api.NewServer(cfg.Web.Address, cc)
-}
+	g.Go(func() error {
+		return a.Server.Run(subCtx)
+	})
 
-func provideEthClient(cfg *config.Config) (*ethclient.Client, error) {
-	return contractmanager.NewEthClient(cfg.EthNode.Address)
-}
+	err := g.Wait()
 
-func provideSellerContractManager(cfg *config.Config, em interfaces.IEventManager, ethClient *ethclient.Client, logger *zap.SugaredLogger) *contractmanager.SellerContractManager {
-	return contractmanager.NewSellerContractManager(logger, em, ethClient, cfg.Contract.Address)
-}
-
-func InitApp() (*App, error) {
-	wire.Build(
-		lib.NewLogger,
-		config.NewConfig,
-		events.NewEventManager,
-		provideMiningController,
-		provideConnectionController,
-		provideServer,
-		provideEthClient,
-		provideSellerContractManager,
-		wire.Struct(new(App), "*"),
-	)
-	return nil, nil
+	a.Logger.Infof("Error", err)
 }

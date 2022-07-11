@@ -24,7 +24,7 @@ type Config struct {
 		Address string `env:"ETH_NODE_ADDRESS" flag:"eth-node-address"`
 	}
 	Log struct {
-		Syslog   string `env:"LOG_SYSLOG" flag:"log-syslog"`
+		Syslog   bool   `env:"LOG_SYSLOG" flag:"log-syslog"`
 		FilePath string `env:"LOG_FILE_PATH" flag:"log-file-path"`
 	}
 }
@@ -49,6 +49,7 @@ func NewConfig() (*Config, error) {
 	flagset := flag.NewFlagSet("", flag.ContinueOnError)
 
 	for _, field := range fields {
+
 		envName, ok := field.Tag(TagEnv)
 		if !ok {
 			continue
@@ -62,6 +63,7 @@ func NewConfig() (*Config, error) {
 		}
 
 		flagDesc, _ := field.Tag(TagDesc)
+
 		flagset.Var(field, flagName, flagDesc)
 	}
 

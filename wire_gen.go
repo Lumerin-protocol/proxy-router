@@ -29,13 +29,13 @@ func InitApp() (*app.App, error) {
 	}
 	iEventManager := events.NewEventManager()
 	miningController := provideMiningController(configConfig, iEventManager)
-	connectionsController := provideConnectionController(configConfig, miningController, iEventManager)
-	server := provideServer(configConfig, connectionsController)
-	client, err := provideEthClient(configConfig)
+	sugaredLogger, err := provideLogger(configConfig)
 	if err != nil {
 		return nil, err
 	}
-	sugaredLogger, err := lib.NewLogger()
+	connectionsController := provideConnectionController(configConfig, miningController, iEventManager, sugaredLogger)
+	server := provideServer(configConfig, connectionsController, sugaredLogger)
+	client, err := provideEthClient(configConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -45,6 +45,7 @@ func InitApp() (*app.App, error) {
 		MiningController:      miningController,
 		Server:                server,
 		SellerManager:         sellerContractManager,
+		Logger:                sugaredLogger,
 	}
 	return appApp, nil
 }
@@ -66,12 +67,12 @@ func provideMiningController(cfg *config.Config, em interfaces.IEventManager) *m
 	return mining.NewMiningController(cfg.Pool.User, cfg.Pool.Password, em)
 }
 
-func provideConnectionController(cfg *config.Config, mc *mining.MiningController, em interfaces.IEventManager) *connections.ConnectionsController {
-	return connections.NewConnectionsController(cfg.Pool.Address, mc, em)
+func provideConnectionController(cfg *config.Config, mc *mining.MiningController, em interfaces.IEventManager, l *zap.SugaredLogger) *connections.ConnectionsController {
+	return connections.NewConnectionsController(cfg.Pool.Address, mc, em, l)
 }
 
-func provideServer(cfg *config.Config, cc *connections.ConnectionsController) *api.Server {
-	return api.NewServer(cfg.Web.Address, cc)
+func provideServer(cfg *config.Config, cc *connections.ConnectionsController, l *zap.SugaredLogger) *api.Server {
+	return api.NewServer(cfg.Web.Address, cc, l)
 }
 
 func provideEthClient(cfg *config.Config) (*ethclient.Client, error) {
@@ -80,4 +81,8 @@ func provideEthClient(cfg *config.Config) (*ethclient.Client, error) {
 
 func provideSellerContractManager(cfg *config.Config, em interfaces.IEventManager, ethClient *ethclient.Client, logger *zap.SugaredLogger) *contractmanager.SellerContractManager {
 	return contractmanager.NewSellerContractManager(logger, em, ethClient, cfg.Contract.Address)
+}
+
+func provideLogger(cfg *config.Config) (*zap.SugaredLogger, error) {
+	return lib.NewLogger(cfg.Log.Syslog)
 }

@@ -144,8 +144,8 @@ func NewSellerContractManager(logger *zap.SugaredLogger, eventManager i.IEventMa
 	}
 }
 
-func (seller *SellerContractManager) Run(ctx context.Context) {
-	go seller.run(ctx, seller.contractAddress)
+func (seller *SellerContractManager) Run(ctx context.Context) error {
+	return seller.run(ctx, seller.contractAddress)
 }
 
 func (seller *SellerContractManager) run(ctx context.Context, addr string) (err error) {
@@ -418,13 +418,13 @@ func (seller *SellerContractManager) watchHashrateContract(ctx context.Context, 
 			case err := <-hrSub.Err():
 				seller.l.Errorf("Panic %v", fmt.Sprintf("Funcname::%v, Error::%v", "watchHashrateContract", err))
 			case <-ctx.Done():
-				seller.l.Info("Info %v", "Cancelling current contract manager context: cancelling watchHashrateContract go routine")
+				seller.l.Infof("Info %v", "Cancelling current contract manager context: cancelling watchHashrateContract go routine")
 				return
 			case hLog := <-hrLogs:
 				switch hLog.Topics[0].Hex() {
 				case contractPurchasedSigHash.Hex():
 					buyer := common.HexToAddress(hLog.Topics[1].Hex())
-					seller.l.Info("Info %v purchased Hashrate Contract: %v\n\n", buyer.Hex(), addr)
+					seller.l.Infof("Info %v purchased Hashrate Contract: %v\n\n", buyer.Hex(), addr)
 
 					destUrl, err := readDestUrl(seller.ethClient, common.HexToAddress(string(addr)), seller.privateKey)
 					if err != nil {
