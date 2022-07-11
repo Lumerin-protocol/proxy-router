@@ -154,9 +154,6 @@ func (seller *SellerContractManager) init(Ctx *context.Context, contractManagerC
 	seller.NodeOperator = *nodeOperatorMsg
 	seller.NodeOperator.EthereumAccount = seller.Account.Hex()
 
-	if seller.NodeOperator.Contracts == nil {
-		seller.NodeOperator.Contracts = make(map[msgbus.ContractID]msgbus.ContractState)
-	}
 	return err
 }
 

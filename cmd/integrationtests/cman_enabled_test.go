@@ -136,6 +136,7 @@ func EnabledSimMain(ps *msgbus.PubSub, configs EnabledConfig) (msgbus.DestID, co
 		ID:          msgbus.NodeOperatorID(msgbus.GetRandomIDString()),
 		IsBuyer:     configs.BuyerNode,
 		DefaultDest: dest.ID,
+		Contracts: make(map[msgbus.ContractID]msgbus.ContractState),
 	}
 	event, err = ps.PubWait(msgbus.NodeOperatorMsg, msgbus.IDString(nodeOperator.ID), nodeOperator)
 	if err != nil {

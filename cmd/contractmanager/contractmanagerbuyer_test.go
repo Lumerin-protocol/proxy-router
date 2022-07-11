@@ -81,6 +81,7 @@ func TestBuyerRoutine(t *testing.T) {
 		ID:          msgbus.NodeOperatorID(msgbus.GetRandomIDString()),
 		DefaultDest: defaultDest.ID,
 		IsBuyer:     true,
+		Contracts: make(map[msgbus.ContractID]msgbus.ContractState),
 	}
 	event, err = ps.PubWait(msgbus.NodeOperatorMsg, msgbus.IDString(NodeOperator.ID), NodeOperator)
 	if err != nil {
