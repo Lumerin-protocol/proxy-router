@@ -176,8 +176,8 @@ type stratumResponse struct {
 //
 //
 //
-func Response(id int, r interface{}) stratumResponse {
-	return stratumResponse{
+func Response(id int, r interface{}) *stratumResponse {
+	return &stratumResponse{
 		ID:     id,
 		Result: r,
 		Error:  nil,
