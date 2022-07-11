@@ -4,6 +4,8 @@
 package main
 
 import (
+	"os"
+
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/google/wire"
 	"gitlab.com/TitanInd/hashrouter/api"
@@ -27,6 +29,21 @@ func main() {
 	}
 
 	appInstance.Run()
+}
+
+func InitApp() (*app.App, error) {
+	wire.Build(
+		provideConfig,
+		provideLogger,
+		events.NewEventManager,
+		provideMiningController,
+		provideConnectionController,
+		provideServer,
+		provideEthClient,
+		provideSellerContractManager,
+		wire.Struct(new(app.App), "*"),
+	)
+	return nil, nil
 }
 
 func provideMiningController(cfg *config.Config, em interfaces.IEventManager) *mining.MiningController {
@@ -53,17 +70,7 @@ func provideLogger(cfg *config.Config) (*zap.SugaredLogger, error) {
 	return lib.NewLogger(cfg.Log.Syslog)
 }
 
-func InitApp() (*app.App, error) {
-	wire.Build(
-		provideLogger,
-		config.NewConfig,
-		events.NewEventManager,
-		provideMiningController,
-		provideConnectionController,
-		provideServer,
-		provideEthClient,
-		provideSellerContractManager,
-		wire.Struct(new(app.App), "*"),
-	)
-	return nil, nil
+func provideConfig() (*config.Config, error) {
+	var cfg config.Config
+	return &cfg, config.LoadConfig(&cfg, &os.Args)
 }

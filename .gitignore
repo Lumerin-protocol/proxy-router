@@ -7,3 +7,5 @@ remote-todos
 
 *.log
 .env
+
+.vscode

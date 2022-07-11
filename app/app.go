@@ -53,5 +53,5 @@ func (a *App) Run() {
 
 	err := g.Wait()
 
-	a.Logger.Infof("Error", err)
+	a.Logger.Warnf("App exited due to ", err)
 }

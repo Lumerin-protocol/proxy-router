@@ -43,7 +43,7 @@ func (s *Server) listenAndServe(ctx context.Context) error {
 		// However, when a server is gracefully shutdown, it is safe to ignore errors
 		// returned from this method (given the select logic below), because
 		// Shutdown causes ListenAndServe to always return http.ErrServerClosed.
-		if err := s.server.ListenAndServe(); err != nil {
+		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			s.log.Error("Http server error", err)
 		}
 	}()
@@ -53,7 +53,7 @@ func (s *Server) listenAndServe(ctx context.Context) error {
 		ctx, cancel := context.WithTimeout(ctx, s.shutdownTimeout)
 		defer cancel()
 		err = s.server.Shutdown(ctx)
-		s.log.Info("Server closed")
+		s.log.Warn("HTTP Server closed")
 	case err = <-serverErr:
 	}
 

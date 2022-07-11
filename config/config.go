@@ -1,14 +1,6 @@
 package config
 
-import (
-	"flag"
-	"os"
-
-	"github.com/go-playground/validator/v10"
-	"github.com/joho/godotenv"
-	"github.com/omeid/uconfig/flat"
-)
-
+// Validation tags described here: https://github.com/go-playground/validator
 type Config struct {
 	Web struct {
 		Address string `env:"WEB_ADDRESS" flag:"web-address" desc:"http server address host:port" validate:"required,hostname_port"`
@@ -27,51 +19,4 @@ type Config struct {
 	Log struct {
 		Syslog bool `env:"LOG_SYSLOG" flag:"log-syslog"`
 	}
-}
-
-const (
-	TagEnv  = "env"
-	TagFlag = "flag"
-	TagDesc = "desc"
-)
-
-func NewConfig() (*Config, error) {
-	cfg := &Config{}
-
-	godotenv.Load(".env")
-
-	// iterates over each field of the nested struct
-	fields, err := flat.View(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	flagset := flag.NewFlagSet("", flag.ContinueOnError)
-
-	for _, field := range fields {
-
-		envName, ok := field.Tag(TagEnv)
-		if !ok {
-			continue
-		}
-		envValue := os.Getenv(envName)
-		field.Set(envValue)
-
-		flagName, ok := field.Tag(TagFlag)
-		if !ok {
-			continue
-		}
-
-		flagDesc, _ := field.Tag(TagDesc)
-
-		// writes flag value to variable
-		flagset.Var(field, flagName, flagDesc)
-	}
-
-	err = flagset.Parse(os.Args[1:])
-	if err != nil {
-		return nil, err
-	}
-
-	return cfg, validator.New().Struct(cfg)
 }

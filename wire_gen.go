@@ -18,28 +18,29 @@ import (
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/mining"
 	"go.uber.org/zap"
+	"os"
 )
 
 // Injectors from main.go:
 
 func InitApp() (*app.App, error) {
-	configConfig, err := config.NewConfig()
+	config, err := provideConfig()
 	if err != nil {
 		return nil, err
 	}
 	iEventManager := events.NewEventManager()
-	miningController := provideMiningController(configConfig, iEventManager)
-	sugaredLogger, err := provideLogger(configConfig)
+	miningController := provideMiningController(config, iEventManager)
+	sugaredLogger, err := provideLogger(config)
 	if err != nil {
 		return nil, err
 	}
-	connectionsController := provideConnectionController(configConfig, miningController, iEventManager, sugaredLogger)
-	server := provideServer(configConfig, connectionsController, sugaredLogger)
-	client, err := provideEthClient(configConfig)
+	connectionsController := provideConnectionController(config, miningController, iEventManager, sugaredLogger)
+	server := provideServer(config, connectionsController, sugaredLogger)
+	client, err := provideEthClient(config)
 	if err != nil {
 		return nil, err
 	}
-	sellerContractManager := provideSellerContractManager(configConfig, iEventManager, client, sugaredLogger)
+	sellerContractManager := provideSellerContractManager(config, iEventManager, client, sugaredLogger)
 	appApp := &app.App{
 		ConnectionsController: connectionsController,
 		MiningController:      miningController,
@@ -85,4 +86,9 @@ func provideSellerContractManager(cfg *config.Config, em interfaces.IEventManage
 
 func provideLogger(cfg *config.Config) (*zap.SugaredLogger, error) {
 	return lib.NewLogger(cfg.Log.Syslog)
+}
+
+func provideConfig() (*config.Config, error) {
+	var cfg config.Config
+	return &cfg, config.LoadConfig(&cfg, &os.Args)
 }
