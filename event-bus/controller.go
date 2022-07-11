@@ -11,6 +11,7 @@ type EventBusController struct {
 const (
 	ConnectionEventName = "connection"
 	ContractEventName   = "contract"
+	TestEventName       = "test"
 )
 
 type ConnectionEventData struct {
@@ -37,14 +38,26 @@ func (c *EventBusController) PublishContract(data ContractEventData) {
 	c.eventBus.Publish(ContractEventName, data)
 }
 
-func (c *EventBusController) SubscribeConnection(ch chan<- ConnectionEventData) context.CancelFunc {
-	return c.eventBus.Subscribe(ConnectionEventName, func(val interface{}) {
+func (c *EventBusController) SubscribeConnection(ctx context.Context, ch chan<- ConnectionEventData) {
+	c.eventBus.Subscribe(ctx, ConnectionEventName, func(val interface{}) {
 		ch <- val.(ConnectionEventData)
 	})
 }
 
-func (c *EventBusController) SubscribeContract(ch chan<- ContractEventData) context.CancelFunc {
-	return c.eventBus.Subscribe(ContractEventName, func(val interface{}) {
+func (c *EventBusController) SubscribeConnectionCb(ctx context.Context, cb func(data ConnectionEventData)) {
+	c.eventBus.Subscribe(ctx, ConnectionEventName, func(val interface{}) {
+		cb(val.(ConnectionEventData))
+	})
+}
+
+func (c *EventBusController) SubscribeContract(ctx context.Context, ch chan<- ContractEventData) {
+	c.eventBus.Subscribe(ctx, ContractEventName, func(val interface{}) {
 		ch <- val.(ContractEventData)
+	})
+}
+
+func (c *EventBusController) SubscribeContractCb(ctx context.Context, cb func(data ConnectionEventData)) {
+	c.eventBus.Subscribe(ctx, ConnectionEventName, func(val interface{}) {
+		cb(val.(ConnectionEventData))
 	})
 }

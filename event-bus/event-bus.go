@@ -8,7 +8,7 @@ import (
 
 var EventChannelBufferSize = 1000000
 
-type CastFunc = func(interface{})
+type OnMessageFunc = func(interface{})
 type DataEvent = interface{}
 type DataChannel = chan DataEvent
 type EventChannel struct {
@@ -35,7 +35,7 @@ func (e *eventBus) SetBufferSize(bufferSize int) {
 
 // Subscribe for events from the bus. Creates one goroutine per subscription
 // returns cancel function to stop subscription
-func (e *eventBus) Subscribe(eventName string, castFn CastFunc) context.CancelFunc {
+func (e *eventBus) Subscribe(ctx context.Context, eventName string, onMessage OnMessageFunc) {
 	e.rm.Lock()
 	defer e.rm.Unlock()
 
@@ -53,23 +53,22 @@ func (e *eventBus) Subscribe(eventName string, castFn CastFunc) context.CancelFu
 	eventChannel.ListenerChannels[eventChannel.LastChannelID] = internalChannel
 
 	e.eventChannels[eventName] = eventChannel
-
-	ctx, cancel := context.WithCancel(context.Background())
-	go e.startSubscribePiping(ctx, internalChannel, castFn)
-
-	return cancel
+	go e.startSubscriber(ctx, internalChannel, onMessage)
 }
 
-func (e *eventBus) startSubscribePiping(ctx context.Context, sourceCh DataChannel, castFn CastFunc) {
+func (e *eventBus) startSubscriber(ctx context.Context, sourceCh DataChannel, onMessage OnMessageFunc) {
+SUB:
 	for {
 		select {
 		case <-ctx.Done():
+			break SUB
 			// close(destCh)
-			return
 		case val := <-sourceCh:
-			castFn(val)
+			onMessage(val)
 		}
 	}
+
+	fmt.Printf("Subscriber cancelled\n")
 }
 
 // Publishes event to event bus. Non-blocking if buffer is large enough
