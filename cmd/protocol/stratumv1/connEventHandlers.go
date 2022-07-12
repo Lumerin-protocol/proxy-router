@@ -1203,6 +1203,9 @@ func (svs *StratumV1Struct) handleDstReqSetDifficulty(uid simple.ConnUniqueID, r
 
 	contextlib.Logf(svs.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" enter")
 
+	//
+	// Validate the DST state
+	//
 	dststate := svs.GetDstStateUid(uid)
 	switch dststate {
 	case DstStateSubscribing:
@@ -1226,6 +1229,9 @@ func (svs *StratumV1Struct) handleDstReqSetDifficulty(uid simple.ConnUniqueID, r
 		return ErrDstReqNotSupported
 	}
 
+	//
+	// If the DST is the default route, then pass the message on
+	//
 	defRouteUid, _ := svs.protocol.GetDefaultRouteUID()
 	// This is the default route
 	if defRouteUid == uid {
@@ -1248,7 +1254,7 @@ func (svs *StratumV1Struct) handleDstReqSetDifficulty(uid simple.ConnUniqueID, r
 
 		svs.protocol.WriteSrc(msg)
 	} else {
-		contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" uid:%d is not the default dst:%d, should we store or drop the message", uid, defRouteUid)
+		contextlib.Logf(svs.Ctx(), contextlib.LevelInfo, lumerinlib.FileLineFunc()+" uid:%d is not the default dst:%d, skip sending the message", uid, defRouteUid)
 	}
 
 	return e
