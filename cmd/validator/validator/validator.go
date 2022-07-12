@@ -215,7 +215,7 @@ func (v *MainValidator) minerHandler(ch msgbus.EventChan) {
 	for {
 		select {
 		case <-v.Ctx.Done():
-			contextlib.Logf(v.Ctx, log.LevelInfo, "Cancelling current connection scheduler context: cancelling RunningContractsManager go routine")
+			contextlib.Logf(v.Ctx, log.LevelInfo, "Cancelling current validator context: cancelling minerHandler go routine")
 			return
 
 		case event := <-ch:
@@ -233,7 +233,7 @@ func (v *MainValidator) validateHandler(ch msgbus.EventChan) {
 	for {
 		select {
 		case <-v.Ctx.Done():
-			contextlib.Logf(v.Ctx, log.LevelInfo, "Cancelling current validator context: cancelling minerHandler go routine")
+			contextlib.Logf(v.Ctx, log.LevelInfo, "Cancelling current validator context: cancelling validateHandler go routine")
 			return
 
 		case event := <-ch:
@@ -367,7 +367,7 @@ func (v *MainValidator) difficultyEMA(minerId msgbus.MinerID) {
 		select {
 		case event := <- minerEventChan:
 			if event.EventType == msgbus.UnpublishEvent {
-				contextlib.Logf(v.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Got Miner Unpublish/Unsubscribe Event: %v", event)
+				contextlib.Logf(v.Ctx, log.LevelInfo, lumerinlib.Funcname()+"Miner unpublished: cancelling hashrate calculator routines for Miner: %v", minerId)
 				
 				id := msgbus.MinerID(event.ID)
 				v.MinerDiffs.Delete(string(id))
