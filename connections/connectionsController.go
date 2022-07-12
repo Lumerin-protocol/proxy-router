@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -50,16 +49,17 @@ func (c *ConnectionsController) Run(ctx context.Context) error {
 }
 
 func (c *ConnectionsController) run(ctx context.Context) (err error) {
+	port := 3333
 
-	log.Printf("Running main...")
+	c.logger.Infof("Running main...")
 
-	link, err := net.ListenTCP("tcp", &net.TCPAddr{Port: 3333})
+	link, err := net.ListenTCP("tcp", &net.TCPAddr{Port: port})
 
 	if err != nil {
-		log.Fatalf("Error listening to port 3333 - %v", err)
+		c.logger.Fatalf("Error listening to port %s - %v", port, err)
 	}
 
-	fmt.Println("proxy : listening on port 3333")
+	c.logger.Infof("proxy : listening on port %s", port)
 
 	c.connectToPool()
 
@@ -68,10 +68,10 @@ func (c *ConnectionsController) run(ctx context.Context) (err error) {
 		c.minerConnections = append(c.minerConnections, minerConnection)
 
 		if minerConnectionError != nil {
-			log.Fatalf("miner connection accept error: %v", minerConnectionError)
+			c.logger.Fatalf("miner connection accept error: %v", minerConnectionError)
 		}
 
-		log.Println("accepted miner connection")
+		c.logger.Info("accepted miner connection")
 
 		go func(minerConnection net.Conn) {
 
@@ -83,7 +83,7 @@ func (c *ConnectionsController) run(ctx context.Context) (err error) {
 
 				if minerReadError != nil {
 
-					log.Printf("miner connection read error: %v;  with miner buffer: %v; address: %v", minerReadError, string(minerBuffer), minerConnection.RemoteAddr().String())
+					c.logger.Errorf("miner connection read error: %v;  with miner buffer: %v; address: %v", minerReadError, string(minerBuffer), minerConnection.RemoteAddr().String())
 
 					defer minerConnection.Close()
 					c.minerConnections = removeIt(minerConnection, c.minerConnections)
@@ -92,7 +92,7 @@ func (c *ConnectionsController) run(ctx context.Context) (err error) {
 				}
 
 				if len(minerBuffer) <= 0 {
-					log.Printf("empty message, continue...")
+					c.logger.Warn("empty message, continue...")
 					continue
 				}
 
@@ -101,13 +101,13 @@ func (c *ConnectionsController) run(ctx context.Context) (err error) {
 				_, poolWriteError := c.poolConnection.Write(miningMessage)
 
 				if poolWriteError != nil {
-					log.Printf("pool connection write error: %v", poolWriteError)
+					c.logger.Error("pool connection write error", poolWriteError)
 					c.poolConnection.Close()
 					c.connectToPool()
 					break
 				}
 
-				log.Printf("miner > pool: %v", string(miningMessage))
+				c.logger.Info("miner > pool", string(miningMessage))
 
 				go func() {
 
@@ -117,15 +117,14 @@ func (c *ConnectionsController) run(ctx context.Context) (err error) {
 						poolBuffer, poolReadError := poolReader.ReadBytes('\n')
 
 						if poolReadError != nil {
-
-							log.Printf("pool connection read error: %v", poolReadError)
+							c.logger.Error("pool connection read error", poolReadError)
 							defer c.poolConnection.Close()
 							c.connectToPool()
 							break
 						}
 
 						if len(poolBuffer) <= 0 {
-							log.Printf("empty message, continue...")
+							c.logger.Warn("empty message, continue...")
 							continue
 						}
 
@@ -133,7 +132,7 @@ func (c *ConnectionsController) run(ctx context.Context) (err error) {
 						_, minerConnectionWriteError := minerConnection.Write(poolMessage)
 
 						if minerConnectionWriteError != nil {
-							log.Printf("miner connection write error: %v", minerConnectionWriteError)
+							c.logger.Error("miner connection write error", minerConnectionWriteError)
 
 							defer minerConnection.Close()
 							c.minerConnections = removeIt(minerConnection, c.minerConnections)
@@ -141,7 +140,7 @@ func (c *ConnectionsController) run(ctx context.Context) (err error) {
 							break
 						}
 
-						log.Printf("miner < pool: %v", string(poolMessage))
+						c.logger.Info("miner < pool", string(poolMessage))
 
 						c.updateConnectionStatusToConnected(minerConnection)
 					}
@@ -160,19 +159,19 @@ func (c *ConnectionsController) connectToPool() {
 	}
 
 	if err != nil {
-		log.Fatalf("pool connect error;  failed to parse url: % v; %v", uri, err)
+		c.logger.Fatal("pool connect error;  failed to parse url", uri, err)
 	}
 
-	log.Printf("Dialing pool at %v", uri)
+	c.logger.Infof("Dialing pool at %s", uri)
 	poolConnection, poolConnectionError := net.DialTimeout("tcp", c.poolAddr, 30*time.Second)
 
 	c.poolConnection = poolConnection
 
 	if poolConnectionError != nil {
-		log.Fatalf("pool connection dial error: %v", poolConnectionError)
+		c.logger.Fatal("pool connection dial error", poolConnectionError)
 	}
 
-	log.Printf("connected to pool %v", c.poolAddr)
+	c.logger.Infof("connected to pool %s", c.poolAddr)
 	c.setConnection(poolConnection)
 
 	c.resetMinerConnections()
@@ -213,13 +212,13 @@ func (c *ConnectionsController) Update(message interface{}) {
 	oldPoolAddr := c.poolAddr
 	c.poolAddr = destinationMessage.NetUrl
 
-	log.Printf("Switching to new pool address: %v", destinationMessage.NetUrl)
+	c.logger.Infof("Switching to new pool address: %v", destinationMessage.NetUrl)
 
 	c.connectToPool()
 
 	<-time.After(1 * time.Minute)
 
-	log.Printf("Switching back to old pool address: %v", oldPoolAddr)
+	c.logger.Infof("Switching back to old pool address: %v", oldPoolAddr)
 
 	c.poolAddr = oldPoolAddr
 
@@ -231,7 +230,7 @@ func (c *ConnectionsController) ServeHTTP(w http.ResponseWriter, r *http.Request
 	connectionsResponse, err := json.Marshal(c.connections)
 
 	if err != nil {
-		log.Printf("API /connections error: Failed to marshal connections to json byte array; %v", "", err)
+		c.logger.Infof("API /connections error: Failed to marshal connections to json byte array; %v", "", err)
 	}
 	w.Write(connectionsResponse)
 }
