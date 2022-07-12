@@ -726,12 +726,20 @@ func (s *StratumV1Struct) switchDest() {
 	case DstStateRunning:
 		contextlib.Logf(s.Ctx(), contextlib.LevelWarn, fmt.Sprintf(lumerinlib.FileLineFunc()+" UID:%d already in RunningState", newUID))
 
+	case DstStateSubscribing:
+		fallthrough
+	case DstStateAuthorizing:
+		fallthrough
 	case DstStateRedialing:
 		// Set switch event timer HERE say after a few seconds, and have it reset if another event takes its place?
-		contextlib.Logf(s.Ctx(), contextlib.LevelInfo, fmt.Sprintf(lumerinlib.FileLineFunc()+" UID:%d Redialing", newUID))
+		// Ignore for now, the next state transition should tickle this function...
+		contextlib.Logf(s.Ctx(), contextlib.LevelInfo, fmt.Sprintf(lumerinlib.FileLineFunc()+" UID:%d State:%s", newUID, state))
 
+	case DstStateError:
+		fallthrough
 	case DstStateClosed:
-		contextlib.Logf(s.Ctx(), contextlib.LevelError, fmt.Sprintf(lumerinlib.FileLineFunc()+" UID:%d Redialing", newUID))
+		// need a close out function here... or do we?
+		contextlib.Logf(s.Ctx(), contextlib.LevelError, fmt.Sprintf(lumerinlib.FileLineFunc()+" UID:%d Closed", newUID))
 
 	default:
 		contextlib.Logf(s.Ctx(), contextlib.LevelPanic, fmt.Sprintf(lumerinlib.FileLineFunc()+" UID:%d State:%s", newUID, state))
