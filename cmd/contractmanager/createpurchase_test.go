@@ -17,14 +17,15 @@ var gethNodeAddress = "wss://ropsten.infura.io/ws/v3/4b68229d56fe496e899f07c3d41
 
 var clonefactoryAddress common.Address = common.HexToAddress("0xe91be01493f4ae28297790277303926aaec604dc")
 
-var hashrateContractAddress common.Address = common.HexToAddress("0xd743d07736a0f451997EF0766ba863a13279EF84") // 0x597e311EEB16a4d213389F1661272B26BDE0E698 0x7E4f2cea58705482dBE8F1269996b5120db321a2
-var poolUrl = "stratum+tcp://rbajollari.contract1:@stratum.slushpool.com:3333"
+var hashrateContractAddress common.Address = common.HexToAddress("0x9548cC8bF8CC5e3fdF8FE68C5DdA2c67d4A0B8f4") 
+// 0xA85302176f4951a5CF86983d8Db86e85363C6835 0xB2aa6778C2674C6C5e6D42Fd87643837440e1F40 0xcD14aee28025ee7CaaAcc48c3D03783439569B33 0x4Cb292431FeFc8b36BeC6Ecd77f59b299c412df7 0x9548cC8bF8CC5e3fdF8FE68C5DdA2c67d4A0B8f4 
+var poolUrl = "stratum+tcp://rbajollari.contract5:@stratum.slushpool.com:3333"
 
 func TestHashrateContractCreation(t *testing.T) {
 	// hashrate contract params
 	price := 0
 	limit := 0
-	speed := 20000000000000
+	speed := 10000000000000
 	length := 1200
 
 	client, err := setUpClient(gethNodeAddress, sellerAddress)

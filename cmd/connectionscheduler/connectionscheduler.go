@@ -327,6 +327,9 @@ func (cs *ConnectionScheduler) WatchMinerEvents(ch msgbus.EventChan) {
 func (cs *ConnectionScheduler) RunningContractsManager() {
 	for {
 		contracts := cs.Contracts.GetAll()
+		for _, r := range cs.RunningContracts {
+			cs.BestMinerCombos.Delete(string(r)) // clear up from last run
+		}
 
 		// Fill up ready and busy miners map
 		miners, err := cs.Ps.MinerGetAllWait()
@@ -515,9 +518,9 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract) {
 	for !validCombo {
 		minerCombinations = append(minerCombinations[:index], minerCombinations[index+1:]...)
 		minerCombination, index = bestCombination(minerCombinations, promisedHashrate)
+		cs.BestMinerCombos.Set(string(contract.ID), minerCombination)
 		bestMinerCombos := cs.BestMinerCombos.GetMap()
 		validCombo = bestCombinationConflict(bestMinerCombos, minerCombination, contract.ID)
-		cs.BestMinerCombos.Set(string(contract.ID), minerCombination)
 	}
 
 	contextlib.Logf(cs.Ctx, log.LevelInfo, "Best Miner Combination for Contract %s: %v", contract.ID, minerCombination)
