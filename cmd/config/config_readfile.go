@@ -5,36 +5,13 @@ import (
 	"strconv"
 )
 
-type ConfigRead struct {
-	BuyerNode           bool
-	DisableConnection   bool
-	DisableStratumv1    bool
-	ListenIP            string
-	ListenPort          string
-	DefaultPoolAddr     string
-	DisableSchedule     bool
-	SchedulePassthrough bool
-	HashrateCalcLagTime int
-	DisableValidate     bool
-	DisableContract     bool
-	Mnemonic            string
-	AccountIndex        int
-	EthNodeAddr         string
-	ClaimFunds          bool
-	TimeThreshold       int
-	CloneFactoryAddress string
-	LumerinTokenAddress string
-	ValidatorAddress    string
-	ProxyAddress        string
-	DisableApi          bool
-	ApiPort             string
-	LogLevel            int
-	LogFilePath         string
-	SwitchMethod        string
-	Serialize           bool
-}
-
-func ReadConfigs() (configs ConfigRead) {
+//
+// ReadConfigFile()
+// Reads Config File Path variable and reads in config values
+// or
+// Loads default values for the config variables.
+//
+func ReadConfigFile() (configs ConfigRead) {
 	configFile, err := ConfigGetVal(ConfigConfigFilePath)
 	if err != nil {
 		panic(fmt.Sprintf("Getting Config File val failed: %s\n", err))

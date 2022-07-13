@@ -37,6 +37,7 @@ func init() {
 
 	//
 	// Read in command line flags
+	// Parse the command line first
 	//
 	for i, v := range ConfigMap {
 		if v.flagname != "" {
@@ -49,6 +50,7 @@ func init() {
 
 	//
 	// Read in environmental variables
+	// Parse the environmental variables second
 	//
 	for i, v := range ConfigMap {
 		j := os.Getenv(v.envname)
@@ -60,40 +62,9 @@ func init() {
 
 }
 
-func ConfigGetFlagName(cc ConfigConst) (v string, e error) {
-	if _, ok := ConfigMap[cc]; ok {
-		v = ConfigMap[cc].flagname
-	} else {
-		e = fmt.Errorf("undefined config constant: %s", cc)
-	}
-	return
-}
-
-func ConfigGetEnvName(cc ConfigConst) (v string, e error) {
-	if _, ok := ConfigMap[cc]; ok {
-		v = ConfigMap[cc].envname
-	} else {
-		e = fmt.Errorf("undefined config constant: %s", cc)
-	}
-	return
-}
-
-func ConfigGetConfigName(cc ConfigConst) (v string, e error) {
-	if _, ok := ConfigMap[cc]; ok {
-		v = ConfigMap[cc].configname
-	} else {
-		e = fmt.Errorf("undefined config constant: %s", cc)
-	}
-	return
-}
-
-// MustGet looks for the config key and returns a string value no matter what.
-func MustGet(cc ConfigConst) string {
-	val, _ := ConfigGetVal(cc)
-
-	return val
-}
-
+//
+// 
+//
 func ConfigGetVal(cc ConfigConst) (v string, e error) {
 	if val, ok := ConfigMap[cc]; ok {
 		if val.flagval != nil && *val.flagval != "" {
@@ -112,7 +83,9 @@ func ConfigGetVal(cc ConfigConst) (v string, e error) {
 	return
 }
 
+//
 // Local File takes precidence over remote download config
+//
 func LoadConfiguration(pkg string) (data map[string]interface{}, err error) {
 	currDir, _ := os.Getwd()
 	defer os.Chdir(currDir)
@@ -142,6 +115,9 @@ func LoadConfiguration(pkg string) (data map[string]interface{}, err error) {
 	return data[pkg].(map[string]interface{}), err
 }
 
+//
+//
+//
 func DownloadConfig(fullURLFile string) {
 	fileURL, err := url.Parse(fullURLFile)
 	if err != nil {

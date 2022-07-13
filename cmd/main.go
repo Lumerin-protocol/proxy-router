@@ -38,7 +38,7 @@ import (
 func main() {
 	l := log.New()
 
-	configs := config.ReadConfigs()
+	configs := config.ReadConfigFile()
 	l.SetLevel(log.Level(configs.LogLevel))
 
 	logFile, err := os.OpenFile(configs.LogFilePath, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0666)
@@ -71,7 +71,7 @@ func main() {
 	dst := lumerinlib.NewNetAddr(lumerinlib.TCP, configs.DefaultPoolAddr)
 
 	//
-	// the proro argument (#1) gets set in the Protocol sus-system
+	// the proto argument (#1) gets set in the Protocol sus-system
 	//
 	cs := contextlib.NewContextStruct(nil, ps, l, src, dst)
 
