@@ -325,6 +325,7 @@ func (cs *ConnectionScheduler) WatchMinerEvents(ch msgbus.EventChan) {
 //
 //------------------------------------------------------------------------
 func (cs *ConnectionScheduler) RunningContractsManager() {
+	time.Sleep(time.Second * time.Duration(cs.HashrateCalcLagTime)) // ramp up time for hashrate calculation
 	for {
 		contracts := cs.Contracts.GetAll()
 		for _, r := range cs.RunningContracts {
