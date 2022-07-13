@@ -726,6 +726,8 @@ func (s *StratumV1Struct) switchDest() {
 	case DstStateRunning:
 		contextlib.Logf(s.Ctx(), contextlib.LevelWarn, fmt.Sprintf(lumerinlib.FileLineFunc()+" UID:%d already in RunningState", newUID))
 
+	case DstStateConfiguring:
+		fallthrough
 	case DstStateSubscribing:
 		fallthrough
 	case DstStateAuthorizing:
