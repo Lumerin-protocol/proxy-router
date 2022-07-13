@@ -804,6 +804,10 @@ func bestCombination(minerCombinations []MinerList, targetHashrate int) (MinerLi
 	hashrates := make([]int, len(minerCombinations))
 	numMiners := make([]int, len(minerCombinations))
 
+	if len(minerCombinations) == 0 {
+		return MinerList{}, 0
+	}
+
 	// find hashrate and number of miners in each combination
 	for i := range minerCombinations {
 		miners := minerCombinations[i]
