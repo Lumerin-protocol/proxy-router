@@ -2,7 +2,37 @@ package config
 
 //
 // Define all configuration variables here
+// After all of the config 
 //
+type ConfigRead struct {
+	BuyerNode           bool
+	DisableConnection   bool
+	DisableStratumv1    bool
+	ListenIP            string
+	ListenPort          string
+	DefaultPoolAddr     string
+	DisableSchedule     bool
+	SchedulePassthrough bool
+	HashrateCalcLagTime int
+	DisableValidate     bool
+	DisableContract     bool
+	Mnemonic            string
+	AccountIndex        int
+	EthNodeAddr         string
+	ClaimFunds          bool
+	TimeThreshold       int
+	CloneFactoryAddress string
+	LumerinTokenAddress string
+	ValidatorAddress    string
+	ProxyAddress        string
+	DisableApi          bool
+	ApiPort             string
+	LogLevel            int
+	LogFilePath         string
+	SwitchMethod        string
+	Serialize           bool
+}
+
 
 type ConfigConst string
 
@@ -36,14 +66,14 @@ const (
 
 // Config Structure
 type configitem struct {
-	flagname   string
-	flagusage  string
-	envname    string
-	configname string
-	defval     string
-	configval  *string
-	envval     *string
-	flagval    *string
+	flagname   string	// Name for the command line variable
+	flagusage  string	// Usage returned to the user for the command line
+	envname    string	// Name for an Environment variable  
+	configname string	// Name for a Configuration variable  
+	defval     string	// The default value used if none specified
+	configval  *string	// The configuration value
+	envval     *string	// The environment value
+	flagval    *string	// The command line value
 }
 
 //
