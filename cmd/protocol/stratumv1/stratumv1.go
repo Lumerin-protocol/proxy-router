@@ -290,7 +290,7 @@ func NewStratumV1Struct(ctx context.Context, ps *protocol.ProtocolStruct, schedu
 
 	addr, e := ps.GetSrcRemoteAddr()
 	if e != nil {
-		contextlib.Logf(ctx, contextlib.LevelError, lumerinlib.FileLineFunc()+" GetSrcRemoteAddr() error:%s", e)
+		contextlib.Logf(ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" GetSrcRemoteAddr() error:%s", e)
 		return nil
 	}
 
@@ -514,7 +514,8 @@ func (s *StratumV1Struct) DstRedialUid(uid simple.ConnUniqueID) (e error) {
 }
 
 //
-//
+// SetDstStateUid()
+// Need to make adjustments to the state of the connection based on state Transition
 //
 func (s *StratumV1Struct) SetDstStateUid(uid simple.ConnUniqueID, state DstState) {
 	s.dstState[uid] = state
@@ -685,10 +686,22 @@ func (s *StratumV1Struct) switchDest() {
 				}
 			}
 
+		case DstStateRedialing:
+			fallthrough
 		case DstStateStandBy:
-			contextlib.Logf(s.Ctx(), contextlib.LevelWarn, fmt.Sprintf(lumerinlib.FileLineFunc()+" UID:[%d] is in standby mode... huh? ", currentUID))
+			contextlib.Logf(s.Ctx(), contextlib.LevelInfo, fmt.Sprintf(lumerinlib.FileLineFunc()+" UID:[%d] is %s", currentUID, state))
+
 		case DstStateClosed:
+			// Should we be here? Perhaps a panic is in order
 			contextlib.Logf(s.Ctx(), contextlib.LevelWarn, fmt.Sprintf(lumerinlib.FileLineFunc()+" UID:[%d] is closed... huh? ", currentUID))
+
+	case DstStateDialing:
+		fallthrough
+	case DstStateConfiguring:
+		fallthrough
+	case DstStateSubscribing:
+		fallthrough
+	case DstStateAuthorizing:
 		default:
 			contextlib.Logf(s.Ctx(), contextlib.LevelPanic, fmt.Sprintf(lumerinlib.FileLineFunc()+" UID:[%d] is in state:%s ", currentUID, state))
 		}
@@ -724,8 +737,10 @@ func (s *StratumV1Struct) switchDest() {
 		s.switchToDestID = ""
 
 	case DstStateRunning:
-		contextlib.Logf(s.Ctx(), contextlib.LevelWarn, fmt.Sprintf(lumerinlib.FileLineFunc()+" UID:%d already in RunningState", newUID))
+		contextlib.Logf(s.Ctx(), contextlib.LevelError, fmt.Sprintf(lumerinlib.FileLineFunc()+" UID:%d already in RunningState", newUID))
 
+	case DstStateDialing:
+		fallthrough
 	case DstStateConfiguring:
 		fallthrough
 	case DstStateSubscribing:
@@ -735,7 +750,7 @@ func (s *StratumV1Struct) switchDest() {
 	case DstStateRedialing:
 		// Set switch event timer HERE say after a few seconds, and have it reset if another event takes its place?
 		// Ignore for now, the next state transition should tickle this function...
-		contextlib.Logf(s.Ctx(), contextlib.LevelInfo, fmt.Sprintf(lumerinlib.FileLineFunc()+" UID:%d State:%s", newUID, state))
+		contextlib.Logf(s.Ctx(), contextlib.LevelInfo, fmt.Sprintf(lumerinlib.FileLineFunc()+" Skipping Switch - UID:%d State:%s", newUID, state))
 
 	case DstStateError:
 		fallthrough
@@ -999,7 +1014,7 @@ func (svs *StratumV1Struct) sendLastMiningNotice(uid simple.ConnUniqueID) (e err
 
 	_, ok := svs.dstLastMiningNotice[uid]
 	if !ok {
-		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" dstLastMiningNotice[%d] DNE, skipping ", uid)
+		// contextlib.Logf(svs.Ctx(), contextlib.LevelInfo, lumerinlib.FileLineFunc()+" dstLastMiningNotice[%d] DNE, skipping ", uid)
 		return nil
 	}
 
@@ -1072,7 +1087,7 @@ func (svs *StratumV1Struct) sendLastReqNotify(uid simple.ConnUniqueID) (e error)
 
 	_, ok := svs.dstLastReqNotify[uid]
 	if !ok {
-		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" dstLastReqNotify[%d] DNE ", uid)
+		// contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" dstLastReqNotify[%d] DNE ", uid)
 		return nil
 	}
 
