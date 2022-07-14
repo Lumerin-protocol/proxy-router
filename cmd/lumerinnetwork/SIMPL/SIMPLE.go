@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"time"
 
 	"gitlab.com/TitanInd/lumerin/cmd/log"
@@ -13,6 +14,49 @@ import (
 	"gitlab.com/TitanInd/lumerin/lumerinlib"
 	contextlib "gitlab.com/TitanInd/lumerin/lumerinlib/context"
 )
+
+// func (s *SimpleConnReadEvent) UniqueID() ConnUniqueID
+// func (s *SimpleConnReadEvent) Data() []byte
+// func (s *SimpleConnReadEvent) Count() int
+// func (s *SimpleConnReadEvent) Err() error
+// func (s *SimpleConnOpenEvent) UniqueID() ConnUniqueID
+// func (s *SimpleConnOpenEvent) Dest() *msgbus.Dest
+// func (s *SimpleConnOpenEvent) Err() error
+
+// func NewListen(ctx context.Context) (sls *SimpleListenStruct, e error)
+// func (s *SimpleListenStruct) Run()
+// func (s *SimpleListenStruct) goListenAccept()
+// func (s *SimpleListenStruct) GetAccept() <-chan *SimpleStruct
+// func (s *SimpleListenStruct) Done() bool
+// func (s *SimpleListenStruct) Close()
+// func (s *SimpleListenStruct) Cancel()
+
+// func (s *SimpleStruct) GetEventChan() <-chan *SimpleEvent
+// func (s *SimpleStruct) Run()
+// func (s *SimpleStruct) goEvent()
+// func (s *SimpleStruct) Done() bool
+// func (s *SimpleStruct) Close()
+// func (s *SimpleStruct) Cancel()
+// func (s *SimpleStruct) Ctx() context.Context
+// func (s *SimpleStruct) AsyncDial(dest *msgbus.Dest) (e error)
+// func (s *SimpleStruct) AsyncReDial(uid ConnUniqueID) error
+// func (s *SimpleStruct) SetRoute(u ConnUniqueID) error
+// func (s *SimpleStruct) GetRoute() (uid ConnUniqueID, e error)
+// func (s *SimpleStruct) GetRemoteAddrIdx(uid ConnUniqueID) (addr net.Addr, e error)
+// func (s *SimpleStruct) Write(uid ConnUniqueID, msg []byte) (count int, e error)
+// func (s *SimpleStruct) CloseConnection(uid ConnUniqueID) (e error)
+// func (s *SimpleStruct) DupWrite()
+// func (s *SimpleStruct) Flush()
+// func (s *SimpleStruct) Status()
+// func (s *SimpleStruct) Pub(msgtype MsgType, id IDString, data interface{}) (rid int, e error)
+// func (s *SimpleStruct) Unpub(msgtype MsgType, id IDString) (rid int, e error)
+// func (s *SimpleStruct) Sub(msgtype MsgType, id IDString) (rid int, e error)
+// func (s *SimpleStruct) Unsub(msgtype MsgType, id IDString) (rid int, e error)
+// func (s *SimpleStruct) Get(msgtype MsgType, id IDString) (rid int, e error)
+// func (s *SimpleStruct) Set(msgtype MsgType, id IDString, data interface{}) (rid int, e error)
+// func (s *SimpleStruct) SearchIP(msgtype MsgType, search string) (rid int, e error)
+// func (s *SimpleStruct) SearchMac(msgtype MsgType, search string) (rid int, e error)
+// func (s *SimpleStruct) SearchName(msgtype MsgType, name string) (rid int, e error)
 
 var reDialTimeDealySec = 5
 
@@ -36,8 +80,12 @@ const (
 	MinerMsg                 MsgType = MsgType(msgbus.MinerMsg)
 	ConnectionMsg            MsgType = MsgType(msgbus.ConnectionMsg)
 	LogMsg                   MsgType = MsgType(msgbus.LogMsg)
+	ValidateMsg              MsgType = MsgType(msgbus.ValidateMsg)
 )
 
+//
+//
+//
 type SimpleListenStruct struct {
 	ctx              context.Context
 	cancel           func()
@@ -47,11 +95,11 @@ type SimpleListenStruct struct {
 	logger           *log.Logger
 }
 
-/*
-The simple struct is used to point to a specific instance
-of a connection manager and MsgBus. The structure ties these
-to a protocol struct where events are directed to be handled.
-*/
+//
+// The simple struct is used to point to a specific instance
+// of a connection manager and MsgBus. The structure ties these
+// to a protocol struct where events are directed to be handled.
+//
 type SimpleStruct struct {
 	ctx               context.Context
 	cancel            func()             //it might make sense to use the WithCancel function instead
@@ -140,11 +188,12 @@ const MsgToProtocol EventType = "msgUp"
 func NewListen(ctx context.Context) (sls *SimpleListenStruct, e error) {
 
 	ctx, cancel := context.WithCancel(ctx)
+	_ = cancel
 
 	c := ctx.Value(contextlib.ContextKey)
 	if c == nil {
 		contextlib.Logf(ctx, contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Context is nil")
-		e = errors.New("Context is nil")
+		e = errors.New("context is nil")
 		return nil, e
 	}
 
@@ -222,7 +271,7 @@ FORLOOP:
 		case connectionStruct := <-connectionStructChan:
 
 			if connectionStruct == nil {
-				contextlib.Logf(s.ctx, contextlib.LevelError, lumerinlib.FileLineFunc()+" Connection Listen Accept returned nil")
+				contextlib.Logf(s.ctx, contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Connection Listen Accept returned nil")
 				s.Cancel()
 				break
 			}
@@ -252,14 +301,16 @@ FORLOOP:
 }
 
 //
-//
+// GetAccept()
+// Returns channel for accepting new connections
 //
 func (s *SimpleListenStruct) GetAccept() <-chan *SimpleStruct {
 	return s.accept
 }
 
 //
-//
+// Done()
+// returns boolean status
 //
 func (s *SimpleListenStruct) Done() bool {
 	select {
@@ -284,7 +335,7 @@ func (s *SimpleListenStruct) Close() {
 }
 
 //
-//
+// Cancel()
 //
 func (s *SimpleListenStruct) Cancel() {
 
@@ -297,7 +348,6 @@ func (s *SimpleListenStruct) Cancel() {
 		return
 	}
 
-	// close(s.accept)
 	s.cancel()
 }
 
@@ -306,7 +356,8 @@ func (s *SimpleListenStruct) Cancel() {
 // ----------------------------------------------------------------------
 
 //
-//
+// GetEventChan()
+// Returns a channel for the SimpleEvents
 //
 func (s *SimpleStruct) GetEventChan() <-chan *SimpleEvent {
 
@@ -318,7 +369,7 @@ func (s *SimpleStruct) GetEventChan() <-chan *SimpleEvent {
 }
 
 //
-//
+// Run()
 //
 func (s *SimpleStruct) Run() {
 
@@ -340,6 +391,10 @@ func (s *SimpleStruct) Run() {
 	go s.goEvent()
 }
 
+//
+// goEvent()
+// goroutine to coalese MsgBus and Network events in to an Event channel to pass to the protocol layer
+//
 func (s *SimpleStruct) goEvent() {
 
 	//	contextlib.Logf(s.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" enter ")
@@ -358,13 +413,15 @@ FORLOOP:
 		case <-s.Ctx().Done():
 			contextlib.Logf(s.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" Closing down")
 			break FORLOOP
+
 		case comm := <-readchan:
-			contextlib.Logf(s.ctx, contextlib.LevelInfo, lumerinlib.FileLineFunc()+" ReadChan Event ")
+			// contextlib.Logf(s.ctx, contextlib.LevelInfo, lumerinlib.FileLineFunc()+" ReadChan Event ")
 
 			if comm == nil {
 				contextlib.Logf(s.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" readchan returned nil")
 				break FORLOOP
 			}
+
 			//
 			// Grossly inefficient... will fix later...
 			scre := &SimpleConnReadEvent{}
@@ -373,7 +430,8 @@ FORLOOP:
 			scre.count = comm.Count()
 			scre.err = comm.Err()
 
-			if scre.err != nil {
+			// Only log non SRC connection errors here
+			if scre.err != nil && scre.uID < 0 {
 				contextlib.Logf(s.ctx, contextlib.LevelError, lumerinlib.FileLineFunc()+" Readchan: UID:%d, Err:%s", scre.uID, scre.err)
 			}
 
@@ -425,7 +483,7 @@ FORLOOP:
 }
 
 //
-//
+// Done()
 //
 func (s *SimpleStruct) Done() bool {
 	select {
@@ -437,7 +495,7 @@ func (s *SimpleStruct) Done() bool {
 }
 
 //
-//
+// Close()
 //
 func (s *SimpleStruct) Close() {
 	if s.Done() {
@@ -448,7 +506,7 @@ func (s *SimpleStruct) Close() {
 }
 
 //
-//
+// Cancel()
 //
 func (s *SimpleStruct) Cancel() {
 
@@ -481,8 +539,15 @@ func (s *SimpleStruct) Cancel() {
 }
 
 //
+// Ctx()
+//
+func (s *SimpleStruct) Ctx() context.Context {
+	return s.ctx
+}
+
+//
 // Dial the a destination address (DST)
-// takes in a net.Addr object and feeds into the net.Dial function
+// Takes in a net.Addr object and feeds into the net.Dial function
 // the resulting Conn is then added to the SimpleStructs mapping and and associated
 // ConnUniqueID is returned from this function
 //
@@ -504,6 +569,9 @@ func (s *SimpleStruct) AsyncDial(dest *msgbus.Dest) (e error) {
 		return e
 	}
 
+	//
+	// The action is asyncronous for the protocol layer, and returns an event when completed
+	//
 	go func() {
 
 		uid, e := s.ConnectionStruct.Dial(addr)
@@ -526,7 +594,7 @@ func (s *SimpleStruct) AsyncDial(dest *msgbus.Dest) (e error) {
 }
 
 //
-// AsyncReDial
+// AsyncReDial()
 // Reconnect dropped connection
 //
 func (s *SimpleStruct) AsyncReDial(uid ConnUniqueID) error {
@@ -540,6 +608,9 @@ func (s *SimpleStruct) AsyncReDial(uid ConnUniqueID) error {
 		return errors.New(lumerinlib.FileLineFunc() + " SimpleStruct.ConnectionStruct == nil ")
 	}
 
+	//
+	// The action is asyncronous for the protocol layer, and returns an event when completed
+	//
 	go func() {
 
 		//
@@ -565,14 +636,18 @@ func (s *SimpleStruct) AsyncReDial(uid ConnUniqueID) error {
 	return nil
 }
 
-/*
-function to retrieve the connection mapped to a unique id
-*/
-func (s *SimpleStruct) GetConnBasedOnConnUniqueID(x ConnUniqueID) *lumerinconnection.LumerinSocketStruct {
-	return s.connectionMapping[x]
-}
+//
+// GetConnBasedOnConnUniqueID()
+// function to retrieve the connection mapped to a unique id
+//
+//func (s *SimpleStruct) GetConnBasedOnConnUniqueID(x ConnUniqueID) *lumerinconnection.LumerinSocketStruct {
+//	return s.connectionMapping[x]
+//}
 
+//
+// SetRoute()
 // Used later to direct the default route
+//
 func (s *SimpleStruct) SetRoute(u ConnUniqueID) error {
 	if u < 0 {
 		contextlib.Logf(s.ctx, contextlib.LevelPanic, lumerinlib.FileLineFunc()+" index out of range:%d", u)
@@ -581,32 +656,36 @@ func (s *SimpleStruct) SetRoute(u ConnUniqueID) error {
 	return s.ConnectionStruct.SetRoute(int(u))
 }
 
+//
+// GetRoute()
 // Used later to direct the default route
+//
 func (s *SimpleStruct) GetRoute() (uid ConnUniqueID, e error) {
 	id, e := s.ConnectionStruct.GetRoute()
 	uid = ConnUniqueID(id)
 	return uid, e
 }
 
-// Used later to direct the default route
-func (s *SimpleStruct) GetLocalAddr(ConnUniqueID) {} //return of 1 to appease compiler
-
-/*
-
-network connection functions
-
-*/
+// ------------------------------
+// network connection functions
+// ------------------------------
 
 //
+// GetRemoteAddrIdx()
 //
-//
-func (s *SimpleStruct) GetRemoteAddr(uid ConnUniqueID) {
+func (s *SimpleStruct) GetRemoteAddrIdx(uid ConnUniqueID) (addr net.Addr, e error) {
 
+	if uid < 0 {
+		return s.ConnectionStruct.SrcGetRemoteAddr()
+	} else {
+		return s.connectionMapping[uid].GetRemoteAddr()
+	}
 }
 
 //
+// Write()
 // Writes buffer to the specified connection
-
+//
 func (s *SimpleStruct) Write(uid ConnUniqueID, msg []byte) (count int, e error) {
 	if uid < 0 {
 		count, e = s.ConnectionStruct.SrcWrite(msg)
@@ -623,7 +702,7 @@ func (s *SimpleStruct) Write(uid ConnUniqueID, msg []byte) (count int, e error) 
 }
 
 //
-//
+// CloseConnection()
 //
 func (s *SimpleStruct) CloseConnection(uid ConnUniqueID) (e error) {
 
@@ -650,6 +729,11 @@ func (s *SimpleStruct) Status() {}
 // Message Bus Functions
 // Pass through to the msgbus package
 //
+
+//
+// Pub()
+// Publish new MsgType record
+//
 func (s *SimpleStruct) Pub(msgtype MsgType, id IDString, data interface{}) (rid int, e error) {
 
 	//
@@ -661,7 +745,7 @@ func (s *SimpleStruct) Pub(msgtype MsgType, id IDString, data interface{}) (rid 
 }
 
 //
-//
+// UnPub()
 //
 func (s *SimpleStruct) Unpub(msgtype MsgType, id IDString) (rid int, e error) {
 
@@ -670,7 +754,7 @@ func (s *SimpleStruct) Unpub(msgtype MsgType, id IDString) (rid int, e error) {
 }
 
 //
-//
+// Sub()
 //
 func (s *SimpleStruct) Sub(msgtype MsgType, id IDString) (rid int, e error) {
 
@@ -679,7 +763,7 @@ func (s *SimpleStruct) Sub(msgtype MsgType, id IDString) (rid int, e error) {
 }
 
 //
-//
+// Unsub()
 //
 func (s *SimpleStruct) Unsub(msgtype MsgType, id IDString) (rid int, e error) {
 
@@ -688,7 +772,7 @@ func (s *SimpleStruct) Unsub(msgtype MsgType, id IDString) (rid int, e error) {
 }
 
 //
-//
+// Get()
 //
 func (s *SimpleStruct) Get(msgtype MsgType, id IDString) (rid int, e error) {
 
@@ -697,7 +781,7 @@ func (s *SimpleStruct) Get(msgtype MsgType, id IDString) (rid int, e error) {
 }
 
 //
-//
+// Set()
 //
 func (s *SimpleStruct) Set(msgtype MsgType, id IDString, data interface{}) (rid int, e error) {
 
@@ -706,7 +790,7 @@ func (s *SimpleStruct) Set(msgtype MsgType, id IDString, data interface{}) (rid 
 }
 
 //
-//
+// SearchIP()
 //
 func (s *SimpleStruct) SearchIP(msgtype MsgType, search string) (rid int, e error) {
 
@@ -715,7 +799,7 @@ func (s *SimpleStruct) SearchIP(msgtype MsgType, search string) (rid int, e erro
 }
 
 //
-//
+// SearchMac()
 //
 func (s *SimpleStruct) SearchMac(msgtype MsgType, search string) (rid int, e error) {
 
@@ -724,17 +808,10 @@ func (s *SimpleStruct) SearchMac(msgtype MsgType, search string) (rid int, e err
 }
 
 //
-//
+// SearchName()
 //
 func (s *SimpleStruct) SearchName(msgtype MsgType, name string) (rid int, e error) {
 
 	rid, e = s.msgbus.SearchName(msgbus.MsgType(msgtype), name, s.msgbusChan)
 	return rid, e
-}
-
-//
-//
-//
-func (s *SimpleStruct) Ctx() context.Context {
-	return s.ctx
 }

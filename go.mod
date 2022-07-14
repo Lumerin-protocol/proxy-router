@@ -4,9 +4,8 @@ go 1.16
 
 require (
 	github.com/StackExchange/wmi v1.2.1 // indirect
+	github.com/beevik/guid v0.0.0-20170504223318-d0ea8faecee0
 	github.com/btcsuite/btcd v0.22.0-beta
-	github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f
-	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce
 	github.com/deckarep/golang-set v1.7.1 // indirect
 	github.com/ethereum/go-ethereum v1.10.15
 	github.com/gin-gonic/gin v1.7.4

@@ -4,14 +4,19 @@ import (
 	"context"
 	"math"
 	"sort"
-
-	//"strconv"
 	"sync"
+	"time"
 
 	"gitlab.com/TitanInd/lumerin/cmd/log"
 	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
+	"gitlab.com/TitanInd/lumerin/interfaces"
 	"gitlab.com/TitanInd/lumerin/lumerinlib"
 	contextlib "gitlab.com/TitanInd/lumerin/lumerinlib/context"
+)
+
+const (
+	HASHRATE_LIMIT = 20
+	MIN_SLICE      = 0.10
 )
 
 type ConnectionScheduler struct {
@@ -19,17 +24,21 @@ type ConnectionScheduler struct {
 	Contracts            lumerinlib.ConcurrentMap
 	ReadyMiners          lumerinlib.ConcurrentMap // miners with no contract
 	BusyMiners           lumerinlib.ConcurrentMap // miners fulfilling a contract
+	BestMinerCombos		 lumerinlib.ConcurrentMap
+	RunningContracts     []msgbus.ContractID
+	wg                   sync.WaitGroup
 	NodeOperator         msgbus.NodeOperator
-	MinerUpdatedChans    lumerinlib.ConcurrentMap
-	ContractUpdatedChans lumerinlib.ConcurrentMap
 	Passthrough          bool
+	HashrateCalcLagTime  int
 	Ctx                  context.Context
+	connectionController interfaces.IConnectionController
 }
 
 // implement golang sort interface
 type Miner struct {
-	id       msgbus.MinerID
-	hashrate int
+	id           msgbus.MinerID
+	hashrate     int
+	slicePercent float64
 }
 type MinerList []Miner
 
@@ -37,19 +46,20 @@ func (m MinerList) Len() int           { return len(m) }
 func (m MinerList) Swap(i, j int)      { m[i], m[j] = m[j], m[i] }
 func (m MinerList) Less(i, j int) bool { return m[i].hashrate < m[j].hashrate }
 
-func New(Ctx *context.Context, NodeOperator *msgbus.NodeOperator, Passthrough bool) (cs *ConnectionScheduler, err error) {
+func New(Ctx *context.Context, NodeOperator *msgbus.NodeOperator, Passthrough bool, HashrateCalcLagTime int, minerController interfaces.IConnectionController) (cs *ConnectionScheduler, err error) {
 	ctxStruct := contextlib.GetContextStruct(*Ctx)
 	cs = &ConnectionScheduler{
-		Ps:           ctxStruct.MsgBus,
-		NodeOperator: *NodeOperator,
-		Passthrough:  Passthrough,
-		Ctx:          *Ctx,
+		Ps:                  ctxStruct.MsgBus,
+		NodeOperator:        *NodeOperator,
+		Passthrough:         Passthrough,
+		HashrateCalcLagTime: HashrateCalcLagTime,
+		Ctx:                 *Ctx,
 	}
 	cs.Contracts.M = make(map[string]interface{})
 	cs.ReadyMiners.M = make(map[string]interface{})
 	cs.BusyMiners.M = make(map[string]interface{})
-	cs.MinerUpdatedChans.M = make(map[string]interface{})
-	cs.ContractUpdatedChans.M = make(map[string]interface{})
+	cs.BestMinerCombos.M = make(map[string]interface{})
+	cs.connectionController = minerController
 	return cs, err
 }
 
@@ -73,14 +83,17 @@ func (cs *ConnectionScheduler) Start() (err error) {
 		cs.Contracts.Set(string(contracts[i]), contract)
 	}
 
-	// Monitor New Contracts
+	// Monitor Contract Events
 	contractEventChan := msgbus.NewEventChan()
 	_, err = cs.Ps.Sub(msgbus.ContractMsg, "", contractEventChan)
 	if err != nil {
 		contextlib.Logf(cs.Ctx, log.LevelError, "Failed to subscribe to contract events, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
 		return err
 	}
-	go cs.goContractHandler(contractEventChan)
+	go cs.ContractHandler(contractEventChan)
+
+	// Start Contract Running Routine Manager
+	go cs.RunningContractsManager()
 
 	// Update connection scheduler with current miners in online state
 	miners, err := cs.Ps.MinerGetAllWait()
@@ -94,24 +107,40 @@ func (cs *ConnectionScheduler) Start() (err error) {
 			contextlib.Logf(cs.Ctx, log.LevelError, "Failed to get miner, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
 			return err
 		}
+
+		dest, err := cs.Ps.DestGetWait(miner.Dest)
+
+		if err != nil {
+			contextlib.Logf(cs.Ctx, log.LevelError, "Failed to get miner destination, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+		}
+
+		contextlib.Logf(cs.Ctx, log.LevelInfo, "Adding connection... Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+		connection, err := cs.connectionController.AddConnection(string(miner.ID), miner.IP, string(dest.NetUrl), string(miner.State))
+
+		if err != nil {
+			contextlib.Logf(cs.Ctx, log.LevelError, "Failed to add miner connection, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+		}
+
 		if miner.State == msgbus.OnlineState {
+
 			if miner.Dest == cs.NodeOperator.DefaultDest {
+				connection.SetAvailable(true)
 				cs.ReadyMiners.Set(string(miners[i]), *miner)
 			} else {
+				connection.SetAvailable(false)
 				cs.BusyMiners.Set(string(miners[i]), *miner)
 			}
 		}
 	}
 
-	// Monitor New OnlineMiners
+	// Monitor Miner Events
 	minerEventChan := msgbus.NewEventChan()
 	_, err = cs.Ps.Sub(msgbus.MinerMsg, "", minerEventChan)
 	if err != nil {
 		contextlib.Logf(cs.Ctx, log.LevelError, "Failed to subscribe to miner events, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
 		return err
 	}
-	minerMux := &sync.Mutex{}
-	go cs.goMinerHandler(minerEventChan, minerMux)
+	go cs.WatchMinerEvents(minerEventChan)
 
 	return err
 }
@@ -122,7 +151,7 @@ func (cs *ConnectionScheduler) Start() (err error) {
 // Then monitors the update events on the contracts, and handles state changes
 //
 //------------------------------------------------------------------------
-func (cs *ConnectionScheduler) goContractHandler(ch msgbus.EventChan) {
+func (cs *ConnectionScheduler) ContractHandler(ch msgbus.EventChan) {
 	for {
 		select {
 		case <-cs.Ctx.Done():
@@ -147,17 +176,6 @@ func (cs *ConnectionScheduler) goContractHandler(ch msgbus.EventChan) {
 					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.Funcname()+"Got Publish Event, but already had the ID: %v", event)
 				}
 
-				// pusblished contract is already running
-				if contract.State == msgbus.ContRunningState {
-					cs.MinerUpdatedChans.Set(string(id), make(chan bool, 5))
-					cs.ContractUpdatedChans.Set(string(id), make(chan bool, 5))
-					if cs.Passthrough {
-						go cs.ContractRunningPassthrough(id)
-					} else {
-						go cs.ContractRunning(id)
-					}
-				}
-
 				//
 				// Unpublish Event
 				//
@@ -166,13 +184,6 @@ func (cs *ConnectionScheduler) goContractHandler(ch msgbus.EventChan) {
 
 				if cs.Contracts.Exists(string(id)) {
 					cs.Contracts.Delete(string(id))
-
-					cs.ContractUpdatedChans.Get(string(id)).(chan bool) <- true
-					close(cs.MinerUpdatedChans.Get(string(id)).(chan bool))
-					close(cs.ContractUpdatedChans.Get(string(id)).(chan bool))
-
-					cs.MinerUpdatedChans.Delete(string(id))
-					cs.ContractUpdatedChans.Delete(string(id))
 				} else {
 					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.Funcname()+"Got Unsubscribe Event, but dont have the ID: %v", event)
 				}
@@ -193,31 +204,13 @@ func (cs *ConnectionScheduler) goContractHandler(ch msgbus.EventChan) {
 
 				if currentContract.State == event.Data.(msgbus.Contract).State {
 					contextlib.Logf(cs.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Got Contract change with no state change: %v", event)
-					// cs.ContractUpdatedChans.Get(string(id)).(chan bool) <- true
 				} else {
 					switch event.Data.(msgbus.Contract).State {
 					case msgbus.ContAvailableState:
 						contextlib.Logf(cs.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Found Available Contract: %v", event)
-						if currentContract.State != msgbus.ContAvailableState {
-							cs.ContractUpdatedChans.Get(string(id)).(chan bool) <- true
-							close(cs.MinerUpdatedChans.Get(string(id)).(chan bool))
-							close(cs.ContractUpdatedChans.Get(string(id)).(chan bool))
-
-							cs.MinerUpdatedChans.Delete(string(id))
-							cs.ContractUpdatedChans.Delete(string(id))
-						}
 
 					case msgbus.ContRunningState:
 						contextlib.Logf(cs.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Found Running Contract: %v", event)
-						if currentContract.State != msgbus.ContRunningState {
-							cs.MinerUpdatedChans.Set(string(id), make(chan bool, 5))
-							cs.ContractUpdatedChans.Set(string(id), make(chan bool, 5))
-							if cs.Passthrough {
-								go cs.ContractRunningPassthrough(id)
-							} else {
-								go cs.ContractRunning(id)
-							}
-						}
 
 					default:
 						contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.Funcname()+"Got bad state: %v", event)
@@ -230,22 +223,25 @@ func (cs *ConnectionScheduler) goContractHandler(ch msgbus.EventChan) {
 	}
 }
 
-//------------------------------------------------------------------------
-//
-// Monitors new miner publish events, and then subscribes to the miners
-// Then monitors the update events on the miners, and keeps track of their
-// hashrate
-//
-//------------------------------------------------------------------------
-func (cs *ConnectionScheduler) goMinerHandler(ch msgbus.EventChan, mux *sync.Mutex) {
+func (cs *ConnectionScheduler) WatchMinerEvents(ch msgbus.EventChan) {
 	for {
 		select {
 		case <-cs.Ctx.Done():
-			contextlib.Logf(cs.Ctx, log.LevelInfo, "Cancelling current connection scheduler context: cancelling MinerHandler go routine")
+			contextlib.Logf(cs.Ctx, log.LevelInfo, "Cancelling current connection scheduler context: cancelling RunningContractsManager go routine")
 			return
 
 		case event := <-ch:
 			id := msgbus.MinerID(event.ID)
+
+			var miner msgbus.Miner
+
+			switch event.Data.(type) {
+			case msgbus.Miner:
+				miner = event.Data.(msgbus.Miner)
+			case *msgbus.Miner:
+				m := event.Data.(*msgbus.Miner)
+				miner = *m
+			}
 
 		loop:
 			switch event.EventType {
@@ -253,111 +249,68 @@ func (cs *ConnectionScheduler) goMinerHandler(ch msgbus.EventChan, mux *sync.Mut
 			// Publish Event
 			//
 			case msgbus.PublishEvent:
-				var miner msgbus.Miner
-
-				switch event.Data.(type) {
-				case msgbus.Miner:
-					miner = event.Data.(msgbus.Miner)
-				case *msgbus.Miner:
-					m := event.Data.(*msgbus.Miner)
-					miner = *m
-				}
-
-				if miner.State != msgbus.OnlineState {
-					break loop
-				}
-
 				contextlib.Logf(cs.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Got Miner Publish Event: %v", event)
 
-				switch miner.Contract {
-				case "": // no contract
-					if !cs.ReadyMiners.Exists(string(id)) {
-						cs.ReadyMiners.Set(string(id), miner)
-						contracts := cs.Contracts.GetAll()
-						for _, v := range contracts {
-							if v.(msgbus.Contract).State == msgbus.ContRunningState {
-								cs.MinerUpdatedChans.Get(string(v.(msgbus.Contract).ID)).(chan bool) <- true
-							}
-						}
-					} else {
-						contextlib.Logf(cs.Ctx, log.LevelPanic, "Got PubEvent, but already had the ID: %v", event)
+				dest, err := cs.Ps.DestGetWait(miner.Dest)
+
+				if err != nil {
+					if miner.Dest == "" {
+						dest = &msgbus.Dest{NetUrl: ""}
 					}
+
+					contextlib.Logf(cs.Ctx, log.LevelWarn, "Failed to get miner destination, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+				}
+
+				connection, err := cs.connectionController.AddConnection(string(miner.ID), miner.IP, string(dest.NetUrl), string(miner.State))
+				if err != nil {
+					contextlib.Logf(cs.Ctx, log.LevelError, "Cannot add connection: %v. Fileline: %s", err, lumerinlib.FileLine())
+				}
+
+				switch len(miner.Contracts) {
+				case 0: // no contract
+					if !cs.ReadyMiners.Exists(string(id)) {
+						connection.SetAvailable(true)
+						cs.ReadyMiners.Set(string(id), miner)
+					} 
 				default:
 					if !cs.BusyMiners.Exists(string(id)) {
-						cs.BusyMiners.Set(string(id), miner)
-						contracts := cs.Contracts.GetAll()
-						for _, v := range contracts {
-							if v.(msgbus.Contract).State == msgbus.ContRunningState {
-								cs.MinerUpdatedChans.Get(string(v.(msgbus.Contract).ID)).(chan bool) <- true
-							}
-						}
-					} else {
-						contextlib.Logf(cs.Ctx, log.LevelPanic, "Got PubEvent, but already had the ID: %v", event)
+						connection.SetAvailable(false)
 					}
 				}
-				contextlib.Logf(cs.Ctx, log.LevelInfo, "Ready Miners: %v", cs.ReadyMiners.M)
-				contextlib.Logf(cs.Ctx, log.LevelInfo, "Busy Miners: %v", cs.BusyMiners.M)
 
 				//
 				// Update Event
 				//
 			case msgbus.UpdateEvent:
-				var miner msgbus.Miner
+				contextlib.Logf(cs.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Got Miner Update Event: %v", event)
 
-				switch event.Data.(type) {
-				case msgbus.Miner:
-					miner = event.Data.(msgbus.Miner)
-				case *msgbus.Miner:
-					m := event.Data.(*msgbus.Miner)
-					miner = *m
-				}
+				connection := cs.connectionController.GetConnection(string(id))
 
 				if miner.State != msgbus.OnlineState {
-					cs.BusyMiners.Delete(string(id))
+					cs.connectionController.RemoveConnection(string(id))
 					cs.ReadyMiners.Delete(string(id))
+					cs.BusyMiners.Delete(string(id))
 					break loop
 				}
 
-				contextlib.Logf(cs.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Got Miner Update Event: %v", event)
-
-				switch miner.Contract {
-				case "": // no contract
+				switch len(miner.Contracts) {
+				case 0: // no contract
 					// Update the current miner data
-					cs.BusyMiners.Delete(string(id))
-					cs.ReadyMiners.Set(string(id), miner)
-					contracts := cs.Contracts.GetAll()
-					for _, v := range contracts {
-						if v.(msgbus.Contract).State == msgbus.ContRunningState && !miner.CsMinerHandlerIgnore {
-							cs.MinerUpdatedChans.Get(string(v.(msgbus.Contract).ID)).(chan bool) <- true
-						}
-					}
+					connection.SetAvailable(true)
+					//cs.ReadyMiners.Set(string(id), miner)
 				default:
-					// Update the current miner data
-					cs.ReadyMiners.Delete(string(id))
-					cs.BusyMiners.Set(string(id), miner)
-					contracts := cs.Contracts.GetAll()
-					for _, v := range contracts {
-						if v.(msgbus.Contract).State == msgbus.ContRunningState && !miner.CsMinerHandlerIgnore {
-							cs.MinerUpdatedChans.Get(string(v.(msgbus.Contract).ID)).(chan bool) <- true
-						}
-					}
+					connection.SetAvailable(false)
+					//cs.BusyMiners.Set(string(id), miner)
 				}
-				contextlib.Logf(cs.Ctx, log.LevelInfo, "Ready Miners: %v", cs.ReadyMiners.M)
-				contextlib.Logf(cs.Ctx, log.LevelInfo, "Busy Miners: %v", cs.BusyMiners.M)
 
 				//
 				// Unpublish Event
 				//
 			case msgbus.UnpublishEvent:
 				contextlib.Logf(cs.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Got Miner Unpublish/Unsubscribe Event: %v", event)
-				cs.BusyMiners.Delete(string(id))
+				cs.connectionController.RemoveConnection(string(id))
 				cs.ReadyMiners.Delete(string(id))
-				contracts := cs.Contracts.GetAll()
-				for _, v := range contracts {
-					if v.(msgbus.Contract).State == msgbus.ContRunningState {
-						cs.MinerUpdatedChans.Get(string(v.(msgbus.Contract).ID)).(chan bool) <- true
-					}
-				}
+				cs.BusyMiners.Delete(string(id))
 
 			default:
 				contextlib.Logf(cs.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Got Miner Event: %v", event)
@@ -368,10 +321,84 @@ func (cs *ConnectionScheduler) goMinerHandler(ch msgbus.EventChan, mux *sync.Mut
 
 //------------------------------------------------------------------------
 //
-// Direct all miners to running contract i.e. miner hashrate calculations to service multiple contracts
+//
+//
+//------------------------------------------------------------------------
+func (cs *ConnectionScheduler) RunningContractsManager() {
+	time.Sleep(time.Second * time.Duration(cs.HashrateCalcLagTime)) // ramp up time for hashrate calculation
+	for {
+		contracts := cs.Contracts.GetAll()
+		for _, r := range cs.RunningContracts {
+			cs.BestMinerCombos.Delete(string(r)) // clear up from last run
+		}
+
+		// Fill up ready and busy miners map
+		miners, err := cs.Ps.MinerGetAllWait()
+		if err != nil {
+			contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+		}
+		for i := range miners {
+			miner, err := cs.Ps.MinerGetWait(miners[i])
+			if err != nil {
+				contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+			}
+			if miner.State == msgbus.OnlineState {
+				if len(miner.Contracts) == 0 {
+					cs.ReadyMiners.Set(string(miners[i]), *miner)
+				} else {
+					cs.BusyMiners.Set(string(miners[i]), *miner)
+				}
+			}
+		}
+
+		waitGroupIncremented := false
+		for _, c := range contracts {
+			if c.(msgbus.Contract).State == msgbus.ContRunningState {
+				if cs.Passthrough {
+					cs.wg.Add(1)
+					waitGroupIncremented = true
+					go cs.ContractRunningPassthrough(c.(msgbus.Contract).ID)
+				} else {
+					cs.wg.Add(1)
+					waitGroupIncremented = true
+					cs.RunningContracts = append(cs.RunningContracts, c.(msgbus.Contract).ID)
+					go cs.ContractRunning(c.(msgbus.Contract).ID)
+				}
+			} else {
+				// if in available state make sure no miners are servicing it
+				miners := cs.Ps.MinersContainContract(c.(msgbus.Contract).ID)
+				for _, v := range miners {
+					cs.BusyMiners.Delete(string(v.ID))
+					m, err := cs.Ps.MinerRemoveContractWait(v.ID, c.(msgbus.Contract).ID, cs.NodeOperator.DefaultDest)
+					if err != nil {
+						contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+					}
+					newRunningContracts := []msgbus.ContractID{}
+					for _, r := range cs.RunningContracts {
+						if r != c.(msgbus.Contract).ID {
+							newRunningContracts = append(newRunningContracts, r)
+						}
+					}
+					cs.RunningContracts = newRunningContracts
+					cs.ReadyMiners.Set(string(m.ID), *m)
+				}
+			}
+		}
+
+		if !waitGroupIncremented {
+			time.Sleep(time.Second * time.Duration(cs.HashrateCalcLagTime))
+		}
+		cs.wg.Wait()
+	}
+}
+
+//------------------------------------------------------------------------
+//
+// Direct all miners to running contract i.e. no miner hashrate calculations to service multiple contracts
 //
 //------------------------------------------------------------------------
 func (cs *ConnectionScheduler) ContractRunningPassthrough(contractId msgbus.ContractID) {
+	defer cs.wg.Done()
 	contextlib.Logf(cs.Ctx, log.LevelInfo, lumerinlib.FileLine()+"Contract Running in Passthrough Mode: %s", contractId)
 
 	event, err := cs.Ps.GetWait(msgbus.ContractMsg, msgbus.IDString(contractId))
@@ -382,80 +409,44 @@ func (cs *ConnectionScheduler) ContractRunningPassthrough(contractId msgbus.Cont
 	destid := contract.Dest
 
 	if destid == "" {
-		contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"DestID is empty")
+		contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"DestID is empty for Contract: %s", contractId)
 	}
 
 	// Find all of the online miners point them to new target
-	miners, err := cs.Ps.MinerGetAllWait()
-	if err != nil {
-		contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
-	}
+	miners := cs.ReadyMiners.GetAll()
 
-	for _, v := range miners {
-		err := cs.Ps.MinerSetContractWait(v, contract.ID, destid, true)
+	for _, m := range miners {
+		_, err = cs.Ps.MinerSetContractWait(m.(msgbus.Miner).ID, contract.ID, 1, false)
 		if err != nil {
-			contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+			contextlib.Logf(cs.Ctx, log.LevelWarn, lumerinlib.FileLine()+"Error:%v", err)
 		}
+		miner, err := cs.Ps.MinerSetDestWait(m.(msgbus.Miner).ID, destid)
+		if err != nil {
+			contextlib.Logf(cs.Ctx, log.LevelWarn, lumerinlib.FileLine()+"Error:%v", err)
+		}
+		cs.ReadyMiners.Delete(string(miner.ID))
+		cs.BusyMiners.Set(string(miner.ID), *miner)
 	}
 
-	minerMapUpdated := cs.MinerUpdatedChans.Get(string(contractId)).(chan bool)
-	contractUpdated := cs.ContractUpdatedChans.Get(string(contractId)).(chan bool)
-	for {
-		select {
-		case <-cs.Ctx.Done():
-			contextlib.Logf(cs.Ctx, log.LevelInfo, "Cancelling current connection scheduler context: cancelling contract running Passthrough go routine for contract: %v", contract.ID)
-			return
-
-		case <-contractUpdated:
-			contextlib.Logf(cs.Ctx, log.LevelInfo, "Contract state switched to available: cancelling contract running go routine for contract: %v", contract.ID)
-
-			// free up busy miners with this contract id
-			miners := cs.BusyMiners.GetAll()
-			for _, v := range miners {
-				if v.(msgbus.Miner).Contract == contract.ID {
-					err := cs.Ps.MinerRemoveContractWait(v.(msgbus.Miner).ID, cs.NodeOperator.DefaultDest, true)
-					if err != nil {
-						contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
-					}
-				}
-			}
-			return
-
-		case <-minerMapUpdated:
-			miners, err := cs.Ps.MinerGetAllWait()
-			if err != nil {
-				contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
-			}
-			for _, v := range miners {
-				miner, err := cs.Ps.MinerGetWait(v)
-				if err != nil {
-					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
-				}
-				if miner.Contract == "" {
-					err = cs.Ps.MinerSetContractWait(miner.ID, contract.ID, destid, true)
-					if err != nil {
-						contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
-					}
-				}
-			}
-		}
-	}
+	time.Sleep(time.Second * time.Duration(cs.HashrateCalcLagTime))
 }
 
 //------------------------------------------------------------------------
 //
-// Continously search for optimal miner combination of online miners to point to running contract
+// Search for optimal miner combination of online miners to point to running contract
 //
 //------------------------------------------------------------------------
 func (cs *ConnectionScheduler) ContractRunning(contractId msgbus.ContractID) {
-	contextlib.Logf(cs.Ctx, log.LevelInfo, lumerinlib.FileLine()+"Contract Running: %s", contractId)
+	defer cs.wg.Done()
+	contextlib.Logf(cs.Ctx, log.LevelInfo, lumerinlib.FileLine()+"Contract Running, ID: %s", contractId)
 
 	event, err := cs.Ps.GetWait(msgbus.ContractMsg, msgbus.IDString(contractId))
 	if err != nil {
 		contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
 	}
 	contract := event.Data.(msgbus.Contract)
-	hashrateTolerance := float64(contract.Limit) / 100
+
+	hashrateTolerance := float64(HASHRATE_LIMIT) / 100
 
 	availableHashrate, _ := cs.calculateHashrateAvailability(contractId)
 
@@ -469,67 +460,29 @@ func (cs *ConnectionScheduler) ContractRunning(contractId msgbus.ContractID) {
 		// free up busy miners with this contract id
 		miners := cs.BusyMiners.GetAll()
 		for _, v := range miners {
-			if v.(msgbus.Miner).Contract == contract.ID {
-				err := cs.Ps.MinerRemoveContractWait(v.(msgbus.Miner).ID, cs.NodeOperator.DefaultDest, true)
+			if _, ok := v.(msgbus.Miner).Contracts[contractId]; ok {
+				m, err := cs.Ps.MinerRemoveContractWait(v.(msgbus.Miner).ID, contractId, cs.NodeOperator.DefaultDest)
 				if err != nil {
 					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
 				}
-			}
-		}
-	}
-
-	minerMapUpdated := cs.MinerUpdatedChans.Get(string(contractId)).(chan bool)
-	contractUpdated := cs.ContractUpdatedChans.Get(string(contractId)).(chan bool)
-	for {
-		select {
-		case <-cs.Ctx.Done():
-			contextlib.Logf(cs.Ctx, log.LevelInfo, "Cancelling current connection scheduler context: cancelling contract running go routine for contract: %v", contract.ID)
-			return
-
-		case <-contractUpdated:
-			contextlib.Logf(cs.Ctx, log.LevelInfo, "Contract state switched to available: cancelling contract running go routine for contract: %v", contract.ID)
-
-			// free up busy miners with this contract id
-			miners := cs.BusyMiners.GetAll()
-			for _, v := range miners {
-				if v.(msgbus.Miner).Contract == contract.ID {
-					err := cs.Ps.MinerRemoveContractWait(v.(msgbus.Miner).ID, cs.NodeOperator.DefaultDest, true)
-					if err != nil {
-						contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
-					}
-				}
-			}
-			return
-
-		case <-minerMapUpdated:
-			//availableHashrate, contractHashrate := cs.calculateHashrateAvailability(contractId)
-			availableHashrate, _ := cs.calculateHashrateAvailability(contractId)
-
-			if availableHashrate >= MIN {
-				//if contractHashrate < MIN {
-				cs.SetMinerTarget(contract)
-				//}
-			} else {
-				contextlib.Logf(cs.Ctx, log.LevelWarn, "Not enough available hashrate to fulfill contract: %v", contract.ID)
-				// free up busy miners with this contract id
-				miners := cs.BusyMiners.GetAll()
-				for _, v := range miners {
-					if v.(msgbus.Miner).Contract == contract.ID {
-						err := cs.Ps.MinerRemoveContractWait(v.(msgbus.Miner).ID, cs.NodeOperator.DefaultDest, true)
-						if err != nil {
-							contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
-						}
-					}
+				if len(m.Contracts) == 0 {
+					cs.BusyMiners.Delete(string(m.ID))
+					cs.ReadyMiners.Set(string(m.ID), *m)
+				} else {
+					cs.BusyMiners.Set(string(m.ID), *m)
 				}
 			}
 		}
+		time.Sleep(time.Second * time.Duration(cs.HashrateCalcLagTime))
 	}
 }
 
 func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract) {
+	contextlib.Logf(cs.Ctx, log.LevelInfo, "Setting Miner Target for Contract: %s", contract.ID)
+
 	destid := contract.Dest
 	promisedHashrate := contract.Speed
-	hashrateTolerance := float64(contract.Limit) / 100
+	hashrateTolerance := float64(HASHRATE_LIMIT) / 100
 
 	// in buyer node point miner directly to the pool
 	if cs.NodeOperator.IsBuyer {
@@ -537,57 +490,177 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract) {
 	}
 
 	if destid == "" {
-		contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+" Error DestID is empty")
+		contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"DestID is empty for Contract: %s", contract.ID)
 	}
 
 	// sort miners by hashrate from least to greatest
 	sortedReadyMiners := cs.sortMinersByHashrate(contract.ID)
-	contextlib.Logf(cs.Ctx, log.LevelInfo, "Sorted Miners: %v", sortedReadyMiners)
+	contextlib.Logf(cs.Ctx, log.LevelInfo, "Sorted Miners for Contract %s: %v", contract.ID, sortedReadyMiners)
 
 	// find all miner combinations that add up to promised hashrate
 	minerCombinations := findSubsets(sortedReadyMiners, promisedHashrate, hashrateTolerance)
-	if minerCombinations == nil {
-		contextlib.Logf(cs.Ctx, log.LevelWarn, "No valid miner combinations")
-
-		// free up busy miners with this contract id
-		miners := cs.BusyMiners.GetAll()
-		for _, v := range miners {
-			if v.(msgbus.Miner).Contract == contract.ID {
-				err := cs.Ps.MinerRemoveContractWait(v.(msgbus.Miner).ID, cs.NodeOperator.DefaultDest, true)
-				if err != nil {
-					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
-				}
-			}
-		}
+	if len(minerCombinations) == 0 {
+		contextlib.Logf(cs.Ctx, log.LevelInfo, "Hashrate Value from Contract %s too small to create Valid Miner Combination ", contract.ID)
 		return
 	}
 
-	contextlib.Logf(cs.Ctx, log.LevelInfo, "Valid Miner Combinations: %v", minerCombinations)
+	contextlib.Logf(cs.Ctx, log.LevelInfo, "Valid Miner Combinations for Contract %s: %v", contract.ID, minerCombinations)
 
 	// find best combination of miners
-	minerCombination := bestCombination(minerCombinations, promisedHashrate)
-	contextlib.Logf(cs.Ctx, log.LevelInfo, "Best Miner Combination: %v", minerCombination)
+	minerCombination, index := bestCombination(minerCombinations, promisedHashrate)
+
+	cs.BestMinerCombos.Set(string(contract.ID), minerCombination)
+
+	// check miner combo doesn't conflict with another contract
+	bestMinerCombos := cs.BestMinerCombos.GetMap()
+	validCombo := bestCombinationConflict(bestMinerCombos, minerCombination, contract.ID)
+
+	// find new best combination
+	for !validCombo {
+		minerCombinations = append(minerCombinations[:index], minerCombinations[index+1:]...)
+		minerCombination, index = bestCombination(minerCombinations, promisedHashrate)
+		cs.BestMinerCombos.Set(string(contract.ID), minerCombination)
+		bestMinerCombos := cs.BestMinerCombos.GetMap()
+		validCombo = bestCombinationConflict(bestMinerCombos, minerCombination, contract.ID)
+	}
+
+	contextlib.Logf(cs.Ctx, log.LevelInfo, "Best Miner Combination for Contract %s: %v", contract.ID, minerCombination)
 
 	// set contract and target destination for miners in optimal miner combination
+	slicedMiners := []msgbus.Miner{}
 	for _, v := range minerCombination {
-		err := cs.Ps.MinerSetContractWait(v.id, contract.ID, destid, true)
+		miner, err := cs.Ps.MinerGetWait(v.id)
 		if err != nil {
 			contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
 		}
+
+		if v.slicePercent < 1 {
+			_, err = cs.Ps.MinerSetContractWait(v.id, contract.ID, v.slicePercent, true)
+			if err != nil {
+				contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+			}
+			slicedMiners = append(slicedMiners, *miner)
+		} else {
+			_, err = cs.Ps.MinerSetContractWait(v.id, contract.ID, v.slicePercent, false)
+			if err != nil {
+				contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+			}
+			miner, err = cs.Ps.MinerSetDestWait(v.id, destid)
+			if err != nil {
+				contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+			}
+		}
+		cs.ReadyMiners.Delete(string(miner.ID))
+		cs.BusyMiners.Set(string(miner.ID), *miner)
 	}
 
-	// update busy miners map with new dests based on new miner combination i.e this function was called after an update to the miner map
-	newBusyMinerMap := make(map[msgbus.MinerID]Miner)
-	for _, v := range minerCombination {
-		newBusyMinerMap[v.id] = v
-	}
-	miners := cs.BusyMiners.GetAll()
-	for _, v := range miners {
-		if _, ok := newBusyMinerMap[v.(msgbus.Miner).ID]; !ok {
-			if v.(msgbus.Miner).Contract == contract.ID {
-				err := cs.Ps.MinerRemoveContractWait(v.(msgbus.Miner).ID, cs.NodeOperator.DefaultDest, true)
+	totalDuration := time.Second * time.Duration(cs.HashrateCalcLagTime)
+	contractStateChanged := false
+	var durationPassed time.Duration
+	if len(slicedMiners) == 0 {
+		currentReadyMiners := cs.ReadyMiners.GetAll()
+		currentBusyMiners := cs.BusyMiners.GetAll()
+		contextlib.Logf(cs.Ctx, log.LevelInfo, "Ready Miners In Contract %s Set Target Func: %v", contract.ID, currentReadyMiners)
+		contextlib.Logf(cs.Ctx, log.LevelInfo, "Busy Miners In Contract %s Set Target Func: %v", contract.ID, currentBusyMiners)
+	loop1:
+		for i := 0; i < 5; i++ {
+			// check none of the miners were unpublished
+			for _, v := range currentBusyMiners {
+				if !cs.BusyMiners.Exists(string(v.(msgbus.Miner).ID)) {
+					break loop1
+				}
+			}
+
+			// check if contract went to available periodically
+			event, err := cs.Ps.GetWait(msgbus.ContractMsg, msgbus.IDString(contract.ID))
+			if err != nil {
+				contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+			}
+			contract = event.Data.(msgbus.Contract)
+			if contract.State == msgbus.ContAvailableState {
+				contractStateChanged = true
+				break loop1
+			}
+			durationPassed += totalDuration / 5
+			time.Sleep(totalDuration / 5)
+		}
+	} else {
+	loop2:
+		for i, m := range slicedMiners {
+			for i, v := range m.Contracts {
+				// check none of the miners were unpublished
+				for _, v := range slicedMiners {
+					if !cs.BusyMiners.Exists(string(v.ID)) {
+						break loop2
+					}
+				}
+
+				// check if contract went to available
+				event, err := cs.Ps.GetWait(msgbus.ContractMsg, msgbus.IDString(contract.ID))
 				if err != nil {
 					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+				}
+				contract = event.Data.(msgbus.Contract)
+				if contract.State == msgbus.ContAvailableState {
+					contractStateChanged = true
+					break loop2
+				}
+
+				contextlib.Logf(cs.Ctx, log.LevelInfo, "Switching Sliced Miner %s Dest to service Contract: %s", m.ID, i)
+				event, err = cs.Ps.GetWait(msgbus.ContractMsg, msgbus.IDString(i))
+				if err != nil {
+					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+				}
+				contract = event.Data.(msgbus.Contract)
+				if !cs.Ps.MinerExistsWait(m.ID) {
+					break loop2
+				}
+				_, err = cs.Ps.MinerSetDestWait(m.ID, contract.Dest)
+				if err != nil {
+					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+				}
+				slicedDuration := time.Second * time.Duration(int(float64(cs.HashrateCalcLagTime)*v))
+				// cs.ReadyMiners.Delete(string(miner.ID))
+				// cs.BusyMiners.Set(string(miner.ID), *miner)
+				readyMiners := cs.ReadyMiners.GetAll()
+				busyMiners := cs.BusyMiners.GetAll()
+				contextlib.Logf(cs.Ctx, log.LevelInfo, "Ready Miners In Contract %s Set Target Func: %v", contract.ID, readyMiners)
+				contextlib.Logf(cs.Ctx, log.LevelInfo, "Busy Miners In Contract %s Set Target Func: %v", contract.ID, busyMiners)
+				time.Sleep(slicedDuration)
+				durationPassed += slicedDuration
+			}
+			if (i == len(slicedMiners)-1) && (durationPassed < totalDuration) {
+				contextlib.Logf(cs.Ctx, log.LevelInfo, "Switching Sliced Miner Dest to Default Dest, Miner: %s", m.ID)
+				if !cs.Ps.MinerExistsWait(m.ID) {
+					break loop2
+				}
+				_, err := cs.Ps.MinerSetDestWait(m.ID, cs.NodeOperator.DefaultDest)
+				if err != nil {
+					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+				}
+				// cs.ReadyMiners.Delete(string(miner.ID))
+				// cs.BusyMiners.Set(string(miner.ID), *miner)
+				readyMiners := cs.ReadyMiners.GetAll()
+				busyMiners := cs.BusyMiners.GetAll()
+				contextlib.Logf(cs.Ctx, log.LevelInfo, "Ready Miners In Contract %s Set Target Func: %v", contract.ID, readyMiners)
+				contextlib.Logf(cs.Ctx, log.LevelInfo, "Busy Miners In Contract %s Set Target Func: %v", contract.ID, busyMiners)
+				time.Sleep(totalDuration - durationPassed)
+			}
+		}
+	}
+	if contractStateChanged {
+		miners := cs.BusyMiners.GetAll()
+		for _, v := range miners {
+			if _, ok := v.(msgbus.Miner).Contracts[contract.ID]; ok {
+				m, err := cs.Ps.MinerRemoveContractWait(v.(msgbus.Miner).ID, contract.ID, cs.NodeOperator.DefaultDest)
+				if err != nil {
+					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+				}
+				if len(m.Contracts) == 0 {
+					cs.BusyMiners.Delete(string(m.ID))
+					cs.ReadyMiners.Set(string(m.ID), *m)
+				} else {
+					cs.BusyMiners.Set(string(m.ID), *m)
 				}
 			}
 		}
@@ -601,13 +674,21 @@ func (cs *ConnectionScheduler) calculateHashrateAvailability(id msgbus.ContractI
 	}
 	miners = cs.BusyMiners.GetAll()
 	for _, v := range miners {
-		if v.(msgbus.Miner).Contract == id {
-			contractHashrate += v.(msgbus.Miner).CurrentHashRate
+		if _, ok := v.(msgbus.Miner).Contracts[id]; ok {
+			if !v.(msgbus.Miner).TimeSlice {
+				contractHashrate += v.(msgbus.Miner).CurrentHashRate
+			} else {
+				contractHashrate += int(float64(v.(msgbus.Miner).CurrentHashRate) * v.(msgbus.Miner).Contracts[id])
+			}
+		}
+		if v.(msgbus.Miner).TimeSlice {
+			leftoverSlicePercent := cs.Ps.MinerSlicedUtilization(v.(msgbus.Miner).ID)
+			availableHashrate += int(float64(v.(msgbus.Miner).CurrentHashRate) * leftoverSlicePercent)
 		}
 	}
 	availableHashrate += contractHashrate
 
-	contextlib.Logf(cs.Ctx, log.LevelInfo, "Available Hashrate: %v", availableHashrate)
+	contextlib.Logf(cs.Ctx, log.LevelInfo, "Available Hashrate for Contract %s: %v", id, availableHashrate)
 
 	return availableHashrate, contractHashrate
 }
@@ -617,22 +698,33 @@ func (cs *ConnectionScheduler) sortMinersByHashrate(contractId msgbus.ContractID
 
 	miners := cs.ReadyMiners.GetAll()
 	for _, v := range miners {
-		m = append(m, Miner{v.(msgbus.Miner).ID, v.(msgbus.Miner).CurrentHashRate})
+		miner := v.(msgbus.Miner)
+		if miner.CurrentHashRate != 0 {
+			m = append(m, Miner{miner.ID, miner.CurrentHashRate, 1})
+		}
 	}
 
-	// include busy miners that are already associated with contract
+	// include busy miners that are already associated with contract and sliced miners with extra contract space
 	miners = cs.BusyMiners.GetAll()
 	for _, v := range miners {
-		if v.(msgbus.Miner).Contract == contractId {
-			m = append(m, Miner{v.(msgbus.Miner).ID, v.(msgbus.Miner).CurrentHashRate})
+		if _, ok := v.(msgbus.Miner).Contracts[contractId]; ok {
+			slicePercent := v.(msgbus.Miner).Contracts[contractId]
+			m = append(m, Miner{v.(msgbus.Miner).ID, int(float64(v.(msgbus.Miner).CurrentHashRate) * slicePercent), slicePercent})
+		} else if v.(msgbus.Miner).TimeSlice && (cs.Ps.MinerSlicedUtilization(v.(msgbus.Miner).ID) > 0) {
+			leftoverSlicePercent := cs.Ps.MinerSlicedUtilization(v.(msgbus.Miner).ID)
+			m = append(m, Miner{v.(msgbus.Miner).ID, int(float64(v.(msgbus.Miner).CurrentHashRate) * leftoverSlicePercent), leftoverSlicePercent})
 		}
 	}
 
 	sort.Sort(m)
-	return m
+	if len(m) > 9 {
+		return m[:9]
+	} else {
+		return m
+	}
 }
 
-func sumSubsets(sortedMiners MinerList, n int, targetHashrate int, hashrateTolerance float64) (m MinerList) {
+func sumSubsets(sortedMiners MinerList, n int, targetHashrate int, hashrateTolerance float64) (m MinerList, sum int) {
 	// Create new array with size equal to sorted miners array to create binary array as per n(decimal number)
 	x := make([]int, sortedMiners.Len())
 	j := sortedMiners.Len() - 1
@@ -644,48 +736,77 @@ func sumSubsets(sortedMiners MinerList, n int, targetHashrate int, hashrateToler
 		j--
 	}
 
-	sum := 0
+	sumPrev := 0 // only return subsets where hashrate overflow is caused by 1 miner
 
 	// Calculate the sum of this subset
 	for i := range sortedMiners {
 		if x[i] == 1 {
 			sum += sortedMiners[i].hashrate
 		}
+		if i == len(sortedMiners)-1 {
+			sumPrev = sum - sortedMiners[i].hashrate
+		}
 	}
 
 	MIN := int(float64(targetHashrate) * (1 - hashrateTolerance))
-	MAX := int(float64(targetHashrate) * (1 + hashrateTolerance))
 
 	// if sum is within target hashrate bounds, subset was found
-	if sum >= MIN && sum <= MAX {
+	if sum >= MIN && sumPrev < MIN {
 		for i := range sortedMiners {
 			if x[i] == 1 {
 				m = append(m, sortedMiners[i])
 			}
 		}
-		return m
+		return m, sum
 	}
 
-	return nil
+	return nil, 0
 }
 
 // find subsets of list of miners whose hashrate sum equal the target hashrate
 func findSubsets(sortedMiners MinerList, targetHashrate int, hashrateTolerance float64) (minerCombinations []MinerList) {
 	// Calculate total number of subsets
 	tot := math.Pow(2, float64(sortedMiners.Len()))
+	MAX := int(float64(targetHashrate) * (1 + hashrateTolerance))
+	minerCombinationsSums := []int{}
 
 	for i := 0; i < int(tot); i++ {
-		m := sumSubsets(sortedMiners, i, targetHashrate, hashrateTolerance)
+		m, s := sumSubsets(sortedMiners, i, targetHashrate, hashrateTolerance)
 		if m != nil {
 			minerCombinations = append(minerCombinations, m)
+			minerCombinationsSums = append(minerCombinationsSums, s)
 		}
 	}
+
+	if len(minerCombinations) == 0 {
+		return []MinerList{}
+	}
+
+	for i, m := range minerCombinations {
+		if minerCombinationsSums[i] > MAX { // need to slice miner
+			sumPrev := minerCombinationsSums[i] - m[len(m)-1].hashrate
+			unslicedHashrate := m[len(m)-1].hashrate
+			slicedHashrate := targetHashrate - sumPrev
+			if float64(slicedHashrate)/float64(unslicedHashrate) < MIN_SLICE {
+				m[len(m)-1].hashrate = int(float64(m[len(m)-1].hashrate) * MIN_SLICE)
+				m[len(m)-1].slicePercent = MIN_SLICE
+			} else {
+				m[len(m)-1].hashrate = slicedHashrate
+				m[len(m)-1].slicePercent = float64(slicedHashrate) / float64(unslicedHashrate)
+			}
+		}
+	}
+
 	return minerCombinations
 }
 
-func bestCombination(minerCombinations []MinerList, targetHashrate int) MinerList {
+func bestCombination(minerCombinations []MinerList, targetHashrate int) (MinerList, int) {
 	hashrates := make([]int, len(minerCombinations))
 	numMiners := make([]int, len(minerCombinations))
+
+	if len(minerCombinations) == 0 {
+		return MinerList{}, 0
+	}
 
 	// find hashrate and number of miners in each combination
 	for i := range minerCombinations {
@@ -693,9 +814,14 @@ func bestCombination(minerCombinations []MinerList, targetHashrate int) MinerLis
 		totalHashRate := 0
 		num := 0
 		for j := range miners {
-			totalHashRate += miners[j].hashrate
+			if j == len(miners)-1 {
+				totalHashRate += int(float64(miners[j].hashrate) * miners[j].slicePercent)
+			} else {
+				totalHashRate += miners[j].hashrate
+			}
 			num++
 		}
+
 		hashrates[i] = totalHashRate
 		numMiners[i] = num
 	}
@@ -706,7 +832,7 @@ func bestCombination(minerCombinations []MinerList, targetHashrate int) MinerLis
 		res1 := math.Abs(float64(targetHashrate) - float64(hashrates[index]))
 		res2 := math.Abs(float64(targetHashrate) - float64(hashrates[i]))
 		if res1 > res2 {
-			index = i
+				index = i
 		}
 	}
 
@@ -718,5 +844,23 @@ func bestCombination(minerCombinations []MinerList, targetHashrate int) MinerLis
 		}
 	}
 
-	return minerCombinations[newIndex]
+	return minerCombinations[newIndex], newIndex
+}
+
+func bestCombinationConflict(bestMinerCombos map[string]interface{}, minerCombination MinerList, contractId msgbus.ContractID) (bool) {
+	for i, v := range bestMinerCombos {
+		bestMinerCombo := v.(MinerList)
+		if i != string(contractId) {
+			for _, bM := range bestMinerCombo {
+				for _, mC := range minerCombination {
+					if bM == mC {
+						if (bM.slicePercent + mC.slicePercent) > 1 {
+							return false
+						}
+					}
+				}
+			}
+		}
+	}
+	return true
 }

@@ -92,10 +92,12 @@ func (svs *StratumV1Struct) handleMsgUpdateEvent(event *simple.SimpleMsgBusEvent
 		// Did the Dest ID change?
 		if svs.minerRec.Dest != minerrec.Dest {
 			contextlib.Logf(svs.Ctx(), contextlib.LevelInfo, lumerinlib.FileLineFunc()+" Miner:%s Dest changed to: %s from %s", minerrec.ID, minerrec.Dest, svs.minerRec.Dest)
-
+			//
 			// Destination has changed...
+			//
+			// If the destination has a connection open the uid will be greater then -1
+			//
 			switch_to_uid := svs.GetDstUIDDestID(minerrec.Dest)
-
 			svs.switchToDestID = minerrec.Dest
 
 			// Is Dest already open and running?
@@ -106,10 +108,22 @@ func (svs *StratumV1Struct) handleMsgUpdateEvent(event *simple.SimpleMsgBusEvent
 				if e != nil {
 					contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Get() error:%s", e)
 				}
+
+				// Yes it is open
+			} else {
+				// Are we set to on demand, if so then switch now
+				if svs.scheduler == OnDemand {
+					svs.switchDest()
+				}
+
+				// if we are not set to on demand, then the next submit will trigger the change
 			}
 
+			// Update the minerRec
+			svs.minerRec.Dest = minerrec.Dest
+
 		} else {
-			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Recieved Miner update, but dest did not change:%s:%s", event.EventType, event.ID)
+			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Recieved Miner update, but dest did not change:'%s':'%s'", event.EventType, event.ID)
 		}
 
 	// Ignore all others
@@ -166,15 +180,16 @@ func (svs *StratumV1Struct) handleMsgGetEvent(event *simple.SimpleMsgBusEvent) {
 			// Fire up the default destination connction here
 			// If default is not already set, set it
 			var dest msgbus.Dest
-			switch event.Data.(type) {
+			switch data := event.Data.(type) {
 			case msgbus.Dest:
-				dest = event.Data.(msgbus.Dest)
+				dest = data
 			case *msgbus.Dest:
-				d := event.Data.(*msgbus.Dest)
+				d := data
 				if d == nil {
 					contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" DestMsg: is nil")
+				} else {
+					dest = *d
 				}
-				dest = *d
 			default:
 				contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" DestMsg: bad data:%t", event.Data)
 			}
@@ -269,6 +284,9 @@ func (svs *StratumV1Struct) handleMsgPublishEvent(event *simple.SimpleMsgBusEven
 			contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" event message:%s:%s, subscribe", event.EventType, event.ID)
 		}
 
+	case simple.ValidateMsg:
+		contextlib.Logf(svs.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" event message:%s:%s, subscribe", event.EventType, event.ID)
+
 	default:
 		contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Unknown event message:%s:%s", event.EventType, event.ID)
 	}
@@ -286,10 +304,11 @@ func (svs *StratumV1Struct) handleMsgUnpublishEvent(event *simple.SimpleMsgBusEv
 	contextlib.Logf(svs.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" Called")
 
 	switch event.Msg {
+	case simple.MinerMsg:
+		contextlib.Logf(svs.Ctx(), contextlib.LevelInfo, lumerinlib.FileLineFunc()+" Miner Record:%s:%s", event.EventType, event.ID)
 	default:
 		contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Unknown event message:%s:%s", event.EventType, event.ID)
 	}
-
 }
 
 //

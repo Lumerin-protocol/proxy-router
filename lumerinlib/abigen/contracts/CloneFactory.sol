@@ -3,7 +3,7 @@
 pragma solidity >0.8.0;
 
 import "./Clones.sol";
-import './Implementation.sol';
+import "./Implementation.sol";
 import "./LumerinToken.sol";
 
 /// @title CloneFactory
@@ -14,17 +14,22 @@ import "./LumerinToken.sol";
 contract CloneFactory {
     address baseImplementation;
     address validator;
-    address lmnDeploy;
-    address webfacingAddress;
+    address lmnDeploy; //deployed address of lumerin token
+    address titanFund; //fund where lumerin tokens are sent for titan transaction
     address[] public rentalContracts; //dynamically allocated list of rental contracts
+    bool titanCut; //bool to turn on and off the cut of funds, in for testing, should always be true in production
     Lumerin lumerin;
+    TempMarketPlace marketplace;
 
-    constructor(address _lmn, address _validator) {
+    constructor(address _lmn, address _validator, address _titanFund) {
         Implementation _imp = new Implementation();
+        marketplace = new TempMarketPlace(); //deploying the marketplace as part of this contract so the address doesn't have to be provided manually
         baseImplementation = address(_imp);
         lmnDeploy = _lmn; //deployed address of lumeirn token
         validator = _validator;
+        titanFund = _titanFund;
         lumerin = Lumerin(_lmn);
+        titanCut = false;
     }
 
     event contractCreated(address indexed _address, string _pubkey); //emitted whenever a contract is created
@@ -55,6 +60,10 @@ contract CloneFactory {
         return _newContract;
     }
 
+    function setTitanCut(bool _cut) public {
+        titanCut = _cut;
+    }
+
     //function to purchase a hashrate contract
     //requires the clonefactory to be able to spend tokens on behalf of the purchaser
     function setPurchaseRentalContract(
@@ -67,12 +76,32 @@ contract CloneFactory {
             lumerin.allowance(msg.sender, address(this)) >= _price,
             "not authorized to spend required funds"
         );
-        bool tokensTransfered = lumerin.transferFrom(
-            msg.sender,
-            contractAddress,
-            _price
-        );
-        require(tokensTransfered, "lumeirn tranfer failed");
+        if (titanCut) {
+            uint num;
+            uint den;
+            (num, den) = marketplace.getTitanPercentage();
+            uint256 titanPoolCut = _price*num/den;
+            uint256 contractCut  = _price-titanPoolCut;
+            bool titanTransfer = lumerin.transferFrom(
+                msg.sender,
+                titanFund,
+                titanPoolCut
+            );
+            require(titanTransfer, "lumeirn tranfer failed");
+            bool contractTransfer = lumerin.transferFrom(
+                msg.sender,
+                contractAddress,
+                contractCut
+            );
+            require(contractTransfer, "lumeirn tranfer failed");
+        } else {
+            bool tokensTransfered = lumerin.transferFrom(
+                msg.sender,
+                contractAddress,
+                _price
+            );
+            require(tokensTransfered, "lumeirn tranfer failed");
+        }
         targetContract.setPurchaseContract(_cipherText, msg.sender);
         emit clonefactoryContractPurchased(contractAddress);
     }
@@ -82,6 +111,28 @@ contract CloneFactory {
         return _rentalContracts;
     }
 }
+
+
+/*
+the contract TempMarketPlace is to provide an external source of the percentage
+of each transaction titan will take from each transaction.
+The close factory will call into the fully developed and audited 
+version of the market place contract at a later time
+*/
+contract TempMarketPlace {
+    uint256 numerator;
+    uint256 denominator;
+
+    constructor() {
+        numerator = 25;
+        denominator = 1000;
+    }
+
+    function getTitanPercentage() public view returns(uint256, uint256) {
+        return(numerator, denominator);
+    }
+}
+
 
 
 

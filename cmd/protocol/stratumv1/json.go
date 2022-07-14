@@ -11,8 +11,11 @@ package stratumv1
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math/rand"
 	"strconv"
+	"time"
 
 	"gitlab.com/TitanInd/lumerin/lumerinlib"
 	contextlib "gitlab.com/TitanInd/lumerin/lumerinlib/context"
@@ -136,17 +139,17 @@ type noticeMiningSetVersionMask struct {
 	Jsonrpc string        `json:"jsonrpc,omitempty"`
 }
 
-type noticeMiningNotifyParams struct {
-	JobID          string   `json:","`
-	PrevBlockHash  string   `json:","`
-	Gen1           string   `json:","`
-	Gen2           string   `json:","`
-	MerkelBranches []string `json:","`
-	BlockVersion   string   `json:","`
-	NBits          string   `json:","`
-	NTime          string   `json:","`
-	CleanJob       bool     `json:","`
-}
+//type noticeMiningNotifyParams struct {
+//	JobID          string   `json:","`
+//	PrevBlockHash  string   `json:","`
+//	Gen1           string   `json:","`
+//	Gen2           string   `json:","`
+//	MerkelBranches []string `json:","`
+//	BlockVersion   string   `json:","`
+//	NBits          string   `json:","`
+//	NTime          string   `json:","`
+//	CleanJob       bool     `json:","`
+//}
 
 type MiningNotify struct {
 	ID      *string        `json:"id"`
@@ -163,18 +166,18 @@ type stratumResponse struct {
 	Jsonrpc string      `json:"jsonrpc,omitempty"`
 }
 
-type stratumConfigureResponse struct {
-	ID      int            `json:"id"`
-	Error   *string        `json:"error"`
-	Result  [3]interface{} `json:"result"`
-	Jsonrpc string         `json:"jsonrpc,omitempty"`
-}
+//type stratumConfigureResponse struct {
+//	ID      int            `json:"id"`
+//	Error   *string        `json:"error"`
+//	Result  [3]interface{} `json:"result"`
+//	Jsonrpc string         `json:"jsonrpc,omitempty"`
+//}
 
 //
 //
 //
-func Response(id int, r interface{}) stratumResponse {
-	return stratumResponse{
+func Response(id int, r interface{}) *stratumResponse {
+	return &stratumResponse{
 		ID:     id,
 		Result: r,
 		Error:  nil,
@@ -306,23 +309,20 @@ func unmarshalMsg(b []byte) (ret interface{}, err error) {
 
 			case string(SERVER_MINING_SET_DIFFICULTY):
 				for _, v := range msg.Params.([]interface{}) {
-					switch v.(type) {
+					switch v := v.(type) {
 					case string:
-						r.Params = append(r.Params, v.(string))
+						r.Params = append(r.Params, v)
 					case float32:
-						r.Params = append(r.Params, fmt.Sprintf("%f", v.(float32)))
+						r.Params = append(r.Params, fmt.Sprintf("%f", v))
 					case float64:
-						r.Params = append(r.Params, fmt.Sprintf("%f", v.(float64)))
+						r.Params = append(r.Params, fmt.Sprintf("%f", v))
 					default:
 						panic(fmt.Sprintf(lumerinlib.FileLineFunc()+" Error bad type:%T\n", v))
 					}
 				}
 
 			default:
-
-				for _, v := range msg.Params.([]interface{}) {
-					r.Params = append(r.Params, v.(interface{}))
-				}
+				r.Params = append(r.Params, msg.Params.([]interface{})...)
 			}
 
 			ret = r
@@ -339,9 +339,7 @@ func unmarshalMsg(b []byte) (ret interface{}, err error) {
 //
 //
 func getStratumMsg(msg []byte) (ret interface{}, err error) {
-
 	ret, err = unmarshalMsg(msg)
-
 	return ret, err
 }
 
@@ -358,6 +356,7 @@ func (r *stratumRequest) getID() (id int, err error) {
 	switch r.Method {
 	case string(CLIENT_MINING_AUTHORIZE):
 	case string(CLIENT_MINING_CAPABILITIES):
+	case string(CLIENT_MINING_CONFIGURE):
 	case string(CLIENT_MINING_EXTRANONCE):
 	case string(CLIENT_MINING_SUBMIT):
 	case string(CLIENT_MINING_SUBSCRIBE):
@@ -715,9 +714,33 @@ func (n *stratumNotice) createNoticeSetDifficultyMsg() (msg []byte, err error) {
 	nsd.Method = n.Method
 	nsd.Params = make([]int, 0)
 
+	var p interface{}
+	var ok bool = false
+
 	switch params := n.Params.(type) {
-	case []float64:
-		nsd.Params = append(nsd.Params, int(params[0]))
+	case []interface{}:
+		p, ok = params[0].(interface{})
+		if !ok {
+			panic(fmt.Sprintf(lumerinlib.FileLineFunc() + " Params is empty"))
+		}
+
+	default:
+		panic(fmt.Sprintf(lumerinlib.FileLineFunc()+" type:%t not supported", n.Params))
+	}
+
+	switch p := p.(type) {
+	case float32:
+		nsd.Params = append(nsd.Params, int(p))
+	case float64:
+		nsd.Params = append(nsd.Params, int(p))
+	case int:
+		nsd.Params = append(nsd.Params, p)
+	case int32:
+		nsd.Params = append(nsd.Params, int(p))
+	case int64:
+		nsd.Params = append(nsd.Params, int(p))
+	default:
+		panic(fmt.Sprintf(lumerinlib.FileLineFunc()+" type:%t not supported", n.Params))
 	}
 
 	msg, err = json.Marshal(nsd)
@@ -770,9 +793,7 @@ func (n *stratumNotice) createNoticeSetVersionMaskMsg() (msg []byte, err error) 
 	nsv.Method = n.Method
 	nsv.Params = make([]interface{}, 0)
 
-	for _, v := range n.Params.([]interface{}) {
-		nsv.Params = append(nsv.Params, v)
-	}
+	nsv.Params = append(nsv.Params, n.Params.([]interface{})...)
 
 	msg, err = json.Marshal(nsv)
 	if err != nil {
@@ -885,7 +906,7 @@ func (n *stratumNotice) createNoticeMiningNotify() (msg []byte, err error) {
 	nsd.Method = n.Method
 
 	if len(n.Params.([]interface{})) != 9 {
-		panic("")
+		return nil, errors.New(lumerinlib.FileLineFunc() + " wrong number of params")
 	}
 
 	for i, v := range n.Params.([]interface{}) {
@@ -936,6 +957,30 @@ func (n *stratumNotice) createNoticeMiningNotify() (msg []byte, err error) {
 
 	msg = []byte(string(msg) + "\n")
 	return msg, err
+}
+
+//
+//
+//
+func (n *stratumNotice) setNoticeMiningNotifyCleanJobsTrue() (err error) {
+
+	if n.Method != string(SERVER_MINING_NOTIFY) {
+		err = fmt.Errorf(lumerinlib.FileLineFunc()+" wrong Method:%s", n.Method)
+	} else if len(n.Params.([]interface{})) != 9 {
+		err = fmt.Errorf(lumerinlib.FileLineFunc() + " wrong number of params")
+	} else {
+		switch n.Params.([]interface{})[8].(type) {
+		case bool:
+			if !n.Params.([]interface{})[8].(bool) {
+				n.Params.([]interface{})[8] = true
+			}
+
+		default:
+			err = fmt.Errorf(lumerinlib.FileLineFunc()+" params[8] wrong type:%t", n.Params.([]interface{})[8])
+		}
+	}
+
+	return err
 }
 
 // ---------------------------------------------------------------------------------------
@@ -996,10 +1041,12 @@ func (r *stratumResponse) createResponseMsg() (msg []byte, err error) {
 //------------------------------------------------------
 func (r *stratumResponse) createSrcSubscribeResponseMsg(id int) (msg []byte, err error) {
 
-	// Move this to JSON file
-
-	extranonce := "deadbeef"
-	extranonce2 := 2 // 0 will result in subscribe erroring out
+	//
+	// Create random extranonce
+	//
+	rand.Seed(time.Now().UnixNano())
+	extranonce := fmt.Sprintf("%08x", rand.Intn(4294967294)+1)
+	extranonce2 := 8 
 
 	notify := make([]string, 2)
 	notify[0] = string(SERVER_MINING_NOTIFY)
@@ -1039,15 +1086,19 @@ func (r *stratumResponse) createSrcSubscribeResponseMsg(id int) (msg []byte, err
 //------------------------------------------------------
 // createSrcConfigureResponseMsg
 //
+//	{\"id\":24,\"jsonrpc\":\"2.0\",\"result\":{ \"version-rolling\": true, \"version-rolling.mask\": \"1fffe000\" },\"error\":null}\n"
 //------------------------------------------------------
-func (r *stratumResponse) createSrcConfigureResponseMsg() (msg []byte, err error) {
+func (r *stratumResponse) createSrcConfigureResponseMsg(mask string, bitcount int) (msg []byte, err error) {
 
 	// Move this to JSON file
 
 	result := make(map[string]interface{})
-	result["minimum-difficulty"] = false
-	result["version-rolling"] = false
-	// result["version-rolling.mask"] = "0"
+
+	if mask != "" {
+		result["minimum-difficulty"] = bitcount
+		result["version-rolling"] = true
+		result["version-rolling.mask"] = mask
+	}
 
 	response := &stratumResponse{
 		ID:     r.ID,
@@ -1141,18 +1192,18 @@ func LogJson(ctx context.Context, filelocation string, direction jsonDirection, 
 
 	var e error
 	var msg []byte
-	switch data.(type) {
+	switch data := data.(type) {
 	case *stratumRequest:
-		req := data.(*stratumRequest)
+		req := data
 		msg, e = req.createRequestMsg()
 	case *stratumResponse:
-		res := data.(*stratumResponse)
+		res := data
 		msg, e = res.createResponseMsg()
 	case *stratumNotice:
-		not := data.(*stratumNotice)
+		not := data
 		msg, e = not.createNoticeMsg()
 	case []byte:
-		msg = data.([]byte)
+		msg = data
 	default:
 		contextlib.Logf(ctx, contextlib.LevelPanic, lumerinlib.FileLineFunc()+" bad data type:%t", data)
 	}
