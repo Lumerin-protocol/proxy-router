@@ -658,7 +658,7 @@ func (s *StratumV1Struct) switchDest() {
 	}
 
 	if currentUID == newUID {
-		contextlib.Logf(s.Ctx(), contextlib.LevelError, fmt.Sprintf(lumerinlib.FileLineFunc()+" new destis the current dest, skipping switch"))
+		contextlib.Logf(s.Ctx(), contextlib.LevelError, fmt.Sprintf(lumerinlib.FileLineFunc()+" new Dest[%d] is the current dest, skipping switch",newUID))
 		s.switchToDestID = ""
 		return
 	}
