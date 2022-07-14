@@ -123,7 +123,7 @@ func (svs *StratumV1Struct) handleMsgUpdateEvent(event *simple.SimpleMsgBusEvent
 			svs.minerRec.Dest = minerrec.Dest
 
 		} else {
-			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Recieved Miner update, but dest did not change:'%s':'%s'", event.EventType, event.ID)
+			contextlib.Logf(svs.Ctx(), contextlib.LevelInfo, lumerinlib.FileLineFunc()+" Recieved Miner update, but Dest[%s] did not change:'%s':'%s'", minerrec.Dest, event.EventType, event.ID)
 		}
 
 	// Ignore all others

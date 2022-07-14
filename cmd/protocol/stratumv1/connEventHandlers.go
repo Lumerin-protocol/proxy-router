@@ -360,7 +360,7 @@ func (svs *StratumV1Struct) handleResponse(uid simple.ConnUniqueID, response *st
 
 		// Notate the Error, and pass it on to the miner
 		if response.Error != nil {
-			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Dst UID:%d, State:%s, error:%s, %v", uid, dststate, *response.Error, response)
+			contextlib.Logf(svs.Ctx(), contextlib.LevelWarn, lumerinlib.FileLineFunc()+" Dst UID:%d, State:%s, error:%s, %v", uid, dststate, *response.Error, response)
 			// svs.SetDstStateUid(uid, DstStateError)
 			// dststate = DstStateError
 		}
