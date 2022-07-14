@@ -788,11 +788,14 @@ func (svs *StratumV1Struct) handleSrcReqConfigure(request *stratumRequest) (e er
 	// Validate the current state of the SRC connection
 	switch state {
 	case SrcStateNew:
-		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Got Configure")
+		// Expected state
+
 	case SrcStateSubscribed:
-		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Got Configure")
+		fallthrough
 	case SrcStateAuthorized:
+		fallthrough
 	case SrcStateRunning:
+		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" State:%s", state)
 		return ErrBadSrcState
 	default:
 		contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Src state:%s", state)
