@@ -51,6 +51,7 @@ const (
 	MinerMsg                 MsgType = "MinerMsg"
 	ConnectionMsg            MsgType = "ConnectionMsg"
 	LogMsg                   MsgType = "LogMsg"
+	ValidateMsg              MsgType = "ValidateMsg"
 )
 
 type Event struct {
@@ -124,6 +125,17 @@ type cmd struct {
 	returnch  EventChan
 }
 
+var SubmitCountChan chan int
+
+//
+// init()
+// initializes the DstCounter
+//
+func init() {
+	SubmitCountChan = make(chan int, 5)
+	lumerinlib.RunGoCounter(SubmitCountChan)
+}
+
 //--------------------------------------------------------------------------------
 //
 //--------------------------------------------------------------------------------
@@ -140,7 +152,6 @@ func New(capacity int, l *log.Logger) *PubSub {
 		requestIDChan: make(chan int),
 		logger:        l,
 	}
-
 	go ps.start()
 
 	return ps
@@ -854,6 +865,7 @@ func (ps *PubSub) start() {
 	reg.data[ContractMsg] = make(map[IDString]registryData)
 	reg.data[MinerMsg] = make(map[IDString]registryData)
 	reg.data[ConnectionMsg] = make(map[IDString]registryData)
+	reg.data[ValidateMsg] = make(map[IDString]registryData)
 
 	reg.notify[ConfigMsg] = make(map[chan *Event]interface{})
 	reg.notify[ContractManagerConfigMsg] = make(map[chan *Event]interface{})
@@ -862,11 +874,11 @@ func (ps *PubSub) start() {
 	reg.notify[ContractMsg] = make(map[chan *Event]interface{})
 	reg.notify[MinerMsg] = make(map[chan *Event]interface{})
 	reg.notify[ConnectionMsg] = make(map[chan *Event]interface{})
+	reg.notify[ValidateMsg] = make(map[chan *Event]interface{})
 
 loop:
 	for cmdptr := range ps.cmdChan {
-
-		fmt.Printf("MSGBUS: %+v\n", *cmdptr)
+		ps.logger.Logf(log.LevelInfo, "MSGBUS: %+v", *cmdptr)
 
 		if cmdptr.op == opNop {
 			continue loop

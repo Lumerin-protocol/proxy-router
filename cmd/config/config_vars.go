@@ -2,7 +2,37 @@ package config
 
 //
 // Define all configuration variables here
+// After all of the config 
 //
+type ConfigRead struct {
+	BuyerNode           bool
+	DisableConnection   bool
+	DisableStratumv1    bool
+	ListenIP            string
+	ListenPort          string
+	DefaultPoolAddr     string
+	DisableSchedule     bool
+	SchedulePassthrough bool
+	HashrateCalcLagTime int
+	DisableValidate     bool
+	DisableContract     bool
+	Mnemonic            string
+	AccountIndex        int
+	EthNodeAddr         string
+	ClaimFunds          bool
+	TimeThreshold       int
+	CloneFactoryAddress string
+	LumerinTokenAddress string
+	ValidatorAddress    string
+	ProxyAddress        string
+	DisableApi          bool
+	ApiPort             string
+	LogLevel            int
+	LogFilePath         string
+	SwitchMethod        string
+	Serialize           bool
+}
+
 
 type ConfigConst string
 
@@ -17,6 +47,8 @@ const (
 	ConfigContractTimeThreshold       ConfigConst = "ConfigContractTimeThreshold"
 	ConfigConnectionListenIP          ConfigConst = "ConfigConnectionListenIP"
 	ConfigConnectionListenPort        ConfigConst = "ConfigConnectionListenPort"
+	ConfigConnectionSerializeWorker   ConfigConst = "ConfigConnectionSerializeWorker"
+	ConfigConnectionSwitchMethod      ConfigConst = "ConfigConnectionSwitchMethod"
 	ConfigConfigFilePath              ConfigConst = "ConfigConfigFilePath"
 	ConfigConfigDownloadPath          ConfigConst = "ConfigConfigDownloadPath"
 	ConfigLogFilePath                 ConfigConst = "ConfigLogFilePath"
@@ -27,20 +59,21 @@ const (
 	DisableConnection                 ConfigConst = "DisableConnection"
 	DisableContract                   ConfigConst = "DisableContract"
 	DisableSchedule                   ConfigConst = "DisableSchedule"
+	DisableValidate					  ConfigConst = "DisableValidator"
 	DisableStratumv1                  ConfigConst = "DisableStratumV1"
 	DisableAPI                        ConfigConst = "DisableAPI"
 )
 
 // Config Structure
 type configitem struct {
-	flagname   string
-	flagusage  string
-	envname    string
-	configname string
-	defval     string
-	configval  *string
-	envval     *string
-	flagval    *string
+	flagname   string	// Name for the command line variable
+	flagusage  string	// Usage returned to the user for the command line
+	envname    string	// Name for an Environment variable  
+	configname string	// Name for a Configuration variable  
+	defval     string	// The default value used if none specified
+	configval  *string	// The configuration value
+	envval     *string	// The environment value
+	flagval    *string	// The command line value
 }
 
 //
@@ -83,6 +116,26 @@ var ConfigMap = map[ConfigConst]configitem{
 		envname:    "LISTENPORT",
 		configname: "connect.listenport",
 		defval:     "3333",
+		configval:  nil,
+		envval:     nil,
+		flagval:    nil,
+	},
+	ConfigConnectionSerializeWorker: {
+		flagname:   "serializeworker",
+		flagusage:  "Connection Manager Seralize Worker Thread Name",
+		envname:    "SERIALIZEWORKER",
+		configname: "connection.seralize",
+		defval:     "false",
+		configval:  nil,
+		envval:     nil,
+		flagval:    nil,
+	},
+	ConfigConnectionSwitchMethod: {
+		flagname:   "switchmethod",
+		flagusage:  "Connection Manager scheduling method: ondemand, onsubmit",
+		envname:    "SWITCHMETHOD",
+		configname: "connection.switchmethod",
+		defval:     "ondemand",
 		configval:  nil,
 		envval:     nil,
 		flagval:    nil,
@@ -242,6 +295,15 @@ var ConfigMap = map[ConfigConst]configitem{
 		flagname:  "disablestratumv1",
 		flagusage: "Disable the Stratum V1 Protocol",
 		envname:   "DISABLESTRATUMV1",
+		defval:    "false",
+		configval: nil,
+		envval:    nil,
+		flagval:   nil,
+	},
+	DisableValidate: {
+		flagname:  "disablevalidate",
+		flagusage: "Disable the Validator",
+		envname:   "DISABLEVALIDATE",
 		defval:    "false",
 		configval: nil,
 		envval:    nil,

@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	"gitlab.com/TitanInd/lumerin/cmd/config"
@@ -15,6 +16,8 @@ import (
 	"gitlab.com/TitanInd/lumerin/cmd/log"
 	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
 	"gitlab.com/TitanInd/lumerin/cmd/protocol/stratumv1"
+	"gitlab.com/TitanInd/lumerin/cmd/validator/validator"
+	"gitlab.com/TitanInd/lumerin/connections"
 	"gitlab.com/TitanInd/lumerin/lumerinlib"
 	contextlib "gitlab.com/TitanInd/lumerin/lumerinlib/context"
 )
@@ -35,11 +38,13 @@ import (
 func main() {
 	l := log.New()
 
-	configs := config.ReadConfigs()
+	configs := config.ReadConfigFile()
+	l.SetLevel(log.Level(configs.LogLevel))
 
 	logFile, err := os.OpenFile(configs.LogFilePath, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0666)
 	if err != nil {
-		l.Logf(log.LevelFatal, "error opening log file: %v", err)
+		l.Logf(log.LevelError, "error opening log file: %v", err)
+		return
 	}
 	defer logFile.Close()
 
@@ -55,6 +60,10 @@ func main() {
 	ps := msgbus.New(10, l)
 
 	//
+	// Create Connection Collection
+	//
+	connectionCollection := connections.CreateConnectionCollection()
+
 	// Add the various Context variables here
 	// msgbus, logger, default listen address, defalt desitnation address
 	//
@@ -62,9 +71,9 @@ func main() {
 	dst := lumerinlib.NewNetAddr(lumerinlib.TCP, configs.DefaultPoolAddr)
 
 	//
-	// the proro argument (#1) gets set in the Protocol sus-system
+	// the proto argument (#1) gets set in the Protocol sus-system
 	//
-	cs := contextlib.NewContextStruct(nil, ps, nil, src, dst)
+	cs := contextlib.NewContextStruct(nil, ps, l, src, dst)
 
 	//
 	// All of the various needed subsystem values get passed into the context here.
@@ -81,10 +90,12 @@ func main() {
 
 	event, err := ps.PubWait(msgbus.DestMsg, msgbus.IDString(msgbus.DEFAULT_DEST_ID), dest)
 	if err != nil {
-		panic(fmt.Sprintf("Adding Default Dest Failed: %s", err))
+		l.Logf(log.LevelError, "Adding Default Dest Failed: %s", err)
+		return
 	}
 	if event.Err != nil {
-		panic(fmt.Sprintf("Adding Default Dest Failed: %s", event.Err))
+		l.Logf(log.LevelError, "Adding Default Dest Failed: %s", event.Err)
+		return
 	}
 
 	//
@@ -94,13 +105,16 @@ func main() {
 		ID:          msgbus.NodeOperatorID(msgbus.GetRandomIDString()),
 		IsBuyer:     configs.BuyerNode,
 		DefaultDest: dest.ID,
+		Contracts: make(map[msgbus.ContractID]msgbus.ContractState),
 	}
 	event, err = ps.PubWait(msgbus.NodeOperatorMsg, msgbus.IDString(nodeOperator.ID), nodeOperator)
 	if err != nil {
-		panic(fmt.Sprintf("Adding Node Operator Failed: %s", err))
+		l.Logf(log.LevelError, "Adding Node Operator Failed: %s", err)
+		return
 	}
 	if event.Err != nil {
-		panic(fmt.Sprintf("Adding Node Operator Failed: %s", event.Err))
+		l.Logf(log.LevelError, "Adding Node Operator Failed: %s", event.Err)
+		return
 	}
 
 	//
@@ -108,19 +122,37 @@ func main() {
 	//
 	if !configs.DisableStratumv1 {
 
-		src, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%s", configs.ListenIP, configs.ListenPort))
+		listenAddress := fmt.Sprintf("%s:%s", configs.ListenIP, configs.ListenPort)
+
+		src, err := net.ResolveTCPAddr("tcp", listenAddress)
 		if err != nil {
-			lumerinlib.PanicHere("")
+			l.Logf(log.LevelError, "Unable to resolve TCP Addr: %s", listenAddress)
+			return
 		}
 
-		if err != nil {
-			lumerinlib.PanicHere("")
-		}
+		l.Logf(log.LevelInfo, "Listening for stratum messages on %v\n\n", src.String())
 
 		stratum, err := stratumv1.NewListener(mainContext, src, dest)
 		if err != nil {
-			panic(fmt.Sprintf("Stratum Protocol New() failed:%s", err))
+			l.Logf(log.LevelError, "NewListener Error: %s", err)
+			return
 		}
+
+		switchMethod := configs.SwitchMethod
+		switchMethod = strings.ToLower(switchMethod)
+
+		switch switchMethod {
+		case "ondemand":
+			stratum.SetScheduler(stratumv1.OnDemand)
+		case "onsubmit":
+			stratum.SetScheduler(stratumv1.OnSubmit)
+		default:
+			l.Logf(log.LevelError, "Scheduler value: %s Not Supported", switchMethod)
+			return
+		}
+
+		serialize := configs.Serialize
+		stratum.SetSerialize(serialize)
 
 		stratum.Run()
 
@@ -130,13 +162,24 @@ func main() {
 	// Fire up schedule manager
 	//
 	if !configs.DisableSchedule {
-		cs, err := connectionscheduler.New(&mainContext, &nodeOperator, configs.SchedulePassthrough)
+		cs, err := connectionscheduler.New(&mainContext, &nodeOperator, configs.SchedulePassthrough, configs.HashrateCalcLagTime, connectionCollection)
 		if err != nil {
 			l.Logf(log.LevelPanic, "Schedule manager failed: %v", err)
 		}
 		err = cs.Start()
 		if err != nil {
-			l.Logf(log.LevelPanic, "Schedule manager to start: %v", err)
+			l.Logf(log.LevelPanic, "Schedule manager failed to start: %v", err)
+		}
+	}
+
+	//
+	// Fire up validator
+	//
+	if !configs.DisableValidate {
+		v := validator.MakeNewValidator(&mainContext)
+		err = v.Start()
+		if err != nil {
+			l.Logf(log.LevelPanic, "Validator failed to start: %v", err)
 		}
 	}
 
@@ -175,13 +218,13 @@ func main() {
 	//Fire up external api
 	//
 	if !configs.DisableApi {
-		api := externalapi.New(ps)
+		api := externalapi.New(ps, connectionCollection)
 		go api.Run(configs.ApiPort, l)
 	}
 
 	select {
 	case <-sigInt:
-		fmt.Println("Signal Interupt: Cancelling all contexts and shuting down program")
+		l.Logf(log.LevelWarn, "Signal Interupt: Cancelling all contexts and shuting down program")
 		mainCancel()
 	case <-mainContext.Done():
 		time.Sleep(time.Second * 5)

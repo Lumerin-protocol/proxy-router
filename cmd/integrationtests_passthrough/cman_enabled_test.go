@@ -17,6 +17,8 @@ import (
 	"gitlab.com/TitanInd/lumerin/cmd/connectionscheduler"
 	"gitlab.com/TitanInd/lumerin/cmd/contractmanager"
 	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
+	"gitlab.com/TitanInd/lumerin/cmd/log"
+	"gitlab.com/TitanInd/lumerin/connections"
 	"gitlab.com/TitanInd/lumerin/cmd/protocol/stratumv1"
 	"gitlab.com/TitanInd/lumerin/lumerinlib"
 	contextlib "gitlab.com/TitanInd/lumerin/lumerinlib/context"
@@ -90,10 +92,14 @@ func EnabledSimMain(ps *msgbus.PubSub, configs EnabledConfig) (msgbus.DestID, co
 	mainContext := context.Background()
 
 	//
+	// Create Connection Collection
+	//
+	connectionCollection := connections.CreateConnectionCollection()
+
+	//
 	// Add the various Context variables here
 	// msgbus, logger, defailt listen address, defalt desitnation address
 	//
-
 	src := lumerinlib.NewNetAddr(lumerinlib.TCP, configs.ListenIP+":"+configs.ListenPort)
 	dst := lumerinlib.NewNetAddr(lumerinlib.TCP, configs.DefaultPoolAddr)
 
@@ -157,7 +163,7 @@ func EnabledSimMain(ps *msgbus.PubSub, configs EnabledConfig) (msgbus.DestID, co
 	//
 	// Fire up schedule manager
 	//
-	csched, err := connectionscheduler.New(&mainContext, &nodeOperator, configs.SchedulePassthrough)
+	csched, err := connectionscheduler.New(&mainContext, &nodeOperator, true, 0, connectionCollection)
 	if err != nil {
 		panic(fmt.Sprintf("Schedule manager failed: %v", err))
 	}
@@ -220,7 +226,8 @@ func TestEnabled(t *testing.T) {
 
 	var sleepTime time.Duration = 10 * time.Second
 
-	ps := msgbus.New(10, nil)
+	l := log.New()
+	ps := msgbus.New(10, l)
 
 	// wait until transaction for deploying contracts went through before continuing
 	_, lerr := ts.EthClient.TransactionReceipt(context.Background(), ltransaction.Hash())
@@ -275,7 +282,6 @@ func TestEnabled(t *testing.T) {
 		IP:                   "IpAddress1",
 		State:                msgbus.OnlineState,
 		Dest:                 defaultDestID,
-		CsMinerHandlerIgnore: false,
 	}
 
 	time.Sleep(sleepTime)
@@ -295,7 +301,7 @@ func TestEnabled(t *testing.T) {
 	miners, _ := ps.MinerGetAllWait()
 	for _, v := range miners {
 		miner, _ := ps.MinerGetWait(msgbus.MinerID(v))
-		if miner.Contract != "" || miner.Dest != defaultDestID {
+		if len(miner.Contracts) != 0 || miner.Dest != defaultDestID {
 			t.Errorf("Miner contract and dest not set correctly")
 		}
 	}
@@ -348,7 +354,7 @@ loop2:
 	miners, _ = ps.MinerGetAllWait()
 	for _, v := range miners {
 		miner, _ := ps.MinerGetWait(msgbus.MinerID(v))
-		if miner.Contract != hashrateContractAddress || miner.Dest != targetDest {
+		if _,ok := miner.Contracts[hashrateContractAddress]; ok || miner.Dest != targetDest {
 			t.Errorf("Miner contract and dest not set correctly")
 		}
 	}
@@ -401,7 +407,7 @@ loop3:
 	miners, _ = ps.MinerGetAllWait()
 	for _, v := range miners {
 		miner, _ := ps.MinerGetWait(msgbus.MinerID(v))
-		if miner.Contract != hashrateContractAddress || miner.Dest != targetDest {
+		if _,ok := miner.Contracts[hashrateContractAddress]; !ok || miner.Dest != targetDest {
 			t.Errorf("Miner contract and dest not set correctly")
 		}
 	}
@@ -446,7 +452,7 @@ loop4:
 	miners, _ = ps.MinerGetAllWait()
 	for _, v := range miners {
 		miner, _ := ps.MinerGetWait(msgbus.MinerID(v))
-		if miner.Contract != "" || miner.Dest != defaultDestID {
+		if len(miner.Contracts) != 0 || miner.Dest != defaultDestID {
 			t.Errorf("Miner contract and dest not set correctly")
 		}
 	}

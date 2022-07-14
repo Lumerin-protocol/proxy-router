@@ -1,0 +1,176 @@
+package validator
+
+import "testing"
+import "bytes"
+import "github.com/btcsuite/btcd/chaincfg/chainhash"
+
+func TestParseIncomingHash(t *testing.T) {
+	myMessage := "12345|0x1212122"
+	expectedNonce := uint(12345)
+	expectedHash := []byte("0x1212122")
+	nonce, hash := ParseIncomingHash(myMessage)
+
+	if nonce != expectedNonce {
+		t.Error("nonce is incorrect")
+	}
+
+	if !bytes.Equal(hash, expectedHash) {
+		t.Error("hash is incorrect")
+	}
+}
+
+//meta data from block 100000
+func TestMerkleGeneration1(t *testing.T) {
+	merkleBranches := []string{
+	    "8c14f0db3df150123e6f3dbbf30f8b955a8249b62ac1d1ff16284aefa3d06d87",
+	    "fff2525b8931402dd09222c50775608f75787bd2b87e56995a7bdd30f79702c4",
+	    "6359f0868171b1d194cbee1af2f16ea598ae8fad666d9b012c8ed2b79a236ec4",
+	    "e9a66845e05d5abc0ad04ec80f774a7e585c6e8db975962d069a522137b80c1d",
+	}
+	merkleRoot := "f3e94742aca4b5ef85488dc37c06c3282295ffec960994b2c0d5ac2a25a95766"
+	merkleRootHash, _ := chainhash.NewHashFromStr(merkleRoot)
+	calculatedMerkleRoot, _ := ConvertMerkleBranchesToRoot(merkleBranches)
+	areHashesEqual := calculatedMerkleRoot.IsEqual(merkleRootHash)
+	if areHashesEqual == false {
+		t.Errorf("calculated merkle root is: %v\n expected is:%v", calculatedMerkleRoot, merkleRoot)
+	}
+}
+//meta data from block
+//150020
+func TestMerkleGeneration2(t *testing.T) {
+	merkleBranches := []string{
+	    "a681fc2a00e0d584bcb979a9bfa5be097d935a2c2ea5dea12fbb1a2f4cdf57b3",
+	    "975f113fa4206f968357e8283065cf283463a4c52a590531f943b1766dbafda1",
+	    "d693d41f1b97979985e4a56d5d035781462fc054da45cfe39a44659103a491c2",
+	    "f36fd2c3a108bbad0dd7699ce37a2bf08b09f495d362889a01994c8dddb989aa",
+	    "e290a5ddfc8d886a5abde4f2a9cf53b46057264b67dbf606e2028a4e25ad3436",
+	    "30c7d7926400055a0817d2e7f9aa51e20dcfab12121d1f158d149e4de00a457b",
+	    "e986f4c4107b7441a274ba3c8fa2d28f88137d0aadbc23923f3dc80fbe161aa9",
+	    "c700e1f139f9e301d304ad22eed4ef48726fe7968335e3771abf59a258da3f0b",
+	    "c39c9322cd341fac3d3e2cd199d53525066c034d2ce98a3bfb44d64f6844901f",
+	    "e019c1d5f8f67273fd5d4ebb5268abfe1f8dff66b9b5de02c7f1a0bb5a81005b",
+	    "46af28b17902d80389a23ba407e7372c60f24289544add0b086f349e7fdba048",
+	    "5f82f48a3102ea21a330f3801c987d0062ebb99b48413bc897ccf8b758eca991",
+	    "67c7df6b44f3459bbec399f6dc163f19368d08a3c796066cdebe7411dfb69a72",
+	    "cdd0a67151245e5bbf8f4f83224e8cf2b892cedfde70d9721647f366b87d3886",
+	    "54e84ca893d0cc8416a89152a90c7aca47156e9765361894af5bafdbdae83cfe",
+	    "2b04ee093b11b564c89a0a4101163a24aede3a2bb79bf7d8332a489094b78b90",
+	    "e41b844b69728321ca015c92af3738a1b9feec276b4a04851cbb6a96048a2876",
+	    "923301dd8211e3ed74c49f80f97abd83c45af62188217d1a0ab9e2d624f3f28f",
+	    "d2a0521d6ed348dfa95a53d77f1c1061e970e5375079ad9945e4dbc7cd5afe54",
+	    "a01bcdf4b99b51f68a23ca33be6d2b94a6815113c8d14310876600199fe06b46",
+	    "fc4bc536fa12346d0a913b6832984281bc213486f9f74c2d71dcbf7a93c08fb7",
+	    "9466ae59dd6c6f121be524daa6983603a3a9a2b626503a22ef60867d64e18f62",
+	    "996e591e177ccfd0995f6ff86183bce26a3317561a9da715df0c1bf0f0761112",
+	    "2ad90af5fb3b2471edc52ad92a0ec7e9d3d70c866e0426706aaf2e4346d68889",
+	    "ab3e9c44afc69aafd72697ff83e73d6629d585d3cd89b6c7b2a9965f7fcd71b5",
+	    "147a2528b04b730c41348e5f1f78519f3168773fee6d5c12bdb688c8077d22b7",
+	    "ff23049bd61c7e399b5306d2ef25096c5c13f5b3810ae3e4abf055f573c0fe58",
+	    "3fcd0dc9e3d878ba0a45439d08ea974eb460643fe5985d08fe579e3babfdba67",
+	}
+	merkleRoot := "b82901bd3329cfeb8b82c2ea97361e9b545905eb4d03c9a1cd106c49a5aacf94"
+	merkleRootHash, _ := chainhash.NewHashFromStr(merkleRoot)
+	calculatedMerkleRoot, _ := ConvertMerkleBranchesToRoot(merkleBranches)
+	areHashesEqual := calculatedMerkleRoot.IsEqual(merkleRootHash)
+	if areHashesEqual == false {
+		t.Errorf("calculated merkle root is: %v\n expected is:%v", calculatedMerkleRoot, merkleRoot)
+	}
+
+}
+func TestMerkleGeneration3(t *testing.T) {
+	merkleBranches := []string{
+	    "1a9d08e4e0279faee26a2fc181cb9d8f01fcd1d8ec9c7aa597fd45806837f9da",
+	    "2aefccbaaa9e5c42ab9222c6f474fe907ffea2a0a95b87ee10c8b65ebe1e16ba",
+	    "30f4fea1b9b72b4e83409ed5baa12667ca9250fa93be7648a171316401247db2",
+	    "60ae382a8058f2edc62c77624f7cfabd86b2c39e4c57fdfa66212e5e09c79a27",
+	    "24bc34da8c2d6f16dd1f27b5504d4555c35fdd5e8e5cef4b4441e60e4c170680",
+	    "61a89853a5037ae371bbe708eb17d5f5ee6d06331e17de224202021a776beb33",
+	    "881860f15af574d256500b4535129e841a7714ab40a8aa0d53fb0d373029dad2",
+	    "394baf151033444fba4bedc926eba2342f1be07d3dde0562b19da0e3e9d2f531",
+	    "8a109fa8e6fc8bfab476afa0192f855e517d373d9cb5f8371a7634a85af6acc9",
+	    "99fbb84b4b17eefc55d139e4471e39aef0d48cedf73694de2734674746609fa3",
+	    "8802f38a69438b27bcc9ab26de4d2f16a82c35352720171fc9630c6c453d636e",
+	    "475888fc1eee124b99bc96eccf0a989e5791d3b019659d86475d21c9ec87f01f",
+	    "be646435be8caa58ee83345783e3cdb35a83c1fe127491143b8fb389a0c0da56",
+	    "124c3b688376e294853dd22e1ef1677447cba4cae423144f38898d8dbf4fa28f",
+	    "bac31f66ef495ad0ad1ef30b7d2fdc10ddf341614efdb3dec5ac637f745ee89b",
+	    "4d0b289a06455a09bf13087f3f762226282ee136eaebbf57c2b2301685d9e39d",
+	    "bd70b95173c51c87ccdf1142ff55488e26f678619c3e6a5b32169412377e3713",
+	    "960e234adf590b52500b9f4cac0f2b631e12602b8296f880938a449bd1c277c2",
+	    "7dd711035e4e894045c869b59b3cd5a552b3fc87936328f74c011aae99b05b50",
+	    "58827d43a8c2a2330a8c2a42cae85fdbb29eb23050b32fca752341edbe554f64",
+	    "d2eec95acd9f40183b1794b35187e0b7dd516e18b96c5017a25e57feb97ac4f5",
+	    "8e0fee30d2a39b0c353fdacfd498567faa83f9a695ec0768a669bf4a6ea43bb8",
+	    "f2e6cfecd331cb789b40170e9f251673271b829e38be2b67f96304f5d0b2a324",
+	    "c38b5c949f6f3ccf5925667f588838ff3637b89b4165073d2329569cf185646d",
+	    "79adc94e1e5031393fe1fbe090ba5e102d112b57227e106596b3c8fb241dc52c",
+	    "beb060bb0812c722ced22f906d941209ab1c11780002e1e362a6d7867ed648d8",
+	    "8f89fc76a3ecba802babbfbb710a0b34eefbdfabb9bb83bef97f46e1e4e7be4c",
+	    "532af7f045e50ff94f66c9d7fc68676049e38cc4cc5b525171e019d73f8bce0f",
+	    "caebeb65c994281e58aad2376f4bb74be57edf2d9051cdbf5abbd6eafa683795",
+	    "a42332883afd8f0114dc6cde0c1edbfcb44526b647ea923167cd0e156dfa4bc5",
+	    "cd4cc2be8a14b786b12807ea1a33b4bac38c89652c5a6dea1b55c5929eae7144",
+	    "4d501cbcd0ebea76e34a78db32e5e165f55b71409dd2154109eb5cddd39ede2c",
+	    "d0dfd0999ed4e52a0f3a72010eb51b78808df055f83265e343f24d83b7177ca9",
+	    "75ed0b797994a55fbfd14ba660a49f5f98dd3ad2931cd907b1678ebbd806f4f2",
+	    "37427b6c2cde066eb721731e8d41fefc18d5acc1d339d3fc47be6d03b7a3cc35",
+	    "bcd0d37d7d75953f5638157959931a9f598a4d309de02b965ff6d63ba66f6722",
+	    "d9c990c5cf4cf218bfa5da79fa5ba91879a541f1088dddac36c7e0179a5b3d2c",
+	    "97da900342a34bafab31a4ac02194b7f9ebd5da3de269f733b89ec38837332f9",
+	    "66c280516c997dd25f8cfdade54fc320ea81bb53ed316316d645abd4518a7b43",
+	    "911fcab2a4905e33b0184298624c11e599524a733c5834d8bafb5cbeba9a6a5a",
+	    "9ed2ce12a55ec290ff1dff12c9703b205766fc5af34add73cb4a33ee0cc9dd87",
+	    "9daa2b1d53f31ac1b02917a3fdeb84e5423da59f052a72f97ce8a60098b52696",
+	    "1518ab9fe7ec15cc6f9e9088a696f26ca6a0f0f06cc3bff5eadd9bfa1d36c769",
+	    "53b5fde272284482d7cc90a1a7c5e1e5f909badf47b912ccc47d9ab5e1e0ad89",
+	    "d8972abcf0a6c2ce014eef6c2d07ae5cbb9566f9153056c53f197b5401a5757a",
+	    "2a1ee7dc38fdbf69b2fccdd39409638f655c72b33fa8b194ef63c8995886401c",
+	    "b3cdc7320b77680957cd069f2361f6f103c1f628ddbe682ed0094f983f9b9198",
+	    "5fd1a54ebd56a5011cb0aac6b829bfb50468a4a2158d2b6e8b7eee2857343bdc",
+	    "83cfb0f00a9b34b128bba710a7c418d0c09f2a191b980eec0ab7f408ac0ba584",
+	    "0cfa717158243b2fa5dadb5e5fb2ca8250dc04e4f3c5b49cc89ee020a189186a",
+	    "9567a4f83c0a4fa0bba8ced7c26655129df4e7712731660f5d6e203876d6bd54",
+	    "c519ba51c54519bdcbc28e6c127a2b0ff950a4ecaab6de20d8f7558a351ebc44",
+	    "9a4ef661fed765f24c29d2170a10ce2a984f1557e3cee4982bef1d161f87ea2f",
+	    "15c25e507af4417c78f23aa91caf9a542c64dd2209f0a95323b657661698d7d1",
+	    "c25f4a9fa29cb20dc919ebdbf1abb5fa21516cd25dfe431c363d1c3ab8686b90",
+	    "41b22772052f0773c56b545814822605955674ed5002942974b0c9cc86736d09",
+	    "7a217561ec20fb7e19d65878695d008d643fcdfad5cdf6faa48d395d014f02b8",
+	    "4756ff1443774e455a4e3c19d6c64c6a6b1578f544f89ca975011ac425e70bdf",
+	    "012a6c5c039c20b10ca66a94b64dcf4f7fd52a241cb47c5a05ff900a0e2da7ae",
+	    "265e9e4e4fb3aae89947a3d41174812ff95d7be4cd9e43c2981097f84440287e",
+	    "511306450c521ccc9b27c7e48f94fd71c9fbd0e674077535560b9758ce8302b2",
+	    "ff70fd39911e45676db90173aa0d06708a752fb30d0a59f170d5cbfdfd1af83e",
+	    "e4f915b748e3f7465349e3a829037cc0d43e176a109d57d9237c14be833c04e3",
+	    "027926c3f433702713df766dae22c946f006b9a909ae1327c1ea0b9071f8a7fc",
+	    "c51d05be6d8fc95cf140e588964f2d85e789d4422bd3d82557f8e3bb9ce6c0ff",
+	    "cd41adcd42a18bedb88f726f3c78467dd64d356e30c2053a4210698a7457f385",
+	    "bcea4bd8eef9b0551444797fb4e7bcf0ee0f6b490d3c938f99549b107f9c2e83",
+	    "8b203cda99f15f2cbe7ee0f660cf386a443810a549a3abfe1ae41ff87e675b5f",
+	    "b8140ec6ee1d957dba5a7958f6469de4e7bfedbc8cb8645e96e2f2bd97c71560",
+	    "7fb6bcf7954a9ca8099d91c97272407d21948f47068879d5fede7eafc0a63425",
+	    "3b9c5c90cd47ae2fa9ee811b96d427dfbe5ffbe2cb48f7c86360af5becebdaa1",
+	    "f0080ad83e9d64a7fbb46531f7c49d6c74e5f8c03918e3a2660a956314d16e4a",
+	    "e2ee065e1288917843dfb1b4f7d66c266736d83eabca17122f17b51cb4ed4a07",
+	    "a35b409cfff847afb118211f001224bdc86f9e5c4e44a29e26b4793b78d0bab0",
+	    "cfe2a9887243356936c0d6c6b7ebbe2ebd94ec86415e23e50863ee96f63be891",
+	    "e078c3627894ad165e48163475a6371289768a5b788cf6937fe776d86e0f861d",
+	    "59570e6f2382fc06f49e8f3d5313cb3cd21f3f7cb1487febde031fd13a2c1da0",
+	    "7bb6961c88ae12ac699c12ce4c0dcf8324c3615eeaf5dadd45056b7964286486",
+	    "b4a19441d4741be7deb2cfa776a28c38efd77df78dab13dc96550a769612d00e",
+	    "947a8aa24ea8af4dfa256995cbaa7d5ce16bc3e5b07f8a8e26fdea1b654a9fa7",
+	    "23247e3a3dc2baaffb95b177b66061ecfa76f95597285ab9f4e0e865054ebd22",
+	    "ae7e8b620bd82e164c2c3ce0de97159b525bb336eef296f3971c69f25d892506",
+	    "80e89950c2980b4bb7a286fb3f3dcc39177f9d3df78d99f0497a23890fab3843",
+	    "b4cd94ccdf76c07adbf59dafd2e01f9c157a6a003e8e9bb04a62bfdc000a44ad",
+	    "380ba31c3eedc384dab8732a3ad1f453525afa120e514243b6a9e55327c63831",
+	}
+	merkleRoot := "7f815b8902e334503829a89491f7e68d2062ab7fa8e45ee5cc3ffe4e4f9c3bc9"
+	merkleRootHash, _ := chainhash.NewHashFromStr(merkleRoot)
+	calculatedMerkleRoot, _ := ConvertMerkleBranchesToRoot(merkleBranches)
+	areHashesEqual := calculatedMerkleRoot.IsEqual(merkleRootHash)
+	if areHashesEqual == false {
+		t.Errorf("calculated merkle root is: %v\n expected is:%v", calculatedMerkleRoot, merkleRoot)
+	}
+
+}

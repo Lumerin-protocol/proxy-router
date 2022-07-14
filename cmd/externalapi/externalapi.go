@@ -11,6 +11,7 @@ import (
 	"gitlab.com/TitanInd/lumerin/cmd/log"
 	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
 	"gitlab.com/TitanInd/lumerin/cmd/msgbus/msgdata"
+	"gitlab.com/TitanInd/lumerin/interfaces"
 )
 
 // api holds dependencies for an external API.
@@ -27,7 +28,7 @@ type api struct {
 }
 
 // New sets up a new API to access the given message bus data.
-func New(ps *msgbus.PubSub) *api {
+func New(ps *msgbus.PubSub, connectionCollection interfaces.IConnectionController) *api {
 	api := &api{
 		Engine:                gin.Default(),
 		Config:                msgdata.NewConfigInfo(ps),
@@ -38,6 +39,8 @@ func New(ps *msgbus.PubSub) *api {
 		Miner:                 msgdata.NewMiner(ps),
 		NodeOperator:          msgdata.NewNodeOperator(ps),
 	}
+
+	handlers.SetConnectionCollection(connectionCollection)
 
 	return api
 }
@@ -72,7 +75,7 @@ func (api *api) Run(port string, l *log.Logger) {
 		contractManagerConfigRoutes.DELETE("/:id", handlers.ContractManagerConfigDELETE(api.ContractManagerConfig))
 	}
 
-	connectionRoutes := api.Group("/connection")
+	connectionRoutes := api.Group("/connections")
 	{
 		connectionRoutes.GET("/", handlers.ConnectionsGET(api.Connection))
 		connectionRoutes.GET("/:id", handlers.ConnectionGET(api.Connection))

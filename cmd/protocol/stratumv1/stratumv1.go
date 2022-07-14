@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strconv"
+	"strings"
 
 	simple "gitlab.com/TitanInd/lumerin/cmd/lumerinnetwork/SIMPL"
 	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
@@ -21,8 +23,13 @@ var ErrMaxRedialExceeded = errors.New("StratumV1: DST Maximum number of redials 
 type SrcState string
 type DstState string
 
+type StratumConnectionScheduler string
+
+const OnDemand StratumConnectionScheduler = "OnDemand"
+const OnSubmit StratumConnectionScheduler = "OnSubmit"
+
 //
-// New->Subscribed->Authorized->??
+// New->Subscribed->Authorized->Running??
 //
 const SrcStateNew SrcState = "stateNew"               // Freshly created Connection
 const SrcStateSubscribed SrcState = "stateSubscribed" // Recieve Subscribe
@@ -35,6 +42,7 @@ const SrcStateError SrcState = "stateError"
 //
 const DstStateNew DstState = "stateNew"
 const DstStateOpen DstState = "stateOpen"
+const DstStateConfiguring DstState = "stateConfiguring" // Sent Configure
 const DstStateSubscribing DstState = "stateSubscribing" // Sent Subscribe
 const DstStateAuthorizing DstState = "stateAuthorizing" // Recieved Sub-response and Sent Authorize
 const DstStateRunning DstState = "stateRunning"         // Recieved Auth-response (there should only be one dst connection running at any time)
@@ -43,11 +51,14 @@ const DstStateDialing DstState = "stateDialing"         // Inactive, initiating 
 const DstStateRedialing DstState = "stateRedialing"     // Inactive, reinitiating a connection
 const DstStateError DstState = "stateError"
 const DstStateClosed DstState = "stateClosed"
+const DstStateNotFound DstState = "stateNotFound"
 
-const MaxRedials int = 2
+const MaxRedials int = 5
 
 type StratumV1ListenStruct struct {
 	protocollisten *protocol.ProtocolListenStruct
+	scheduler      StratumConnectionScheduler
+	serialize      bool
 }
 
 type StratumV1Struct struct {
@@ -55,26 +66,31 @@ type StratumV1Struct struct {
 	cancel              func()
 	protocol            *protocol.ProtocolStruct
 	minerRec            *msgbus.Miner
+	scheduler           StratumConnectionScheduler
+	serialize           bool
 	srcSubscribeRequest *stratumRequest // Copy of recieved Subscribe Request from Source
 	srcAuthRequest      *stratumRequest // Copy of recieved Authorize Request from Source
 	srcConfigure        *stratumRequest // Copy of recieved Configure Request from Source
-	srcExtranonce       *stratumRequest // Copy of recieved Configure Request from Source
+	srcExtranonce       *stratumRequest // Copy of recieved Extranonce Request from Source
 	srcState            SrcState
 	dstState            map[simple.ConnUniqueID]DstState
 	dstDest             map[simple.ConnUniqueID]*msgbus.Dest
+	dstUsername         map[simple.ConnUniqueID]string
 	dstReDialCount      map[simple.ConnUniqueID]int
 	dstExtranonce       map[simple.ConnUniqueID]string
 	dstExtranonce2size  map[simple.ConnUniqueID]int
-	dstDiff             map[simple.ConnUniqueID]int
 	dstVersionMask      map[simple.ConnUniqueID]string
+	dstLastSetDiff      map[simple.ConnUniqueID]int
 	dstLastMiningNotice map[simple.ConnUniqueID]*stratumNotice
-	dstLastReqNotice    map[simple.ConnUniqueID]*stratumRequest
+	dstLastReqNotify    map[simple.ConnUniqueID]*stratumRequest
+	dstLastSubmit       *stratumDstLastSubmitStruct
 	switchToDestID      msgbus.DestID
 
 	// Add in stratum state information here
 }
 
 var MinerCountChan chan int
+var serializechan chan int
 
 //
 // init()
@@ -82,19 +98,9 @@ var MinerCountChan chan int
 //
 func init() {
 	MinerCountChan = make(chan int, 5)
-	go goMinerCounter(MinerCountChan)
-}
-
-//
-// goDstCounter()
-// Generates a UniqueID for the destination handles
-//
-func goMinerCounter(c chan int) {
-	counter := 10000
-	for {
-		c <- counter
-		counter += 1
-	}
+	lumerinlib.RunGoCounter(MinerCountChan)
+	serializechan = make(chan int, 5)
+	lumerinlib.RunGoCounter(serializechan)
 }
 
 //
@@ -125,10 +131,42 @@ func NewListener(ctx context.Context, src net.Addr, dest *msgbus.Dest) (sls *Str
 	} else {
 		sls = &StratumV1ListenStruct{
 			protocollisten: protocollisten,
+			scheduler:      OnDemand, // OnDemand is the Default
+			serialize:      false,    // false is the Default
 		}
 	}
 
 	return sls, e
+}
+
+//
+//
+//
+func (s *StratumV1ListenStruct) SetScheduler(scheduler StratumConnectionScheduler) {
+	s.scheduler = scheduler
+}
+
+//
+//
+//
+func (s *StratumV1ListenStruct) GetScheduler() (scheduler StratumConnectionScheduler) {
+	scheduler = s.scheduler
+	return scheduler
+}
+
+//
+//
+//
+func (s *StratumV1ListenStruct) SetSerialize(serialize bool) {
+	s.serialize = serialize
+}
+
+//
+//
+//
+func (s *StratumV1ListenStruct) GetSerialize() (serialize bool) {
+	serialize = s.serialize
+	return serialize
 }
 
 //
@@ -148,8 +186,10 @@ FORLOOP:
 			contextlib.Logf(s.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" context canceled")
 			break FORLOOP
 		case ps := <-protocolStructChan:
-			ss := NewStratumV1Struct(s.Ctx(), ps)
-			ss.Run()
+			ss := NewStratumV1Struct(s.Ctx(), ps, s.scheduler, s.serialize)
+			if ss != nil {
+				ss.Run()
+			}
 		}
 	}
 
@@ -158,7 +198,7 @@ FORLOOP:
 }
 
 //
-//
+// Used for testing
 //
 func (s *StratumV1ListenStruct) goListenAcceptOnce() {
 
@@ -169,8 +209,10 @@ func (s *StratumV1ListenStruct) goListenAcceptOnce() {
 	case <-s.Ctx().Done():
 		contextlib.Logf(s.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" context canceled")
 	case ps := <-protocolStructChan:
-		ss := NewStratumV1Struct(s.Ctx(), ps)
-		ss.Run()
+		ss := NewStratumV1Struct(s.Ctx(), ps, s.scheduler, s.serialize)
+		if ss != nil {
+			ss.Run()
+		}
 	}
 
 	contextlib.Logf(s.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" Exiting...")
@@ -227,33 +269,51 @@ func (s *StratumV1ListenStruct) Cancel() {
 //
 //
 //
-func NewStratumV1Struct(ctx context.Context, ps *protocol.ProtocolStruct) (n *StratumV1Struct) {
+func NewStratumV1Struct(ctx context.Context, ps *protocol.ProtocolStruct, scheduler StratumConnectionScheduler, serialize bool) (n *StratumV1Struct) {
 	ctx, cancel := context.WithCancel(ctx)
+	_ = cancel
 	ds := make(map[simple.ConnUniqueID]DstState)
 	dd := make(map[simple.ConnUniqueID]*msgbus.Dest)
 	rd := make(map[simple.ConnUniqueID]int)
 	de := make(map[simple.ConnUniqueID]string)
+	du := make(map[simple.ConnUniqueID]string)
 	de2 := make(map[simple.ConnUniqueID]int)
-	di := make(map[simple.ConnUniqueID]int)
+	lsd := make(map[simple.ConnUniqueID]int)
 	vm := make(map[simple.ConnUniqueID]string)
 	lmn := make(map[simple.ConnUniqueID]*stratumNotice)
 	lrn := make(map[simple.ConnUniqueID]*stratumRequest)
-	id := fmt.Sprintf("MinerID:%d", <-MinerCountChan)
+	dls := newDstLastSubmit(ctx)
 	defdest := contextlib.GetContextStruct(ctx).GetDest()
 	if defdest == nil {
 		contextlib.Logf(ctx, contextlib.LevelPanic, lumerinlib.FileLineFunc()+" GetDest() return nil")
 	}
+
+	addr, e := ps.GetSrcRemoteAddr()
+	if e != nil {
+		contextlib.Logf(ctx, contextlib.LevelError, lumerinlib.FileLineFunc()+" GetSrcRemoteAddr() error:%s", e)
+		return nil
+	}
+
+	addrstr := strings.Split(addr.String(), ":")
+	ip := addrstr[0]
+	port, e := strconv.Atoi(addrstr[1])
+	if e != nil {
+		port = 0
+		contextlib.Logf(ctx, contextlib.LevelError, lumerinlib.FileLineFunc()+" strconv.Atoi() for str:%s error:%s", addrstr, e)
+	}
+
+	id := fmt.Sprintf("MinerID:%d", <-MinerCountChan)
 	miner := &msgbus.Miner{
-		ID:                      msgbus.MinerID(id),
+		ID:                      msgbus.MinerID(id), // Do this later when actual messages have been recieved
 		Name:                    "",
-		IP:                      "",
-		MAC:                     "",
+		IP:                      ip,
+		Port:                    port,
+		MAC:                     "", // Future... maybe
 		State:                   msgbus.OnlineState,
-		Contract:                "",
+		Contracts:               make(map[msgbus.ContractID]float64),
 		Dest:                    defdest.ID,
 		InitialMeasuredHashRate: 0,
 		CurrentHashRate:         0,
-		CsMinerHandlerIgnore:    false,
 	}
 
 	n = &StratumV1Struct{
@@ -261,6 +321,8 @@ func NewStratumV1Struct(ctx context.Context, ps *protocol.ProtocolStruct) (n *St
 		cancel:              cancel,
 		protocol:            ps,
 		minerRec:            miner,
+		scheduler:           scheduler,
+		serialize:           serialize,
 		srcSubscribeRequest: nil,
 		srcAuthRequest:      nil,
 		srcConfigure:        nil,
@@ -268,17 +330,35 @@ func NewStratumV1Struct(ctx context.Context, ps *protocol.ProtocolStruct) (n *St
 		srcState:            SrcStateNew,
 		dstState:            ds,
 		dstDest:             dd,
+		dstUsername:         du,
 		dstReDialCount:      rd,
 		dstExtranonce:       de,
 		dstExtranonce2size:  de2,
-		dstDiff:             di,
+		dstLastSetDiff:      lsd,
 		dstVersionMask:      vm,
 		dstLastMiningNotice: lmn,
-		dstLastReqNotice:    lrn,
+		dstLastReqNotify:    lrn,
+		dstLastSubmit:       dls,
 		switchToDestID:      "",
 	}
 
 	return n
+}
+
+//
+//
+//
+func (svs *StratumV1Struct) GetScheduler() (scheduler StratumConnectionScheduler) {
+	scheduler = svs.scheduler
+	return scheduler
+}
+
+//
+//
+//
+func (svs *StratumV1Struct) GetSerialize() (serialize bool) {
+	serialize = svs.serialize
+	return serialize
 }
 
 //
@@ -342,14 +422,14 @@ func (s *StratumV1Struct) goEvent() {
 
 		// closed connection
 		if event == nil {
-			contextlib.Logf(s.Ctx(), contextlib.LevelFatal, lumerinlib.FileLineFunc()+"[Closing] event:%v", event)
+			contextlib.Logf(s.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+"[Closing] event:%v", event)
 			break
 		}
 
 		e := s.eventHandler(event)
 
 		if e != nil {
-			contextlib.Logf(s.Ctx(), contextlib.LevelFatal, lumerinlib.FileLineFunc()+"[Closing] eventHandler() returned error:%s", e)
+			contextlib.Logf(s.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+"[Closing] eventHandler() returned error:%s", e)
 			break
 		}
 	}
@@ -402,10 +482,15 @@ func (s *StratumV1Struct) Cancel() {
 }
 
 //
+// CloseUid()
 //
+// should the uid entry be removed at this point?
 //
 func (s *StratumV1Struct) CloseUid(uid simple.ConnUniqueID) {
-	s.dstState[uid] = DstStateClosed
+
+	contextlib.Logf(s.ctx, contextlib.LevelInfo, fmt.Sprint(lumerinlib.FileLineFunc()+" UID:%d", uid))
+
+	s.SetDstStateUid(uid, DstStateClosed)
 	s.dstDest[uid] = nil
 	s.protocol.CloseDst(uid)
 }
@@ -414,7 +499,10 @@ func (s *StratumV1Struct) CloseUid(uid simple.ConnUniqueID) {
 //
 //
 func (s *StratumV1Struct) DstRedialUid(uid simple.ConnUniqueID) (e error) {
-	s.dstState[uid] = DstStateRedialing
+
+	contextlib.Logf(s.ctx, contextlib.LevelInfo, fmt.Sprint(lumerinlib.FileLineFunc()+" UID:%d", uid))
+
+	s.SetDstStateUid(uid, DstStateRedialing)
 	s.dstReDialCount[uid]++
 	if s.dstReDialCount[uid] > MaxRedials {
 		s.CloseUid(uid)
@@ -436,7 +524,11 @@ func (s *StratumV1Struct) SetDstStateUid(uid simple.ConnUniqueID, state DstState
 //
 //
 func (s *StratumV1Struct) GetDstStateUid(uid simple.ConnUniqueID) (state DstState) {
-	return s.dstState[uid]
+	v, ok := s.dstState[uid]
+	if !ok {
+		return DstStateNotFound
+	}
+	return v
 }
 
 //
@@ -457,8 +549,17 @@ func (s *StratumV1Struct) GetDstDestUid(uid simple.ConnUniqueID) (dest *msgbus.D
 //
 //
 func (s *StratumV1Struct) GetDstUsernameUid(uid simple.ConnUniqueID) (username string) {
-	dest := s.dstDest[uid]
-	username = dest.Username()
+	var ok bool
+	username, ok = s.dstUsername[uid]
+	if !ok {
+		username = s.dstDest[uid].Username()
+		if s.serialize {
+			username = fmt.Sprintf("%s.%05d", username, <-serializechan)
+			contextlib.Logf(s.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" Username:%s", username)
+		}
+
+		s.dstUsername[uid] = username
+	}
 	return username
 }
 
@@ -491,19 +592,18 @@ func (s *StratumV1Struct) GetDstUIDDestID(id msgbus.DestID) (uid simple.ConnUniq
 		contextlib.Logf(s.ctx, contextlib.LevelPanic, fmt.Sprint(lumerinlib.FileLineFunc()+" id is blank"))
 	}
 
-	if s.dstDest != nil {
-		for u, v := range s.dstDest {
-			if v == nil {
-				contextlib.Logf(s.ctx, contextlib.LevelError, fmt.Sprint(lumerinlib.FileLineFunc()+" v is nil"))
-				continue
-			}
+	for u, v := range s.dstDest {
+		if v == nil {
+			contextlib.Logf(s.ctx, contextlib.LevelError, fmt.Sprint(lumerinlib.FileLineFunc()+" v is nil"))
+			continue
+		}
 
-			if v.ID == id {
-				uid = u
-				break
-			}
+		if v.ID == id {
+			uid = u
+			break
 		}
 	}
+
 	return uid
 }
 
@@ -544,36 +644,66 @@ func (s *StratumV1Struct) switchDest() {
 	contextlib.Logf(s.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" Called ")
 
 	if s.switchToDestID == "" {
+		contextlib.Logf(s.Ctx(), contextlib.LevelInfo, fmt.Sprintf(lumerinlib.FileLineFunc()+" called with no designated next dest, ignoring"))
 		return
 	}
 
 	currentUID, _ := s.protocol.GetDefaultRouteUID()
+	newUID := s.GetDstUIDDestID(s.switchToDestID)
 
-	//
-	// Is the current Route the same as the new route?
-	//
-	if currentUID >= 0 {
-		v, ok := s.dstDest[currentUID]
-
-		if v == nil {
-			contextlib.Logf(s.Ctx(), contextlib.LevelPanic, fmt.Sprintf(lumerinlib.FileLineFunc()+" dstDest[%d] ", currentUID))
-		}
-
-		if ok {
-			if s.switchToDestID == v.ID {
-				s.switchToDestID = ""
-				if s.dstState[currentUID] != DstStateRunning {
-					s.dstState[currentUID] = DstStateRunning
-				}
-				return
-			}
-		}
+	if newUID < 0 {
+		contextlib.Logf(s.Ctx(), contextlib.LevelPanic, fmt.Sprintf(lumerinlib.FileLineFunc()+" switchToDestID:%s has no UID ", s.switchToDestID))
+		return // Because LevelPanic does not seem to be panicing like it should
 	}
 
-	newUID := s.GetDstUIDDestID(s.switchToDestID)
-	if s.dstState[newUID] == DstStateStandBy {
+	if currentUID == newUID {
+		contextlib.Logf(s.Ctx(), contextlib.LevelError, fmt.Sprintf(lumerinlib.FileLineFunc()+" new destis the current dest, skipping switch"))
+		s.switchToDestID = ""
+		return
+	}
+
+	//
+	// Verify the state of the current route
+	//
+	if currentUID >= 0 {
+
+		state := s.GetDstStateUid(currentUID)
+		switch state {
+		case DstStateRunning:
+			v, ok := s.dstDest[currentUID]
+
+			if v == nil {
+				contextlib.Logf(s.Ctx(), contextlib.LevelPanic, fmt.Sprintf(lumerinlib.FileLineFunc()+" dstDest[%d] ", currentUID))
+				panic("")
+			}
+
+			if ok {
+				if s.switchToDestID == v.ID {
+					s.switchToDestID = ""
+					contextlib.Logf(s.Ctx(), contextlib.LevelWarn, fmt.Sprintf(lumerinlib.FileLineFunc()+" New Dest is current Dest: %s, UID:[%d] ", v.ID, currentUID))
+					return
+				}
+			}
+
+		case DstStateStandBy:
+			contextlib.Logf(s.Ctx(), contextlib.LevelWarn, fmt.Sprintf(lumerinlib.FileLineFunc()+" UID:[%d] is in standby mode... huh? ", currentUID))
+		case DstStateClosed:
+			contextlib.Logf(s.Ctx(), contextlib.LevelWarn, fmt.Sprintf(lumerinlib.FileLineFunc()+" UID:[%d] is closed... huh? ", currentUID))
+		default:
+			contextlib.Logf(s.Ctx(), contextlib.LevelPanic, fmt.Sprintf(lumerinlib.FileLineFunc()+" UID:[%d] is in state:%s ", currentUID, state))
+		}
+
+	}
+
+	contextlib.Logf(s.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" Current:%d New:%d ", currentUID, newUID)
+
+	state := s.GetDstStateUid(newUID)
+	switch state {
+	case DstStateStandBy:
 
 		contextlib.Logf(s.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" Switch from UID:%d to UID:%d ", currentUID, newUID)
+
+		s.minerRec.Dest = s.switchToDestID
 
 		if currentUID >= 0 {
 			s.dstState[currentUID] = DstStateStandBy
@@ -583,18 +713,38 @@ func (s *StratumV1Struct) switchDest() {
 
 		//
 		// Goose the miner to the correct Extranonce settings.
+		// Then set the difficulty, the feed the last mining notice in
 		//
 		s.sendSetExtranonceNotice(newUID)
-		s.sendSetDifficultyNotice(newUID)
+		s.sendLastSetDifficultyNotice(newUID)
 		s.sendLastMiningNotice(newUID)
-		s.sendLastReqNotice(newUID)
+		s.sendLastReqNotify(newUID)
 
-		// Reset the switch to state
+		// Reset the switchToState
 		s.switchToDestID = ""
 
-	} else {
+	case DstStateRunning:
+		contextlib.Logf(s.Ctx(), contextlib.LevelWarn, fmt.Sprintf(lumerinlib.FileLineFunc()+" UID:%d already in RunningState", newUID))
 
-		contextlib.Logf(s.Ctx(), contextlib.LevelError, fmt.Sprintf(lumerinlib.FileLineFunc()+" Ignore... next dest not in standby mode %s", s.dstState[newUID]))
+	case DstStateConfiguring:
+		fallthrough
+	case DstStateSubscribing:
+		fallthrough
+	case DstStateAuthorizing:
+		fallthrough
+	case DstStateRedialing:
+		// Set switch event timer HERE say after a few seconds, and have it reset if another event takes its place?
+		// Ignore for now, the next state transition should tickle this function...
+		contextlib.Logf(s.Ctx(), contextlib.LevelInfo, fmt.Sprintf(lumerinlib.FileLineFunc()+" UID:%d State:%s", newUID, state))
+
+	case DstStateError:
+		fallthrough
+	case DstStateClosed:
+		// need a close out function here... or do we?
+		contextlib.Logf(s.Ctx(), contextlib.LevelError, fmt.Sprintf(lumerinlib.FileLineFunc()+" UID:%d Closed", newUID))
+
+	default:
+		contextlib.Logf(s.Ctx(), contextlib.LevelPanic, fmt.Sprintf(lumerinlib.FileLineFunc()+" UID:%d State:%s", newUID, state))
 	}
 
 }
@@ -753,19 +903,55 @@ func (svs *StratumV1Struct) sendSetExtranonceNotice(uid simple.ConnUniqueID) (e 
 }
 
 //
+// setLastSetDifficultyNotice()
+//
+func (svs *StratumV1Struct) setLastSetDifficultyNotice(uid simple.ConnUniqueID, n *stratumNotice) (e error) {
+
+	if n.Method != string(SERVER_MINING_SET_DIFFICULTY) {
+		contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" bad Method[%s]", n.Method)
+	}
+
+	diff, e := n.getSetDifficulty()
+	svs.dstLastSetDiff[uid] = diff
+
+	return e
+
+}
+
+//
+// setLastReqSetDifficulty()
+//
+func (svs *StratumV1Struct) setLastReqSetDifficulty(uid simple.ConnUniqueID, r *stratumRequest) (e error) {
+
+	if r.Method != string(SERVER_MINING_SET_DIFFICULTY) {
+		contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" bad Method[%s]", r.Method)
+	}
+
+	diff, e := r.getSetDifficulty()
+	svs.dstLastSetDiff[uid] = diff
+
+	return e
+
+}
+
+//
 // sendSetDifficultyNotice()
 //
-func (svs *StratumV1Struct) sendSetDifficultyNotice(uid simple.ConnUniqueID) (e error) {
+func (svs *StratumV1Struct) sendLastSetDifficultyNotice(uid simple.ConnUniqueID) (e error) {
 
 	contextlib.Logf(svs.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" on  UID:%d", uid)
 
-	_, ok := svs.dstDiff[uid]
+	diff, ok := svs.dstLastSetDiff[uid]
 	if !ok {
-		contextlib.Logf(svs.Ctx(), contextlib.LevelWarn, lumerinlib.FileLineFunc()+" dstDiff[%d] DNE ", uid)
+		contextlib.Logf(svs.Ctx(), contextlib.LevelWarn, lumerinlib.FileLineFunc()+" dstLastSetDiffNotice[%d] DNE ", uid)
 		return nil
 	}
 
-	msg, e := createSetDifficultyNoticeMsg(svs.dstDiff[uid])
+	cs := contextlib.GetContextStruct(svs.Ctx())
+	ps := cs.GetMsgBus()
+	ps.SendValidateSetDiff(svs.Ctx(), svs.minerRec.ID, svs.dstDest[uid].ID, diff)
+
+	msg, e := createSetDifficultyNoticeMsg(diff)
 
 	if e != nil {
 		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" createSetDifficultyNoticeMsg() error:%s", e)
@@ -790,6 +976,21 @@ func (svs *StratumV1Struct) sendSetDifficultyNotice(uid simple.ConnUniqueID) (e 
 }
 
 //
+// setLastMiningNotice()
+//
+func (svs *StratumV1Struct) setLastMiningNotice(uid simple.ConnUniqueID, n *stratumNotice) (e error) {
+
+	if n.Method != string(SERVER_MINING_NOTIFY) {
+		contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" bad Method[%s]", n.Method)
+	}
+
+	svs.dstLastMiningNotice[uid] = n
+
+	return e
+
+}
+
+//
 // sendLastMiningNotice()
 //
 func (svs *StratumV1Struct) sendLastMiningNotice(uid simple.ConnUniqueID) (e error) {
@@ -798,7 +999,7 @@ func (svs *StratumV1Struct) sendLastMiningNotice(uid simple.ConnUniqueID) (e err
 
 	_, ok := svs.dstLastMiningNotice[uid]
 	if !ok {
-		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" dstLastMiningNotice[%d] DNE ", uid)
+		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" dstLastMiningNotice[%d] DNE, skipping ", uid)
 		return nil
 	}
 
@@ -807,7 +1008,23 @@ func (svs *StratumV1Struct) sendLastMiningNotice(uid simple.ConnUniqueID) (e err
 	}
 
 	notice := svs.dstLastMiningNotice[uid]
-	svs.dstLastMiningNotice[uid] = nil
+	minerID := svs.minerRec.ID
+	destID := svs.minerRec.Dest
+	username := svs.dstDest[uid].Username()
+	n := notice.Params.([]interface{})
+	jobID := n[0].(string)
+	prevblock := n[1].(string)
+	gen1 := n[2].(string)
+	gen2 := n[3].(string)
+	merkel := n[4].([]interface{})
+	version := n[5].(string)
+	nbits := n[6].(string)
+	ntime := n[7].(string)
+	clean := n[8].(bool)
+
+	cs := contextlib.GetContextStruct(svs.Ctx())
+	ps := cs.GetMsgBus()
+	ps.SendValidateNotify(svs.Ctx(), minerID, destID, username, jobID, prevblock, gen1, gen2, merkel, version, nbits, ntime, clean)
 
 	msg, e := notice.createNoticeMsg()
 
@@ -834,22 +1051,36 @@ func (svs *StratumV1Struct) sendLastMiningNotice(uid simple.ConnUniqueID) (e err
 }
 
 //
-// sendLastReqNotice()
+// setLastReqNotify()
 //
-func (svs *StratumV1Struct) sendLastReqNotice(uid simple.ConnUniqueID) (e error) {
+func (svs *StratumV1Struct) setLastReqNotify(uid simple.ConnUniqueID, r *stratumRequest) (e error) {
 
-	_, ok := svs.dstLastReqNotice[uid]
+	if r.Method != string(SERVER_MINING_NOTIFY) {
+		contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" bad Method[%s]", r.Method)
+	}
+
+	svs.dstLastReqNotify[uid] = r
+
+	return e
+
+}
+
+//
+// sendLastReqNotify()
+//
+func (svs *StratumV1Struct) sendLastReqNotify(uid simple.ConnUniqueID) (e error) {
+
+	_, ok := svs.dstLastReqNotify[uid]
 	if !ok {
-		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" dstLastReqNotice[%d] DNE ", uid)
+		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" dstLastReqNotify[%d] DNE ", uid)
 		return nil
 	}
 
-	if svs.dstLastReqNotice[uid] == nil {
+	if svs.dstLastReqNotify[uid] == nil {
 		return nil
 	}
 
-	request := svs.dstLastReqNotice[uid]
-	svs.dstLastReqNotice[uid] = nil
+	request := svs.dstLastReqNotify[uid]
 
 	msg, e := request.createRequestMsg()
 
@@ -872,5 +1103,4 @@ func (svs *StratumV1Struct) sendLastReqNotice(uid simple.ConnUniqueID) (e error)
 	}
 
 	return e
-
 }

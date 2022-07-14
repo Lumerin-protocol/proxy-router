@@ -29,6 +29,12 @@ func (r *ConcurrentMap) GetAll() (vals []interface{}) {
 	return vals
 }
 
+func (r *ConcurrentMap) GetMap() (map[string]interface{}) {
+	r.RLock()
+	defer r.RUnlock()
+	return r.M
+}
+
 func (r *ConcurrentMap) Set(key string, val interface{}) {
 	r.Lock()
 	defer r.Unlock()
@@ -62,6 +68,7 @@ func FileLineFunc(a ...int) string {
 	var depth int = 1
 
 	if len(a) != 0 {
+		depth = len(a)
 		if depth < 1 && depth > 10 {
 			panic(FileLine() + " depth out of bounds")
 		}
@@ -177,4 +184,19 @@ func getGID() uint64 {
 	b = b[:bytes.IndexByte(b, ' ')]
 	n, _ := strconv.ParseUint(string(b), 10, 64)
 	return n
+}
+
+//
+// goCounter()
+// Generates a UniqueID (int) and returns via supplied channel
+//
+func RunGoCounter(c chan int) {
+	go func() {
+
+		counter := 10000
+		for {
+			c <- counter
+			counter += 1
+		}
+	}()
 }
