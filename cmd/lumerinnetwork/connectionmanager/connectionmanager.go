@@ -344,7 +344,7 @@ FORLOOP:
 		}
 
 		if e != nil {
-			contextlib.Logf(cs.ctx, contextlib.LevelError, fmt.Sprintf(lumerinlib.FileLineFunc()+" %s Error:%s", name, e))
+			contextlib.Logf(cs.ctx, contextlib.LevelInfo, fmt.Sprintf(lumerinlib.FileLineFunc()+" %s Error:%s", name, e))
 			break FORLOOP
 		}
 	}
