@@ -8,7 +8,7 @@ import (
 func TestWrapError(t *testing.T) {
 	child := errors.New("child")
 	parent := errors.New("parent")
-	err3 := Wrap(parent, child)
+	err3 := WrapError(parent, child)
 
 	if !errors.Is(err3, parent) {
 		t.Fail()

@@ -1,9 +1,9 @@
-package connections
+package protocol
 
 import (
 	"context"
 
-	"gitlab.com/TitanInd/hashrouter/mining"
+	"gitlab.com/TitanInd/hashrouter/protocol/message"
 	"go.uber.org/zap"
 )
 
@@ -24,7 +24,7 @@ const green = "\u001b[32m"
 const red = "\u001b[31m"
 const reset = "\u001b[0m"
 
-func (s *StratumV1) ProcessMiningMessage(ctx context.Context, msg []byte, pc *ProxyConn) []byte {
+func (s *StratumV1) ProcessMiningMessage(ctx context.Context, msg []byte, pc Connection) []byte {
 	s.log.Debugf("%sMINER    %s %s", blue, reset, msg)
 
 	msg = s.handleMinerMsg(ctx, msg, pc)
@@ -33,7 +33,7 @@ func (s *StratumV1) ProcessMiningMessage(ctx context.Context, msg []byte, pc *Pr
 	return msg
 }
 
-func (s *StratumV1) ProcessPoolMessage(ctx context.Context, msg []byte, pc *ProxyConn) []byte {
+func (s *StratumV1) ProcessPoolMessage(ctx context.Context, msg []byte, pc Connection) []byte {
 	s.log.Debugf("%sPOOL     %s %s", green, reset, msg)
 
 	msg = s.handlePoolMsg(ctx, msg, pc)
@@ -42,8 +42,8 @@ func (s *StratumV1) ProcessPoolMessage(ctx context.Context, msg []byte, pc *Prox
 	return msg
 }
 
-func (s *StratumV1) handleMinerMsg(ctx context.Context, msg []byte, pc *ProxyConn) []byte {
-	m, err := mining.ParseMinerMessage(msg)
+func (s *StratumV1) handleMinerMsg(ctx context.Context, msg []byte, pc Connection) []byte {
+	m, err := message.ParseMessageToPool(msg)
 	if err != nil {
 		s.log.Errorf("%w", err)
 		return msg
@@ -55,49 +55,49 @@ func (s *StratumV1) handleMinerMsg(ctx context.Context, msg []byte, pc *ProxyCon
 	}
 
 	switch typedMessage := m.(type) {
-	case *mining.MiningSubscribe2:
+	case *message.MiningSubscribe:
 		return s.tryRunHandler(HandlerNameMinerSubscribe, typedMessage, pc)
-	case *mining.MiningAuthorize2:
+	case *message.MiningAuthorize:
 		return s.tryRunHandler(HandlerNameMinerAuthorize, typedMessage, pc)
-	case *mining.MiningSubmit:
+	case *message.MiningSubmit:
 		return s.tryRunHandler(HandlerNameMinerSubmit, typedMessage, pc)
 	}
 
 	return msg
 }
 
-func (s *StratumV1) handlePoolMsg(ctx context.Context, msg []byte, pc *ProxyConn) []byte {
-	m, err := mining.ParsePoolMessage(msg)
+func (s *StratumV1) handlePoolMsg(ctx context.Context, msg []byte, pc Connection) []byte {
+	m, err := message.ParseMessageFromPool(msg)
 	if err != nil {
 		s.log.Errorf("Unknown miner message", string(msg))
 		return msg
 	}
 
 	switch typedMessage := m.(type) {
-	case *mining.MiningNotify:
+	case *message.MiningNotify:
 		return s.tryRunHandler(HandlerNamePoolNotify, typedMessage, pc)
-	case *mining.MiningSetDifficulty:
+	case *message.MiningSetDifficulty:
 		return s.tryRunHandler(HandlerNamePoolSetDifficulty, typedMessage, pc)
-	case *mining.MiningResult:
+	case *message.MiningResult:
 		return s.tryRunHandler(HandlerNamePoolResult, typedMessage, pc)
 	}
 
 	return msg
 }
 
-func (s *StratumV1) tryRunHandler(name HandlerName, msg mining.Message, pc *ProxyConn) []byte {
+func (s *StratumV1) tryRunHandler(name HandlerName, msg message.MiningMessageGeneric, pc Connection) []byte {
 	handler, ok := s.handler.GetHandler(name)
 	if !ok {
 		// pass through
 		return msg.Serialize()
 	}
-	msg = handler(msg, nil)
+	msg = handler(msg, pc)
 	return msg.Serialize()
 }
 
 func (s *StratumV1) OnClose() {}
 
-func (s *StratumV1) ChangePool(addr string, pc *ProxyConn) error {
+func (s *StratumV1) ChangePool(addr string, pc Connection) error {
 	return pc.ChangePool(addr)
 }
 

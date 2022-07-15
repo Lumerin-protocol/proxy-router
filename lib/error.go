@@ -19,7 +19,7 @@ func (e *customError) Is(target error) bool {
 	return target == e.err
 }
 
-func Wrap(parent error, child error) error {
+func WrapError(parent error, child error) error {
 	return &customError{
 		err:      parent,
 		childErr: child,

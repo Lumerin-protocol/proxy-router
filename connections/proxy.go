@@ -7,6 +7,7 @@ import (
 	"net/netip"
 	"time"
 
+	"gitlab.com/TitanInd/hashrouter/protocol"
 	"go.uber.org/zap"
 )
 
@@ -63,19 +64,19 @@ func (p *Proxy) startAccepting(minerListener *net.TCPListener) {
 
 		go func(poolAddr string, minerConn net.Conn) {
 			// contains all handlers on stratum level
-			handlers := NewStratumHandler()
+			handlers := protocol.NewStratumHandler()
 
 			// intercepts messages on Stratum level
-			protocol := NewStratumV1(p.log, handlers)
+			stratumV1 := protocol.NewStratumV1(p.log, handlers)
 
 			// Overwrites message IDs,
 			// injects authorization
 			// enables miner change and handshake
-			manager := NewStratumV1Manager(handlers, protocol, p.log, p.poolUser, p.poolPass)
+			manager := protocol.NewStratumV1Manager(handlers, stratumV1, p.log, p.poolUser, p.poolPass)
 			manager.Init()
 
 			// intercepts messages on tcp level
-			proxyConn := NewProxyConn(poolAddr, minerConn, p.log, protocol)
+			proxyConn := NewProxyConn(poolAddr, minerConn, p.log, stratumV1)
 			err := proxyConn.DialDest()
 
 			// run only if connected
@@ -93,29 +94,4 @@ func (p *Proxy) startAccepting(minerListener *net.TCPListener) {
 
 		}(p.poolAddr, minerConn)
 	}
-}
-
-func (p *Proxy) upsertConn(conn *ProxyConn) {
-	// p.connections.Store(conn.ID(), conn)
-}
-
-func (p *Proxy) rmConn(conn *ProxyConn) {
-	// p.connections.Delete(conn.ID())
-}
-
-func (p *Proxy) getConn(ID string) (conn *ProxyConn, ok bool) {
-	// ID := GetConnID(minerAddr, poolAddr)
-
-	// res, ok := p.connections.Load(ID)
-	// if !ok {
-	// 	return nil, false
-	// }
-
-	// conn, ok = res.(*ProxyConn)
-	// if !ok {
-	// 	p.log.DPanic("invalid data in proxy syncMap")
-	// 	return nil, false
-	// }
-
-	return nil, false
 }

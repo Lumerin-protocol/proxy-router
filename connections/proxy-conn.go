@@ -7,6 +7,7 @@ import (
 	"net"
 
 	"gitlab.com/TitanInd/hashrouter/lib"
+	"gitlab.com/TitanInd/hashrouter/protocol"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -16,8 +17,8 @@ type Writer interface {
 }
 
 type ProxyTransformer interface {
-	ProcessMiningMessage(ctx context.Context, msg []byte, p *ProxyConn) []byte
-	ProcessPoolMessage(ctx context.Context, msg []byte, p *ProxyConn) []byte
+	ProcessMiningMessage(ctx context.Context, msg []byte, pс protocol.Connection) []byte
+	ProcessPoolMessage(ctx context.Context, msg []byte, pс protocol.Connection) []byte
 }
 
 type ProxyConn struct {
@@ -28,24 +29,24 @@ type ProxyConn struct {
 
 	done     chan interface{}
 	cancel   context.CancelFunc
-	poolConn net.Conn
+	PoolConn net.Conn
 }
 
 func GetConnID(minerConnRemoteAddr string, poolConnRemoteAddr string) string {
 	return fmt.Sprintf("%s->%s", minerConnRemoteAddr, poolConnRemoteAddr)
 }
 
-func NewProxyConn(poolAddr string, minerConn net.Conn, log *zap.SugaredLogger, protocol *StratumV1) *ProxyConn {
+func NewProxyConn(poolAddr string, minerConn net.Conn, log *zap.SugaredLogger, pc *protocol.StratumV1) *ProxyConn {
 	return &ProxyConn{
 		poolAddr:    poolAddr,
 		minerConn:   minerConn,
 		log:         log,
-		transformer: protocol,
+		transformer: pc,
 	}
 }
 
 func (c *ProxyConn) ID() string {
-	return GetConnID(c.minerConn.RemoteAddr().String(), c.poolConn.RemoteAddr().String())
+	return GetConnID(c.minerConn.RemoteAddr().String(), c.PoolConn.RemoteAddr().String())
 }
 
 func (c *ProxyConn) DialDest() error {
@@ -53,7 +54,7 @@ func (c *ProxyConn) DialDest() error {
 	if err != nil {
 		return fmt.Errorf("cannot connect to pool %s %w", c.poolAddr, err)
 	}
-	c.poolConn = poolConn
+	c.PoolConn = poolConn
 	return nil
 }
 
@@ -62,7 +63,7 @@ func (c *ProxyConn) Run(ctx context.Context) error {
 	c.cancel = cancel
 	c.done = make(chan interface{})
 
-	if c.poolConn == nil {
+	if c.PoolConn == nil {
 		return fmt.Errorf("connect() has not been called")
 	}
 
@@ -78,7 +79,7 @@ func (c *ProxyConn) Run(ctx context.Context) error {
 
 	// Proxying pool -> miner messages
 	group.Go(func() error {
-		return c.proxyReader(subCtx, c.poolConn, poolMsgCh)
+		return c.proxyReader(subCtx, c.PoolConn, poolMsgCh)
 	})
 
 	// Transforming and sending response
@@ -88,7 +89,7 @@ func (c *ProxyConn) Run(ctx context.Context) error {
 
 	// On any error
 	err := group.Wait()
-	c.poolConn.Close()
+	c.PoolConn.Close()
 	c.log.Warn("Proxy error. Pool connection closed", err)
 	close(c.done)
 	return err
@@ -106,7 +107,7 @@ func (c *ProxyConn) ChangePool(addr string) error {
 	}
 
 	c.Stop()
-	c.poolConn = poolConn
+	c.PoolConn = poolConn
 	c.poolAddr = addr
 
 	go c.Run(context.Background())
@@ -122,7 +123,7 @@ func (c *ProxyConn) proxyReader(ctx context.Context, sourceConn net.Conn, msgCh 
 
 		msg, err := sourceReader.ReadBytes('\n')
 		if err != nil {
-			return lib.Wrap(ErrProxyRead, err)
+			return lib.WrapError(ErrProxyRead, err)
 		}
 
 		// trim last newline char
@@ -148,7 +149,7 @@ func (c *ProxyConn) proxyWriter(ctx context.Context, minerMsgCh <-chan []byte, p
 		case msg := <-minerMsgCh:
 			msg = c.transformer.ProcessMiningMessage(ctx, msg, c)
 			if msg != nil {
-				err := c.write(ctx, c.poolConn, msg)
+				err := c.write(ctx, c.PoolConn, msg)
 				if err != nil {
 					return err
 				}
@@ -169,7 +170,27 @@ func (c *ProxyConn) write(ctx context.Context, destConn net.Conn, msg []byte) er
 	msg = append(msg, []byte("\n")...)
 	_, err := destConn.Write(msg)
 	if err != nil {
-		return lib.Wrap(ErrProxyWrite, err)
+		return lib.WrapError(ErrProxyWrite, err)
+	}
+
+	return nil
+}
+
+func (c *ProxyConn) WriteToMiner(ctx context.Context, msg []byte) error {
+	msg = append(msg, []byte("\n")...)
+	_, err := c.minerConn.Write(msg)
+	if err != nil {
+		return lib.WrapError(ErrProxyWrite, err)
+	}
+
+	return nil
+}
+
+func (c *ProxyConn) WriteToPool(ctx context.Context, msg []byte) error {
+	msg = append(msg, []byte("\n")...)
+	_, err := c.PoolConn.Write(msg)
+	if err != nil {
+		return lib.WrapError(ErrProxyWrite, err)
 	}
 
 	return nil
