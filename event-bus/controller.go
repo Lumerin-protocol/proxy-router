@@ -56,6 +56,14 @@ func (c *EventBusController) SubscribeContract(ctx context.Context, ch chan<- Co
 	})
 }
 
+func (c *EventBusController) SubscribeContract2(ctx context.Context, size int) <-chan ContractEventData {
+	ch := make(chan ContractEventData, size)
+	c.eventBus.Subscribe(ctx, ContractEventName, func(val interface{}) {
+		ch <- val.(ContractEventData)
+	})
+	return ch
+}
+
 func (c *EventBusController) SubscribeContractCb(ctx context.Context, cb func(data ConnectionEventData)) {
 	c.eventBus.Subscribe(ctx, ConnectionEventName, func(val interface{}) {
 		cb(val.(ConnectionEventData))

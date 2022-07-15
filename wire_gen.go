@@ -16,7 +16,6 @@ import (
 	"gitlab.com/TitanInd/hashrouter/events"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
-	"gitlab.com/TitanInd/hashrouter/mining"
 	"go.uber.org/zap"
 	"os"
 )
@@ -29,12 +28,11 @@ func InitApp() (*app.App, error) {
 		return nil, err
 	}
 	iEventManager := events.NewEventManager()
-	miningController := provideMiningController(config, iEventManager)
 	sugaredLogger, err := provideLogger(config)
 	if err != nil {
 		return nil, err
 	}
-	connectionsController := provideConnectionController(config, miningController, iEventManager, sugaredLogger)
+	connectionsController := provideConnectionController(config, iEventManager, sugaredLogger)
 	server := provideServer(config, connectionsController, sugaredLogger)
 	client, err := provideEthClient(config)
 	if err != nil {
@@ -43,7 +41,6 @@ func InitApp() (*app.App, error) {
 	sellerContractManager := provideSellerContractManager(config, iEventManager, client, sugaredLogger)
 	appApp := &app.App{
 		ConnectionsController: connectionsController,
-		MiningController:      miningController,
 		Server:                server,
 		SellerManager:         sellerContractManager,
 		Logger:                sugaredLogger,
@@ -64,12 +61,8 @@ func main() {
 	appInstance.Run()
 }
 
-func provideMiningController(cfg *config.Config, em interfaces.IEventManager) *mining.MiningController {
-	return mining.NewMiningController(cfg.Pool.User, cfg.Pool.Password, em)
-}
-
-func provideConnectionController(cfg *config.Config, mc *mining.MiningController, em interfaces.IEventManager, l *zap.SugaredLogger) *connections.ConnectionsController {
-	return connections.NewConnectionsController(cfg.Pool.Address, mc, em, l)
+func provideConnectionController(cfg *config.Config, em interfaces.IEventManager, l *zap.SugaredLogger) *connections.ConnectionsController {
+	return connections.NewConnectionsController(cfg.Pool.Address, cfg.Pool.User, cfg.Pool.Password, em, l)
 }
 
 func provideServer(cfg *config.Config, cc *connections.ConnectionsController, l *zap.SugaredLogger) *api.Server {

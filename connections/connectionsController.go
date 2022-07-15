@@ -23,6 +23,8 @@ type ConnectionsController struct {
 	poolConnection         net.Conn
 	minerConnections       []net.Conn
 	poolAddr               string
+	poolUser               string
+	poolPass               string
 	connections            []*ConnectionInfo
 	eventManager           interfaces.IEventManager
 	logger                 *zap.SugaredLogger
@@ -49,6 +51,12 @@ func (c *ConnectionsController) Run(ctx context.Context) error {
 }
 
 func (c *ConnectionsController) run(ctx context.Context) (err error) {
+	proxy := NewProxy(c.poolAddr, "0.0.0.0:3333", c.logger, c.poolUser, c.poolPass)
+	proxy.Run(context.Background())
+	return nil
+}
+
+func (c *ConnectionsController) run2(ctx context.Context) (err error) {
 	port := 3333
 
 	c.logger.Infof("Running main...")
@@ -250,14 +258,15 @@ func (c *ConnectionsController) ServeHTTP(w http.ResponseWriter, r *http.Request
 // 	}
 // }
 
-func NewConnectionsController(poolAddr string, miningRequestProcessor interfaces.IMiningRequestProcessor, eventManager interfaces.IEventManager, logger *zap.SugaredLogger) *ConnectionsController {
+func NewConnectionsController(poolAddr string, poolUser string, poolPass string, eventManager interfaces.IEventManager, logger *zap.SugaredLogger) *ConnectionsController {
 	return &ConnectionsController{
-		poolAddr:               poolAddr,
-		miningRequestProcessor: miningRequestProcessor,
-		connections:            []*ConnectionInfo{},
-		minerConnections:       []net.Conn{},
-		eventManager:           eventManager,
-		logger:                 logger,
+		poolAddr:         poolAddr,
+		connections:      []*ConnectionInfo{},
+		minerConnections: []net.Conn{},
+		eventManager:     eventManager,
+		logger:           logger,
+		poolUser:         poolUser,
+		poolPass:         poolPass,
 	}
 }
 

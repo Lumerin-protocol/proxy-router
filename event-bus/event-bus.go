@@ -92,5 +92,4 @@ func (e *eventBus) Publish(eventName string, data DataEvent) {
 			fmt.Printf("Blocking publish to event bus queue (%s): increase buffer size\n", eventName)
 		}
 	}
-
 }

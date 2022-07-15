@@ -19,7 +19,7 @@ const (
 func LoadConfig(cfg interface{}, osArgs *[]string) error {
 	godotenv.Load(".env")
 
-	// iterates over each field of the nested struct
+	// recursively iterates over each field of the nested struct
 	fields, err := flat.View(cfg)
 	if err != nil {
 		return err
