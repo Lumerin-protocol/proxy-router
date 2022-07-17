@@ -500,7 +500,8 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract) {
 	// find all miner combinations that add up to promised hashrate
 	minerCombinations := findSubsets(sortedReadyMiners, promisedHashrate, hashrateTolerance)
 	if len(minerCombinations) == 0 {
-		contextlib.Logf(cs.Ctx, log.LevelInfo, "Hashrate Value from Contract %s too small to create Valid Miner Combination ", contract.ID)
+		contextlib.Logf(cs.Ctx, log.LevelInfo, "Could not create valid miner combinations for Contract: %s", contract.ID)
+		time.Sleep(time.Second * time.Duration(cs.HashrateCalcLagTime))
 		return
 	}
 
@@ -519,11 +520,17 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract) {
 	for !validCombo {
 		minerCombinations = append(minerCombinations[:index], minerCombinations[index+1:]...)
 		minerCombination, index = bestCombination(minerCombinations, promisedHashrate)
-		cs.BestMinerCombos.Set(string(contract.ID), minerCombination)
 		bestMinerCombos := cs.BestMinerCombos.GetMap()
 		validCombo = bestCombinationConflict(bestMinerCombos, minerCombination, contract.ID)
 	}
 
+	if minerCombination.Len() == 0 {
+		contextlib.Logf(cs.Ctx, log.LevelInfo, "Could not find best miner combination for Contract: %s", contract.ID)
+		time.Sleep(time.Second * time.Duration(cs.HashrateCalcLagTime))
+		return
+	}
+
+	cs.BestMinerCombos.Set(string(contract.ID), minerCombination)
 	contextlib.Logf(cs.Ctx, log.LevelInfo, "Best Miner Combination for Contract %s: %v", contract.ID, minerCombination)
 
 	// set contract and target destination for miners in optimal miner combination

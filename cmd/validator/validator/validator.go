@@ -427,7 +427,7 @@ func (v *MainValidator) hashrateCalculator(instance *Validator, minerId msgbus.M
 		rateBigInt := new(big.Int).Div(totalHashes, big.NewInt(int64(timeInterval.Seconds())))
 		hashrate := int(rateBigInt.Int64())
 
-		// take average hourly average of hashrate
+		// take hourly average of hashrate
 		if len(instance.Hashrates) >= 6 {
 			instance.Hashrates = instance.Hashrates[1:]
 		} 
@@ -441,8 +441,28 @@ func (v *MainValidator) hashrateCalculator(instance *Validator, minerId msgbus.M
 		
 		contextlib.Logf(v.Ctx, log.LevelTrace, lumerinlib.Funcname()+" Current Hashrate Moving Average for Miner %s: %d", miner.ID, newHashrate)
 
-		// update miner with new hashrate value
+		// update miner with new hashrate value and fix slicing percentages accordingly
 		miner.CurrentHashRate = newHashrate
+		timeSlice := false
+		if len(miner.Contracts) > 0 && len(instance.Hashrates) > 1 {
+			hashrateUpdateFactor := float64(instance.Hashrates[len(instance.Hashrates) - 2])/float64(newHashrate)
+			for i, v := range miner.Contracts {
+				newSliceFactor := v*hashrateUpdateFactor
+				if v < 1 && newSliceFactor < 1 {
+					miner.Contracts[i] = newSliceFactor
+				} else if v < 1 && newSliceFactor >= 1 {
+					miner.Contracts[i] = 1
+				}
+
+				// check if miner still needs to be sliced after updates
+				if miner.Contracts[i] < 1 {
+					timeSlice = true
+				}
+			}
+		}
+		if timeSlice {
+			miner.TimeSlice = true
+		}
 		v.Ps.MinerSetWait(*miner)
 	}
 }
