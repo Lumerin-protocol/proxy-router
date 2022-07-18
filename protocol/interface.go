@@ -14,6 +14,7 @@ type StratumHandlerObject interface {
 type Connection interface {
 	SetHandler(pc MessageHandler)
 	ChangePool(addr string) error
+	GetMinerIP() string
 	WriteToPool(ctx context.Context, bytes []byte) error
 	WriteToMiner(ctx context.Context, bytes []byte) error
 }

@@ -34,7 +34,7 @@ func InitApp() (*app.App, error) {
 	}
 	tcpServer := provideTCPServer(config, sugaredLogger)
 	proxyHandler := provideProxyHandler(config, sugaredLogger)
-	server := provideServer(config, sugaredLogger)
+	server := provideServer(config, sugaredLogger, proxyHandler)
 	iEventManager := events.NewEventManager()
 	client, err := provideEthClient(config)
 	if err != nil {
@@ -72,8 +72,8 @@ func provideTCPServer(cfg *config.Config, l *zap.SugaredLogger) *tcpserver.TCPSe
 	return tcpserver.NewTCPServer(cfg.Proxy.Address, l)
 }
 
-func provideServer(cfg *config.Config, l *zap.SugaredLogger) *api.Server {
-	return api.NewServer(cfg.Web.Address, l)
+func provideServer(cfg *config.Config, l *zap.SugaredLogger, ph *proxyhandler.ProxyHandler) *api.Server {
+	return api.NewServer(cfg.Web.Address, l, ph)
 }
 
 func provideEthClient(cfg *config.Config) (*ethclient.Client, error) {

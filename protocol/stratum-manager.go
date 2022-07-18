@@ -83,6 +83,10 @@ func (m *StratumV1Manager) Init() {
 	})
 }
 
+func (m *StratumV1Manager) GetID() string {
+	return m.stratum.conn.GetMinerIP()
+}
+
 func (m *StratumV1Manager) SetAuth(userName string, password string) {
 	m.authUser = userName
 	m.authPass = password

@@ -272,3 +272,7 @@ func (c *ProxyConn) GetPoolConn() (net.Conn, error) {
 	}
 	return c.poolConn, nil
 }
+
+func (c *ProxyConn) GetMinerIP() string {
+	return c.minerConn.RemoteAddr().String()
+}

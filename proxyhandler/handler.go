@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"time"
+	"sync"
 
 	"gitlab.com/TitanInd/hashrouter/connections"
 	"gitlab.com/TitanInd/hashrouter/protocol"
@@ -16,6 +16,7 @@ type ProxyHandler struct {
 	poolUser     string
 	poolPassword string
 	log          *zap.SugaredLogger
+	miners       sync.Map
 }
 
 func NewProxyHandler(poolAddr string, poolUser string, poolPassword string, log *zap.SugaredLogger) *ProxyHandler {
@@ -42,18 +43,30 @@ func (p *ProxyHandler) ConnectionHandler(ctx context.Context, incomingConn net.C
 		return fmt.Errorf("cannot dial pool: %w", err)
 	}
 
-	go func() {
-		time.Sleep(time.Second * 15)
-		p.log.Info("Changing pool")
-
-		err = manager.ChangePool("btc.f2pool.com:3333", "shev8.001", "21235365876986800")
-		if err != nil {
-			p.log.Errorf("Pool change error %s", err)
-			return
-		}
-		p.log.Info("Pool changed")
-	}()
+	p.miners.Store(manager.GetID(), manager)
 
 	// run only if connected
 	return proxyConn.Run(ctx)
+}
+
+func (p *ProxyHandler) ChangeDest(addr string, username string, pwd string) error {
+
+	p.miners.Range(func(key, value any) bool {
+		manager, ok := value.(*protocol.StratumV1Manager)
+		if !ok {
+			panic("invalid type")
+		}
+
+		p.log.Infof("changing pool to %s for minerID %s", addr, manager.GetID())
+		err := manager.ChangePool(addr, username, pwd)
+		if err != nil {
+			p.log.Errorf("error changing pool %w", err)
+		} else {
+			p.log.Info("Pool changed for minerid %s", manager.GetID())
+		}
+		return true
+	})
+
+	return nil
+
 }

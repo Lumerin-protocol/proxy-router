@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"gitlab.com/TitanInd/hashrouter/proxyhandler"
 	"go.uber.org/zap"
 )
 
@@ -15,12 +16,16 @@ type Server struct {
 	shutdownTimeout time.Duration
 }
 
-func NewServer(address string, logger *zap.SugaredLogger) *Server {
+func NewServer(address string, log *zap.SugaredLogger, proxyHandler *proxyhandler.ProxyHandler) *Server {
 	mux := http.NewServeMux()
 
 	// mux.HandleFunc("/connections", connectionsController.ServeHTTP)
-	mux.HandleFunc("/connections", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("SUCCESS"))
+	mux.HandleFunc("/change-dest", func(w http.ResponseWriter, r *http.Request) {
+		host := r.URL.Query().Get("host")
+		user := r.URL.Query().Get("user")
+		pwd := r.URL.Query().Get("pwd")
+		proxyHandler.ChangeDest(host, user, pwd)
+		w.Write([]byte("success"))
 	})
 
 	server := http.Server{Addr: address, Handler: mux}
@@ -29,7 +34,7 @@ func NewServer(address string, logger *zap.SugaredLogger) *Server {
 		address:         address,
 		server:          server,
 		shutdownTimeout: 5 * time.Second,
-		log:             *logger,
+		log:             *log,
 	}
 }
 
@@ -45,17 +50,20 @@ func (s *Server) listenAndServe(ctx context.Context) error {
 		// returned from this method (given the select logic below), because
 		// Shutdown causes ListenAndServe to always return http.ErrServerClosed.
 		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			s.log.Error("Http server error", err)
+			s.log.Error("http server error", err)
 			serverErr <- err
 		}
 	}()
+
+	s.log.Infof("http server is listening: %s", s.server.Addr)
+
 	var err error
 	select {
 	case <-ctx.Done():
 		ctx, cancel := context.WithTimeout(ctx, s.shutdownTimeout)
 		defer cancel()
 		err = s.server.Shutdown(ctx)
-		s.log.Warn("HTTP Server closed")
+		s.log.Warn("http server closed")
 	case err = <-serverErr:
 	}
 
