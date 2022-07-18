@@ -109,7 +109,6 @@ func (s *StratumV1) ChangePool(addr string) error {
 
 func (s *StratumV1) WriteToMiner(ctx context.Context, msg []byte) error {
 	s.log.Debugf("%sWRITE TO %sMINER %s", blue, red, reset, string(msg))
-
 	return s.conn.WriteToMiner(ctx, msg)
 }
 

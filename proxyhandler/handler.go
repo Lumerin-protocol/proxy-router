@@ -30,6 +30,7 @@ func NewProxyHandler(poolAddr string, poolUser string, poolPassword string, log 
 func (p *ProxyHandler) ConnectionHandler(ctx context.Context, incomingConn net.Conn) error {
 	// connection-scoped objects
 	proxyConn := connections.NewProxyConn(p.poolAddr, incomingConn, p.log)
+	//------------------------------
 	handlers := protocol.NewStratumHandler()
 	stratumV1 := protocol.NewStratumV1(p.log, handlers, proxyConn)
 	proxyConn.SetHandler(stratumV1)

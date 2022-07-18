@@ -17,9 +17,14 @@ const (
 	destTimeout = 5 * time.Second
 )
 
+const (
+	Delimiter = "\n"
+)
+
 var (
-	ErrProxyWrite = errors.New("proxy-write-err")
-	ErrProxyRead  = errors.New("proxy-read-err")
+	ErrProxyWrite         = errors.New("proxy-write-err")
+	ErrProxyRead          = errors.New("proxy-read-err")
+	ErrNotConnectedToPool = errors.New("not connected to pool")
 )
 
 type ProxyConn struct {
@@ -28,7 +33,7 @@ type ProxyConn struct {
 	protocol  MessageHandler
 	log       *zap.SugaredLogger
 
-	PoolConn net.Conn // connection to the current pool
+	poolConn net.Conn // connection to the current pool
 
 	cancel   context.CancelFunc // used for pause: stops proxying but doesn't return control to parent; can be resumed
 	done     chan interface{}   // new message means that proxying has stopped
@@ -54,7 +59,7 @@ func (c *ProxyConn) SetHandler(pc MessageHandler) {
 }
 
 func (c *ProxyConn) ID() string {
-	return GetConnID(c.minerConn.RemoteAddr().String(), c.PoolConn.RemoteAddr().String())
+	return GetConnID(c.minerConn.RemoteAddr().String(), c.poolConn.RemoteAddr().String())
 }
 
 func (c *ProxyConn) DialDest() error {
@@ -62,17 +67,22 @@ func (c *ProxyConn) DialDest() error {
 	if err != nil {
 		return fmt.Errorf("cannot connect to pool %s %w", c.poolAddr, err)
 	}
-	c.PoolConn = poolConn
+	c.poolConn = poolConn
 	return nil
 }
 
 func (c *ProxyConn) ClosePoolConn() error {
-	err := c.PoolConn.Close()
+	conn, err := c.GetPoolConn()
+	if err != nil {
+		return err
+	}
+
+	err = conn.Close()
 	if err != nil {
 		c.log.Errorw("pool connection close error", "error", err)
 	}
 
-	// TODO fix error and check if connection closed
+	c.poolConn = nil
 	return nil
 }
 
@@ -89,10 +99,9 @@ func (c *ProxyConn) Run(ctx context.Context) error {
 		// signalizes that proxying stopped
 		c.done <- struct{}{}
 
-		// context can be cancelled from either parent
-		// context or child context. Parent cancellation
-		// is handled above. Child context cancellation
-		// used for pause, so it is ignored
+		// ignoring context.Cancelled error here. Context can be cancelled
+		// from either parent context or child context. Parent cancellation
+		// is handled above and will cause . Child context cancellation used for pause,
 		if !errors.Is(err, context.Canceled) {
 			c.log.Errorf("proxy_conn error %+v", err)
 			return err
@@ -110,7 +119,7 @@ func (c *ProxyConn) run(ctx context.Context) error {
 	c.cancel = cancel
 	c.done = make(chan interface{})
 
-	if c.PoolConn == nil {
+	if c.poolConn == nil {
 		return fmt.Errorf("connect() has not been called")
 	}
 
@@ -126,7 +135,7 @@ func (c *ProxyConn) run(ctx context.Context) error {
 
 	// Proxying pool -> miner messages
 	group.Go(func() error {
-		return c.proxyReader(subCtx, c.PoolConn, poolMsgCh)
+		return c.proxyReader(subCtx, c.poolConn, poolMsgCh)
 	})
 
 	// Transforming and sending response
@@ -162,7 +171,7 @@ func (c *ProxyConn) ChangePool(newPoolAddr string) error {
 
 	c.PauseProxy()
 
-	c.PoolConn = newPoolConn
+	c.poolConn = newPoolConn
 	c.poolAddr = newPoolAddr
 
 	c.ResumeProxy()
@@ -176,15 +185,13 @@ func (c *ProxyConn) proxyReader(ctx context.Context, sourceConn net.Conn, msgCh 
 	errCh := make(chan error)
 	go func() {
 		for {
-			//TODO: readbytes is blocking and keeps reading even after parent exits
-			// figure out a way to unblock it
 			msg, err := sourceReader.ReadBytes('\n')
 			if err != nil {
 				errCh <- lib.WrapError(ErrProxyRead, err)
 				return
 			}
 
-			// trim the newline char at the end of the line
+			// trim the newline delimiter at the end of the line
 			msg = msg[:len(msg)-1]
 
 			if len(msg) <= 0 {
@@ -207,6 +214,7 @@ func (c *ProxyConn) proxyReader(ctx context.Context, sourceConn net.Conn, msgCh 
 	}
 }
 
+// consumes messages from both miner and pool and handles them in single gorouite
 func (c *ProxyConn) proxyWriter(ctx context.Context, minerMsgCh <-chan []byte, poolMsgCh <-chan []byte) error {
 	for {
 		select {
@@ -251,5 +259,16 @@ func (c *ProxyConn) WriteToMiner(ctx context.Context, msg []byte) error {
 }
 
 func (c *ProxyConn) WriteToPool(ctx context.Context, msg []byte) error {
-	return c.write(ctx, c.PoolConn, msg)
+	conn, err := c.GetPoolConn()
+	if err != nil {
+		return err
+	}
+	return c.write(ctx, conn, msg)
+}
+
+func (c *ProxyConn) GetPoolConn() (net.Conn, error) {
+	if c.poolConn == nil {
+		return nil, ErrNotConnectedToPool
+	}
+	return c.poolConn, nil
 }

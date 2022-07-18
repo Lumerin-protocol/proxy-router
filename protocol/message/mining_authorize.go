@@ -45,8 +45,8 @@ func (m *MiningAuthorize) GetPassword() string {
 	return m.Params[1]
 }
 
-func (m *MiningAuthorize) SetPassword(ID string) {
-	m.Params[1] = ID
+func (m *MiningAuthorize) SetPassword(pwd string) {
+	m.Params[1] = pwd
 }
 
 func (m *MiningAuthorize) Serialize() []byte {
