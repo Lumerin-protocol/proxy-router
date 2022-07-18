@@ -11,11 +11,12 @@ import (
 	"gitlab.com/TitanInd/hashrouter/api"
 	"gitlab.com/TitanInd/hashrouter/app"
 	"gitlab.com/TitanInd/hashrouter/config"
-	"gitlab.com/TitanInd/hashrouter/connections"
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
 	"gitlab.com/TitanInd/hashrouter/events"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
+	"gitlab.com/TitanInd/hashrouter/proxyhandler"
+	"gitlab.com/TitanInd/hashrouter/tcpserver"
 	"go.uber.org/zap"
 	"os"
 )
@@ -27,23 +28,25 @@ func InitApp() (*app.App, error) {
 	if err != nil {
 		return nil, err
 	}
-	iEventManager := events.NewEventManager()
 	sugaredLogger, err := provideLogger(config)
 	if err != nil {
 		return nil, err
 	}
-	connectionsController := provideConnectionController(config, iEventManager, sugaredLogger)
-	server := provideServer(config, connectionsController, sugaredLogger)
+	tcpServer := provideTCPServer(config, sugaredLogger)
+	proxyHandler := provideProxyHandler(config, sugaredLogger)
+	server := provideServer(config, sugaredLogger)
+	iEventManager := events.NewEventManager()
 	client, err := provideEthClient(config)
 	if err != nil {
 		return nil, err
 	}
 	sellerContractManager := provideSellerContractManager(config, iEventManager, client, sugaredLogger)
 	appApp := &app.App{
-		ConnectionsController: connectionsController,
-		Server:                server,
-		SellerManager:         sellerContractManager,
-		Logger:                sugaredLogger,
+		TCPServer:     tcpServer,
+		Handler:       proxyHandler,
+		Server:        server,
+		SellerManager: sellerContractManager,
+		Logger:        sugaredLogger,
 	}
 	return appApp, nil
 }
@@ -61,12 +64,16 @@ func main() {
 	appInstance.Run()
 }
 
-func provideConnectionController(cfg *config.Config, em interfaces.IEventManager, l *zap.SugaredLogger) *connections.ConnectionsController {
-	return connections.NewConnectionsController(cfg.Pool.Address, cfg.Pool.User, cfg.Pool.Password, em, l)
+func provideProxyHandler(cfg *config.Config, l *zap.SugaredLogger) *proxyhandler.ProxyHandler {
+	return proxyhandler.NewProxyHandler(cfg.Pool.Address, cfg.Pool.User, cfg.Pool.Password, l)
 }
 
-func provideServer(cfg *config.Config, cc *connections.ConnectionsController, l *zap.SugaredLogger) *api.Server {
-	return api.NewServer(cfg.Web.Address, cc, l)
+func provideTCPServer(cfg *config.Config, l *zap.SugaredLogger) *tcpserver.TCPServer {
+	return tcpserver.NewTCPServer(cfg.Proxy.Address, l)
+}
+
+func provideServer(cfg *config.Config, l *zap.SugaredLogger) *api.Server {
+	return api.NewServer(cfg.Web.Address, l)
 }
 
 func provideEthClient(cfg *config.Config) (*ethclient.Client, error) {

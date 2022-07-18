@@ -6,9 +6,9 @@ import "encoding/json"
 const MethodMiningNotify = "mining.notify"
 
 type MiningNotify struct {
-	Method string            `json:"method"`
-	Result json.RawMessage   `json:"result"`
-	Error  MiningResultError `json:"error"`
+	ID     *int            `json:"id"` // always null
+	Method string          `json:"method"`
+	Params json.RawMessage `json:"params"`
 }
 
 func ParseMiningNotify(b []byte) (*MiningNotify, error) {

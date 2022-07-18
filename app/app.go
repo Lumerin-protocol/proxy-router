@@ -7,17 +7,19 @@ import (
 	"syscall"
 
 	"gitlab.com/TitanInd/hashrouter/api"
-	"gitlab.com/TitanInd/hashrouter/connections"
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
+	"gitlab.com/TitanInd/hashrouter/proxyhandler"
+	"gitlab.com/TitanInd/hashrouter/tcpserver"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
 
 type App struct {
-	ConnectionsController *connections.ConnectionsController
-	Server                *api.Server
-	SellerManager         *contractmanager.SellerContractManager
-	Logger                *zap.SugaredLogger
+	TCPServer     *tcpserver.TCPServer
+	Handler       *proxyhandler.ProxyHandler
+	Server        *api.Server
+	SellerManager *contractmanager.SellerContractManager
+	Logger        *zap.SugaredLogger
 }
 
 func (a *App) Run() {
@@ -29,6 +31,10 @@ func (a *App) Run() {
 		s := <-shutdownChan
 		a.Logger.Infof("Received signal: %s", s)
 		cancel()
+
+		s = <-shutdownChan
+		a.Logger.Infof("Received signal: %s. Forcing exit...", s)
+		os.Exit(1)
 	}()
 
 	defer a.Logger.Sync()
@@ -36,12 +42,13 @@ func (a *App) Run() {
 	g, subCtx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return a.ConnectionsController.Run(subCtx)
+		a.TCPServer.SetConnectionHandler(a.Handler)
+		return a.TCPServer.Run(subCtx)
 	})
 
-	g.Go(func() error {
-		return a.SellerManager.Run(subCtx)
-	})
+	// g.Go(func() error {
+	// 	return a.SellerManager.Run(subCtx)
+	// })
 
 	g.Go(func() error {
 		return a.Server.Run(subCtx)
@@ -49,5 +56,5 @@ func (a *App) Run() {
 
 	err := g.Wait()
 
-	a.Logger.Warnf("App exited due to ", err)
+	a.Logger.Warnf("App exited due to %w", err)
 }

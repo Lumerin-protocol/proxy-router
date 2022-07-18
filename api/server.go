@@ -9,26 +9,27 @@ import (
 )
 
 type Server struct {
-	address               string
-	server                http.Server
-	log                   zap.SugaredLogger
-	connectionsController http.Handler
-	shutdownTimeout       time.Duration
+	address         string
+	server          http.Server
+	log             zap.SugaredLogger
+	shutdownTimeout time.Duration
 }
 
-func NewServer(address string, connectionsController http.Handler, logger *zap.SugaredLogger) *Server {
+func NewServer(address string, logger *zap.SugaredLogger) *Server {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/connections", connectionsController.ServeHTTP)
+	// mux.HandleFunc("/connections", connectionsController.ServeHTTP)
+	mux.HandleFunc("/connections", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("SUCCESS"))
+	})
 
 	server := http.Server{Addr: address, Handler: mux}
 
 	return &Server{
-		address:               address,
-		server:                server,
-		connectionsController: connectionsController,
-		shutdownTimeout:       5 * time.Second,
-		log:                   *logger,
+		address:         address,
+		server:          server,
+		shutdownTimeout: 5 * time.Second,
+		log:             *logger,
 	}
 }
 
@@ -45,6 +46,7 @@ func (s *Server) listenAndServe(ctx context.Context) error {
 		// Shutdown causes ListenAndServe to always return http.ErrServerClosed.
 		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			s.log.Error("Http server error", err)
+			serverErr <- err
 		}
 	}()
 	var err error

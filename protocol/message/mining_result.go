@@ -11,7 +11,7 @@ type MiningResult struct {
 	Error  MiningResultError `json:"error"`
 }
 
-type MiningResultError = json.RawMessage // data of different types: int and string
+type MiningResultError = []json.RawMessage // data of different types: int and string
 
 func ParseMiningResult(b []byte) (*MiningResult, error) {
 	m := &MiningResult{}
@@ -33,7 +33,7 @@ func (m *MiningResult) IsError() bool {
 // Returns unparsed error field (json)
 // TODO: parse error code and message correctly
 func (m *MiningResult) GetError() string {
-	return string(m.Error)
+	return string(m.Error[1])
 }
 
 func (m *MiningResult) Serialize() []byte {
