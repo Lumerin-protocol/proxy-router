@@ -223,6 +223,12 @@ func (v *MainValidator) minerHandler(ch msgbus.EventChan) {
 				contextlib.Logf(v.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Got Miner Unpublish/Unsubscribe Event: %v", event)
 				
 				id := msgbus.MinerID(event.ID)
+		
+				contextlib.Logf(v.Ctx, log.LevelInfo, "Closing validator instance for Miner: %v", id)
+				var closeMessage = Message{}
+				closeMessage.Address = string(id)
+				closeMessage.MessageType = "closeValidator"
+				v.SendMessageToValidator(closeMessage)
 				v.MinersVal.Delete(string(id))
 			}
 		}
@@ -351,12 +357,16 @@ func (v *MainValidator) validateHandler(ch msgbus.EventChan) {
 				default:
 					contextlib.Logf(v.Ctx, log.LevelTrace, lumerinlib.Funcname()+" Got Validate Msg with different type: %v", event)
 				}
+
+				// delete validate msg from msgbus once finished with it
+				v.Ps.Unpub(msgbus.ValidateMsg, msgbus.IDString(validateMsg.ID))
 			}
 		}
 	}
 }
 
 func (v *MainValidator) difficultyEMA(minerId msgbus.MinerID) {
+	contextlib.Logf(v.Ctx, log.LevelInfo, "Starting Difficulty EMA routine for Miner: %v", minerId)
 	// Monitor Miner Unpublish Events
 	minerEventChan := msgbus.NewEventChan()
 	_, err := v.Ps.Sub(msgbus.MinerMsg, msgbus.IDString(minerId), minerEventChan)
@@ -368,6 +378,7 @@ func (v *MainValidator) difficultyEMA(minerId msgbus.MinerID) {
 		case event := <- minerEventChan:
 			if event.EventType == msgbus.UnpublishEvent {
 				contextlib.Logf(v.Ctx, log.LevelInfo, lumerinlib.Funcname()+"Miner unpublished: cancelling hashrate calculator routines for Miner: %v", minerId)
+				contextlib.Logf(v.Ctx, log.LevelInfo, "Closing Difficulty EMA routine for Miner: %v", minerId)
 				
 				id := msgbus.MinerID(event.ID)
 				v.MinerDiffs.Delete(string(id))
@@ -392,6 +403,8 @@ func (v *MainValidator) difficultyEMA(minerId msgbus.MinerID) {
 }
 
 func (v *MainValidator) hashrateCalculator(instance *Validator, minerId msgbus.MinerID) {
+	contextlib.Logf(v.Ctx, log.LevelInfo, "Starting Hashrate Calculator routine for Miner: %v", minerId)
+
 	for {
 		if !v.Ps.MinerExistsWait(minerId) {
 			return // miner unpublished
@@ -408,6 +421,7 @@ func (v *MainValidator) hashrateCalculator(instance *Validator, minerId msgbus.M
 		endHashCount := instance.HashesAnalyzed
 		hashesAnalyzed := endHashCount - startHashCount
 		if !v.MinerDiffs.Exists(string(minerId)) {
+			contextlib.Logf(v.Ctx, log.LevelInfo, "Closing Hashrate Calculator routine for Miner: %v", minerId)
 			return
 		}
 		poolDifficulty := v.MinerDiffs.Get(string(minerId)).(diffEMA)

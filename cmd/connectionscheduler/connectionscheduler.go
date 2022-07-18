@@ -676,8 +676,10 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract) {
 
 func (cs *ConnectionScheduler) calculateHashrateAvailability(id msgbus.ContractID) (availableHashrate int, contractHashrate int) {
 	miners := cs.ReadyMiners.GetAll()
+	numMiners := 0
 	for _, v := range miners {
 		availableHashrate += v.(msgbus.Miner).CurrentHashRate
+		numMiners++
 	}
 	miners = cs.BusyMiners.GetAll()
 	for _, v := range miners {
@@ -691,11 +693,14 @@ func (cs *ConnectionScheduler) calculateHashrateAvailability(id msgbus.ContractI
 		if v.(msgbus.Miner).TimeSlice {
 			leftoverSlicePercent := cs.Ps.MinerSlicedUtilization(v.(msgbus.Miner).ID)
 			availableHashrate += int(float64(v.(msgbus.Miner).CurrentHashRate) * leftoverSlicePercent)
+			numMiners++
 		}
+		
 	}
 	availableHashrate += contractHashrate
 
 	contextlib.Logf(cs.Ctx, log.LevelInfo, "Available Hashrate for Contract %s: %v", id, availableHashrate)
+	contextlib.Logf(cs.Ctx, log.LevelInfo, "Number of Available Miners for Contract %s: %v", id, numMiners)
 
 	return availableHashrate, contractHashrate
 }
