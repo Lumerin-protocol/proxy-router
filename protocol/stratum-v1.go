@@ -24,26 +24,17 @@ func NewStratumV1(log *zap.SugaredLogger, handler *StratumHandler, conn Connecti
 	return stratum
 }
 
-const blue = "\u001b[34m"
-const green = "\u001b[32m"
-const red = "\u001b[31m"
-const reset = "\u001b[0m"
-
 func (s *StratumV1) MinerMessageHandler(ctx context.Context, msg []byte) []byte {
-	s.log.Debugf("%sMINER    %s %s", blue, reset, msg)
-
+	s.log.Debugf("MINER     %s", msg)
 	msg = s.handleMinerMsg(ctx, msg)
-
-	s.log.Debugf("%sMINER %sMOD%s %s", blue, red, reset, msg)
+	s.log.Debugf("MINER MOD %s", msg)
 	return msg
 }
 
 func (s *StratumV1) PoolMessageHandler(ctx context.Context, msg []byte) []byte {
-	s.log.Debugf("%sPOOL     %s %s", green, reset, msg)
-
+	s.log.Debugf("POOL      %s", msg)
 	msg = s.handlePoolMsg(ctx, msg)
-
-	s.log.Debugf("%sPOOL  %sMOD%s %s", green, red, reset, msg)
+	s.log.Debugf("POOL  MOD %s", msg)
 	return msg
 }
 
@@ -108,11 +99,11 @@ func (s *StratumV1) ChangePool(addr string) error {
 }
 
 func (s *StratumV1) WriteToMiner(ctx context.Context, msg []byte) error {
-	s.log.Debugf("%sWRITE TO %sMINER %s", blue, red, reset, string(msg))
+	s.log.Debugf("WRITE TO MINER %s", string(msg))
 	return s.conn.WriteToMiner(ctx, msg)
 }
 
 func (s *StratumV1) WriteToPool(ctx context.Context, msg []byte) error {
-	s.log.Debugf("%sWRITE TO %sPOOL %s", blue, red, reset, string(msg))
+	s.log.Debugf("WRITE TO POOL %s", string(msg))
 	return s.conn.WriteToPool(ctx, msg)
 }
