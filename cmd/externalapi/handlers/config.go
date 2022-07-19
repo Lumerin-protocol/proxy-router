@@ -5,9 +5,9 @@ import (
 	"errors"
 	"log"
 
+	configv1 "github.com/Lumerin-protocol/lumerin-sdk-go/proto/config/v1"
 	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
 	"gitlab.com/TitanInd/lumerin/cmd/msgbus/msgdata"
-	configv1 "gitlab.com/TitanInd/proxy/lumerin-sdk/pkg/go/proto/config/v1"
 )
 
 type handlers struct {

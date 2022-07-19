@@ -2,10 +2,6 @@
 
 Lumerin Node (aka ProxyRouter)
 
-### Requires setting up private modules support until lumerin-sdk publicly released
-
-[https://titanind.atlassian.net/wiki/spaces/BEDROCK/pages/38862849/Private+Go+modules]()
-
 # Setup with Ganache Test Blockchain
 
 1. Install Go https://go.dev/dl/

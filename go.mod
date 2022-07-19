@@ -3,6 +3,7 @@ module gitlab.com/TitanInd/lumerin
 go 1.16
 
 require (
+	github.com/Lumerin-protocol/lumerin-sdk-go v0.0.29
 	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/btcsuite/btcd v0.22.0-beta
 	github.com/deckarep/golang-set v1.7.1 // indirect
@@ -24,9 +25,8 @@ require (
 	github.com/tklauser/go-sysconf v0.3.9 // indirect
 	github.com/tyler-smith/go-bip39 v1.1.0 // indirect
 	github.com/ugorji/go v1.2.6 // indirect
-	gitlab.com/TitanInd/proxy/lumerin-sdk v0.0.22
 	golang.org/x/crypto v0.0.0-20220112180741-5e0467b6c7ce // indirect
 	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd
 	golang.org/x/sys v0.0.0-20220114195835-da31bd327af9 // indirect
-	google.golang.org/grpc v1.47.0
+	google.golang.org/grpc v1.48.0
 )

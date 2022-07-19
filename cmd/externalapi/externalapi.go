@@ -23,8 +23,8 @@ import (
 
 	runtime "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 
+	configv1 "github.com/Lumerin-protocol/lumerin-sdk-go/proto/config/v1"
 	contextlib "gitlab.com/TitanInd/lumerin/lumerinlib/context"
-	configv1 "gitlab.com/TitanInd/proxy/lumerin-sdk/pkg/go/proto/config/v1"
 )
 
 const HeaderContentType = "Content-Type"
