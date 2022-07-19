@@ -104,6 +104,9 @@ func (m *StratumV1Manager) ChangePool(addr string, username string, password str
 	if err != nil {
 		return fmt.Errorf("cannot change pool %w", err)
 	}
+	m.authUser = username
+	m.authPass = password
+
 	messageID := 1
 	m.lastRequestId.Store(uint32(messageID))
 
