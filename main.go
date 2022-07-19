@@ -15,7 +15,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/events"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
-	"gitlab.com/TitanInd/hashrouter/proxyhandler"
+	"gitlab.com/TitanInd/hashrouter/miner"
 	"gitlab.com/TitanInd/hashrouter/tcpserver"
 	"go.uber.org/zap"
 )
@@ -35,8 +35,9 @@ func InitApp() (*app.App, error) {
 	wire.Build(
 		provideConfig,
 		provideLogger,
+		miner.NewMinerRepo,
+		provideMinerController,
 		provideTCPServer,
-		provideProxyHandler,
 		events.NewEventManager,
 		provideServer,
 		provideEthClient,
@@ -46,15 +47,15 @@ func InitApp() (*app.App, error) {
 	return nil, nil
 }
 
-func provideProxyHandler(cfg *config.Config, l *zap.SugaredLogger) *proxyhandler.ProxyHandler {
-	return proxyhandler.NewProxyHandler(cfg.Pool.Address, cfg.Pool.User, cfg.Pool.Password, l)
+func provideMinerController(cfg *config.Config, l *zap.SugaredLogger, repo *miner.MinerRepo) *miner.MinerController {
+	return miner.NewMinerController(cfg.Pool.Address, cfg.Pool.User, cfg.Pool.Password, repo, l)
 }
 
 func provideTCPServer(cfg *config.Config, l *zap.SugaredLogger) *tcpserver.TCPServer {
 	return tcpserver.NewTCPServer(cfg.Proxy.Address, l)
 }
 
-func provideServer(cfg *config.Config, l *zap.SugaredLogger, ph *proxyhandler.ProxyHandler) *api.Server {
+func provideServer(cfg *config.Config, l *zap.SugaredLogger, ph *miner.MinerController) *api.Server {
 	return api.NewServer(cfg.Web.Address, l, ph)
 }
 

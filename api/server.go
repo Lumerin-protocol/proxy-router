@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"gitlab.com/TitanInd/hashrouter/proxyhandler"
+	"gitlab.com/TitanInd/hashrouter/miner"
 	"go.uber.org/zap"
 )
 
@@ -16,7 +16,7 @@ type Server struct {
 	shutdownTimeout time.Duration
 }
 
-func NewServer(address string, log *zap.SugaredLogger, proxyHandler *proxyhandler.ProxyHandler) *Server {
+func NewServer(address string, log *zap.SugaredLogger, minerController *miner.MinerController) *Server {
 	mux := http.NewServeMux()
 
 	// mux.HandleFunc("/connections", connectionsController.ServeHTTP)
@@ -24,7 +24,7 @@ func NewServer(address string, log *zap.SugaredLogger, proxyHandler *proxyhandle
 		host := r.URL.Query().Get("host")
 		user := r.URL.Query().Get("user")
 		pwd := r.URL.Query().Get("pwd")
-		proxyHandler.ChangeDest(host, user, pwd)
+		minerController.ChangeDestAll(host, user, pwd)
 		w.Write([]byte("success"))
 	})
 

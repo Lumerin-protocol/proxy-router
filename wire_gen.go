@@ -15,7 +15,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/events"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
-	"gitlab.com/TitanInd/hashrouter/proxyhandler"
+	"gitlab.com/TitanInd/hashrouter/miner"
 	"gitlab.com/TitanInd/hashrouter/tcpserver"
 	"go.uber.org/zap"
 	"os"
@@ -33,8 +33,9 @@ func InitApp() (*app.App, error) {
 		return nil, err
 	}
 	tcpServer := provideTCPServer(config, sugaredLogger)
-	proxyHandler := provideProxyHandler(config, sugaredLogger)
-	server := provideServer(config, sugaredLogger, proxyHandler)
+	minerRepo := miner.NewMinerRepo()
+	minerController := provideMinerController(config, sugaredLogger, minerRepo)
+	server := provideServer(config, sugaredLogger, minerController)
 	iEventManager := events.NewEventManager()
 	client, err := provideEthClient(config)
 	if err != nil {
@@ -42,11 +43,11 @@ func InitApp() (*app.App, error) {
 	}
 	sellerContractManager := provideSellerContractManager(config, iEventManager, client, sugaredLogger)
 	appApp := &app.App{
-		TCPServer:     tcpServer,
-		Handler:       proxyHandler,
-		Server:        server,
-		SellerManager: sellerContractManager,
-		Logger:        sugaredLogger,
+		TCPServer:       tcpServer,
+		MinerController: minerController,
+		Server:          server,
+		SellerManager:   sellerContractManager,
+		Logger:          sugaredLogger,
 	}
 	return appApp, nil
 }
@@ -64,15 +65,15 @@ func main() {
 	appInstance.Run()
 }
 
-func provideProxyHandler(cfg *config.Config, l *zap.SugaredLogger) *proxyhandler.ProxyHandler {
-	return proxyhandler.NewProxyHandler(cfg.Pool.Address, cfg.Pool.User, cfg.Pool.Password, l)
+func provideMinerController(cfg *config.Config, l *zap.SugaredLogger, repo *miner.MinerRepo) *miner.MinerController {
+	return miner.NewMinerController(cfg.Pool.Address, cfg.Pool.User, cfg.Pool.Password, repo, l)
 }
 
 func provideTCPServer(cfg *config.Config, l *zap.SugaredLogger) *tcpserver.TCPServer {
 	return tcpserver.NewTCPServer(cfg.Proxy.Address, l)
 }
 
-func provideServer(cfg *config.Config, l *zap.SugaredLogger, ph *proxyhandler.ProxyHandler) *api.Server {
+func provideServer(cfg *config.Config, l *zap.SugaredLogger, ph *miner.MinerController) *api.Server {
 	return api.NewServer(cfg.Web.Address, l, ph)
 }
 

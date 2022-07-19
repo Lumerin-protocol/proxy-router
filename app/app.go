@@ -8,18 +8,18 @@ import (
 
 	"gitlab.com/TitanInd/hashrouter/api"
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
-	"gitlab.com/TitanInd/hashrouter/proxyhandler"
+	"gitlab.com/TitanInd/hashrouter/miner"
 	"gitlab.com/TitanInd/hashrouter/tcpserver"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
 
 type App struct {
-	TCPServer     *tcpserver.TCPServer
-	Handler       *proxyhandler.ProxyHandler
-	Server        *api.Server
-	SellerManager *contractmanager.SellerContractManager
-	Logger        *zap.SugaredLogger
+	TCPServer       *tcpserver.TCPServer
+	MinerController *miner.MinerController
+	Server          *api.Server
+	SellerManager   *contractmanager.SellerContractManager
+	Logger          *zap.SugaredLogger
 }
 
 func (a *App) Run() {
@@ -42,7 +42,7 @@ func (a *App) Run() {
 	g, subCtx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		a.TCPServer.SetConnectionHandler(a.Handler)
+		a.TCPServer.SetConnectionHandler(a.MinerController)
 		return a.TCPServer.Run(subCtx)
 	})
 

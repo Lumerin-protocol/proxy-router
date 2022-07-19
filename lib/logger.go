@@ -1,31 +1,58 @@
 package lib
 
 import (
+	"os"
+
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
 func NewLogger(syslog bool) (*zap.SugaredLogger, error) {
-	var cfg zap.Config
+	var (
+		log *zap.Logger
+		err error
+	)
 
 	if syslog {
-		cfg = zap.NewProductionConfig()
+		log, err = newProductionLogger()
 	} else {
-		cfg = newDevelopmentConfig()
+		log, err = newDevelopmentLogger()
+	}
+	if err != nil {
+		return nil, err
 	}
 
+	return log.Sugar(), nil
+}
+
+func newDevelopmentLogger() (*zap.Logger, error) {
+	consoleEncoderCfg := zap.NewDevelopmentEncoderConfig()
+	consoleEncoderCfg.EncodeTime = zapcore.TimeEncoderOfLayout("2006-01-02 15:04:05")
+	consoleEncoderCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	consoleEncoder := zapcore.NewConsoleEncoder(consoleEncoderCfg)
+
+	fileEncoderCfg := zap.NewDevelopmentEncoderConfig()
+	fileEncoderCfg.EncodeTime = zapcore.TimeEncoderOfLayout("2006-01-02 15:04:05")
+	fileEncoder := zapcore.NewConsoleEncoder(fileEncoderCfg)
+
+	file, err := os.OpenFile("logfile.log", os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+	if err != nil {
+		return nil, err
+	}
+
+	core := zapcore.NewTee(
+		zapcore.NewCore(fileEncoder, zapcore.AddSync(file), zap.DebugLevel),
+		zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), zap.DebugLevel),
+	)
+
+	return zap.New(core), nil
+}
+
+func newProductionLogger() (*zap.Logger, error) {
+	cfg := zap.NewProductionConfig()
 	l, err := cfg.Build()
 	if err != nil {
 		return nil, err
 	}
-	return l.Sugar(), nil
-}
-
-func newDevelopmentConfig() zap.Config {
-	cfg := zap.NewDevelopmentConfig()
-	cfg.Development = false
-	cfg.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout("2006-01-02 15:04:05")
-	cfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	cfg.OutputPaths = []string{"logfile.log", "stdout"}
-	return cfg
+	return l, nil
 }
