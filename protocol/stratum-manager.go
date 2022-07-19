@@ -53,6 +53,11 @@ func (m *StratumV1Manager) Init() {
 			authMsg.SetPassword(m.authPass)
 		}
 
+		submitMsg, ok := msg.(*message.MiningSubmit)
+		if ok {
+			submitMsg.SetWorkerName(m.authUser)
+		}
+
 		oldId := msg.GetID()
 		newID := int(m.lastRequestId.Inc())
 		m.newIDToOldID[newID] = oldId

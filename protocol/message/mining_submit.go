@@ -6,9 +6,9 @@ import "encoding/json"
 const MethodMiningSubmit = "mining.submit"
 
 type MiningSubmit struct {
-	ID     int             `json:"id"`
-	Method string          `json:"method,omitempty"`
-	Params json.RawMessage `json:"params"`
+	ID     int       `json:"id"`
+	Method string    `json:"method,omitempty"`
+	Params [5]string `json:"params"`
 }
 
 func ParseMiningSubmit(b []byte) (*MiningSubmit, error) {
@@ -22,6 +22,14 @@ func (m *MiningSubmit) GetID() int {
 
 func (m *MiningSubmit) SetID(ID int) {
 	m.ID = ID
+}
+
+func (m *MiningSubmit) GetWorkerName() string {
+	return m.Params[0]
+}
+
+func (m *MiningSubmit) SetWorkerName(name string) {
+	m.Params[0] = name
 }
 
 func (m *MiningSubmit) Serialize() []byte {
