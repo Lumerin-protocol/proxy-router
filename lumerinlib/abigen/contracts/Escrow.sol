@@ -40,20 +40,6 @@ contract Escrow is ReentrancyGuard {
         contractTotal = _lumerinTotal;
     }
 
-    // @notice Find out how much is left to fullfill the Escrow to say it's funded.
-    // @dev This is used to determine if the contract amount has been
-    // fullfilled and return how much is left to be fullfilled.
-    function dueAmount() internal returns (uint256) {
-        if (myToken.balanceOf(address(this)) > contractTotal) {
-            myToken.transfer(
-                escrow_purchaser,
-                myToken.balanceOf(address(this)) - contractTotal
-            );
-            return 0;
-        }
-        return contractTotal - myToken.balanceOf(address(this));
-    }
-
     // @notice Validator can request the funds to be released once determined it's safe to do.
     // @dev Function makes sure the contract was fully funded
     // by checking the State and if so, release the funds to the seller.
@@ -69,3 +55,4 @@ contract Escrow is ReentrancyGuard {
         }
     }
 }
+

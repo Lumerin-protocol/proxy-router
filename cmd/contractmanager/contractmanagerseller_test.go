@@ -175,6 +175,7 @@ loop2:
 		CurrentHashRate: 20,
 		State:           msgbus.OnlineState,
 		Dest:            defaultDest.ID,
+		Contracts:       make(map[msgbus.ContractID]float64),
 	}
 	miner2 := msgbus.Miner{
 		ID:              msgbus.MinerID("MinerID02"),
@@ -182,6 +183,7 @@ loop2:
 		CurrentHashRate: 10,
 		State:           msgbus.OnlineState,
 		Dest:            defaultDest.ID,
+		Contracts:       make(map[msgbus.ContractID]float64),
 	}
 	ps.Pub(msgbus.MinerMsg, msgbus.IDString(miner1.ID), miner1)
 	ps.Pub(msgbus.MinerMsg, msgbus.IDString(miner2.ID), miner2)
@@ -202,7 +204,7 @@ loop2:
 	// connection scheduler sets contract to correct miner
 	m1, _ := ps.MinerGetWait(miner1.ID)
 	m2, _ := ps.MinerGetWait(miner2.ID)
-	if m1.Contracts[msgbus.ContractID(hashrateContractAddress[0].Hex())] {
+	if _,ok := m1.Contracts[msgbus.ContractID(hashrateContractAddress[0].Hex())]; ok {
 		t.Errorf("Miner contracts not set correctly")
 	}
 	if len(m2.Contracts) == 0 {
@@ -263,7 +265,7 @@ loop4:
 	if len(m1.Contracts) == 0 {
 		t.Errorf("Miner contracts not set correctly")
 	}
-	if m2.Contracts[msgbus.ContractID(hashrateContractAddress[1].Hex())] {
+	if _,ok := m2.Contracts[msgbus.ContractID(hashrateContractAddress[1].Hex())]; ok {
 		t.Errorf("Miner contracts not set correctly")
 	}
 
@@ -300,6 +302,7 @@ loop4:
 		CurrentHashRate: 30,
 		State:           msgbus.OnlineState,
 		Dest:            defaultDest.ID,
+		Contracts:       make(map[msgbus.ContractID]float64),
 	}
 	ps.Pub(msgbus.MinerMsg, msgbus.IDString(miner3.ID), miner3)
 
@@ -339,7 +342,7 @@ loop6:
 	if len(m2.Contracts) == 0 {
 		t.Errorf("Miner contracts not set correctly")
 	}
-	if m3.Contracts[msgbus.ContractID(hashrateContractAddress[2].Hex())] {
+	if _,ok := m3.Contracts[msgbus.ContractID(hashrateContractAddress[2].Hex())]; ok {
 		t.Errorf("Miner contracts not set correctly")
 	}
 
@@ -371,6 +374,7 @@ loop6:
 		CurrentHashRate: 15,
 		State:           msgbus.OnlineState,
 		Dest:            defaultDest.ID,
+		Contracts:       make(map[msgbus.ContractID]float64),
 	}
 	ps.Pub(msgbus.MinerMsg, msgbus.IDString(miner4.ID), miner4)
 
@@ -415,7 +419,7 @@ loop8:
 	if len(m3.Contracts) == 0 {
 		t.Errorf("Miner contracts not set correctly")
 	}
-	if m4.Contracts[msgbus.ContractID(hashrateContractAddress[3].Hex())] {
+	if _,ok := m4.Contracts[msgbus.ContractID(hashrateContractAddress[3].Hex())]; ok {
 		t.Errorf("Miner contracts not set correctly")
 	}
 
