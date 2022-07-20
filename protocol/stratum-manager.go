@@ -24,24 +24,33 @@ type StratumV1Manager struct {
 	subscribeMsg   message.MiningMessageToPool
 	authUser       string
 	authPass       string
-	extranonce     string
-	extranonceSize int
 	log            *zap.SugaredLogger
+
+	notificationsOnHold           chan message.MiningMessageGeneric
+	notificationsCh               chan message.MiningMessageGeneric
+	notificationsPassthroughState chan bool
 }
 
 func NewStratumV1Manager(handler *StratumHandler, stratum *StratumV1, log *zap.SugaredLogger, authUser string, authPass string) *StratumV1Manager {
 	return &StratumV1Manager{
-		stratum:       stratum,
-		handler:       handler,
-		lastRequestId: atomic.NewUint32(0),
-		resHandlers:   make(map[int]StratumResultHandler),
-		log:           log,
-		authUser:      authUser,
-		authPass:      authPass,
+		stratum:                       stratum,
+		handler:                       handler,
+		lastRequestId:                 atomic.NewUint32(0),
+		resHandlers:                   make(map[int]StratumResultHandler),
+		log:                           log,
+		authUser:                      authUser,
+		authPass:                      authPass,
+		notificationsOnHold:           make(chan message.MiningMessageGeneric, 100),
+		notificationsCh:               make(chan message.MiningMessageGeneric, 100),
+		notificationsPassthroughState: make(chan bool, 1),
 	}
 }
 
 func (m *StratumV1Manager) Init() {
+	go func() {
+		m.NotificationsPassthrough(context.TODO())
+	}()
+
 	m.handler.OnMinerRequest(func(msg message.MiningMessageToPool, s StratumHandlerObject) message.MiningMessageGeneric {
 		_, ok := msg.(*message.MiningSubscribe)
 		if ok {
@@ -75,6 +84,16 @@ func (m *StratumV1Manager) Init() {
 
 		return msg
 	})
+
+	m.handler.OnPoolNotify(func(msg *message.MiningNotify, s StratumHandlerObject) message.MiningMessageGeneric {
+		m.notificationsCh <- msg
+		return nil
+	})
+
+	m.handler.OnPoolSetDifficulty(func(msg *message.MiningSetDifficulty, s StratumHandlerObject) message.MiningMessageGeneric {
+		m.notificationsCh <- msg
+		return nil
+	})
 }
 
 func (m *StratumV1Manager) GetID() string {
@@ -87,8 +106,7 @@ func (m *StratumV1Manager) SetAuth(userName string, password string) {
 }
 
 func (m *StratumV1Manager) ChangePool(addr string, username string, password string) error {
-	m.isChangingPool = true
-	defer func() { m.isChangingPool = false }()
+	m.HoldNotifications(context.TODO())
 	err := m.stratum.ChangePool(addr)
 	if err != nil {
 		return fmt.Errorf("cannot change pool %w", err)
@@ -104,7 +122,7 @@ func (m *StratumV1Manager) ChangePool(addr string, username string, password str
 	if subscribeRes.IsError() {
 		return fmt.Errorf("invalid subscribe response %s", subscribeRes.Serialize())
 	}
-	m.log.Debug("reconnect: sent subscribe")
+	m.log.Debug("change pool: subscribe sent")
 
 	data := [3]interface{}{}
 	// subscribeRes.Result.
@@ -120,7 +138,7 @@ func (m *StratumV1Manager) ChangePool(addr string, username string, password str
 		return err
 	}
 
-	m.log.Infof("send extranonce to miner %s %d", extranonce, extranonceSize)
+	m.log.Infof("change pool: extranonce sent %s %d", extranonce, extranonceSize)
 
 	authMsg := message.NewMiningAuthorize()
 	authMsg.SetMinerID(username)
@@ -133,8 +151,25 @@ func (m *StratumV1Manager) ChangePool(addr string, username string, password str
 		// TODO: on error fallback to previous pool
 		return err
 	}
-	m.log.Debug("reconnect: sent authorize")
+	m.log.Debug("change pool: authorize sent")
 
+	m.ReleaseNotifications(context.TODO())
+
+	m.isChangingPool = false
+	m.log.Debug("change pool: finished")
+
+	return nil
+}
+
+func (m *StratumV1Manager) HoldNotifications(ctx context.Context) {
+	m.notificationsPassthroughState <- false
+	m.log.Info("notifications put on-hold")
+}
+
+func (m *StratumV1Manager) ReleaseNotifications(ctx context.Context) error {
+	m.log.Infof("on-hold notifications to be released: %d", len(m.notificationsCh))
+	m.notificationsPassthroughState <- true
+	m.log.Info("on-hold notifications were released")
 	return nil
 }
 
@@ -171,5 +206,30 @@ func (m *StratumV1Manager) SendPoolRequestWait(msg message.MiningMessageToPool) 
 		return nil, err
 	case res := <-resCh:
 		return &res, nil
+	}
+}
+
+func (m *StratumV1Manager) NotificationsPassthrough(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case msg := <-m.notificationsCh:
+			err := m.stratum.WriteToMiner(context.TODO(), msg.Serialize())
+			if err != nil {
+				return err
+			}
+		case state := <-m.notificationsPassthroughState:
+			if !state {
+				m.log.Info("notifications passthrough paused")
+				for {
+					state := <-m.notificationsPassthroughState
+					if state {
+						m.log.Info("notifications passthrough resumed")
+						break
+					}
+				}
+			}
+		}
 	}
 }
