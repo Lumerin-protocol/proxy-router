@@ -292,7 +292,8 @@ func (v *MainValidator) validateHandler(ch msgbus.EventChan) {
 					if len(merkelBranchesStr) != 0 {
 						merkelRoot, err := ConvertMerkleBranchesToRoot(merkelBranchesStr)
 						if err != nil {
-							contextlib.Logf(v.Ctx, log.LevelPanic, "Failed to convert merkel branches to merkel root, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+							contextlib.Logf(v.Ctx, log.LevelError, "Failed to convert merkel branches to merkel root, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+							break loop	
 						}
 						merkelRootStr = merkelRoot.String()
 					}
@@ -371,7 +372,8 @@ func (v *MainValidator) difficultyEMA(minerId msgbus.MinerID) {
 	minerEventChan := msgbus.NewEventChan()
 	_, err := v.Ps.Sub(msgbus.MinerMsg, msgbus.IDString(minerId), minerEventChan)
 	if err != nil {
-		contextlib.Logf(v.Ctx, log.LevelPanic, "Failed to subscribe to miner events, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+		contextlib.Logf(v.Ctx, log.LevelError, "Failed to subscribe to miner events, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+		return
 	}
 	for {
 		select {
@@ -411,7 +413,8 @@ func (v *MainValidator) hashrateCalculator(instance *Validator, minerId msgbus.M
 		} 
 		miner, err := v.Ps.MinerGetWait(minerId)
 		if err != nil {
-			contextlib.Logf(v.Ctx, log.LevelPanic, "Failed to get miner, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+			contextlib.Logf(v.Ctx, log.LevelError, "Failed to get miner, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+			return
 		}
 
 		// calculate 5 minute moving average of hashrate
