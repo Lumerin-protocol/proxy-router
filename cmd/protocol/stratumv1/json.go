@@ -139,18 +139,6 @@ type noticeMiningSetVersionMask struct {
 	Jsonrpc string        `json:"jsonrpc,omitempty"`
 }
 
-//type noticeMiningNotifyParams struct {
-//	JobID          string   `json:","`
-//	PrevBlockHash  string   `json:","`
-//	Gen1           string   `json:","`
-//	Gen2           string   `json:","`
-//	MerkelBranches []string `json:","`
-//	BlockVersion   string   `json:","`
-//	NBits          string   `json:","`
-//	NTime          string   `json:","`
-//	CleanJob       bool     `json:","`
-//}
-
 type MiningNotify struct {
 	ID      *string        `json:"id"`
 	Jsonrpc string         `json:"jsonrpc,omitempty"`
@@ -165,13 +153,6 @@ type stratumResponse struct {
 	Reject  interface{} `json:"reject-reason,omitempty"`
 	Jsonrpc string      `json:"jsonrpc,omitempty"`
 }
-
-//type stratumConfigureResponse struct {
-//	ID      int            `json:"id"`
-//	Error   *string        `json:"error"`
-//	Result  [3]interface{} `json:"result"`
-//	Jsonrpc string         `json:"jsonrpc,omitempty"`
-//}
 
 //
 //

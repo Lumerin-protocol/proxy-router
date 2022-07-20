@@ -223,6 +223,12 @@ func (v *MainValidator) minerHandler(ch msgbus.EventChan) {
 				contextlib.Logf(v.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Got Miner Unpublish/Unsubscribe Event: %v", event)
 				
 				id := msgbus.MinerID(event.ID)
+		
+				contextlib.Logf(v.Ctx, log.LevelInfo, "Closing validator instance for Miner: %v", id)
+				var closeMessage = Message{}
+				closeMessage.Address = string(id)
+				closeMessage.MessageType = "closeValidator"
+				v.SendMessageToValidator(closeMessage)
 				v.MinersVal.Delete(string(id))
 			}
 		}
@@ -286,7 +292,8 @@ func (v *MainValidator) validateHandler(ch msgbus.EventChan) {
 					if len(merkelBranchesStr) != 0 {
 						merkelRoot, err := ConvertMerkleBranchesToRoot(merkelBranchesStr)
 						if err != nil {
-							contextlib.Logf(v.Ctx, log.LevelPanic, "Failed to convert merkel branches to merkel root, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+							contextlib.Logf(v.Ctx, log.LevelError, "Failed to convert merkel branches to merkel root, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+							break loop	
 						}
 						merkelRootStr = merkelRoot.String()
 					}
@@ -351,23 +358,29 @@ func (v *MainValidator) validateHandler(ch msgbus.EventChan) {
 				default:
 					contextlib.Logf(v.Ctx, log.LevelTrace, lumerinlib.Funcname()+" Got Validate Msg with different type: %v", event)
 				}
+
+				// delete validate msg from msgbus once finished with it
+				v.Ps.Unpub(msgbus.ValidateMsg, msgbus.IDString(validateMsg.ID))
 			}
 		}
 	}
 }
 
 func (v *MainValidator) difficultyEMA(minerId msgbus.MinerID) {
+	contextlib.Logf(v.Ctx, log.LevelInfo, "Starting Difficulty EMA routine for Miner: %v", minerId)
 	// Monitor Miner Unpublish Events
 	minerEventChan := msgbus.NewEventChan()
 	_, err := v.Ps.Sub(msgbus.MinerMsg, msgbus.IDString(minerId), minerEventChan)
 	if err != nil {
-		contextlib.Logf(v.Ctx, log.LevelPanic, "Failed to subscribe to miner events, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+		contextlib.Logf(v.Ctx, log.LevelError, "Failed to subscribe to miner events, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+		return
 	}
 	for {
 		select {
 		case event := <- minerEventChan:
 			if event.EventType == msgbus.UnpublishEvent {
 				contextlib.Logf(v.Ctx, log.LevelInfo, lumerinlib.Funcname()+"Miner unpublished: cancelling hashrate calculator routines for Miner: %v", minerId)
+				contextlib.Logf(v.Ctx, log.LevelInfo, "Closing Difficulty EMA routine for Miner: %v", minerId)
 				
 				id := msgbus.MinerID(event.ID)
 				v.MinerDiffs.Delete(string(id))
@@ -392,13 +405,16 @@ func (v *MainValidator) difficultyEMA(minerId msgbus.MinerID) {
 }
 
 func (v *MainValidator) hashrateCalculator(instance *Validator, minerId msgbus.MinerID) {
+	contextlib.Logf(v.Ctx, log.LevelInfo, "Starting Hashrate Calculator routine for Miner: %v", minerId)
+
 	for {
 		if !v.Ps.MinerExistsWait(minerId) {
 			return // miner unpublished
 		} 
 		miner, err := v.Ps.MinerGetWait(minerId)
 		if err != nil {
-			contextlib.Logf(v.Ctx, log.LevelPanic, "Failed to get miner, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+			contextlib.Logf(v.Ctx, log.LevelError, "Failed to get miner, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+			return
 		}
 
 		// calculate 5 minute moving average of hashrate
@@ -408,6 +424,7 @@ func (v *MainValidator) hashrateCalculator(instance *Validator, minerId msgbus.M
 		endHashCount := instance.HashesAnalyzed
 		hashesAnalyzed := endHashCount - startHashCount
 		if !v.MinerDiffs.Exists(string(minerId)) {
+			contextlib.Logf(v.Ctx, log.LevelInfo, "Closing Hashrate Calculator routine for Miner: %v", minerId)
 			return
 		}
 		poolDifficulty := v.MinerDiffs.Get(string(minerId)).(diffEMA)
@@ -427,7 +444,7 @@ func (v *MainValidator) hashrateCalculator(instance *Validator, minerId msgbus.M
 		rateBigInt := new(big.Int).Div(totalHashes, big.NewInt(int64(timeInterval.Seconds())))
 		hashrate := int(rateBigInt.Int64())
 
-		// take average hourly average of hashrate
+		// take hourly average of hashrate
 		if len(instance.Hashrates) >= 6 {
 			instance.Hashrates = instance.Hashrates[1:]
 		} 
@@ -441,8 +458,28 @@ func (v *MainValidator) hashrateCalculator(instance *Validator, minerId msgbus.M
 		
 		contextlib.Logf(v.Ctx, log.LevelTrace, lumerinlib.Funcname()+" Current Hashrate Moving Average for Miner %s: %d", miner.ID, newHashrate)
 
-		// update miner with new hashrate value
+		// update miner with new hashrate value and fix slicing percentages accordingly
 		miner.CurrentHashRate = newHashrate
+		timeSlice := false
+		if len(miner.Contracts) > 0 && len(instance.Hashrates) > 1 {
+			hashrateUpdateFactor := float64(instance.Hashrates[len(instance.Hashrates) - 2])/float64(newHashrate)
+			for i, v := range miner.Contracts {
+				newSliceFactor := v*hashrateUpdateFactor
+				if v < 1 && newSliceFactor < 1 {
+					miner.Contracts[i] = newSliceFactor
+				} else if v < 1 && newSliceFactor >= 1 {
+					miner.Contracts[i] = 1
+				}
+
+				// check if miner still needs to be sliced after updates
+				if miner.Contracts[i] < 1 {
+					timeSlice = true
+				}
+			}
+		}
+		if timeSlice {
+			miner.TimeSlice = true
+		}
 		v.Ps.MinerSetWait(*miner)
 	}
 }

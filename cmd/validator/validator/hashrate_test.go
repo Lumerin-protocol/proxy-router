@@ -31,8 +31,8 @@ func TestHashrate(t *testing.T) {
 	if err != nil {
 		panic(fmt.Sprintf("Validator failed to start: %v", err))
 	}
-
-	miner := msgbus.Miner{
+	time.Sleep(time.Second * 1)
+	miner1 := msgbus.Miner{
 		ID:                   msgbus.MinerID("MinerID01"),
 		IP:                   "IpAddress1",
 		CurrentHashRate:      0,
@@ -56,7 +56,7 @@ func TestHashrate(t *testing.T) {
 		Dest:                 defaultDest.ID,
 		Contracts: 			  make(map[msgbus.ContractID]float64),	
 	}
-	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner.ID), miner)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner1.ID), miner1)
 	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner2.ID), miner2)
 	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner3.ID), miner3)
 
@@ -170,18 +170,18 @@ func TestHashrate(t *testing.T) {
 
 	time.Sleep(time.Second * 3)
 
-	ps.SendValidateSetDiff(context.Background(), miner.ID, defaultDest.ID, 65535) //486604799 4294901789
+	ps.SendValidateSetDiff(context.Background(), miner1.ID, defaultDest.ID, 65535) //486604799 4294901789
 	time.Sleep(time.Second * 1)
 
 	ps.SendValidateSetDiff(context.Background(), miner2.ID, defaultDest.ID, 65535) //486604799 4294901789
 	time.Sleep(time.Second * 1)
 
 	ps.SendValidateSetDiff(context.Background(), miner3.ID, defaultDest.ID, 65535) //486604799 4294901789
-	time.Sleep(time.Second * 1)
+	time.Sleep(time.Second * 5)
 
 
 
-	ps.SendValidateNotify(context.Background(), miner.ID, defaultDest.ID, workerNames[0], notifyJobIds[0], notifyPrevBlocks[0], notifyGen1s[0], notifyGen2s[0], notifyMerkless[0], notifyVersions[0], notifyNbitss[0], notifyNtimes[0], notifyCleans[0])
+	ps.SendValidateNotify(context.Background(), miner1.ID, defaultDest.ID, workerNames[0], notifyJobIds[0], notifyPrevBlocks[0], notifyGen1s[0], notifyGen2s[0], notifyMerkless[0], notifyVersions[0], notifyNbitss[0], notifyNtimes[0], notifyCleans[0])
 	time.Sleep(time.Second * 3)
 
 	ps.SendValidateNotify(context.Background(), miner2.ID, defaultDest.ID, workerNames[1], notifyJobIds[1], notifyPrevBlocks[1], notifyGen1s[1], notifyGen2s[1], notifyMerkless[1], notifyVersions[1], notifyNbitss[1], notifyNtimes[1], notifyCleans[1])
@@ -190,7 +190,7 @@ func TestHashrate(t *testing.T) {
 	ps.SendValidateNotify(context.Background(), miner3.ID, defaultDest.ID, workerNames[2], notifyJobIds[2], notifyPrevBlocks[2], notifyGen1s[2], notifyGen2s[2], notifyMerkless[2], notifyVersions[2], notifyNbitss[2], notifyNtimes[2], notifyCleans[2])
 	time.Sleep(time.Second * 3)
 
-	ps.SendValidateSetDiff(context.Background(), miner.ID, defaultDest.ID, 65535) //486604799 4294901789
+	ps.SendValidateSetDiff(context.Background(), miner1.ID, defaultDest.ID, 65535) //486604799 4294901789
 	time.Sleep(time.Second * 1)
 
 	ps.SendValidateSetDiff(context.Background(), miner2.ID, defaultDest.ID, 65535) //486604799 4294901789
@@ -200,7 +200,7 @@ func TestHashrate(t *testing.T) {
 	time.Sleep(time.Second * 1)
 
 
-	ps.SendValidateSubmit(context.Background(), workerNames[0], miner.ID, defaultDest.ID, jobIDs[0], extraNonce2s[0], nTimes[0], nOnces[0])
+	ps.SendValidateSubmit(context.Background(), workerNames[0], miner1.ID, defaultDest.ID, jobIDs[0], extraNonce2s[0], nTimes[0], nOnces[0])
 	time.Sleep(time.Second * 3)
 
 	ps.SendValidateSubmit(context.Background(), workerNames[1], miner2.ID, defaultDest.ID, jobIDs[1], extraNonce2s[1], nTimes[1], nOnces[1])
@@ -216,6 +216,89 @@ func TestHashrate(t *testing.T) {
 	time.Sleep(time.Second * 3)
 	
 	ps.SendValidateSubmit(context.Background(), workerNames[5], miner3.ID, defaultDest.ID, jobIDs[5], extraNonce2s[5], nTimes[5], nOnces[5])
+	time.Sleep(time.Second * 3)
+
+	ps.UnpubWait(msgbus.MinerMsg, msgbus.IDString(miner1.ID))
+	ps.UnpubWait(msgbus.MinerMsg, msgbus.IDString(miner2.ID))
+	ps.UnpubWait(msgbus.MinerMsg, msgbus.IDString(miner3.ID))
+	
+	miner4 := msgbus.Miner{
+		ID:                   msgbus.MinerID("MinerID04"),
+		IP:                   "IpAddress1",
+		CurrentHashRate:      0,
+		State:                msgbus.OnlineState,
+		Dest:                 defaultDest.ID,
+		Contracts: 			  make(map[msgbus.ContractID]float64),	
+	}
+	miner5 := msgbus.Miner{
+		ID:                   msgbus.MinerID("MinerID05"),
+		IP:                   "IpAddress2",
+		CurrentHashRate:      0,
+		State:                msgbus.OnlineState,
+		Dest:                 defaultDest.ID,
+		Contracts: 			  make(map[msgbus.ContractID]float64),	
+	}
+	miner6 := msgbus.Miner{
+		ID:                   msgbus.MinerID("MinerID06"),
+		IP:                   "IpAddress3",
+		CurrentHashRate:      0,
+		State:                msgbus.OnlineState,
+		Dest:                 defaultDest.ID,
+		Contracts: 			  make(map[msgbus.ContractID]float64),	
+	}
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner4.ID), miner4)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner5.ID), miner5)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner6.ID), miner6)
+
+
+	time.Sleep(time.Second * 5)
+
+	ps.SendValidateSetDiff(context.Background(), miner4.ID, defaultDest.ID, 65535) //486604799 4294901789
+	time.Sleep(time.Second * 1)
+
+	ps.SendValidateSetDiff(context.Background(), miner5.ID, defaultDest.ID, 65535) //486604799 4294901789
+	time.Sleep(time.Second * 1)
+
+	ps.SendValidateSetDiff(context.Background(), miner6.ID, defaultDest.ID, 65535) //486604799 4294901789
+	time.Sleep(time.Second * 1)
+
+
+
+	ps.SendValidateNotify(context.Background(), miner4.ID, defaultDest.ID, workerNames[0], notifyJobIds[0], notifyPrevBlocks[0], notifyGen1s[0], notifyGen2s[0], notifyMerkless[0], notifyVersions[0], notifyNbitss[0], notifyNtimes[0], notifyCleans[0])
+	time.Sleep(time.Second * 3)
+
+	ps.SendValidateNotify(context.Background(), miner5.ID, defaultDest.ID, workerNames[1], notifyJobIds[1], notifyPrevBlocks[1], notifyGen1s[1], notifyGen2s[1], notifyMerkless[1], notifyVersions[1], notifyNbitss[1], notifyNtimes[1], notifyCleans[1])
+	time.Sleep(time.Second * 3)
+
+	ps.SendValidateNotify(context.Background(), miner6.ID, defaultDest.ID, workerNames[2], notifyJobIds[2], notifyPrevBlocks[2], notifyGen1s[2], notifyGen2s[2], notifyMerkless[2], notifyVersions[2], notifyNbitss[2], notifyNtimes[2], notifyCleans[2])
+	time.Sleep(time.Second * 3)
+
+	ps.SendValidateSetDiff(context.Background(), miner4.ID, defaultDest.ID, 65535) //486604799 4294901789
+	time.Sleep(time.Second * 1)
+
+	ps.SendValidateSetDiff(context.Background(), miner5.ID, defaultDest.ID, 65535) //486604799 4294901789
+	time.Sleep(time.Second * 1)
+
+	ps.SendValidateSetDiff(context.Background(), miner6.ID, defaultDest.ID, 65535) //486604799 4294901789
+	time.Sleep(time.Second * 1)
+
+
+	ps.SendValidateSubmit(context.Background(), workerNames[0], miner4.ID, defaultDest.ID, jobIDs[0], extraNonce2s[0], nTimes[0], nOnces[0])
+	time.Sleep(time.Second * 3)
+
+	ps.SendValidateSubmit(context.Background(), workerNames[1], miner5.ID, defaultDest.ID, jobIDs[1], extraNonce2s[1], nTimes[1], nOnces[1])
+	time.Sleep(time.Second * 3)
+	
+	ps.SendValidateSubmit(context.Background(), workerNames[2], miner5.ID, defaultDest.ID, jobIDs[2], extraNonce2s[2], nTimes[2], nOnces[2])
+	time.Sleep(time.Second * 3)
+
+	ps.SendValidateSubmit(context.Background(), workerNames[3], miner6.ID, defaultDest.ID, jobIDs[3], extraNonce2s[3], nTimes[3], nOnces[3])
+	time.Sleep(time.Second * 3)
+
+	ps.SendValidateSubmit(context.Background(), workerNames[4], miner6.ID, defaultDest.ID, jobIDs[4], extraNonce2s[4], nTimes[4], nOnces[4])
+	time.Sleep(time.Second * 3)
+	
+	ps.SendValidateSubmit(context.Background(), workerNames[5], miner6.ID, defaultDest.ID, jobIDs[5], extraNonce2s[5], nTimes[5], nOnces[5])
 	time.Sleep(time.Second * 3)
 	
 	time.Sleep(time.Second * 240)
