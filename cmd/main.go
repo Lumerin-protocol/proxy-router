@@ -219,7 +219,7 @@ func main() {
 	//
 	if !configs.DisableApi {
 		api := externalapi.New(ps, connectionCollection)
-		go api.Run(configs.ApiPort, l)
+		go api.Run(mainContext, configs.ApiPort)
 	}
 
 	select {
