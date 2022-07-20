@@ -431,8 +431,9 @@ FORLOOP:
 			scre.err = comm.Err()
 
 			// Only log non SRC connection errors here
+			// Typically connection closed
 			if scre.err != nil && scre.uID < 0 {
-				contextlib.Logf(s.ctx, contextlib.LevelError, lumerinlib.FileLineFunc()+" Readchan: UID:%d, Err:%s", scre.uID, scre.err)
+				contextlib.Logf(s.ctx, contextlib.LevelInfo, lumerinlib.FileLineFunc()+" Readchan: UID:%d, Err:%s", scre.uID, scre.err)
 			}
 
 			ev := &SimpleEvent{
