@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -19,11 +20,12 @@ type StratumV1Manager struct {
 	stratum        *StratumV1
 	lastRequestId  *atomic.Uint32
 	resHandlers    map[int]StratumResultHandler // maps MINER request id to callback, the resulting proxyrouter id can be different
-	newIDToOldID   map[int]int
 	isChangingPool bool
 	subscribeMsg   message.MiningMessageToPool
 	authUser       string
 	authPass       string
+	extranonce     string
+	extranonceSize int
 	log            *zap.SugaredLogger
 }
 
@@ -33,7 +35,6 @@ func NewStratumV1Manager(handler *StratumHandler, stratum *StratumV1, log *zap.S
 		handler:       handler,
 		lastRequestId: atomic.NewUint32(0),
 		resHandlers:   make(map[int]StratumResultHandler),
-		newIDToOldID:  make(map[int]int),
 		log:           log,
 		authUser:      authUser,
 		authPass:      authPass,
@@ -58,10 +59,6 @@ func (m *StratumV1Manager) Init() {
 			submitMsg.SetWorkerName(m.authUser)
 		}
 
-		oldId := msg.GetID()
-		newID := int(m.lastRequestId.Inc())
-		m.newIDToOldID[newID] = oldId
-		msg.SetID(newID)
 		return msg
 	})
 
@@ -76,14 +73,6 @@ func (m *StratumV1Manager) Init() {
 			msg = m.(*message.MiningResult)
 		}
 
-		oldId, ok := m.newIDToOldID[newID]
-		if !ok {
-			m.log.Warnf("Unknown message id %d", newID)
-			m.log.Warn(m.newIDToOldID)
-			return msg
-		}
-		delete(m.newIDToOldID, newID)
-		msg.SetID(oldId)
 		return msg
 	})
 }
@@ -104,18 +93,34 @@ func (m *StratumV1Manager) ChangePool(addr string, username string, password str
 	if err != nil {
 		return fmt.Errorf("cannot change pool %w", err)
 	}
-	m.authUser = username
-	m.authPass = password
 
-	messageID := 1
-	m.lastRequestId.Store(uint32(messageID))
+	m.SetAuth(username, password)
 
-	_, err = m.SendPoolRequestWait(m.subscribeMsg)
+	subscribeRes, err := m.SendPoolRequestWait(m.subscribeMsg)
 	if err != nil {
 		// TODO: on error fallback to previous pool
 		return err
 	}
+	if subscribeRes.IsError() {
+		return fmt.Errorf("invalid subscribe response %s", subscribeRes.Serialize())
+	}
 	m.log.Debug("reconnect: sent subscribe")
+
+	data := [3]interface{}{}
+	// subscribeRes.Result.
+	err = json.Unmarshal(subscribeRes.Result, &data)
+	if err != nil {
+		return fmt.Errorf("cannot unmarhal subscribe response %s %w", subscribeRes.Serialize(), err)
+	}
+	extranonce, extranonceSize := data[1].(string), int(data[2].(float64))
+	msg := message.NewMiningSetExtranonce()
+	msg.SetExtranonce(extranonce, extranonceSize)
+	err = m.SendNotice(msg)
+	if err != nil {
+		return err
+	}
+
+	m.log.Infof("send extranonce to miner %s %d", extranonce, extranonceSize)
 
 	authMsg := message.NewMiningAuthorize()
 	authMsg.SetMinerID(username)
@@ -135,6 +140,10 @@ func (m *StratumV1Manager) ChangePool(addr string, username string, password str
 
 func (m *StratumV1Manager) RegisterResultHandler(id int, handler StratumResultHandler) {
 	m.resHandlers[id] = handler
+}
+
+func (m *StratumV1Manager) SendNotice(msg message.MiningMessageGeneric) error {
+	return m.stratum.WriteToMiner(context.TODO(), msg.Serialize())
 }
 
 func (m *StratumV1Manager) SendPoolRequestWait(msg message.MiningMessageToPool) (*message.MiningResult, error) {
