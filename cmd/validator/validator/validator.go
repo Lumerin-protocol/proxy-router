@@ -225,11 +225,11 @@ func (v *MainValidator) minerHandler(ch msgbus.EventChan) {
 				id := msgbus.MinerID(event.ID)
 		
 				contextlib.Logf(v.Ctx, log.LevelInfo, "Closing validator instance for Miner: %v", id)
+				v.MinersVal.Delete(string(id))
 				var closeMessage = Message{}
 				closeMessage.Address = string(id)
 				closeMessage.MessageType = "closeValidator"
 				v.SendMessageToValidator(closeMessage)
-				v.MinersVal.Delete(string(id))
 			}
 		}
 	}
@@ -352,8 +352,10 @@ func (v *MainValidator) validateHandler(ch msgbus.EventChan) {
 					tabulationMessage.Address = string(minerID)
 					tabulationMessage.MessageType = "tabulate"
 					tabulationMessage.Message = ConvertMessageToString(mySubmit)
-
-					v.SendMessageToValidator(tabulationMessage)
+					
+					if v.MinersVal.Get(string(minerID)).(bool) {
+						v.SendMessageToValidator(tabulationMessage)
+					}
 					
 				default:
 					contextlib.Logf(v.Ctx, log.LevelTrace, lumerinlib.Funcname()+" Got Validate Msg with different type: %v", event)
