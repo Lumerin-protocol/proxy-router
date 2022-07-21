@@ -354,7 +354,8 @@ func (v *MainValidator) validateHandler(ch msgbus.EventChan) {
 					tabulationMessage.Message = ConvertMessageToString(mySubmit)
 					
 					if v.MinersVal.Get(string(minerID)).(bool) {
-						v.SendMessageToValidator(tabulationMessage)
+						response := v.SendMessageToValidator(tabulationMessage)
+						contextlib.Logf(v.Ctx, log.LevelInfo, "Response from sending tabulation msg for Miner %v, Response: %v", minerID, response)
 					}
 					
 				default:
