@@ -35,14 +35,12 @@ func (r *Recorder) SnapShot(event string, payload interface{}, on time.Time) {
 func NewEventManager() interfaces.IEventManager {
 	memory := eventmanager.NewMemoryStorage()
 	dispatcher := eventmanager.NewDispatcher()
+	recorder := &Recorder{}
 
 	newEventManager := &EventManager{
-		recorder: &Recorder{},
+		recorder:     &Recorder{},
+		EventManager: eventmanager.NewEventManager(memory, dispatcher, recorder),
 	}
-
-	newInternalEventManager := eventmanager.NewEventManager(memory, dispatcher, newEventManager.recorder)
-
-	newEventManager.EventManager = newInternalEventManager
 
 	return newEventManager
 }

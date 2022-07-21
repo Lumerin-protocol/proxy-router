@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"log"
 	"sync"
 
 	//"encoding/hex"
@@ -14,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"go.uber.org/zap"
 
 	//"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -52,7 +52,7 @@ type nonce struct {
 //TODO: replace logging
 type SellerContractManager struct {
 	ps                  i.IEventManager
-	l                   *log.Logger
+	l                   *zap.SugaredLogger
 	ethClient           *ethclient.Client
 	cloneFactoryAddress common.Address
 	account             common.Address
@@ -60,11 +60,7 @@ type SellerContractManager struct {
 	claimFunds          bool
 	currentNonce        nonce
 	nodeOperator        NodeOperator
-	ctx                 context.Context
-}
-
-func (s *SellerContractManager) SetLogger(l *log.Logger) {
-	s.l = l
+	contractAddress     string
 }
 
 type MinerState string
@@ -135,29 +131,27 @@ const (
 	LogMsg                   string = "LogMsg"
 )
 
-func Run(ctx *context.Context, contractManager *SellerContractManager, eventManager i.IEventManager, contractAddr string, ethNodeAddr string) (err error) {
-	contractManagerCtx, _ := context.WithCancel(*ctx)
+func NewSellerContractManager(logger *zap.SugaredLogger, eventManager i.IEventManager, ethClient *ethclient.Client, contractAddress string) *SellerContractManager {
 
-	err = contractManager.init(&contractManagerCtx, ethNodeAddr, eventManager)
-	if err != nil {
-		return err
+	return &SellerContractManager{
+		l:         logger,
+		ps:        eventManager,
+		ethClient: ethClient,
+		nodeOperator: NodeOperator{
+			Contracts: make(map[string]string),
+		},
+		contractAddress: contractAddress,
 	}
-	err = contractManager.start(contractAddr)
-	if err != nil {
-		return err
-	}
-
-	return err
 }
 
-func (seller *SellerContractManager) init(ctx *context.Context, ethNodeAddr string, eventManager i.IEventManager) (err error) {
+func (seller *SellerContractManager) Run(ctx context.Context) error {
+	return seller.run(ctx, seller.contractAddress)
+}
 
-	// func (seller *SellerContractManager) init(ctx *context.Context, contractManagerConfigID IDString, nodeOperatorMsg *NodeOperator) (err error) {
-	seller.ctx = *ctx
+func (seller *SellerContractManager) run(ctx context.Context, addr string) (err error) {
 	// cs := contextlib.GetContextStruct(seller.ctx)
 	//seller.ctx.Value(contextlib.ContextKey).(*contextlib.ContextStruct)
 	//TODO: REWRITE
-	seller.ps = eventManager
 	// seller.l = cs.Log
 
 	// event, err := seller.ps.GetWait(ContractManagerConfigMsg, contractManagerConfigID)
@@ -174,25 +168,17 @@ func (seller *SellerContractManager) init(ctx *context.Context, ethNodeAddr stri
 	// seller.account = account.Address
 	// seller.privateKey = privateKey
 
-	var client *ethclient.Client
-	client, err = SetUpClient(ethNodeAddr, seller.account)
-	if err != nil {
-		return err
-	}
-	seller.ethClient = client
 	// seller.cloneFactoryAddress = common.HexToAddress(contractManagerConfig.CloneFactoryAddress)
 
 	// seller.nodeOperator = *nodeOperatorMsg
-	seller.nodeOperator.EthereumAccount = seller.account.Hex()
 
-	if seller.nodeOperator.Contracts == nil {
-		seller.nodeOperator.Contracts = make(map[string]string)
-	}
+	//
+	//
+	//
+	//
+	//
+	//
 
-	return err
-}
-
-func (seller *SellerContractManager) start(addr string) (err error) {
 	// err = seller.setupExistingContracts()
 	// if err != nil {
 	// 	return err
@@ -214,7 +200,7 @@ func (seller *SellerContractManager) start(addr string) (err error) {
 	if err != nil {
 		seller.l.Fatalf("Panic: %v", fmt.Sprintf("Failed to subscribe to events on hashrate contract %v, Error::%v", addr, err))
 	}
-	go seller.watchHashrateContract(addr, hrLogs, hrSub)
+	go seller.watchHashrateContract(ctx, addr, hrLogs, hrSub)
 	// }
 
 	// // monitor new contracts getting created and start hashrate conrtract monitor routine when they are created
@@ -397,7 +383,7 @@ func (seller *SellerContractManager) start(addr string) (err error) {
 // 	}
 // }
 
-func (seller *SellerContractManager) watchHashrateContract(addr string, hrLogs chan types.Log, hrSub ethereum.Subscription) {
+func (seller *SellerContractManager) watchHashrateContract(ctx context.Context, addr string, hrLogs chan types.Log, hrSub ethereum.Subscription) {
 	// contractEventChan := NewEventChan()
 
 	// check if contract is already in the running state and needs to be monitored for closeout
@@ -430,19 +416,19 @@ func (seller *SellerContractManager) watchHashrateContract(addr string, hrLogs c
 		for {
 			select {
 			case err := <-hrSub.Err():
-				seller.l.Printf("Panic %v", fmt.Sprintf("Funcname::%v, Error::%v", "watchHashrateContract", err))
-			case <-seller.ctx.Done():
-				seller.l.Printf("Info %v", "Cancelling current contract manager context: cancelling watchHashrateContract go routine")
+				seller.l.Errorf("Panic %v", fmt.Sprintf("Funcname::%v, Error::%v", "watchHashrateContract", err))
+			case <-ctx.Done():
+				seller.l.Infof("Info %v", "Cancelling current contract manager context: cancelling watchHashrateContract go routine")
 				return
 			case hLog := <-hrLogs:
 				switch hLog.Topics[0].Hex() {
 				case contractPurchasedSigHash.Hex():
 					buyer := common.HexToAddress(hLog.Topics[1].Hex())
-					seller.l.Printf("Info %v purchased Hashrate Contract: %v\n\n", buyer.Hex(), addr)
+					seller.l.Infof("Info %v purchased Hashrate Contract: %v\n\n", buyer.Hex(), addr)
 
 					destUrl, err := readDestUrl(seller.ethClient, common.HexToAddress(string(addr)), seller.privateKey)
 					if err != nil {
-						seller.l.Printf("Panic %v Reading dest url failed, Error::%v", "\r\n", err)
+						seller.l.Errorf("Panic %v Reading dest url failed, Error::%v", "\r\n", err)
 					}
 					destMsg := Dest{
 						ID:     GetRandomIDString(),
@@ -453,14 +439,14 @@ func (seller *SellerContractManager) watchHashrateContract(addr string, hrLogs c
 
 					// event, err := seller.ps.GetWait(ContractMsg, string(addr))
 					if err != nil {
-						seller.l.Printf("panic Getting Purchased Contract Failed: %v", err)
+						seller.l.Errorf("panic Getting Purchased Contract Failed: %v", err)
 					}
 					// if event.Err != nil {
 					// 	seller.l.Printf("panic", "Getting Purchased Contract Failed: %v", event.Err)
 					// }
 					contractValues, err := readHashrateContract(seller.ethClient, common.HexToAddress(string(addr)))
 					if err != nil {
-						seller.l.Printf("panic Reading hashrate contract failed, Error::%v", err)
+						seller.l.Errorf("panic Reading hashrate contract failed, Error::%v", err)
 					}
 					contractMsg := createContractMsg(common.HexToAddress(string(addr)), contractValues, true)
 					contractMsg.Dest = destMsg.ID
@@ -631,30 +617,6 @@ func (seller *SellerContractManager) watchHashrateContract(addr string, hrLogs c
 // 	}
 // 	return account, privateKey
 // }
-
-func SetUpClient(clientAddress string, contractManagerAccount common.Address) (client *ethclient.Client, err error) {
-	client, err = ethclient.Dial(clientAddress)
-	if err != nil {
-		//fmt.Printf("Funcname::%v, Fileline::%v, Error::%v\n", lumerinlib.Funcname(), lumerinlib.FileLine(), err)
-		return client, err
-	}
-
-	//fmt.Printf("Connected to rpc client at %v\n", clientAddress)
-
-	// var balance *big.Int
-	// balance, err = client.BalanceAt(context.Background(), contractManagerAccount, nil)
-	// if err != nil {
-	// 	//fmt.Printf("Funcname::%v, Fileline::%v, Error::%v\n", lumerinlib.Funcname(), lumerinlib.FileLine(), err)
-	// 	return client, err
-	// }
-	// fbalance := new(big.Float)
-	// fbalance.SetString(balance.String())
-	// ethValue := new(big.Float).Quo(fbalance, big.NewFloat(math.Pow10(18)))
-
-	// fmt.Println("Balance of contract manager account:", ethValue, "ETH")
-
-	return client, err
-}
 
 func SubscribeToContractEvents(client *ethclient.Client, contractAddress common.Address) (chan types.Log, ethereum.Subscription, error) {
 	query := ethereum.FilterQuery{
