@@ -41,7 +41,7 @@ func (s *StratumV1) PoolMessageHandler(ctx context.Context, msg []byte) []byte {
 func (s *StratumV1) handleMinerMsg(ctx context.Context, msg []byte) []byte {
 	m, err := message.ParseMessageToPool(msg)
 	if err != nil {
-		s.log.Errorf("%w", err)
+		s.log.Error(err)
 		return msg
 	}
 

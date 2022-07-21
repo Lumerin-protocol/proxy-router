@@ -6,9 +6,9 @@ import "encoding/json"
 const MethodMiningSubmit = "mining.submit"
 
 type MiningSubmit struct {
-	ID     int       `json:"id"`
-	Method string    `json:"method,omitempty"`
-	Params [5]string `json:"params"`
+	ID     int      `json:"id"`
+	Method string   `json:"method,omitempty"`
+	Params []string `json:"params"` // worker_name, job_id, extranonce2, ntime, nonce and optional version_bits (BIP_0310)
 }
 
 func ParseMiningSubmit(b []byte) (*MiningSubmit, error) {

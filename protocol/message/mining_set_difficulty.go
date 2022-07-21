@@ -2,7 +2,7 @@ package message
 
 import "encoding/json"
 
-// Message: {"id":null,"method":"mining.set_difficulty","params":[8192]}
+// Message: {"id":null,"method":"mining.set_difficulty","params":[8192.1234]}
 const MethodMiningSetDifficulty = "mining.set_difficulty"
 
 type MiningSetDifficulty struct {
@@ -10,9 +10,9 @@ type MiningSetDifficulty struct {
 	Params *miningSetDifficultyParams `json:"params"`
 }
 
-type miningSetDifficultyParams = [1]int
+type miningSetDifficultyParams = [1]float64
 
-func NewMiningSetDifficulty(difficulty int) *MiningSetDifficulty {
+func NewMiningSetDifficulty(difficulty float64) *MiningSetDifficulty {
 	return &MiningSetDifficulty{
 		Method: MethodMiningSetDifficulty,
 		Params: &miningSetDifficultyParams{difficulty},
@@ -24,11 +24,11 @@ func ParseMiningSetDifficulty(b []byte) (*MiningSetDifficulty, error) {
 	return m, json.Unmarshal(b, m)
 }
 
-func (m *MiningSetDifficulty) GetDifficulty() int {
+func (m *MiningSetDifficulty) GetDifficulty() float64 {
 	return m.Params[0]
 }
 
-func (m *MiningSetDifficulty) SetDifficulty(difficulty int) {
+func (m *MiningSetDifficulty) SetDifficulty(difficulty float64) {
 	m.Params[0] = difficulty
 }
 

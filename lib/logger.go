@@ -50,7 +50,13 @@ func newDevelopmentLogger() (*zap.Logger, error) {
 		zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), zap.DebugLevel),
 	)
 
-	return zap.New(core), nil
+	opts := []zap.Option{
+		zap.Development(),
+		zap.AddCaller(),
+		zap.AddStacktrace(zap.ErrorLevel),
+	}
+
+	return zap.New(core, opts...), nil
 }
 
 func newProductionLogger() (*zap.Logger, error) {

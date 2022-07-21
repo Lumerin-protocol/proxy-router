@@ -72,8 +72,12 @@ func (m *StratumV1Manager) Init() {
 	})
 
 	m.handler.OnPoolResult(func(msg *message.MiningResult, s StratumHandlerObject) message.MiningMessageGeneric {
-		newID := msg.GetID()
-		handler, ok := m.resHandlers[newID]
+		if msg.IsError() {
+			m.log.Errorf("POOL  ERR %s", msg.Serialize())
+		}
+
+		id := msg.GetID()
+		handler, ok := m.resHandlers[id]
 		if ok {
 			m := handler(*msg)
 			if m == nil {

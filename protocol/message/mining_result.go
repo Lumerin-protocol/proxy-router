@@ -33,7 +33,8 @@ func (m *MiningResult) IsError() bool {
 // Returns unparsed error field (json)
 // TODO: parse error code and message correctly
 func (m *MiningResult) GetError() string {
-	return string(m.Error[1])
+	b, _ := json.Marshal(m.Error)
+	return string(b)
 }
 
 func (m *MiningResult) Serialize() []byte {

@@ -87,3 +87,12 @@ func TestMiningNotify(t *testing.T) {
 	msg2 := obj.Serialize()
 	fmt.Printf("Obj 2 %s", string(msg2))
 }
+
+func TestMiningSubmit(t *testing.T) {
+	b := `{"params": ["stage.s9x16", "00000000fc7d9b53", "c7520000000000", "62d8978d", "78563064"], "id": 2238, "method": "mining.submit"}`
+	a, _ := ParseMiningSubmit([]byte(b))
+	fmt.Printf("%+v", a)
+	a.SetWorkerName("kiki")
+	c := a.Serialize()
+	fmt.Print(string(c))
+}
