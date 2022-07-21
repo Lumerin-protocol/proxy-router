@@ -729,11 +729,8 @@ func (cs *ConnectionScheduler) sortMinersByHashrate(contractId msgbus.ContractID
 	}
 
 	sort.Sort(m)
-	if len(m) > 9 {
-		return m[:9]
-	} else {
-		return m
-	}
+	return m
+
 }
 
 func sumSubsets(sortedMiners MinerList, n int, targetHashrate int, hashrateTolerance float64) (m MinerList, sum int) {
@@ -777,22 +774,36 @@ func sumSubsets(sortedMiners MinerList, n int, targetHashrate int, hashrateToler
 
 // find subsets of list of miners whose hashrate sum equal the target hashrate
 func findSubsets(sortedMiners MinerList, targetHashrate int, hashrateTolerance float64) (minerCombinations []MinerList) {
+	// only use 10 miners at a time for subsets
+	sortedM := sortedMiners
+	sortedMinersLeftOver := false
+	if sortedMiners.Len() > 10 {
+		sortedM = sortedM[:9]
+		sortedMinersLeftOver = true
+	}
+	
 	// Calculate total number of subsets
-	tot := math.Pow(2, float64(sortedMiners.Len()))
-	MAX := int(float64(targetHashrate) * (1 + hashrateTolerance))
+	tot := math.Pow(2, float64(sortedM.Len()))
 	minerCombinationsSums := []int{}
 
 	for i := 0; i < int(tot); i++ {
-		m, s := sumSubsets(sortedMiners, i, targetHashrate, hashrateTolerance)
+		m, s := sumSubsets(sortedM, i, targetHashrate, hashrateTolerance)
 		if m != nil {
 			minerCombinations = append(minerCombinations, m)
 			minerCombinationsSums = append(minerCombinationsSums, s)
 		}
 	}
 
+	// go to next 10 miners if no combinations with these
 	if len(minerCombinations) == 0 {
-		return []MinerList{}
+		if sortedMinersLeftOver {
+			return findSubsets(sortedMiners[10:], targetHashrate, hashrateTolerance)
+		} else {
+			return []MinerList{} 
+		}
 	}
+
+	MAX := int(float64(targetHashrate) * (1 + hashrateTolerance))
 
 	for i, m := range minerCombinations {
 		if minerCombinationsSums[i] > MAX { // need to slice miner
