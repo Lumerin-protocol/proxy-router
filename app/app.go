@@ -18,7 +18,7 @@ type App struct {
 	TCPServer       *tcpserver.TCPServer
 	MinerController *miner.MinerController
 	Server          *api.Server
-	SellerManager   *contractmanager.SellerContractManager
+	ContractManager *contractmanager.SellerContractManager
 	Logger          *zap.SugaredLogger
 }
 

@@ -15,6 +15,7 @@ type Config struct {
 	}
 	Contract struct {
 		Address string `env:"CONTRACT_ADDRESS" flag:"contract-address" validate:"required,eth_addr"`
+		IsBuyer bool   `env:"IS_BUYER" flag:"is-buyer" validate:"required,boolean"`
 	}
 	EthNode struct {
 		Address string `env:"ETH_NODE_ADDRESS" flag:"eth-node-address" validate:"required,url"`

@@ -1,0 +1,9 @@
+package interfaces
+
+type IContractManager interface {
+	Start() (err error)
+	Init(Ctx *context.Context, contractManagerConfigID string, nodeOperatorMsg *NodeOperator) (err error)
+	SetupExistingContracts() (err error)
+	ReadContracts() ([]common.Address, error)
+	WatchHashrateContract(addr string, hrLogs chan types.Log, hrSub ethereum.Subscription)
+}

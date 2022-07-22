@@ -31,7 +31,7 @@ func NewMinerController(poolAddr string, poolUser string, poolPassword string, r
 	}
 }
 
-func (p *MinerController) ConnectionHandler(ctx context.Context, incomingConn net.Conn) error {
+func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net.Conn) error {
 	// connection-scoped objects
 	proxyConn := connections.NewProxyConn(p.poolAddr, incomingConn, p.log)
 	//------------------------------

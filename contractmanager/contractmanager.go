@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"sync"
 	"time"
+
 	//"encoding/hex"
 
 	"github.com/ethereum/go-ethereum"
@@ -15,23 +16,20 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/lumerinlib"
+	"gitlab.com/TitanInd/hashrouter/lumerinlib/clonefactory"
 
-	//"github.com/ethereum/go-ethereum/crypto/ecies"
+	"gitlab.com/TitanInd/hashrouter/lumerinlib/implementation"
+
 	"github.com/ethereum/go-ethereum/ethclient"
 	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
-
-	"gitlab.com/TitanInd/lumerin/cmd/log"
-	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
-	"gitlab.com/TitanInd/lumerin/lumerinlib"
-	"gitlab.com/TitanInd/lumerin/lumerinlib/clonefactory"
-	contextlib "gitlab.com/TitanInd/lumerin/lumerinlib/context"
-	"gitlab.com/TitanInd/lumerin/lumerinlib/implementation"
 )
 
 const (
 	AvailableState uint8 = 0
 	RunningState   uint8 = 1
-	HASHRATE_LIMIT = 20
+	HASHRATE_LIMIT       = 20
 )
 
 type hashrateContractValues struct {
@@ -50,39 +48,59 @@ type nonce struct {
 	nonce uint64
 }
 
-type ContractManager interface {
-	start() (err error)
-	init(Ctx *context.Context, contractManagerConfigID msgbus.IDString, nodeOperatorMsg *msgbus.NodeOperator) (err error)
-	setupExistingContracts() (err error)
-	readContracts() ([]common.Address, error)
-	watchHashrateContract(addr msgbus.ContractID, hrLogs chan types.Log, hrSub ethereum.Subscription)
-}
-
 type SellerContractManager struct {
-	Ps                  *msgbus.PubSub
-	EthClient           *ethclient.Client
-	CloneFactoryAddress common.Address
-	Account             common.Address
-	PrivateKey          string
-	ClaimFunds          bool
-	CurrentNonce        nonce
-	NodeOperator        msgbus.NodeOperator
-	Ctx                 context.Context
+	*ContractManager
+	claimFunds bool
 }
 
 type BuyerContractManager struct {
-	Ps                  *msgbus.PubSub
-	EthClient           *ethclient.Client
-	CloneFactoryAddress common.Address
-	Account             common.Address
-	PrivateKey          string
-	CurrentNonce        nonce
-	TimeThreshold       int
-	NodeOperator        msgbus.NodeOperator
-	Ctx                 context.Context
+	*ContractManager
+	timeThreshold int
 }
 
-func Run(Ctx *context.Context, contractManager ContractManager, contractManagerConfigID msgbus.IDString, nodeOperatorMsg *msgbus.NodeOperator) (err error) {
+type ContractManager struct {
+	ps                  interfaces.IEventManager
+	ethClient           *ethclient.Client
+	cloneFactoryAddress common.Address
+	account             common.Address
+	privateKey          string
+	currentNonce        nonce
+	nodeOperator        NodeOperator
+	ctx                 context.Context
+	logger              interfaces.ILogger
+}
+
+func NewContractManager(logger interfaces.ILogger, eventManager interfaces.IEventManager, ethClient *ethclient.Client, isBuyer bool) interfaces.IContractManager {
+
+	if isBuyer {
+		return &BuyerContractManager{
+			ContractManager: &ContractManager{
+
+				logger:    logger,
+				ps:        eventManager,
+				ethClient: ethClient,
+				nodeOperator: NodeOperator{
+					Contracts: make(map[string]string),
+				},
+			},
+		}
+	} else {
+		return &SellerContractManager{
+
+			ContractManager: &ContractManager{
+
+				logger:    logger,
+				ps:        eventManager,
+				ethClient: ethClient,
+				nodeOperator: NodeOperator{
+					Contracts: make(map[string]string),
+				},
+			},
+		}
+	}
+}
+
+func Run(Ctx *context.Context, contractManager IContractManager, contractManagerConfigID string, nodeOperatorMsg *NodeOperator) (err error) {
 	contractManagerCtx, contractManagerCancel := context.WithCancel(*Ctx)
 	go newConfigMonitor(Ctx, contractManagerCtx, contractManagerCancel, contractManager, contractManagerConfigID, nodeOperatorMsg)
 
@@ -98,10 +116,10 @@ func Run(Ctx *context.Context, contractManager ContractManager, contractManagerC
 	return err
 }
 
-func newConfigMonitor(Ctx *context.Context, contractManagerCtx context.Context, contractManagerCancel context.CancelFunc, contractManager ContractManager, contractManagerConfigID msgbus.IDString, nodeOperatorMsg *msgbus.NodeOperator) {
+func newConfigMonitor(Ctx *context.Context, contractManagerCtx context.Context, contractManagerCancel context.CancelFunc, contractManager IContractManager, contractManagerConfigID msgbus.IDString, nodeOperatorMsg *msgbus.NodeOperator) {
 	contractConfigCh := msgbus.NewEventChan()
-	cs := contextlib.GetContextStruct(contractManagerCtx)
-	Ps := cs.MsgBus
+	// cs := contextlib.GetContextStruct(contractManagerCtx)
+	Ps := nil
 
 	event, err := Ps.SubWait(msgbus.ContractManagerConfigMsg, contractManagerConfigID, contractConfigCh)
 	if err != nil {
@@ -124,7 +142,7 @@ func newConfigMonitor(Ctx *context.Context, contractManagerCtx context.Context, 
 	}
 }
 
-func (seller *SellerContractManager) init(Ctx *context.Context, contractManagerConfigID msgbus.IDString, nodeOperatorMsg *msgbus.NodeOperator) (err error) {
+func (seller *SellerContractManager) Init(Ctx *context.Context, contractManagerConfigID msgbus.IDString, nodeOperatorMsg *msgbus.NodeOperator) (err error) {
 	seller.Ctx = *Ctx
 	cs := contextlib.GetContextStruct(seller.Ctx)
 	seller.Ps = cs.MsgBus
@@ -478,7 +496,7 @@ func (seller *SellerContractManager) watchHashrateContract(addr msgbus.ContractI
 						contractMsg.State = msgbus.ContAvailableState
 						contractMsg.Buyer = ""
 						seller.Ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contractMsg.ID), contractMsg)
-	
+
 						seller.NodeOperator.Contracts[addr] = msgbus.ContAvailableState
 						seller.Ps.SetWait(msgbus.NodeOperatorMsg, msgbus.IDString(seller.NodeOperator.ID), seller.NodeOperator)
 					}
@@ -953,7 +971,7 @@ func (buyer *BuyerContractManager) checkHashRate(contractId msgbus.ContractID) b
 		if err != nil {
 			contextlib.Logf(buyer.Ctx, log.LevelPanic, fmt.Sprintf("Failed to get miner, Fileline::%s, Error::", lumerinlib.FileLine()), err)
 		}
-		if _,ok := miner.Contracts[contractId]; !ok {
+		if _, ok := miner.Contracts[contractId]; !ok {
 			totalHashrate += miner.CurrentHashRate
 		}
 	}
@@ -1201,4 +1219,14 @@ func updateContractMsg(contractMsg *msgbus.Contract, contractValues hashrateCont
 	contractMsg.Limit = contractValues.Limit
 	contractMsg.Speed = contractValues.Speed
 	contractMsg.Length = contractValues.Length
+}
+
+type NodeOperator struct {
+	ID                     string
+	IsBuyer                bool
+	DefaultDest            string
+	EthereumAccount        string
+	TotalAvailableHashRate int
+	UnusedHashRate         int
+	Contracts              map[string]string
 }

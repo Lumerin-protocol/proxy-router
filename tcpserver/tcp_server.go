@@ -73,7 +73,7 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener *net.TCPListene
 		}
 
 		go func(conn net.Conn) {
-			err := p.handler.ConnectionHandler(ctx, conn)
+			err := p.handler.HandleConnection(ctx, conn)
 			if err != nil {
 				p.log.Warn("connection handler error: %w", err)
 			}

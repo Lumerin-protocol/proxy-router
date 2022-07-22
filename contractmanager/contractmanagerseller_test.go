@@ -15,25 +15,19 @@ import (
 
 	//"github.com/ethereum/go-ethereum/crypto/ecies"
 
-	"gitlab.com/TitanInd/lumerin/cmd/connectionscheduler"
-	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
-	"gitlab.com/TitanInd/lumerin/cmd/log"
-
-	"gitlab.com/TitanInd/lumerin/connections"
-	"gitlab.com/TitanInd/lumerin/lumerinlib"
-	contextlib "gitlab.com/TitanInd/lumerin/lumerinlib/context"
+	"gitlab.com/TitanInd/hashrouter/lumerinlib"
 )
 
 func TestSellerRoutine(t *testing.T) {
 	configPath := "../../ganacheconfig.json"
-	l := log.New()
+	// l := log.New()
 	ps := msgbus.New(10, l)
 	ts, _, _ := BeforeEach(configPath)
 	var hashrateContractAddress [4]common.Address
 	var purchasedHashrateContractAddress [4]common.Address
 
-	ctxStruct := contextlib.NewContextStruct(nil, ps, nil, nil, nil)
-	mainCtx := context.WithValue(context.Background(), contextlib.ContextKey, ctxStruct)
+	// ctxStruct := contextlib.NewContextStruct(nil, ps, nil, nil, nil)
+	// mainCtx := context.WithValue(context.Background(), contextlib.ContextKey, ctxStruct)
 
 	contractManagerCtx, contractManagerCancel := context.WithCancel(mainCtx)
 
@@ -87,7 +81,7 @@ func TestSellerRoutine(t *testing.T) {
 		ID:          msgbus.NodeOperatorID(msgbus.GetRandomIDString()),
 		DefaultDest: defaultDest.ID,
 		IsBuyer:     false,
-		Contracts: make(map[msgbus.ContractID]msgbus.ContractState),
+		Contracts:   make(map[msgbus.ContractID]msgbus.ContractState),
 	}
 	event, err = ps.PubWait(msgbus.NodeOperatorMsg, msgbus.IDString(NodeOperator.ID), NodeOperator)
 	if err != nil {
@@ -98,12 +92,12 @@ func TestSellerRoutine(t *testing.T) {
 	}
 
 	// start connection scheduler look at miners
-	connectionCollection := connections.CreateConnectionCollection()
-	cs, err := connectionscheduler.New(&mainCtx, &NodeOperator, false, 0, connectionCollection)
-	if err != nil {
-		panic(fmt.Sprintf("schedule manager failed:%s", err))
-	}
-	err = cs.Start()
+	// connectionCollection := connections.CreateConnectionCollection()
+	// cs, err := connectionscheduler.New(&mainCtx, &NodeOperator, false, 0, connectionCollection)
+	// if err != nil {
+	// 	panic(fmt.Sprintf("schedule manager failed:%s", err))
+	// }
+	// err = cs.Start()
 	if err != nil {
 		panic(fmt.Sprintf("schedule manager failed to start:%s", err))
 	}
@@ -205,7 +199,7 @@ loop2:
 	// connection scheduler sets contract to correct miner
 	m1, _ := ps.MinerGetWait(miner1.ID)
 	m2, _ := ps.MinerGetWait(miner2.ID)
-	if _,ok := m1.Contracts[msgbus.ContractID(hashrateContractAddress[0].Hex())]; ok {
+	if _, ok := m1.Contracts[msgbus.ContractID(hashrateContractAddress[0].Hex())]; ok {
 		t.Errorf("Miner contracts not set correctly")
 	}
 	if len(m2.Contracts) == 0 {
@@ -266,7 +260,7 @@ loop4:
 	if len(m1.Contracts) == 0 {
 		t.Errorf("Miner contracts not set correctly")
 	}
-	if _,ok := m2.Contracts[msgbus.ContractID(hashrateContractAddress[1].Hex())]; ok {
+	if _, ok := m2.Contracts[msgbus.ContractID(hashrateContractAddress[1].Hex())]; ok {
 		t.Errorf("Miner contracts not set correctly")
 	}
 
@@ -343,7 +337,7 @@ loop6:
 	if len(m2.Contracts) == 0 {
 		t.Errorf("Miner contracts not set correctly")
 	}
-	if _,ok := m3.Contracts[msgbus.ContractID(hashrateContractAddress[2].Hex())]; ok {
+	if _, ok := m3.Contracts[msgbus.ContractID(hashrateContractAddress[2].Hex())]; ok {
 		t.Errorf("Miner contracts not set correctly")
 	}
 
@@ -420,7 +414,7 @@ loop8:
 	if len(m3.Contracts) == 0 {
 		t.Errorf("Miner contracts not set correctly")
 	}
-	if _,ok := m4.Contracts[msgbus.ContractID(hashrateContractAddress[3].Hex())]; ok {
+	if _, ok := m4.Contracts[msgbus.ContractID(hashrateContractAddress[3].Hex())]; ok {
 		t.Errorf("Miner contracts not set correctly")
 	}
 
