@@ -39,7 +39,6 @@ type api struct {
 	*gin.Engine
 
 	configRepo                *msgdata.ConfigInfoRepo
-	contractManagerConfigRepo *msgdata.ContractManagerConfigRepo
 	connectionRepo            *msgdata.ConnectionRepo
 	contractRepo              *msgdata.ContractRepo
 	destRepo                  *msgdata.DestRepo
@@ -52,7 +51,6 @@ func New(ps *msgbus.PubSub, connectionCollection interfaces.IConnectionControlle
 	api := &api{
 		Engine:                    gin.Default(),
 		configRepo:                msgdata.NewConfigInfo(ps),
-		contractManagerConfigRepo: msgdata.NewContractManagerConfig(ps),
 		connectionRepo:            msgdata.NewConnection(ps),
 		contractRepo:              msgdata.NewContract(ps),
 		destRepo:                  msgdata.NewDest(ps),
@@ -68,7 +66,6 @@ func New(ps *msgbus.PubSub, connectionCollection interfaces.IConnectionControlle
 // Run will start up the API on the given port, with a given logger.
 func (api *api) Run(ctx context.Context, port string) {
 	go api.configRepo.SubscribeToConfigInfoMsgBus()
-	go api.contractManagerConfigRepo.SubscribeToContractManagerConfigMsgBus()
 	go api.connectionRepo.SubscribeToConnectionMsgBus()
 	go api.contractRepo.SubscribeToContractMsgBus()
 	go api.destRepo.SubscribeToDestMsgBus()
@@ -138,15 +135,6 @@ func (api *api) registerLegacyHttpHandlers() {
 		configRoutes.POST("/", handlers.ConfigPOST(api.configRepo))
 		configRoutes.PUT("/:id", handlers.ConfigPUT(api.configRepo))
 		configRoutes.DELETE("/:id", handlers.ConfigDELETE(api.configRepo))
-	}
-
-	contractManagerConfigRoutes := api.Group("/contractmanagerconfig")
-	{
-		contractManagerConfigRoutes.GET("/", handlers.ContractManagerConfigsGET(api.contractManagerConfigRepo))
-		contractManagerConfigRoutes.GET("/:id", handlers.ContractManagerConfigGET(api.contractManagerConfigRepo))
-		contractManagerConfigRoutes.POST("/", handlers.ContractManagerConfigPOST(api.contractManagerConfigRepo))
-		contractManagerConfigRoutes.PUT("/:id", handlers.ContractManagerConfigPUT(api.contractManagerConfigRepo))
-		contractManagerConfigRoutes.DELETE("/:id", handlers.ContractManagerConfigDELETE(api.contractManagerConfigRepo))
 	}
 
 	connectionRoutes := api.Group("/connections")

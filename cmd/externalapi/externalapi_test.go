@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 	"time"
+	"context"
 
 	"gitlab.com/TitanInd/lumerin/cmd/log"
 	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
@@ -13,6 +14,7 @@ import (
 func TestMsgBusDataAddedToApiRepos(t *testing.T) {
 	l := log.New()
 	ps := msgbus.New(10, l)
+	mainContext,_ := context.WithCancel(context.Background())
 
 	dest := msgbus.Dest{
 		ID:     msgbus.DestID("DestID01"),
@@ -63,7 +65,7 @@ func TestMsgBusDataAddedToApiRepos(t *testing.T) {
 	api := New(ps, nil)
 	time.Sleep(time.Millisecond * 1000)
 
-	go api.Run("8080", l)
+	go api.Run(mainContext, "8080")
 
 	fmt.Print("\n/// Publish Msgbus Msgs //\n\n")
 	ps.PubWait(msgbus.DestMsg, msgbus.IDString(dest.ID), msgbus.Dest{})

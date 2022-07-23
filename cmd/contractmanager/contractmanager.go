@@ -52,7 +52,7 @@ type nonce struct {
 
 type ContractManager interface {
 	start() (err error)
-	init(Ctx *context.Context, contractManagerConfigID msgbus.IDString, nodeOperatorMsg *msgbus.NodeOperator) (err error)
+	init(Ctx *context.Context, contractManagerConfig lumerinlib.ContractManagerConfig, nodeOperatorMsg *msgbus.NodeOperator) (err error)
 	setupExistingContracts() (err error)
 	readContracts() ([]common.Address, error)
 	watchHashrateContract(addr msgbus.ContractID, hrLogs chan types.Log, hrSub ethereum.Subscription)
@@ -82,11 +82,8 @@ type BuyerContractManager struct {
 	Ctx                 context.Context
 }
 
-func Run(Ctx *context.Context, contractManager ContractManager, contractManagerConfigID msgbus.IDString, nodeOperatorMsg *msgbus.NodeOperator) (err error) {
-	contractManagerCtx, contractManagerCancel := context.WithCancel(*Ctx)
-	go newConfigMonitor(Ctx, contractManagerCtx, contractManagerCancel, contractManager, contractManagerConfigID, nodeOperatorMsg)
-
-	err = contractManager.init(&contractManagerCtx, contractManagerConfigID, nodeOperatorMsg)
+func Run(Ctx *context.Context, contractManager ContractManager, contractManagerConfig lumerinlib.ContractManagerConfig, nodeOperatorMsg *msgbus.NodeOperator) (err error) {
+err = contractManager.init(Ctx, contractManagerConfig, nodeOperatorMsg)
 	if err != nil {
 		return err
 	}
@@ -98,42 +95,11 @@ func Run(Ctx *context.Context, contractManager ContractManager, contractManagerC
 	return err
 }
 
-func newConfigMonitor(Ctx *context.Context, contractManagerCtx context.Context, contractManagerCancel context.CancelFunc, contractManager ContractManager, contractManagerConfigID msgbus.IDString, nodeOperatorMsg *msgbus.NodeOperator) {
-	contractConfigCh := msgbus.NewEventChan()
-	cs := contextlib.GetContextStruct(contractManagerCtx)
-	Ps := cs.MsgBus
-
-	event, err := Ps.SubWait(msgbus.ContractManagerConfigMsg, contractManagerConfigID, contractConfigCh)
-	if err != nil {
-		contextlib.Logf(contractManagerCtx, log.LevelPanic, "SubWait failed: %v", err)
-	}
-	if event.EventType != msgbus.SubscribedEvent {
-		contextlib.Logf(contractManagerCtx, log.LevelPanic, "Wrong event type: %v", err)
-	}
-
-	for event = range contractConfigCh {
-		if event.EventType == msgbus.UpdateEvent {
-			contextlib.Logf(contractManagerCtx, log.LevelInfo, "Updated Contract Manager Configuration: Restarting Contract Manager: %v\n", event)
-			contractManagerCancel()
-			err = Run(Ctx, contractManager, contractManagerConfigID, nodeOperatorMsg)
-			if err != nil {
-				contextlib.Logf(contractManagerCtx, log.LevelPanic, "Contract manager failed to run: %v", err)
-			}
-			return
-		}
-	}
-}
-
-func (seller *SellerContractManager) init(Ctx *context.Context, contractManagerConfigID msgbus.IDString, nodeOperatorMsg *msgbus.NodeOperator) (err error) {
+func (seller *SellerContractManager) init(Ctx *context.Context, contractManagerConfig lumerinlib.ContractManagerConfig, nodeOperatorMsg *msgbus.NodeOperator) (err error) {
 	seller.Ctx = *Ctx
 	cs := contextlib.GetContextStruct(seller.Ctx)
 	seller.Ps = cs.MsgBus
 
-	event, err := seller.Ps.GetWait(msgbus.ContractManagerConfigMsg, contractManagerConfigID)
-	if err != nil {
-		return err
-	}
-	contractManagerConfig := event.Data.(msgbus.ContractManagerConfig)
 	seller.ClaimFunds = contractManagerConfig.ClaimFunds
 	ethNodeAddr := contractManagerConfig.EthNodeAddr
 	mnemonic := contractManagerConfig.Mnemonic
@@ -587,16 +553,11 @@ loop:
 	}
 }
 
-func (buyer *BuyerContractManager) init(Ctx *context.Context, contractManagerConfigID msgbus.IDString, nodeOperatorMsg *msgbus.NodeOperator) (err error) {
+func (buyer *BuyerContractManager) init(Ctx *context.Context, contractManagerConfig lumerinlib.ContractManagerConfig, nodeOperatorMsg *msgbus.NodeOperator) (err error) {
 	buyer.Ctx = *Ctx
 	cs := contextlib.GetContextStruct(buyer.Ctx)
 	buyer.Ps = cs.MsgBus
 
-	event, err := buyer.Ps.GetWait(msgbus.ContractManagerConfigMsg, contractManagerConfigID)
-	if err != nil {
-		return err
-	}
-	contractManagerConfig := event.Data.(msgbus.ContractManagerConfig)
 	buyer.TimeThreshold = contractManagerConfig.TimeThreshold
 	ethNodeAddr := contractManagerConfig.EthNodeAddr
 	mnemonic := contractManagerConfig.Mnemonic

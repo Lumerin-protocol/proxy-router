@@ -35,10 +35,7 @@ func TestSellerRoutine(t *testing.T) {
 	ctxStruct := contextlib.NewContextStruct(nil, ps, nil, nil, nil)
 	mainCtx := context.WithValue(context.Background(), contextlib.ContextKey, ctxStruct)
 
-	contractManagerCtx, contractManagerCancel := context.WithCancel(mainCtx)
-
-	var contractManagerConfig msgbus.ContractManagerConfig
-	contractManagerConfigID := msgbus.GetRandomIDString()
+	var contractManagerConfig lumerinlib.ContractManagerConfig
 
 	// encrpted cipher text generated from node code using buyer's public key
 	//encryptedDest := "04d9b65eada6828aad11f7956e92a5afaa46718e95c2229b21b371c3c6e317bad00018d15f2cedb6400d2156a3cc1c3360b7f747d5ab7e72926937776fc133ae5b9ada0e1d95b57f29b917220a92ed28ff1f57301b6688f7e5ef4ae87015508aefb7156aba0de5cc25d65d1f11a7d3c75330d54d045ebc22231af70fb1aa02b38a6cf93b34a974076db109433ba4191171b2292885"
@@ -78,10 +75,6 @@ func TestSellerRoutine(t *testing.T) {
 	Account, PrivateKey := HdWalletKeys(contractManagerConfig.Mnemonic, contractManagerConfig.AccountIndex+1)
 	buyerAddress := Account.Address
 	buyerPrivateKey := PrivateKey
-	fmt.Println("Buyer Account", buyerAddress)
-	fmt.Println("Buyer private key", buyerPrivateKey)
-
-	ps.PubWait(msgbus.ContractManagerConfigMsg, contractManagerConfigID, contractManagerConfig)
 
 	NodeOperator := msgbus.NodeOperator{
 		ID:          msgbus.NodeOperatorID(msgbus.GetRandomIDString()),
@@ -109,8 +102,7 @@ func TestSellerRoutine(t *testing.T) {
 	}
 
 	var cman SellerContractManager
-	go newConfigMonitor(&mainCtx, contractManagerCtx, contractManagerCancel, &cman, contractManagerConfigID, &NodeOperator)
-	err = cman.init(&contractManagerCtx, contractManagerConfigID, &NodeOperator)
+	err = cman.init(&mainCtx, contractManagerConfig, &NodeOperator)
 	if err != nil {
 		panic(fmt.Sprintf("contract manager init failed:%s", err))
 	}
@@ -465,15 +457,5 @@ loop8:
 	m4, _ = ps.MinerGetWait(miner4.ID)
 	if len(m4.Contracts) == 0 {
 		t.Errorf("Contract 4 was not removed from miner after early closeout")
-	}
-
-	//
-	// test contract manager config updated
-	//
-	contractManagerConfig.ClaimFunds = false
-	ps.SetWait(msgbus.ContractManagerConfigMsg, contractManagerConfigID, contractManagerConfig)
-	time.Sleep(time.Second * 3)
-	if cman.ClaimFunds != false {
-		t.Errorf("Contract manager's configuration was not updated after msgbus update")
 	}
 }

@@ -9,6 +9,18 @@ import (
 	"sync"
 )
 
+type ContractManagerConfig struct {
+	Mnemonic            string
+	AccountIndex        int
+	EthNodeAddr         string
+	ClaimFunds          bool
+	TimeThreshold       int
+	CloneFactoryAddress string
+	LumerinTokenAddress string
+	ValidatorAddress    string
+	ProxyAddress        string
+}
+
 type ConcurrentMap struct {
 	sync.RWMutex
 	M map[string]interface{}

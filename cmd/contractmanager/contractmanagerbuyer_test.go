@@ -33,10 +33,7 @@ func TestBuyerRoutine(t *testing.T) {
 	ctxStruct := contextlib.NewContextStruct(nil, ps, nil, nil, nil)
 	mainCtx := context.WithValue(context.Background(), contextlib.ContextKey, ctxStruct)
 
-	contractManagerCtx, contractManagerCancel := context.WithCancel(mainCtx)
-
-	var contractManagerConfig msgbus.ContractManagerConfig
-	contractManagerConfigID := msgbus.GetRandomIDString()
+	var contractManagerConfig lumerinlib.ContractManagerConfig
 
 	contractLength := 10000
 
@@ -72,10 +69,6 @@ func TestBuyerRoutine(t *testing.T) {
 	Account, PrivateKey := HdWalletKeys(contractManagerConfig.Mnemonic, contractManagerConfig.AccountIndex+1)
 	sellerAddress := Account.Address
 	sellerPrivateKey := PrivateKey
-	fmt.Println("Seller Account", sellerAddress)
-	fmt.Println("Seller private key", sellerPrivateKey)
-
-	ps.PubWait(msgbus.ContractManagerConfigMsg, contractManagerConfigID, contractManagerConfig)
 
 	NodeOperator := msgbus.NodeOperator{
 		ID:          msgbus.NodeOperatorID(msgbus.GetRandomIDString()),
@@ -103,8 +96,7 @@ func TestBuyerRoutine(t *testing.T) {
 	}
 
 	var cman BuyerContractManager
-	go newConfigMonitor(&mainCtx, contractManagerCtx, contractManagerCancel, &cman, contractManagerConfigID, &NodeOperator)
-	err = cman.init(&contractManagerCtx, contractManagerConfigID, &NodeOperator)
+	err = cman.init(&mainCtx, contractManagerConfig, &NodeOperator)
 	if err != nil {
 		panic(fmt.Sprintf("contract manager init failed:%s", err))
 	}
@@ -397,16 +389,5 @@ loop6:
 	}
 	if len(m4.Contracts) == 0 {
 		t.Errorf("Miner contracts not set correctly")
-	}
-
-	//
-	// test contract manager config updated
-	//
-	contractManagerConfig.AccountIndex = 2
-	ps.SetWait(msgbus.ContractManagerConfigMsg, contractManagerConfigID, contractManagerConfig)
-	time.Sleep(time.Second * 3)
-	newAccount, _ := HdWalletKeys(contractManagerConfig.Mnemonic, contractManagerConfig.AccountIndex)
-	if cman.Account != newAccount.Address {
-		t.Errorf("Contract manager's configuration was not updated after msgbus update")
 	}
 }

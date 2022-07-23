@@ -184,12 +184,11 @@ func ValEnabledSimMain(ps *msgbus.PubSub, configs ValEnabledConfig, hashrateCalc
 		panic(fmt.Sprintf("Validator failed to start: %v", err))
 	}
 
-		//
+	//
 	// Fire up contract manager
 	//
-	var contractManagerConfig msgbus.ContractManagerConfig
+	var contractManagerConfig lumerinlib.ContractManagerConfig
 
-	contractManagerConfig.ID = msgbus.ContractManagerConfigID(msgbus.GetRandomIDString())
 	contractManagerConfig.Mnemonic = configs.Mnemonic
 	contractManagerConfig.AccountIndex = configs.AccountIndex
 	contractManagerConfig.EthNodeAddr = configs.EthNodeAddr
@@ -199,11 +198,8 @@ func ValEnabledSimMain(ps *msgbus.PubSub, configs ValEnabledConfig, hashrateCalc
 	contractManagerConfig.ValidatorAddress = configs.ValidatorAddress
 	contractManagerConfig.ProxyAddress = configs.ProxyAddress
 
-	// Publish Contract Manager Config to MsgBus
-	ps.PubWait(msgbus.ContractManagerConfigMsg, msgbus.IDString(contractManagerConfig.ID), contractManagerConfig)
-
 	var sellerCM contractmanager.SellerContractManager
-	err = contractmanager.Run(&mainContext, &sellerCM, msgbus.IDString(contractManagerConfig.ID), &nodeOperator)
+	err = contractmanager.Run(&mainContext, &sellerCM, contractManagerConfig, &nodeOperator)
 
 	if err != nil {
 		panic(fmt.Sprintf("Contract manager failed to run: %v", err))
