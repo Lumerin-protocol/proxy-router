@@ -379,14 +379,13 @@ func CreateNewGanacheBlock(ts TestSetup, account common.Address, privateKey stri
 	time.Sleep(time.Millisecond * time.Duration(sleepTime))
 }
 
-func BeforeEach(configPath string) (ts TestSetup, ltransaction *types.Transaction, cftransaction *types.Transaction) {
+func BeforeEach(configPath string, mnemonic string) (ts TestSetup, ltransaction *types.Transaction, cftransaction *types.Transaction) {
 	var constructorParams [4]common.Address
 	configData, err := LoadTestConfiguration("contract", configPath)
 	if err != nil {
 		log.Fatalf("Funcname::%s, Fileline::%s, Error::%v", lumerinlib.Funcname(), lumerinlib.FileLine(), err)
 	}
 
-	mnemonic := configData["mnemonic"].(string)
 	account, privateKey := HdWalletKeys(mnemonic, 0)
 	ts.NodeEthereumAccount = account.Address
 	ts.NodeEthereumPrivateKey = privateKey

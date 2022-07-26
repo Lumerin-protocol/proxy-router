@@ -12,6 +12,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/joho/godotenv"
 )
 
 //
@@ -47,6 +49,12 @@ func init() {
 	}
 
 	flag.Parse()
+
+	// Read .env file
+	err := godotenv.Load(".env")
+	if err != nil {
+		panic(fmt.Errorf("error loading .env file: %s", err))
+	}
 
 	//
 	// Read in environmental variables

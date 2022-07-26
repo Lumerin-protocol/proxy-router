@@ -26,9 +26,11 @@ import (
 
 func TestSellerRoutine(t *testing.T) {
 	configPath := "../../ganacheconfig.json"
+	mnemonic := "course surface achieve episode cable brisk flame enjoy beyond hand rival predict"
+	accountIndex := 0
 	l := log.New()
 	ps := msgbus.New(10, l)
-	ts, _, _ := BeforeEach(configPath)
+	ts, _, _ := BeforeEach(configPath, mnemonic)
 	var hashrateContractAddress [4]common.Address
 	var purchasedHashrateContractAddress [4]common.Address
 
@@ -59,8 +61,8 @@ func TestSellerRoutine(t *testing.T) {
 		panic(fmt.Sprintf("failed to load contract manager configuration:%s", err))
 	}
 
-	contractManagerConfig.Mnemonic = contractManagerConfigFile["mnemonic"].(string)
-	contractManagerConfig.AccountIndex = int(contractManagerConfigFile["accountIndex"].(float64))
+	contractManagerConfig.Mnemonic = mnemonic
+	contractManagerConfig.AccountIndex = accountIndex
 	contractManagerConfig.EthNodeAddr = contractManagerConfigFile["ethNodeAddr"].(string)
 	contractManagerConfig.ClaimFunds = contractManagerConfigFile["claimFunds"].(bool)
 	contractManagerConfig.CloneFactoryAddress = ts.CloneFactoryAddress.Hex()
