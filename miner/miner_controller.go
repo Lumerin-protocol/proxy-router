@@ -9,6 +9,7 @@ import (
 
 	"gitlab.com/TitanInd/hashrouter/connections"
 	"gitlab.com/TitanInd/hashrouter/protocol"
+	"gitlab.com/TitanInd/hashrouter/protocol/message"
 )
 
 type MinerController struct {
@@ -32,6 +33,26 @@ func NewMinerController(poolAddr string, poolUser string, poolPassword string, r
 }
 
 func (p *MinerController) ConnectionHandler(ctx context.Context, incomingConn net.Conn) error {
+	poolPool := protocol.NewStratumV1PoolPool(p.log)
+	err := poolPool.SetDest(p.poolAddr, p.poolUser, p.poolPassword)
+	if err != nil {
+		p.log.Error(err)
+		return err
+	}
+	extranonce, size := poolPool.GetConn().GetExtranonce()
+	msg := message.NewMiningSubscribeResult(extranonce, size)
+	miner := protocol.NewStratumV1Miner(incomingConn, p.log, msg)
+	manager := protocol.NewStratumManagerV2(poolPool, miner, p.log)
+	// try to connect to dest before running
+
+	p.repo.Store(manager)
+
+	return manager.Run()
+
+	// return nil
+}
+
+func (p *MinerController) ConnectionHandler2(ctx context.Context, incomingConn net.Conn) error {
 	// connection-scoped objects
 	proxyConn := connections.NewProxyConn(p.poolAddr, incomingConn, p.log)
 	//------------------------------

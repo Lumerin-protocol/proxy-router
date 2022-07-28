@@ -144,10 +144,7 @@ func (m *StratumV1Manager) ChangePool(addr string, username string, password str
 
 	m.log.Infof("change pool: extranonce sent %s %d", extranonce, extranonceSize)
 
-	authMsg := message.NewMiningAuthorize()
-	authMsg.SetMinerID(username)
-	authMsg.SetPassword(password)
-
+	authMsg := message.NewMiningAuthorize(1, username, password)
 	_, err = m.SendPoolRequestWait(authMsg)
 	if err != nil {
 		m.log.Debugf("reconnect: error sent subscribe %w", err)
