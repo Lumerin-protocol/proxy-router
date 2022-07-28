@@ -1,4 +1,4 @@
-package message
+package stratumv1_message
 
 import (
 	"encoding/json"
@@ -14,13 +14,13 @@ var (
 )
 
 func ParseMessageToPool(raw []byte) (MiningMessageToPool, error) {
-	message := &MiningGeneric{}
-	err := json.Unmarshal(raw, message)
+	msg := &MiningGeneric{}
+	err := json.Unmarshal(raw, msg)
 	if err != nil {
 		return nil, lib.WrapError(ErrStratumV1Unmarshal, err)
 	}
 
-	switch message.Method {
+	switch msg.Method {
 	case MethodMiningSubscribe:
 		return ParseMiningSubscribe(raw)
 
@@ -36,20 +36,20 @@ func ParseMessageToPool(raw []byte) (MiningMessageToPool, error) {
 }
 
 func ParseMessageFromPool(raw []byte) (MiningMessageGeneric, error) {
-	message := &MiningGeneric{}
+	msg := &MiningGeneric{}
 
-	err := json.Unmarshal(raw, message)
+	err := json.Unmarshal(raw, msg)
 	if err != nil {
 		return nil, lib.WrapError(ErrStratumV1Unmarshal, err)
 	}
 
-	if message.Method == MethodMiningNotify {
+	if msg.Method == MethodMiningNotify {
 		return ParseMiningNotify(raw)
 	}
-	if message.Method == MethodMiningSetDifficulty {
+	if msg.Method == MethodMiningSetDifficulty {
 		return ParseMiningSetDifficulty(raw)
 	}
-	if message.Result != nil {
+	if msg.Result != nil {
 		return ParseMiningResult(raw)
 	}
 

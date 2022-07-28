@@ -1,4 +1,4 @@
-package message
+package stratumv1_message
 
 import (
 	"encoding/json"
