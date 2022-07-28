@@ -194,6 +194,8 @@ func (m *StratumV1PoolConn) ResendRelevantNotifications(ctx context.Context) {
 	m.isReading = true
 }
 
+// resendRelevantNotifications sends cached extranonce, set_difficulty and notify messages
+// useful after changing miner's destinations
 func (m *StratumV1PoolConn) resendRelevantNotifications(ctx context.Context) {
 	m.msgCh <- m.extraNonceMsg
 	m.log.Infof("extranonce was resent")
@@ -206,13 +208,9 @@ func (m *StratumV1PoolConn) resendRelevantNotifications(ctx context.Context) {
 	m.log.Infof("notify messages (%d) were resent", len(m.notifyMsgs))
 }
 
-func (s *StratumV1PoolConn) getChan() <-chan stratumv1_message.MiningMessageGeneric {
-	return s.msgCh
-}
-
 // Read reads message from pool
 func (s *StratumV1PoolConn) Read() (stratumv1_message.MiningMessageGeneric, error) {
-	msg := <-s.getChan()
+	msg := <-s.msgCh
 	return msg, nil
 }
 

@@ -50,29 +50,6 @@ func (p *MinerController) ConnectionHandler(ctx context.Context, incomingConn ne
 	// return nil
 }
 
-// KEPT AS REFERENCE TO PREV IMPLEMENTATION
-
-// func (p *MinerController) ConnectionHandler2(ctx context.Context, incomingConn net.Conn) error {
-// 	// connection-scoped objects
-// 	proxyConn := connections.NewProxyConn(p.poolAddr, incomingConn, p.log)
-// 	//------------------------------
-// 	handlers := protocol.NewStratumHandler()
-// 	stratumV1 := protocol.NewStratumV1(p.log, handlers, proxyConn)
-// 	proxyConn.SetHandler(stratumV1)
-// 	manager := protocol.NewStratumV1Manager(handlers, stratumV1, p.log, p.poolUser, p.poolPassword)
-// 	manager.Init()
-
-// 	// try to connect to dest before running
-// 	err := proxyConn.DialDest()
-// 	if err != nil {
-// 		return fmt.Errorf("cannot dial pool: %w", err)
-// 	}
-
-// 	p.repo.Store(manager)
-
-// 	return proxyConn.Run(ctx)
-// }
-
 func (p *MinerController) ChangeDestAll(addr string, username string, pwd string) error {
 	p.repo.Range(func(miner MinerModel) bool {
 		p.log.Infof("changing pool to %s for minerID %s", addr, miner.GetID())
