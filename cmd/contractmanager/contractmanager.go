@@ -866,30 +866,33 @@ func (buyer *BuyerContractManager) watchHashrateContract(addr msgbus.ContractID,
 }
 
 func (buyer *BuyerContractManager) closeOutMonitor(minerCh msgbus.EventChan, contractCh msgbus.EventChan, contractId msgbus.ContractID) {
+	checkHashrateChan := make(chan bool)
+	go func(){
+		for {
+			time.Sleep(time.Second * time.Duration(buyer.TimeThreshold))
+			// check contract is still running
+			event,_ := buyer.Ps.GetWait(msgbus.ContractMsg, msgbus.IDString(contractId))
+			switch event.Data.(type) {
+			case msgbus.Contract:
+				checkHashrateChan<-true
+			default:
+				return // contract unpublished i.e. not closed out
+			}
+		}
+	}()
 	for {
 		select {
 		case <-buyer.Ctx.Done():
 			contextlib.Logf(buyer.Ctx, log.LevelInfo, "Cancelling current contract manager context: cancelling closeOutMonitor go routine")
 			return
-		case event := <-minerCh:
-			if event.EventType == msgbus.PublishEvent || event.EventType == msgbus.UpdateEvent || event.EventType == msgbus.UnpublishEvent {
-				// check hashrate is being fulfilled for all running contracts
-				time.Sleep(time.Second * time.Duration(buyer.TimeThreshold)) // give buffer time for total hashrate to adjust to multiple updates
-				contractClosed := buyer.checkHashRate(contractId)
-				if contractClosed {
-					return
-				}
+		case <-checkHashrateChan:
+			contractClosed := buyer.checkHashRate(contractId)
+			if contractClosed {
+				return
 			}
 		case event := <-contractCh:
 			if event.EventType == msgbus.UnpublishEvent {
 				return
-			}
-			if event.EventType == msgbus.PublishEvent || event.EventType == msgbus.UpdateEvent {
-				// check hashrate is being fulfilled after contract update
-				contractClosed := buyer.checkHashRate(contractId)
-				if contractClosed {
-					return
-				}
 			}
 		}
 	}
@@ -914,12 +917,11 @@ func (buyer *BuyerContractManager) checkHashRate(contractId msgbus.ContractID) b
 		if err != nil {
 			contextlib.Logf(buyer.Ctx, log.LevelPanic, fmt.Sprintf("Failed to get miner, Fileline::%s, Error::", lumerinlib.FileLine()), err)
 		}
-		if _,ok := miner.Contracts[contractId]; !ok {
-			totalHashrate += miner.CurrentHashRate
+		if _,ok := miner.Contracts[contractId]; ok {
+			totalHashrate += int(float64(miner.CurrentHashRate)*miner.Contracts[contractId])
 		}
 	}
 
-	//hashrateTolerance := float64(contract.Limit) / 100
 	hashrateTolerance := float64(HASHRATE_LIMIT) / 100
 	promisedHashrateMin := int(float64(contract.Speed) * (1 - hashrateTolerance))
 

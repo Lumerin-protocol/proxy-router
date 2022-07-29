@@ -94,7 +94,7 @@ func TestSellerRoutine(t *testing.T) {
 
 	// start connection scheduler look at miners
 	connectionCollection := connections.CreateConnectionCollection()
-	cs, err := connectionscheduler.New(&mainCtx, &NodeOperator, false, 0, connectionCollection)
+	cs, err := connectionscheduler.New(&mainCtx, &NodeOperator, false, 20, connectionCollection)
 	if err != nil {
 		panic(fmt.Sprintf("schedule manager failed:%s", err))
 	}
