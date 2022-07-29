@@ -1,25 +1,22 @@
 package protocol
 
-import "context"
+import (
+	"context"
 
-// StratumHandlerObject is passed into handler function to allow
-// hook into the messaging and either modify message and propagate it to
-// destination or block propagation and return response
-type StratumHandlerObject interface {
-	ChangePool(addr string) error
-	WriteToMiner(ctx context.Context, msg []byte) error
-	WriteToPool(ctx context.Context, msg []byte) error
+	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
+)
+
+type StratumV1SourceConn interface {
+	GetID() string
+	Read(ctx context.Context) (stratumv1_message.MiningMessageGeneric, error)
+	Write(ctx context.Context, msg stratumv1_message.MiningMessageGeneric) error
 }
 
-type Connection interface {
-	SetHandler(pc MessageHandler)
-	ChangePool(addr string) error
-	GetMinerIP() string
-	WriteToPool(ctx context.Context, bytes []byte) error
-	WriteToMiner(ctx context.Context, bytes []byte) error
+type StratumV1DestConn interface {
+	SetDest(addr string, user string, pwd string) error
+	Read(ctx context.Context) (stratumv1_message.MiningMessageGeneric, error)
+	Write(ctx context.Context, msg stratumv1_message.MiningMessageGeneric) error
+	GetExtranonce() (string, int)
 }
 
-type MessageHandler = interface {
-	MinerMessageHandler(ctx context.Context, msg []byte) []byte
-	PoolMessageHandler(ctx context.Context, msg []byte) []byte
-}
+type StratumV1ResultHandler = func(a stratumv1_message.MiningResult) stratumv1_message.MiningMessageGeneric

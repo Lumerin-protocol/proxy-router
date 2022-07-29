@@ -1,4 +1,4 @@
-package message
+package stratumv1_message
 
 import (
 	"encoding/json"
@@ -27,6 +27,15 @@ func ParseMiningSubscribeResult(b []byte) (*MiningSubscribeResult, error) {
 		return nil, fmt.Errorf("invalid extranonce size")
 	}
 	return m, nil
+}
+
+func NewMiningSubscribeResult(extranonce1 string, size int) *MiningSubscribeResult {
+	data := [2][2]string{{"mining.set_difficulty", "1"}, {"mining.notify", "1"}}
+	result := [3]interface{}{data, extranonce1, size}
+	return &MiningSubscribeResult{
+		Result: result,
+		Error:  nil,
+	}
 }
 
 func (m *MiningSubscribeResult) GetID() int {
