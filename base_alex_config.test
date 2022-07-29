@@ -11,13 +11,13 @@
         "listenIP": "0.0.0.0",
         "listenPort": "3333",
         "schedulermethod": "OnDemand",
-        "defaultPoolAddr": "stratum+tcp://neominer1973.alex:@mining.pool.titan.io:4242"
+        "defaultPoolAddr": "stratum+tcp://titan1.alex:@mining.pool.titan.io:4242"
     },
 
     "schedule": {
         "disable": false,
         "passthrough": false,
-        "hashrateCalcLagTime": 20
+        "hashrateCalcLagTime": 600
     },
 
     "validate": {
@@ -25,12 +25,14 @@
     },
 
     "contract": {
-        "disable": true,
-        "ethNodeAddr": "ws://127.0.0.1:7545",
+        "disable": false,
+        "mnemonic": "boy mom taxi surge middle hat offer rug roast edge scissors remember",
+        "accountIndex": 0,
+        "ethNodeAddr": "wss://ropsten.infura.io/ws/v3/91fa8dea25fe4bf4b8ce1c6be8bb9eb3",
         "claimFunds": true,
-        "timeThreshold": 10,
-        "cloneFactoryAddress": "0x15BdE7774F4A69A7d1fdb66CE94CDF26FCd8F45e",
-        "lumerinTokenAddress": "0x84E00a18a36dFa31560aC216da1A9bef2164647D",
+        "timeThreshold": 600,
+        "cloneFactoryAddress": "0x1F96Ac8f1a030aa0619ab9e203b37a7c942EEFe8", 
+        "lumerinTokenAddress": "0xC6a30Bc2e1D7D9e9FFa5b45a21b6bDCBc109aE1B",
         "validatorAddress": "0x508CD3988E2b4B8f1d243b961a855347349f6F63"
     },
 
