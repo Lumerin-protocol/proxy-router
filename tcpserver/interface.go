@@ -6,5 +6,5 @@ import (
 )
 
 type ConnectionHandler interface {
-	ConnectionHandler(ctx context.Context, conn net.Conn) error
+	HandleConnection(ctx context.Context, conn net.Conn) error
 }

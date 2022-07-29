@@ -14,7 +14,17 @@ type Config struct {
 		Password string `env:"POOL_PASSWORD" flag:"pool-password"`
 	}
 	Contract struct {
-		Address string `env:"CONTRACT_ADDRESS" flag:"contract-address" validate:"required,eth_addr"`
+		Address             string `env:"CONTRACT_ADDRESS" flag:"contract-address" validate:"required,eth_addr"`
+		IsBuyer             bool   `env:"IS_BUYER" flag:"is-buyer" validate:"required,boolean"`
+		Mnemonic            string
+		AccountIndex        int
+		EthNodeAddr         string
+		ClaimFunds          bool
+		TimeThreshold       int
+		CloneFactoryAddress string
+		LumerinTokenAddress string
+		ValidatorAddress    string
+		ProxyAddress        string
 	}
 	EthNode struct {
 		Address string `env:"ETH_NODE_ADDRESS" flag:"eth-node-address" validate:"required,url"`
