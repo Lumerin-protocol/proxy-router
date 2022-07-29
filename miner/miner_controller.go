@@ -4,8 +4,7 @@ import (
 	"context"
 	"net"
 
-	"go.uber.org/zap"
-
+	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/protocol"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
 )
@@ -17,10 +16,10 @@ type MinerController struct {
 
 	repo *MinerRepo
 
-	log *zap.SugaredLogger
+	log interfaces.ILogger
 }
 
-func NewMinerController(poolAddr string, poolUser string, poolPassword string, repo *MinerRepo, log *zap.SugaredLogger) *MinerController {
+func NewMinerController(poolAddr string, poolUser string, poolPassword string, repo *MinerRepo, log interfaces.ILogger) *MinerController {
 	return &MinerController{
 		poolAddr:     poolAddr,
 		poolUser:     poolUser,

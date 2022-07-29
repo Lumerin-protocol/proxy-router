@@ -12,7 +12,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/app"
 	"gitlab.com/TitanInd/hashrouter/config"
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
-	"gitlab.com/TitanInd/hashrouter/events"
+	"gitlab.com/TitanInd/hashrouter/eventbus"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/miner"
@@ -46,7 +46,7 @@ func InitApp() (*app.App, error) {
 		TCPServer:       tcpServer,
 		MinerController: minerController,
 		Server:          server,
-		SellerManager:   sellerContractManager,
+		ContractManager:   sellerContractManager,
 		Logger:          sugaredLogger,
 	}
 	return appApp, nil

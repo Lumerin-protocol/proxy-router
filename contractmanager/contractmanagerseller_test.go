@@ -16,8 +16,8 @@ import (
 	//"github.com/ethereum/go-ethereum/crypto/ecies"
 
 	"gitlab.com/TitanInd/lumerin/cmd/connectionscheduler"
-	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
 	"gitlab.com/TitanInd/lumerin/cmd/log"
+	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
 
 	"gitlab.com/TitanInd/lumerin/connections"
 	"gitlab.com/TitanInd/lumerin/lumerinlib"
@@ -26,19 +26,18 @@ import (
 
 func TestSellerRoutine(t *testing.T) {
 	configPath := "../../ganacheconfig.json"
+	mnemonic := "course surface achieve episode cable brisk flame enjoy beyond hand rival predict"
+	accountIndex := 0
 	l := log.New()
 	ps := msgbus.New(10, l)
-	ts, _, _ := BeforeEach(configPath)
+	ts, _, _ := BeforeEach(configPath, mnemonic)
 	var hashrateContractAddress [4]common.Address
 	var purchasedHashrateContractAddress [4]common.Address
 
 	ctxStruct := contextlib.NewContextStruct(nil, ps, nil, nil, nil)
 	mainCtx := context.WithValue(context.Background(), contextlib.ContextKey, ctxStruct)
 
-	contractManagerCtx, contractManagerCancel := context.WithCancel(mainCtx)
-
-	var contractManagerConfig msgbus.ContractManagerConfig
-	contractManagerConfigID := msgbus.GetRandomIDString()
+	var contractManagerConfig lumerinlib.ContractManagerConfig
 
 	// encrpted cipher text generated from node code using buyer's public key
 	//encryptedDest := "04d9b65eada6828aad11f7956e92a5afaa46718e95c2229b21b371c3c6e317bad00018d15f2cedb6400d2156a3cc1c3360b7f747d5ab7e72926937776fc133ae5b9ada0e1d95b57f29b917220a92ed28ff1f57301b6688f7e5ef4ae87015508aefb7156aba0de5cc25d65d1f11a7d3c75330d54d045ebc22231af70fb1aa02b38a6cf93b34a974076db109433ba4191171b2292885"
@@ -62,8 +61,8 @@ func TestSellerRoutine(t *testing.T) {
 		panic(fmt.Sprintf("failed to load contract manager configuration:%s", err))
 	}
 
-	contractManagerConfig.Mnemonic = contractManagerConfigFile["mnemonic"].(string)
-	contractManagerConfig.AccountIndex = int(contractManagerConfigFile["accountIndex"].(float64))
+	contractManagerConfig.Mnemonic = mnemonic
+	contractManagerConfig.AccountIndex = accountIndex
 	contractManagerConfig.EthNodeAddr = contractManagerConfigFile["ethNodeAddr"].(string)
 	contractManagerConfig.ClaimFunds = contractManagerConfigFile["claimFunds"].(bool)
 	contractManagerConfig.CloneFactoryAddress = ts.CloneFactoryAddress.Hex()
@@ -78,16 +77,12 @@ func TestSellerRoutine(t *testing.T) {
 	Account, PrivateKey := HdWalletKeys(contractManagerConfig.Mnemonic, contractManagerConfig.AccountIndex+1)
 	buyerAddress := Account.Address
 	buyerPrivateKey := PrivateKey
-	fmt.Println("Buyer Account", buyerAddress)
-	fmt.Println("Buyer private key", buyerPrivateKey)
-
-	ps.PubWait(msgbus.ContractManagerConfigMsg, contractManagerConfigID, contractManagerConfig)
 
 	NodeOperator := msgbus.NodeOperator{
 		ID:          msgbus.NodeOperatorID(msgbus.GetRandomIDString()),
 		DefaultDest: defaultDest.ID,
 		IsBuyer:     false,
-		Contracts: make(map[msgbus.ContractID]msgbus.ContractState),
+		Contracts:   make(map[string]string),
 	}
 	event, err = ps.PubWait(msgbus.NodeOperatorMsg, msgbus.IDString(NodeOperator.ID), NodeOperator)
 	if err != nil {
@@ -109,8 +104,7 @@ func TestSellerRoutine(t *testing.T) {
 	}
 
 	var cman SellerContractManager
-	go newConfigMonitor(&mainCtx, contractManagerCtx, contractManagerCancel, &cman, contractManagerConfigID, &NodeOperator)
-	err = cman.init(&contractManagerCtx, contractManagerConfigID, &NodeOperator)
+	err = cman.init(&mainCtx, contractManagerConfig, &NodeOperator)
 	if err != nil {
 		panic(fmt.Sprintf("contract manager init failed:%s", err))
 	}
@@ -176,7 +170,7 @@ loop2:
 		CurrentHashRate: 20,
 		State:           msgbus.OnlineState,
 		Dest:            defaultDest.ID,
-		Contracts:       make(map[msgbus.ContractID]float64),
+		Contracts:       make(map[string]float64),
 	}
 	miner2 := msgbus.Miner{
 		ID:              msgbus.MinerID("MinerID02"),
@@ -184,7 +178,7 @@ loop2:
 		CurrentHashRate: 10,
 		State:           msgbus.OnlineState,
 		Dest:            defaultDest.ID,
-		Contracts:       make(map[msgbus.ContractID]float64),
+		Contracts:       make(map[string]float64),
 	}
 	ps.Pub(msgbus.MinerMsg, msgbus.IDString(miner1.ID), miner1)
 	ps.Pub(msgbus.MinerMsg, msgbus.IDString(miner2.ID), miner2)
@@ -195,17 +189,17 @@ loop2:
 	}
 
 	// contract manager sees existing contracts and states are correct
-	if cman.NodeOperator.Contracts[msgbus.ContractID(hashrateContractAddress[0].Hex())] != msgbus.ContRunningState {
+	if cman.NodeOperator.Contracts[string(hashrateContractAddress[0].Hex())] != msgbus.ContRunningState {
 		t.Errorf("Contract 1 was not found or is not in correct state")
 	}
-	if cman.NodeOperator.Contracts[msgbus.ContractID(hashrateContractAddress[1].Hex())] != msgbus.ContAvailableState {
+	if cman.NodeOperator.Contracts[string(hashrateContractAddress[1].Hex())] != msgbus.ContAvailableState {
 		t.Errorf("Contract 2 was not found or is not in correct state")
 	}
 
 	// connection scheduler sets contract to correct miner
 	m1, _ := ps.MinerGetWait(miner1.ID)
 	m2, _ := ps.MinerGetWait(miner2.ID)
-	if _,ok := m1.Contracts[msgbus.ContractID(hashrateContractAddress[0].Hex())]; ok {
+	if _, ok := m1.Contracts[string(hashrateContractAddress[0].Hex())]; ok {
 		t.Errorf("Miner contracts not set correctly")
 	}
 	if len(m2.Contracts) == 0 {
@@ -216,13 +210,13 @@ loop2:
 	// if network is ganache, create a new transaction so a new block is created
 	if contractManagerConfig.EthNodeAddr == "ws://127.0.0.1:7545" {
 		CreateNewGanacheBlock(ts, cman.Account, cman.PrivateKey, contractLength, sleepTime)
-		if cman.NodeOperator.Contracts[msgbus.ContractID(hashrateContractAddress[0].Hex())] != msgbus.ContAvailableState {
+		if cman.NodeOperator.Contracts[string(hashrateContractAddress[0].Hex())] != msgbus.ContAvailableState {
 			t.Errorf("Contract 1 did not close out correctly")
 		}
 	} else {
 		time.Sleep(time.Second * time.Duration(contractLength))   // length of contract
 		time.Sleep(time.Millisecond * time.Duration(sleepTime*3)) // length of transaction
-		if cman.NodeOperator.Contracts[msgbus.ContractID(hashrateContractAddress[0].Hex())] != msgbus.ContAvailableState {
+		if cman.NodeOperator.Contracts[string(hashrateContractAddress[0].Hex())] != msgbus.ContAvailableState {
 			t.Errorf("Contract 1 did not close out correctly")
 		}
 	}
@@ -256,7 +250,7 @@ loop4:
 		}
 	}
 	time.Sleep(time.Millisecond * time.Duration(sleepTime/5))
-	if cman.NodeOperator.Contracts[msgbus.ContractID(hashrateContractAddress[1].Hex())] != msgbus.ContRunningState {
+	if cman.NodeOperator.Contracts[string(hashrateContractAddress[1].Hex())] != msgbus.ContRunningState {
 		t.Errorf("Contract 2 is not in correct state")
 	}
 
@@ -266,7 +260,7 @@ loop4:
 	if len(m1.Contracts) == 0 {
 		t.Errorf("Miner contracts not set correctly")
 	}
-	if _,ok := m2.Contracts[msgbus.ContractID(hashrateContractAddress[1].Hex())]; ok {
+	if _, ok := m2.Contracts[string(hashrateContractAddress[1].Hex())]; ok {
 		t.Errorf("Miner contracts not set correctly")
 	}
 
@@ -274,13 +268,13 @@ loop4:
 	// if network is ganache, create a new transaction so a new block is created
 	if contractManagerConfig.EthNodeAddr == "ws://127.0.0.1:7545" {
 		CreateNewGanacheBlock(ts, cman.Account, cman.PrivateKey, contractLength, sleepTime)
-		if cman.NodeOperator.Contracts[msgbus.ContractID(hashrateContractAddress[1].Hex())] != msgbus.ContAvailableState {
+		if cman.NodeOperator.Contracts[string(hashrateContractAddress[1].Hex())] != msgbus.ContAvailableState {
 			t.Errorf("Contract 2 did not close out correctly")
 		}
 	} else {
 		time.Sleep(time.Second * time.Duration(contractLength*2)) // length of contract
 		time.Sleep(time.Millisecond * time.Duration(sleepTime*3)) // length of transaction
-		if cman.NodeOperator.Contracts[msgbus.ContractID(hashrateContractAddress[1].Hex())] != msgbus.ContAvailableState {
+		if cman.NodeOperator.Contracts[string(hashrateContractAddress[1].Hex())] != msgbus.ContAvailableState {
 			t.Errorf("Contract 2 did not close out correctly")
 		}
 	}
@@ -303,7 +297,7 @@ loop4:
 		CurrentHashRate: 30,
 		State:           msgbus.OnlineState,
 		Dest:            defaultDest.ID,
-		Contracts:       make(map[msgbus.ContractID]float64),
+		Contracts:       make(map[string]float64),
 	}
 	ps.Pub(msgbus.MinerMsg, msgbus.IDString(miner3.ID), miner3)
 
@@ -315,7 +309,7 @@ loop5:
 		}
 	}
 	time.Sleep(time.Millisecond * time.Duration(sleepTime/5))
-	if cman.NodeOperator.Contracts[msgbus.ContractID(hashrateContractAddress[2].Hex())] != msgbus.ContAvailableState {
+	if cman.NodeOperator.Contracts[string(hashrateContractAddress[2].Hex())] != msgbus.ContAvailableState {
 		t.Errorf("Contract 3 was not found or is not in correct state")
 	}
 	// PurchaseHashrateContract(cman.EthClient, buyerAddress, buyerPrivateKey, ts.cloneFactoryAddress, hashrateContractAddress[2], buyerAddress, "stratum+tcp://127.0.0.1:3333/testrig")
@@ -329,7 +323,7 @@ loop6:
 		}
 	}
 	time.Sleep(time.Millisecond * time.Duration(sleepTime/5))
-	if cman.NodeOperator.Contracts[msgbus.ContractID(hashrateContractAddress[2].Hex())] != msgbus.ContRunningState {
+	if cman.NodeOperator.Contracts[string(hashrateContractAddress[2].Hex())] != msgbus.ContRunningState {
 		t.Errorf("Contract 3 is not in correct state")
 	}
 
@@ -343,7 +337,7 @@ loop6:
 	if len(m2.Contracts) == 0 {
 		t.Errorf("Miner contracts not set correctly")
 	}
-	if _,ok := m3.Contracts[msgbus.ContractID(hashrateContractAddress[2].Hex())]; ok {
+	if _, ok := m3.Contracts[string(hashrateContractAddress[2].Hex())]; ok {
 		t.Errorf("Miner contracts not set correctly")
 	}
 
@@ -353,7 +347,7 @@ loop6:
 	setContractCloseOut(cman.EthClient, buyerAddress, buyerPrivateKey, hashrateContractAddress[2], &wg, &cman.CurrentNonce, 0, ps, NodeOperator)
 	wg.Wait()
 	time.Sleep(time.Millisecond * time.Duration(sleepTime*3))
-	if cman.NodeOperator.Contracts[msgbus.ContractID(hashrateContractAddress[2].Hex())] != msgbus.ContAvailableState {
+	if cman.NodeOperator.Contracts[string(hashrateContractAddress[2].Hex())] != msgbus.ContAvailableState {
 		t.Errorf("Contract 3 did not close out correctly")
 	}
 
@@ -375,7 +369,7 @@ loop6:
 		CurrentHashRate: 15,
 		State:           msgbus.OnlineState,
 		Dest:            defaultDest.ID,
-		Contracts:       make(map[msgbus.ContractID]float64),
+		Contracts:       make(map[string]float64),
 	}
 	ps.Pub(msgbus.MinerMsg, msgbus.IDString(miner4.ID), miner4)
 
@@ -387,7 +381,7 @@ loop7:
 		}
 	}
 	time.Sleep(time.Millisecond * time.Duration(sleepTime/5))
-	if cman.NodeOperator.Contracts[msgbus.ContractID(hashrateContractAddress[3].Hex())] != msgbus.ContAvailableState {
+	if cman.NodeOperator.Contracts[string(hashrateContractAddress[3].Hex())] != msgbus.ContAvailableState {
 		t.Errorf("Contract 4 was not found or is not in correct state")
 	}
 
@@ -402,7 +396,7 @@ loop8:
 		}
 	}
 	time.Sleep(time.Millisecond * time.Duration(sleepTime/5))
-	if cman.NodeOperator.Contracts[msgbus.ContractID(hashrateContractAddress[3].Hex())] != msgbus.ContRunningState {
+	if cman.NodeOperator.Contracts[string(hashrateContractAddress[3].Hex())] != msgbus.ContRunningState {
 		t.Errorf("Contract 4 is not in correct state")
 	}
 
@@ -420,7 +414,7 @@ loop8:
 	if len(m3.Contracts) == 0 {
 		t.Errorf("Miner contracts not set correctly")
 	}
-	if _,ok := m4.Contracts[msgbus.ContractID(hashrateContractAddress[3].Hex())]; ok {
+	if _, ok := m4.Contracts[string(hashrateContractAddress[3].Hex())]; ok {
 		t.Errorf("Miner contracts not set correctly")
 	}
 
@@ -450,13 +444,13 @@ loop8:
 	// if network is ganache, create a new transaction so a new block is created
 	if contractManagerConfig.EthNodeAddr == "ws://127.0.0.1:7545" {
 		CreateNewGanacheBlock(ts, cman.Account, cman.PrivateKey, contractLength, sleepTime)
-		if cman.NodeOperator.Contracts[msgbus.ContractID(hashrateContractAddress[3].Hex())] != msgbus.ContAvailableState {
+		if cman.NodeOperator.Contracts[string(hashrateContractAddress[3].Hex())] != msgbus.ContAvailableState {
 			t.Errorf("Contract 4 did not close out correctly")
 		}
 	} else {
 		time.Sleep(time.Second * time.Duration(contractLength))   // length of contract
 		time.Sleep(time.Millisecond * time.Duration(sleepTime*3)) // length of transaction
-		if cman.NodeOperator.Contracts[msgbus.ContractID(hashrateContractAddress[3].Hex())] != msgbus.ContAvailableState {
+		if cman.NodeOperator.Contracts[string(hashrateContractAddress[3].Hex())] != msgbus.ContAvailableState {
 			t.Errorf("Contract 4 did not close out correctly")
 		}
 	}
@@ -465,15 +459,5 @@ loop8:
 	m4, _ = ps.MinerGetWait(miner4.ID)
 	if len(m4.Contracts) == 0 {
 		t.Errorf("Contract 4 was not removed from miner after early closeout")
-	}
-
-	//
-	// test contract manager config updated
-	//
-	contractManagerConfig.ClaimFunds = false
-	ps.SetWait(msgbus.ContractManagerConfigMsg, contractManagerConfigID, contractManagerConfig)
-	time.Sleep(time.Second * 3)
-	if cman.ClaimFunds != false {
-		t.Errorf("Contract manager's configuration was not updated after msgbus update")
 	}
 }
