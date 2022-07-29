@@ -2,12 +2,11 @@ package miner
 
 import (
 	"context"
-	"fmt"
 	"net"
 
-	"gitlab.com/TitanInd/hashrouter/connections"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/protocol"
+	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
 )
 
 type MinerController struct {
@@ -30,32 +29,31 @@ func NewMinerController(poolAddr string, poolUser string, poolPassword string, r
 	}
 }
 
-func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net.Conn) error {
-	// connection-scoped objects
-	proxyConn := connections.NewProxyConn(p.poolAddr, incomingConn, p.log)
-	//------------------------------
-	handlers := protocol.NewStratumHandlerCollection()
-	stratumV1 := protocol.NewStratumV1(p.log, handlers, proxyConn)
-	proxyConn.SetHandler(stratumV1)
-	manager := protocol.NewStratumV1Manager(handlers, stratumV1, p.log, p.poolUser, p.poolPassword)
-	manager.Init()
-
-	// try to connect to dest before running
-	err := proxyConn.DialDest()
+func (p *MinerController) ConnectionHandler(ctx context.Context, incomingConn net.Conn) error {
+	poolPool := protocol.NewStratumV1PoolPool(p.log)
+	err := poolPool.SetDest(p.poolAddr, p.poolUser, p.poolPassword)
 	if err != nil {
-		return fmt.Errorf("cannot dial pool: %w", err)
+		p.log.Error(err)
+		return err
 	}
+	extranonce, size := poolPool.GetExtranonce()
+	msg := stratumv1_message.NewMiningSubscribeResult(extranonce, size)
+	miner := protocol.NewStratumV1Miner(incomingConn, p.log, msg)
+	manager := protocol.NewStratumV1MinerModel(poolPool, miner, p.log)
+	// try to connect to dest before running
 
 	p.repo.Store(manager)
 
-	return proxyConn.Run(ctx)
+	return manager.Run()
+
+	// return nil
 }
 
 func (p *MinerController) ChangeDestAll(addr string, username string, pwd string) error {
-	p.repo.Range(func(miner Miner) bool {
+	p.repo.Range(func(miner MinerModel) bool {
 		p.log.Infof("changing pool to %s for minerID %s", addr, miner.GetID())
 
-		err := miner.ChangePool(addr, username, pwd)
+		err := miner.ChangeDest(addr, username, pwd)
 		if err != nil {
 			p.log.Errorf("error changing pool %w", err)
 		} else {

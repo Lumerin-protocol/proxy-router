@@ -1,4 +1,4 @@
-package message
+package stratumv1_message
 
 import "encoding/json"
 
@@ -13,10 +13,13 @@ type MiningSubscribe struct {
 
 type miningSubscribeParams = [2]string
 
-func NewMiningSubscribe() *MiningSubscribe {
+func NewMiningSubscribe(id int, name string, subscriptionId string) *MiningSubscribe {
 	return &MiningSubscribe{
+		ID:     id,
 		Method: MethodMiningSubscribe,
-		Params: &miningSubscribeParams{},
+		Params: &miningSubscribeParams{
+			name, subscriptionId,
+		},
 	}
 }
 

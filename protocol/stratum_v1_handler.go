@@ -1,6 +1,10 @@
 package protocol
 
-import m "gitlab.com/TitanInd/hashrouter/protocol/message"
+import (
+	"context"
+
+	m "gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
+)
 
 type HandlerName string
 
@@ -21,8 +25,17 @@ type StratumHandlerCollection struct {
 	handlers map[HandlerName]StratumSingleHandler
 }
 
-func NewStratumHandlerCollection() *StratumHandlerCollection {
-	return &StratumHandlerCollection{
+// StratumHandlerObject is passed into handler function to allow
+// hook into the messaging and either modify message and propagate it to
+// destination or block propagation and return response
+type StratumHandlerObject interface {
+	ChangePool(addr string) error
+	WriteToMiner(ctx context.Context, msg []byte) error
+	WriteToPool(ctx context.Context, msg []byte) error
+}
+
+func NewStratumHandler() *StratumHandler {
+	return &StratumHandler{
 		handlers: make(map[HandlerName]StratumSingleHandler),
 	}
 }

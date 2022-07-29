@@ -12,21 +12,21 @@ func NewMinerRepo() *MinerRepo {
 	}
 }
 
-func (p *MinerRepo) Load(ID string) (miner Miner, ok bool) {
+func (p *MinerRepo) Load(ID string) (miner MinerModel, ok bool) {
 	if val, ok := p.miners.Load(ID); ok {
-		return val.(Miner), true
+		return val.(MinerModel), true
 	}
 	return nil, false
 }
 
-func (p *MinerRepo) Range(f func(miner Miner) bool) {
+func (p *MinerRepo) Range(f func(miner MinerModel) bool) {
 	p.miners.Range(func(key, value any) bool {
-		miner := value.(Miner)
+		miner := value.(MinerModel)
 		return f(miner)
 	})
 }
 
-func (p *MinerRepo) Store(miner Miner) {
+func (p *MinerRepo) Store(miner MinerModel) {
 	p.miners.Store(miner.GetID(), miner)
 }
 
