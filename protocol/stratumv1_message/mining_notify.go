@@ -1,4 +1,4 @@
-package message
+package stratumv1_message
 
 import "encoding/json"
 
@@ -6,14 +6,23 @@ import "encoding/json"
 const MethodMiningNotify = "mining.notify"
 
 type MiningNotify struct {
-	ID     *int            `json:"id"` // always null
-	Method string          `json:"method"`
-	Params json.RawMessage `json:"params"`
+	ID     *int               `json:"id"` // always null
+	Method string             `json:"method"`
+	Params [9]json.RawMessage `json:"params"`
 }
 
 func ParseMiningNotify(b []byte) (*MiningNotify, error) {
 	m := &MiningNotify{}
 	return m, json.Unmarshal(b, m)
+}
+
+func (m *MiningNotify) GetCleanJobs() bool {
+	var cleanJobs bool
+	err := json.Unmarshal(m.Params[8], &cleanJobs)
+	if err != nil {
+		panic(err)
+	}
+	return cleanJobs
 }
 
 func (m *MiningNotify) Serialize() []byte {

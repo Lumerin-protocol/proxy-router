@@ -1,4 +1,4 @@
-package message
+package stratumv1_message
 
 import "encoding/json"
 
@@ -13,10 +13,11 @@ type MiningAuthorize struct {
 
 type miningAuthorizeParams = [2]string
 
-func NewMiningAuthorize() *MiningAuthorize {
+func NewMiningAuthorize(ID int, minerID string, password string) *MiningAuthorize {
 	return &MiningAuthorize{
+		ID:     ID,
 		Method: MethodMiningAuthorize,
-		Params: &miningAuthorizeParams{},
+		Params: &miningAuthorizeParams{minerID, password},
 	}
 }
 

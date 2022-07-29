@@ -67,3 +67,26 @@ func newProductionLogger() (*zap.Logger, error) {
 	}
 	return l, nil
 }
+
+func LogMsg(isMiner bool, isRead bool, payload []byte, l *zap.SugaredLogger) {
+	var (
+		source string
+		op     string
+		cut    int = 100
+	)
+	if isMiner {
+		source = "MINER"
+	} else {
+		source = "POOL "
+	}
+	if isRead {
+		op = "<-"
+	} else {
+		op = "->"
+	}
+	msg := string(payload)
+	if len(msg) > cut {
+		msg = msg[:cut] + "...}"
+	}
+	l.Desugar().WithOptions(zap.AddCallerSkip(1)).Sugar().Debugf("%s %s: %s", source, op, msg)
+}
