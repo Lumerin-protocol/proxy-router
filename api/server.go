@@ -5,18 +5,20 @@ import (
 	"net/http"
 	"time"
 
+	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/miner"
-	"go.uber.org/zap"
 )
 
 type Server struct {
+	server http.Server
+
 	address         string
-	server          http.Server
-	log             zap.SugaredLogger
 	shutdownTimeout time.Duration
+
+	log interfaces.ILogger
 }
 
-func NewServer(address string, log *zap.SugaredLogger, minerController *miner.MinerController) *Server {
+func NewServer(address string, log interfaces.ILogger, minerController *miner.MinerController) *Server {
 	mux := http.NewServeMux()
 
 	// mux.HandleFunc("/connections", connectionsController.ServeHTTP)
@@ -34,7 +36,7 @@ func NewServer(address string, log *zap.SugaredLogger, minerController *miner.Mi
 		address:         address,
 		server:          server,
 		shutdownTimeout: 5 * time.Second,
-		log:             *log,
+		log:             log,
 	}
 }
 

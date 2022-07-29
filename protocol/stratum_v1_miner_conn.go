@@ -7,22 +7,22 @@ import (
 	"net"
 	"sync"
 
+	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
-	"go.uber.org/zap"
 )
 
 type StratumV1Miner struct {
 	conn          net.Conn
 	reader        *bufio.Reader
-	log           *zap.SugaredLogger
+	log           interfaces.ILogger
 	isWriting     bool
 	mu            *sync.Mutex
 	cond          *sync.Cond
 	extraNonceMsg *stratumv1_message.MiningSubscribeResult
 }
 
-func NewStratumV1Miner(conn net.Conn, log *zap.SugaredLogger, extraNonce *stratumv1_message.MiningSubscribeResult) *StratumV1Miner {
+func NewStratumV1Miner(conn net.Conn, log interfaces.ILogger, extraNonce *stratumv1_message.MiningSubscribeResult) *StratumV1Miner {
 	mu := new(sync.Mutex)
 	return &StratumV1Miner{
 		conn,

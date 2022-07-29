@@ -3,6 +3,7 @@ package lib
 import (
 	"os"
 
+	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -68,7 +69,7 @@ func newProductionLogger() (*zap.Logger, error) {
 	return l, nil
 }
 
-func LogMsg(isMiner bool, isRead bool, payload []byte, l *zap.SugaredLogger) {
+func LogMsg(isMiner bool, isRead bool, payload []byte, l interfaces.ILogger) {
 	var (
 		source string
 		op     string
@@ -88,5 +89,8 @@ func LogMsg(isMiner bool, isRead bool, payload []byte, l *zap.SugaredLogger) {
 	if len(msg) > cut {
 		msg = msg[:cut] + "...}"
 	}
-	l.Desugar().WithOptions(zap.AddCallerSkip(1)).Sugar().Debugf("%s %s: %s", source, op, msg)
+	// TODO: move this to logger implementation
+	if zapLogger, ok := l.(*zap.SugaredLogger); ok {
+		zapLogger.Desugar().WithOptions(zap.AddCallerSkip(1)).Sugar().Debugf("%s %s: %s", source, op, msg)
+	}
 }

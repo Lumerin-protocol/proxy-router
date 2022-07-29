@@ -5,18 +5,18 @@ import (
 	"net"
 	"sync"
 
+	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
-	"go.uber.org/zap"
 )
 
 // Wraps the stratum miner pool connection to reuse multiple pool connections without handshake
 type StratumV1PoolConnPool struct {
 	pool sync.Map
 	conn *StratumV1PoolConn
-	log  *zap.SugaredLogger
+	log  interfaces.ILogger
 }
 
-func NewStratumV1PoolPool(log *zap.SugaredLogger) *StratumV1PoolConnPool {
+func NewStratumV1PoolPool(log interfaces.ILogger) *StratumV1PoolConnPool {
 	return &StratumV1PoolConnPool{
 		pool: sync.Map{},
 		log:  log,

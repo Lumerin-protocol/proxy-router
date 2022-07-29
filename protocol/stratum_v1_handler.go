@@ -34,8 +34,8 @@ type StratumHandlerObject interface {
 	WriteToPool(ctx context.Context, msg []byte) error
 }
 
-func NewStratumHandler() *StratumHandler {
-	return &StratumHandler{
+func NewStratumHandler() *StratumHandlerCollection {
+	return &StratumHandlerCollection{
 		handlers: make(map[HandlerName]StratumSingleHandler),
 	}
 }

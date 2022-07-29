@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"net"
 
+	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
 	"go.uber.org/atomic"
-	"go.uber.org/zap"
 )
 
 // StratumV1PoolConn represents connection to the pool on the protocol level
@@ -32,10 +32,10 @@ type StratumV1PoolConn struct {
 	lastRequestId *atomic.Uint32                 // stratum request id counter
 	resHandlers   map[int]StratumV1ResultHandler // allows to register callbacks for particular messages to simplify transaction flow
 
-	log *zap.SugaredLogger
+	log interfaces.ILogger
 }
 
-func NewStratumV1Pool(conn net.Conn, log *zap.SugaredLogger, authUser string, authPass string) *StratumV1PoolConn {
+func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, authUser string, authPass string) *StratumV1PoolConn {
 	return &StratumV1PoolConn{
 		conn:          conn,
 		msgCh:         make(chan stratumv1_message.MiningMessageGeneric, 100),

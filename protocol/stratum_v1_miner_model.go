@@ -3,16 +3,16 @@ package protocol
 import (
 	"context"
 
-	"go.uber.org/zap"
+	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
 
 type stratumV1MinerModel struct {
 	pool  StratumV1DestConn
 	miner StratumV1SourceConn
-	log   *zap.SugaredLogger
+	log   interfaces.ILogger
 }
 
-func NewStratumV1MinerModel(poolPool StratumV1DestConn, miner StratumV1SourceConn, log *zap.SugaredLogger) *stratumV1MinerModel {
+func NewStratumV1MinerModel(poolPool StratumV1DestConn, miner StratumV1SourceConn, log interfaces.ILogger) *stratumV1MinerModel {
 	return &stratumV1MinerModel{
 		pool:  poolPool,
 		miner: miner,

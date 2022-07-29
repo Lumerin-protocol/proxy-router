@@ -7,17 +7,17 @@ import (
 	"net"
 	"net/netip"
 
-	"go.uber.org/zap"
+	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
 
 type TCPServer struct {
 	serverAddr string
 	handler    ConnectionHandler
 
-	log *zap.SugaredLogger
+	log interfaces.ILogger
 }
 
-func NewTCPServer(serverAddr string, log *zap.SugaredLogger) *TCPServer {
+func NewTCPServer(serverAddr string, log interfaces.ILogger) *TCPServer {
 	return &TCPServer{
 		serverAddr: serverAddr,
 		log:        log,

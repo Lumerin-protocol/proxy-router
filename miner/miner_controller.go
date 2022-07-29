@@ -29,7 +29,7 @@ func NewMinerController(poolAddr string, poolUser string, poolPassword string, r
 	}
 }
 
-func (p *MinerController) ConnectionHandler(ctx context.Context, incomingConn net.Conn) error {
+func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net.Conn) error {
 	poolPool := protocol.NewStratumV1PoolPool(p.log)
 	err := poolPool.SetDest(p.poolAddr, p.poolUser, p.poolPassword)
 	if err != nil {

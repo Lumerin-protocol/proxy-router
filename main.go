@@ -17,7 +17,6 @@ import (
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/miner"
 	"gitlab.com/TitanInd/hashrouter/tcpserver"
-	"go.uber.org/zap"
 )
 
 const VERSION = "0.01"
@@ -38,7 +37,7 @@ func InitApp() (*app.App, error) {
 		miner.NewMinerRepo,
 		provideMinerController,
 		provideTCPServer,
-		events.NewEventManager,
+		eventbus.NewEventBus,
 		provideServer,
 		provideEthClient,
 		provideSellerContractManager,
