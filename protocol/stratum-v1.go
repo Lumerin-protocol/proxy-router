@@ -9,12 +9,12 @@ import (
 
 // Serializes-deserializes stratum messages, invokes registered handlers
 type StratumV1 struct {
-	handler *StratumHandler
+	handler *StratumHandlerCollection
 	log     *zap.SugaredLogger
 	conn    Connection
 }
 
-func NewStratumV1(log *zap.SugaredLogger, handler *StratumHandler, conn Connection) *StratumV1 {
+func NewStratumV1(log *zap.SugaredLogger, handler *StratumHandlerCollection, conn Connection) *StratumV1 {
 	stratum := &StratumV1{
 		log:     log,
 		handler: handler,

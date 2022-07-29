@@ -16,7 +16,7 @@ type StratumResultHandler = func(a message.MiningResult) message.MiningMessageGe
 // StratumV1Manager injects authorization, enables pool change and
 // then sends handshake messages, conrols message ids
 type StratumV1Manager struct {
-	handler        *StratumHandler
+	handler        *StratumHandlerCollection
 	stratum        *StratumV1
 	lastRequestId  *atomic.Uint32
 	resHandlers    map[int]StratumResultHandler // maps MINER request id to callback, the resulting proxyrouter id can be different
@@ -31,7 +31,7 @@ type StratumV1Manager struct {
 	notificationsPassthroughState chan bool
 }
 
-func NewStratumV1Manager(handler *StratumHandler, stratum *StratumV1, log *zap.SugaredLogger, authUser string, authPass string) *StratumV1Manager {
+func NewStratumV1Manager(handler *StratumHandlerCollection, stratum *StratumV1, log *zap.SugaredLogger, authUser string, authPass string) *StratumV1Manager {
 	return &StratumV1Manager{
 		stratum:                       stratum,
 		handler:                       handler,

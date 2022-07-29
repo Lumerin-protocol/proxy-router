@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"net"
 
-	"go.uber.org/zap"
-
 	"gitlab.com/TitanInd/hashrouter/connections"
+	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/protocol"
 )
 
@@ -18,10 +17,10 @@ type MinerController struct {
 
 	repo *MinerRepo
 
-	log *zap.SugaredLogger
+	log interfaces.ILogger
 }
 
-func NewMinerController(poolAddr string, poolUser string, poolPassword string, repo *MinerRepo, log *zap.SugaredLogger) *MinerController {
+func NewMinerController(poolAddr string, poolUser string, poolPassword string, repo *MinerRepo, log interfaces.ILogger) *MinerController {
 	return &MinerController{
 		poolAddr:     poolAddr,
 		poolUser:     poolUser,
@@ -35,7 +34,7 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	// connection-scoped objects
 	proxyConn := connections.NewProxyConn(p.poolAddr, incomingConn, p.log)
 	//------------------------------
-	handlers := protocol.NewStratumHandler()
+	handlers := protocol.NewStratumHandlerCollection()
 	stratumV1 := protocol.NewStratumV1(p.log, handlers, proxyConn)
 	proxyConn.SetHandler(stratumV1)
 	manager := protocol.NewStratumV1Manager(handlers, stratumV1, p.log, p.poolUser, p.poolPassword)

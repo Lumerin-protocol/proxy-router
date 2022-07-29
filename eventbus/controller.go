@@ -12,6 +12,7 @@ type EventBusController struct {
 
 const (
 	ConnectionEventName = "connection"
+	ConfigEventName     = "config"
 	ContractEventName   = "contract"
 	TestEventName       = "test"
 )
@@ -26,12 +27,32 @@ type ContractEventData struct {
 	DestAddr string
 }
 
+type ConfigEventData struct {
+	ID string
+}
+
 func NewEventBusController(e interfaces.IEventManager) *EventBusController {
 	return &EventBusController{
 		eventBus: e,
 	}
 }
 
+func (c *EventBusController) Bootstrap() {
+
+}
+
+func (c *EventBusController) SubscribeConfig(ctx context.Context, cb func(event IConfigEvent)) {
+	c.eventBus.Subscribe(ctx, ConnectionEventName, func(val interface{}) {
+		cb(val.(ConfigEventData))
+	})
+}
+func (c *EventBusController) SubscribeConfiguration(ctx context.Context, ch chan<- ConnectionEventData) {
+	c.eventBus.Subscribe(ctx, ConnectionEventName, func(val interface{}) {
+		ch <- val.(ConnectionEventData)
+	})
+}
+
+// example functions
 func (c *EventBusController) PublishConnection(data ConnectionEventData) {
 	c.eventBus.Publish(ConnectionEventName, data)
 }

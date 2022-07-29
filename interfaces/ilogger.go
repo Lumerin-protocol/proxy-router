@@ -29,4 +29,5 @@ type ILogger interface {
 	DPanicln(args ...interface{})
 	Panicln(args ...interface{})
 	Fatalln(args ...interface{})
+	Sync()
 }
