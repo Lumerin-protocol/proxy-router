@@ -70,6 +70,6 @@ func (s *stratumV1MinerModel) GetID() string {
 	return s.miner.GetID()
 }
 
-func (s *stratumV1MinerModel) IsAvailable() bool {
-	return true
+func (s *stratumV1MinerModel) GetHashRate() int {
+	return 0
 }
