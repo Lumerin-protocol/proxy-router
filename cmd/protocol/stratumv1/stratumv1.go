@@ -843,6 +843,7 @@ func (svs *StratumV1Struct) eventHandler(event *simple.SimpleEvent) (e error) {
 		e = svs.handleConnReadEvent(scre)
 		if e != nil {
 			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" handleConnReadEvent() returned error:%s", e)
+			svs.Close()
 		}
 		return
 
@@ -851,23 +852,24 @@ func (svs *StratumV1Struct) eventHandler(event *simple.SimpleEvent) (e error) {
 		e = svs.handleConnOpenEvent(scoe)
 		if e != nil {
 			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" handleConnOpenEvent() returned error:%s", e)
+			svs.Close()
 		}
-		return
+		return e
 
 	case simple.ConnEOFEvent:
 		// Error checking here event == connection event
 		svs.handleConnEOFEvent(event)
-		return
+		return e
 
 	case simple.ConnErrorEvent:
 		// Error checking here event == connection event
 		svs.handleConnErrorEvent(event)
-		return
+		return e
 
 	case simple.ErrorEvent:
 		// Error checking here event == Error event
 		svs.handleErrorEvent(event)
-		return
+		return e
 
 	default:
 		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Default Reached: Event Type:%s", string(event.EventType))

@@ -567,6 +567,7 @@ func (s *SimpleStruct) AsyncDial(dest *msgbus.Dest) (e error) {
 
 	addr, e := dest.NetAddr()
 	if e != nil {
+		contextlib.Logf(s.ctx, contextlib.LevelError, lumerinlib.FileLineFunc()+" NetAddr() returnd error:%s", e)
 		return e
 	}
 
