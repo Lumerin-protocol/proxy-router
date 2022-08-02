@@ -652,9 +652,11 @@ func (s *StratumV1Struct) switchDest() {
 	currentUID, _ := s.protocol.GetDefaultRouteUID()
 	newUID := s.GetDstUIDDestID(s.switchToDestID)
 
+	// UID no found, something is wrong, so close out this session
 	if newUID < 0 {
-		contextlib.Logf(s.Ctx(), contextlib.LevelPanic, fmt.Sprintf(lumerinlib.FileLineFunc()+" switchToDestID:%s has no UID ", s.switchToDestID))
-		return // Because LevelPanic does not seem to be panicing like it should
+		contextlib.Logf(s.Ctx(), contextlib.LevelError, fmt.Sprintf(lumerinlib.FileLineFunc()+" switchToDestID:%s has no UID ", s.switchToDestID))
+		s.Close()
+		return
 	}
 
 	if currentUID == newUID {
@@ -675,7 +677,6 @@ func (s *StratumV1Struct) switchDest() {
 
 			if v == nil {
 				contextlib.Logf(s.Ctx(), contextlib.LevelPanic, fmt.Sprintf(lumerinlib.FileLineFunc()+" dstDest[%d] ", currentUID))
-				panic("")
 			}
 
 			if ok {
