@@ -173,7 +173,7 @@ func (cs *ConnectionScheduler) ContractHandler(ch msgbus.EventChan) {
 				if !cs.Contracts.Exists(string(id)) {
 					cs.Contracts.Set(string(id), contract)
 				} else {
-					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.Funcname()+"Got Publish Event, but already had the ID: %v", event)
+					contextlib.Logf(cs.Ctx, log.LevelWarn, lumerinlib.Funcname()+"Got Publish Event, but already had the ID: %v", event)
 				}
 
 				//
@@ -185,7 +185,7 @@ func (cs *ConnectionScheduler) ContractHandler(ch msgbus.EventChan) {
 				if cs.Contracts.Exists(string(id)) {
 					cs.Contracts.Delete(string(id))
 				} else {
-					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.Funcname()+"Got Unsubscribe Event, but dont have the ID: %v", event)
+					contextlib.Logf(cs.Ctx, log.LevelWarn, lumerinlib.Funcname()+"Got Unpublish Event, but dont have the ID: %v", event)
 				}
 				
 				// get rid of contracts in miners that were servicing it
