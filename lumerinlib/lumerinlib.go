@@ -44,7 +44,8 @@ func (r *ConcurrentMap) GetAll() (vals []interface{}) {
 func (r *ConcurrentMap) GetMap() (map[string]interface{}) {
 	r.RLock()
 	defer r.RUnlock()
-	return r.M
+	var cMap map[string]interface{} = r.M
+	return cMap
 }
 
 func (r *ConcurrentMap) Set(key string, val interface{}) {
