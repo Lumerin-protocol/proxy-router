@@ -1,4 +1,4 @@
-package validator
+package validatorv2
 
 import (
 	"encoding/binary"

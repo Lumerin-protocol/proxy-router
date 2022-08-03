@@ -12,12 +12,10 @@ import (
 	"gitlab.com/TitanInd/hashrouter/app"
 	"gitlab.com/TitanInd/hashrouter/config"
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
-	"gitlab.com/TitanInd/hashrouter/eventbus"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/miner"
 	"gitlab.com/TitanInd/hashrouter/tcpserver"
-	"go.uber.org/zap"
 	"os"
 )
 
@@ -28,26 +26,19 @@ func InitApp() (*app.App, error) {
 	if err != nil {
 		return nil, err
 	}
-	sugaredLogger, err := provideLogger(config)
+	iLogger, err := provideLogger(config)
 	if err != nil {
 		return nil, err
 	}
-	tcpServer := provideTCPServer(config, sugaredLogger)
+	tcpServer := provideTCPServer(config, iLogger)
 	minerRepo := miner.NewMinerRepo()
-	minerController := provideMinerController(config, sugaredLogger, minerRepo)
-	server := provideServer(config, sugaredLogger, minerController)
-	iEventManager := events.NewEventManager()
-	client, err := provideEthClient(config)
-	if err != nil {
-		return nil, err
-	}
-	sellerContractManager := provideSellerContractManager(config, iEventManager, client, sugaredLogger)
+	minerController := provideMinerController(config, iLogger, minerRepo)
+	server := provideServer(config, iLogger, minerController)
 	appApp := &app.App{
 		TCPServer:       tcpServer,
 		MinerController: minerController,
 		Server:          server,
-		ContractManager:   sellerContractManager,
-		Logger:          sugaredLogger,
+		Logger:          iLogger,
 	}
 	return appApp, nil
 }
@@ -65,15 +56,15 @@ func main() {
 	appInstance.Run()
 }
 
-func provideMinerController(cfg *config.Config, l *zap.SugaredLogger, repo *miner.MinerRepo) *miner.MinerController {
+func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo *miner.MinerRepo) *miner.MinerController {
 	return miner.NewMinerController(cfg.Pool.Address, cfg.Pool.User, cfg.Pool.Password, repo, l)
 }
 
-func provideTCPServer(cfg *config.Config, l *zap.SugaredLogger) *tcpserver.TCPServer {
+func provideTCPServer(cfg *config.Config, l interfaces.ILogger) *tcpserver.TCPServer {
 	return tcpserver.NewTCPServer(cfg.Proxy.Address, l)
 }
 
-func provideServer(cfg *config.Config, l *zap.SugaredLogger, ph *miner.MinerController) *api.Server {
+func provideServer(cfg *config.Config, l interfaces.ILogger, ph *miner.MinerController) *api.Server {
 	return api.NewServer(cfg.Web.Address, l, ph)
 }
 
@@ -81,11 +72,7 @@ func provideEthClient(cfg *config.Config) (*ethclient.Client, error) {
 	return contractmanager.NewEthClient(cfg.EthNode.Address)
 }
 
-func provideSellerContractManager(cfg *config.Config, em interfaces.IEventManager, ethClient *ethclient.Client, logger *zap.SugaredLogger) *contractmanager.SellerContractManager {
-	return contractmanager.NewSellerContractManager(logger, em, ethClient, cfg.Contract.Address)
-}
-
-func provideLogger(cfg *config.Config) (*zap.SugaredLogger, error) {
+func provideLogger(cfg *config.Config) (interfaces.ILogger, error) {
 	return lib.NewLogger(cfg.Log.Syslog)
 }
 

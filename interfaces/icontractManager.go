@@ -1,8 +1,6 @@
 package interfaces
 
 import (
-	"context"
-
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -10,7 +8,7 @@ import (
 
 type IContractManager interface {
 	Start() (err error)
-	Init(Ctx *context.Context, contractManagerConfigID string, nodeOperatorMsg *NodeOperator) (err error)
+	// Init(Ctx *context.Context, contractManagerConfigID string, nodeOperatorMsg *NodeOperator) (err error)
 	SetupExistingContracts() (err error)
 	ReadContracts() ([]common.Address, error)
 	WatchHashrateContract(addr string, hrLogs chan types.Log, hrSub ethereum.Subscription)

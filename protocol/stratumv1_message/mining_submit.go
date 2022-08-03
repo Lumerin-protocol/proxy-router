@@ -32,6 +32,14 @@ func (m *MiningSubmit) SetWorkerName(name string) {
 	m.Params[0] = name
 }
 
+func (m *MiningSubmit) GetNtime() string {
+	return m.Params[3]
+}
+
+func (m *MiningSubmit) GetNonce() string {
+	return m.Params[4]
+}
+
 func (m *MiningSubmit) Serialize() []byte {
 	b, _ := json.Marshal(m)
 	return b

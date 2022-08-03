@@ -7,6 +7,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/protocol"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
+	"gitlab.com/TitanInd/hashrouter/validatorv2"
 )
 
 type MinerController struct {
@@ -39,7 +40,8 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	extranonce, size := poolPool.GetExtranonce()
 	msg := stratumv1_message.NewMiningSubscribeResult(extranonce, size)
 	miner := protocol.NewStratumV1Miner(incomingConn, p.log, msg)
-	manager := protocol.NewStratumV1MinerModel(poolPool, miner, p.log)
+	validator := validatorv2.NewValidator(p.log)
+	manager := protocol.NewStratumV1MinerModel(poolPool, miner, validator, p.log)
 	// try to connect to dest before running
 
 	p.repo.Store(manager)

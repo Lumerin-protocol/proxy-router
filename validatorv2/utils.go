@@ -1,66 +1,11 @@
-package validator
+package validatorv2
 
 import (
-	"encoding/json"
 	"math"
-	"strconv"
-	"strings"
 
 	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 )
-
-//take in a string and return split to inclue the nonce and hash being submitted
-func ParseIncomingHash(message string) (uint, []byte) {
-	res := strings.Split(message, "|")
-	nonce, _ := strconv.ParseUint(res[0], 10, 64)
-	hash := res[1]
-	return uint(nonce), []byte(hash)
-
-}
-
-//converts a varying byte array with a fixed byte array
-func ConvertArray(input []byte) [32]byte {
-	newArray := [32]byte{}
-	for i := range input {
-		newArray[i] = input[i]
-	}
-	return newArray
-}
-
-func SwitchEndian(input string) (result string) {
-	//convert a big endian to a little endian hex representation
-	for i := 0; i < len(input); i = i + 2 {
-		result = input[i:i+2] + result
-	}
-
-	return result
-}
-
-//returns a mapping of the input message
-//assumes that the input message is of JSON format
-//creation message needs BH, HashRate, Limit, Difficulty
-func CreateMessageMap(message string) map[string]string {
-	var myMessage map[string]string
-	json.Unmarshal([]byte(message), &myMessage)
-	return myMessage
-}
-
-func ConvertStringToUint(m string) uint {
-	res, _ := strconv.ParseUint(m, 10, 256)
-	return uint(res)
-}
-
-func nextPowerOfTwo(n int) int {
-	// Return the number if it's already a power of 2.
-	if n&(n-1) == 0 {
-		return n
-	}
-
-	// Figure out and return the next power of two.
-	exponent := uint(math.Log2(float64(n))) + 1
-	return 1 << exponent // 2^exponent
-}
 
 func ConvertMerkleBranchesToRoot(merkle_branches []string) (*chainhash.Hash, error) {
 	if len(merkle_branches) == 0 {
@@ -105,4 +50,15 @@ func ConvertMerkleBranchesToRoot(merkle_branches []string) (*chainhash.Hash, err
 	//convert each chainhash.Hash to a wire.MsgTx
 
 	return merkle_branch_hashes[len(merkle_branch_hashes)-1], nil
+}
+
+func nextPowerOfTwo(n int) int {
+	// Return the number if it's already a power of 2.
+	if n&(n-1) == 0 {
+		return n
+	}
+
+	// Figure out and return the next power of two.
+	exponent := uint(math.Log2(float64(n))) + 1
+	return 1 << exponent // 2^exponent
 }

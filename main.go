@@ -12,7 +12,6 @@ import (
 	"gitlab.com/TitanInd/hashrouter/app"
 	"gitlab.com/TitanInd/hashrouter/config"
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
-	"gitlab.com/TitanInd/hashrouter/eventbus"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/miner"
@@ -37,10 +36,10 @@ func InitApp() (*app.App, error) {
 		miner.NewMinerRepo,
 		provideMinerController,
 		provideTCPServer,
-		eventbus.NewEventBus,
+		// eventbus.NewEventBus,
 		provideServer,
-		provideEthClient,
-		provideSellerContractManager,
+		// provideEthClient,
+		// provideSellerContractManager,
 		wire.Struct(new(app.App), "*"),
 	)
 	return nil, nil
@@ -62,9 +61,9 @@ func provideEthClient(cfg *config.Config) (*ethclient.Client, error) {
 	return contractmanager.NewEthClient(cfg.EthNode.Address)
 }
 
-func provideSellerContractManager(cfg *config.Config, em interfaces.IEventManager, ethClient *ethclient.Client, logger interfaces.ILogger) *contractmanager.SellerContractManager {
-	return contractmanager.NewContractManager(logger, em, ethClient, cfg.Contract.Address, cfg.Contract.IsBuyer)
-}
+// func provideSellerContractManager(cfg *config.Config, em interfaces.IEventManager, ethClient *ethclient.Client, logger interfaces.ILogger) *contractmanager.SellerContractManager {
+// 	return contractmanager.NewContractManager(logger, em, ethClient, cfg.Contract.Address, cfg.Contract.IsBuyer)
+// }
 
 func provideLogger(cfg *config.Config) (interfaces.ILogger, error) {
 	return lib.NewLogger(cfg.Log.Syslog)
