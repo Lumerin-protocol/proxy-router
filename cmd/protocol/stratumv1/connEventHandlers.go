@@ -549,8 +549,8 @@ func (svs *StratumV1Struct) checkDstResponseSubmit(uid simple.ConnUniqueID, resp
 
 	if response.Error != nil {
 		contextlib.Logf(svs.Ctx(), contextlib.LevelWarn, lumerinlib.FileLineFunc()+" Error returned on ID:%d %s", id, *response.Error)
-		e = fmt.Errorf(lumerinlib.FileLineFunc()+" %s", response.Error)
-		return e
+		// e = fmt.Errorf(lumerinlib.FileLineFunc()+" %s", response.Error)
+		// return e
 	}
 
 	switch response.Result.(type) {
