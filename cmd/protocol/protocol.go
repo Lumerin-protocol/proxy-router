@@ -232,6 +232,7 @@ func (ps *ProtocolStruct) Close() {
 
 	// Perform orderly shutdown of all connection here
 
+	ps.simple.Close()
 	ps.Cancel()
 }
 
