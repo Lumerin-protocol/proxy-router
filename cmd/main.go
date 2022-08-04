@@ -38,12 +38,13 @@ import (
 func main() {
 	l := log.New()
 
-	configs := config.ReadConfigs()
+	configs := config.ReadConfigFile()
 	l.SetLevel(log.Level(configs.LogLevel))
 
 	logFile, err := os.OpenFile(configs.LogFilePath, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0666)
 	if err != nil {
-		l.Logf(log.LevelFatal, "error opening log file: %v", err)
+		l.Logf(log.LevelError, "error opening log file: %v", err)
+		return
 	}
 	defer logFile.Close()
 
@@ -70,7 +71,7 @@ func main() {
 	dst := lumerinlib.NewNetAddr(lumerinlib.TCP, configs.DefaultPoolAddr)
 
 	//
-	// the proro argument (#1) gets set in the Protocol sus-system
+	// the proto argument (#1) gets set in the Protocol sus-system
 	//
 	cs := contextlib.NewContextStruct(nil, ps, l, src, dst)
 
@@ -89,10 +90,12 @@ func main() {
 
 	event, err := ps.PubWait(msgbus.DestMsg, msgbus.IDString(msgbus.DEFAULT_DEST_ID), dest)
 	if err != nil {
-		panic(fmt.Sprintf("Adding Default Dest Failed: %s", err))
+		l.Logf(log.LevelError, "Adding Default Dest Failed: %s", err)
+		return
 	}
 	if event.Err != nil {
-		panic(fmt.Sprintf("Adding Default Dest Failed: %s", event.Err))
+		l.Logf(log.LevelError, "Adding Default Dest Failed: %s", event.Err)
+		return
 	}
 
 	//
@@ -102,13 +105,16 @@ func main() {
 		ID:          msgbus.NodeOperatorID(msgbus.GetRandomIDString()),
 		IsBuyer:     configs.BuyerNode,
 		DefaultDest: dest.ID,
+		Contracts: make(map[msgbus.ContractID]msgbus.ContractState),
 	}
 	event, err = ps.PubWait(msgbus.NodeOperatorMsg, msgbus.IDString(nodeOperator.ID), nodeOperator)
 	if err != nil {
-		panic(fmt.Sprintf("Adding Node Operator Failed: %s", err))
+		l.Logf(log.LevelError, "Adding Node Operator Failed: %s", err)
+		return
 	}
 	if event.Err != nil {
-		panic(fmt.Sprintf("Adding Node Operator Failed: %s", event.Err))
+		l.Logf(log.LevelError, "Adding Node Operator Failed: %s", event.Err)
+		return
 	}
 
 	//
@@ -120,27 +126,33 @@ func main() {
 
 		src, err := net.ResolveTCPAddr("tcp", listenAddress)
 		if err != nil {
-			lumerinlib.PanicHere("")
+			l.Logf(log.LevelError, "Unable to resolve TCP Addr: %s", listenAddress)
+			return
 		}
 
 		l.Logf(log.LevelInfo, "Listening for stratum messages on %v\n\n", src.String())
 
 		stratum, err := stratumv1.NewListener(mainContext, src, dest)
-		scheduler := configs.Scheduler
-		scheduler = strings.ToLower(scheduler)
+		if err != nil {
+			l.Logf(log.LevelError, "NewListener Error: %s", err)
+			return
+		}
 
-		switch scheduler {
+		switchMethod := configs.SwitchMethod
+		switchMethod = strings.ToLower(switchMethod)
+
+		switch switchMethod {
 		case "ondemand":
 			stratum.SetScheduler(stratumv1.OnDemand)
 		case "onsubmit":
 			stratum.SetScheduler(stratumv1.OnSubmit)
 		default:
-			l.Logf(log.LevelPanic, "Scheduler value: %s Not Supported", scheduler)
+			l.Logf(log.LevelError, "Scheduler value: %s Not Supported", switchMethod)
+			return
 		}
 
-		if err != nil {
-			panic(fmt.Sprintf("Stratum Protocol New() failed:%s", err))
-		}
+		serialize := configs.Serialize
+		stratum.SetSerialize(serialize)
 
 		stratum.Run()
 
@@ -175,9 +187,8 @@ func main() {
 	// Fire up contract manager
 	//
 	if !configs.DisableContract {
-		var contractManagerConfig msgbus.ContractManagerConfig
+		var contractManagerConfig lumerinlib.ContractManagerConfig
 
-		contractManagerConfig.ID = msgbus.ContractManagerConfigID(msgbus.GetRandomIDString())
 		contractManagerConfig.Mnemonic = configs.Mnemonic
 		contractManagerConfig.AccountIndex = configs.AccountIndex
 		contractManagerConfig.EthNodeAddr = configs.EthNodeAddr
@@ -187,15 +198,12 @@ func main() {
 		contractManagerConfig.ValidatorAddress = configs.ValidatorAddress
 		contractManagerConfig.ProxyAddress = configs.ProxyAddress
 
-		// Publish Contract Manager Config to MsgBus
-		ps.PubWait(msgbus.ContractManagerConfigMsg, msgbus.IDString(contractManagerConfig.ID), contractManagerConfig)
-
 		if configs.BuyerNode {
 			var buyerCM contractmanager.BuyerContractManager
-			err = contractmanager.Run(&mainContext, &buyerCM, msgbus.IDString(contractManagerConfig.ID), &nodeOperator)
+			err = contractmanager.Run(&mainContext, &buyerCM, contractManagerConfig, &nodeOperator)
 		} else {
 			var sellerCM contractmanager.SellerContractManager
-			err = contractmanager.Run(&mainContext, &sellerCM, msgbus.IDString(contractManagerConfig.ID), &nodeOperator)
+			err = contractmanager.Run(&mainContext, &sellerCM, contractManagerConfig, &nodeOperator)
 		}
 		if err != nil {
 			l.Logf(log.LevelPanic, "Contract manager failed to run: %v", err)
@@ -207,7 +215,7 @@ func main() {
 	//
 	if !configs.DisableApi {
 		api := externalapi.New(ps, connectionCollection)
-		go api.Run(configs.ApiPort, l)
+		go api.Run(mainContext, configs.ApiPort)
 	}
 
 	select {

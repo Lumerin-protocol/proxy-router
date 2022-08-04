@@ -123,7 +123,7 @@ func (svs *StratumV1Struct) handleMsgUpdateEvent(event *simple.SimpleMsgBusEvent
 			svs.minerRec.Dest = minerrec.Dest
 
 		} else {
-			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Recieved Miner update, but dest did not change:'%s':'%s'", event.EventType, event.ID)
+			contextlib.Logf(svs.Ctx(), contextlib.LevelInfo, lumerinlib.FileLineFunc()+" Recieved Miner update, but Dest[%s] did not change:'%s':'%s'", minerrec.Dest, event.EventType, event.ID)
 		}
 
 	// Ignore all others
@@ -180,15 +180,16 @@ func (svs *StratumV1Struct) handleMsgGetEvent(event *simple.SimpleMsgBusEvent) {
 			// Fire up the default destination connction here
 			// If default is not already set, set it
 			var dest msgbus.Dest
-			switch event.Data.(type) {
+			switch data := event.Data.(type) {
 			case msgbus.Dest:
-				dest = event.Data.(msgbus.Dest)
+				dest = data
 			case *msgbus.Dest:
-				d := event.Data.(*msgbus.Dest)
+				d := data
 				if d == nil {
 					contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" DestMsg: is nil")
+				} else {
+					dest = *d
 				}
-				dest = *d
 			default:
 				contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" DestMsg: bad data:%t", event.Data)
 			}
@@ -201,7 +202,9 @@ func (svs *StratumV1Struct) handleMsgGetEvent(event *simple.SimpleMsgBusEvent) {
 				svs.SetDstStateUid(uid, DstStateDialing)
 				e := svs.protocol.AsyncDial(&dest)
 				if e != nil {
-					contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" AsyncDial returned error:%s", e)
+					// Shut it all down...
+					contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" AsyncDial returned error:%s", e)
+					svs.Close()
 				}
 			} else {
 				contextlib.Logf(svs.Ctx(), contextlib.LevelWarn, lumerinlib.FileLineFunc()+" Dest already opened:%s", event.ID)

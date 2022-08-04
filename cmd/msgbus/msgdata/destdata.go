@@ -141,9 +141,15 @@ func (r *DestRepo) SubscribeToDestMsgBus() {
 					break loop
 				}
 			}
-			dest := event.Data.(*msgbus.Dest)
-			r.AddDestFromMsgBus(destID, *dest)
-
+			switch event.Data.(type) {
+			case msgbus.Dest:
+				dest := event.Data.(msgbus.Dest)
+				r.AddDestFromMsgBus(destID, dest)
+			case *msgbus.Dest:
+				dest := event.Data.(*msgbus.Dest)
+				r.AddDestFromMsgBus(destID, *dest)
+			} 
+			
 			//
 			// Delete/Unpublish Event
 			//

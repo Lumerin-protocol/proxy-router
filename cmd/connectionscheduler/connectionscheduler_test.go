@@ -3,6 +3,7 @@ package connectionscheduler
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -435,6 +436,25 @@ func TestMultiTimeSlicing(t *testing.T) {
 	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner2.ID), miner2)
 	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner3.ID), miner3)
 
+	minerTemp := msgbus.Miner{
+		CurrentHashRate: 0,
+		State: msgbus.OnlineState,
+		Dest: defaultDest.ID,
+	}
+	for i := 4; i <= 100; i ++ {
+		minerTemp.ID = msgbus.MinerID("MinerID0" + strconv.Itoa(i))
+		minerTemp.IP = "IpAddress" + strconv.Itoa(i)
+		minerTemp.Contracts = make(map[msgbus.ContractID]float64)
+		if i < 4 {
+			minerTemp.CurrentHashRate = 50
+		} else if i < 8 {
+			minerTemp.CurrentHashRate = 70
+		} else {
+			minerTemp.CurrentHashRate = 100
+		}
+		ps.PubWait(msgbus.MinerMsg, msgbus.IDString(minerTemp.ID), minerTemp)
+	}
+
 	time.Sleep(time.Second * hashrateCalcLagTime)
 
 	fmt.Print("\n\n/// Validator updated miner hashrates ///\n\n\n")
@@ -652,6 +672,7 @@ func TestEdgeCases(t *testing.T) {
 	ps.SetWait(msgbus.MinerMsg, msgbus.IDString(miner1.ID), miner1)
 	ps.SetWait(msgbus.MinerMsg, msgbus.IDString(miner2.ID), miner2)
 	ps.SetWait(msgbus.MinerMsg, msgbus.IDString(miner3.ID), miner3)
+	
 	time.Sleep(time.Second * 1)
 
 	fmt.Print("\n\n/// 2 New available contracts found ///\n\n\n")

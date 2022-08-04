@@ -43,7 +43,7 @@ type ValEnabledConfig struct {
 	LogFilePath         string
 }
 
-func LoadValEnabledTestConfiguration(filePath string) (configs ValEnabledConfig, err error) {
+func LoadValEnabledTestConfiguration(filePath string, mnemonic string, accountIndex int) (configs ValEnabledConfig, err error) {
 	var data map[string]interface{}
 	currDir, _ := os.Getwd()
 	defer os.Chdir(currDir)
@@ -73,8 +73,8 @@ func LoadValEnabledTestConfiguration(filePath string) (configs ValEnabledConfig,
 	configs.DefaultPoolAddr = connConfigData["defaultPoolAddr"].(string)
 
 	contConfigData := data["contract"].(map[string]interface{})
-	configs.Mnemonic = contConfigData["mnemonic"].(string)
-	configs.AccountIndex = int(contConfigData["accountIndex"].(float64))
+	configs.Mnemonic = mnemonic
+	configs.AccountIndex = accountIndex
 	configs.EthNodeAddr = contConfigData["ethNodeAddr"].(string)
 	configs.ClaimFunds = contConfigData["claimFunds"].(bool)
 	configs.TimeThreshold = int(contConfigData["timeThreshold"].(float64))
@@ -138,6 +138,7 @@ func ValEnabledSimMain(ps *msgbus.PubSub, configs ValEnabledConfig, hashrateCalc
 		ID:          msgbus.NodeOperatorID(msgbus.GetRandomIDString()),
 		IsBuyer:     configs.BuyerNode,
 		DefaultDest: dest.ID,
+		Contracts: make(map[msgbus.ContractID]msgbus.ContractState),
 	}
 	event, err = ps.PubWait(msgbus.NodeOperatorMsg, msgbus.IDString(nodeOperator.ID), nodeOperator)
 	if err != nil {
@@ -183,12 +184,11 @@ func ValEnabledSimMain(ps *msgbus.PubSub, configs ValEnabledConfig, hashrateCalc
 		panic(fmt.Sprintf("Validator failed to start: %v", err))
 	}
 
-		//
+	//
 	// Fire up contract manager
 	//
-	var contractManagerConfig msgbus.ContractManagerConfig
+	var contractManagerConfig lumerinlib.ContractManagerConfig
 
-	contractManagerConfig.ID = msgbus.ContractManagerConfigID(msgbus.GetRandomIDString())
 	contractManagerConfig.Mnemonic = configs.Mnemonic
 	contractManagerConfig.AccountIndex = configs.AccountIndex
 	contractManagerConfig.EthNodeAddr = configs.EthNodeAddr
@@ -198,11 +198,8 @@ func ValEnabledSimMain(ps *msgbus.PubSub, configs ValEnabledConfig, hashrateCalc
 	contractManagerConfig.ValidatorAddress = configs.ValidatorAddress
 	contractManagerConfig.ProxyAddress = configs.ProxyAddress
 
-	// Publish Contract Manager Config to MsgBus
-	ps.PubWait(msgbus.ContractManagerConfigMsg, msgbus.IDString(contractManagerConfig.ID), contractManagerConfig)
-
 	var sellerCM contractmanager.SellerContractManager
-	err = contractmanager.Run(&mainContext, &sellerCM, msgbus.IDString(contractManagerConfig.ID), &nodeOperator)
+	err = contractmanager.Run(&mainContext, &sellerCM, contractManagerConfig, &nodeOperator)
 
 	if err != nil {
 		panic(fmt.Sprintf("Contract manager failed to run: %v", err))
@@ -213,6 +210,8 @@ func ValEnabledSimMain(ps *msgbus.PubSub, configs ValEnabledConfig, hashrateCalc
 
 func TestValEnabled(t *testing.T) {
 	configPath := "../../ganacheconfig.json"
+	mnemonic := "course surface achieve episode cable brisk flame enjoy beyond hand rival predict"
+	accountIndex := 0
 
 	var hashrateContractAddresses []msgbus.ContractID
 	var purchasedHashrateContractAddresses []msgbus.ContractID
@@ -220,12 +219,12 @@ func TestValEnabled(t *testing.T) {
 	targetDest1Url := "stratum+tcp://pool-east.staging.pool.titan.io:4242"
 	targetDest2Url := "stratum+tcp://pool-east.staging.pool.titan.io:4242"
 
-	configs, err := LoadValEnabledTestConfiguration(configPath)
+	configs, err := LoadValEnabledTestConfiguration(configPath, mnemonic, accountIndex)
 	if err != nil {
 		panic(fmt.Sprintf("Loading Config Failed: %s", err))
 	}
 
-	ts, ltransaction, cftransaction := contractmanager.BeforeEach(configPath)
+	ts, ltransaction, cftransaction := contractmanager.BeforeEach(configPath, mnemonic)
 	configs.LumerinTokenAddress = ts.LumerinAddress.String()
 	configs.CloneFactoryAddress = ts.CloneFactoryAddress.String()
 

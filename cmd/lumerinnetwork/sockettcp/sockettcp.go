@@ -18,6 +18,29 @@ import (
 // Manages TCP socket connections acting as standard IO Read/Write package
 //
 //
+// func NewListen(ctx context.Context, network string, addr string) (l *ListenTCPStruct, e error)
+// func (l *ListenTCPStruct) Run()
+// func (l *ListenTCPStruct) Ctx() context.Context
+// func (l *ListenTCPStruct) GetAcceptChan() <-chan interface{}
+// func (l *ListenTCPStruct) Close()
+// func (l *ListenTCPStruct) Cancel()
+// func (l *ListenTCPStruct) Addr() (addr net.Addr, e error)
+// func (l *ListenTCPStruct) LocalAddr() (host string, port int, e error)
+// func (l *ListenTCPStruct) Status() (ltss *ListenerStatusStruct, e error)
+// func (s *ListenTCPStruct) Done() bool
+
+// func Dial(ctx context.Context, network string, addr string) (s *SocketTCPStruct, e error)
+// func (s *SocketTCPStruct) Cancel()
+// func (s *SocketTCPStruct) Ctx() context.Context
+// func (s *SocketTCPStruct) Read(buf []byte) (count int, e error)
+// func (s *SocketTCPStruct) Write(buf []byte) (count int, e error)
+// func (s *SocketTCPStruct) Status() (ss *SocketStatusStruct, e error)
+// func (s *SocketTCPStruct) Close()
+// func (s *SocketTCPStruct) LocalAddrString() (addr string, e error)
+// func (s *SocketTCPStruct) RemoteAddrString() (addr string, e error)
+// func (s *SocketTCPStruct) LocalAddr() (addr net.Addr, e error)
+// func (s *SocketTCPStruct) RemoteAddr() (addr net.Addr, e error)
+// func (s *SocketTCPStruct) Done() bool
 
 const TCPAcceptChannelLen int = 2
 const TCPReadChannelLen int = 10
@@ -243,6 +266,18 @@ func (l *ListenTCPStruct) Addr() (addr net.Addr, e error) {
 }
 
 //
+// Returns the local address of the socket
+//
+func (l *ListenTCPStruct) LocalAddr() (host string, port int, e error) {
+
+	contextlib.Logf(l.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
+
+	addr := l.listener.Addr().String()
+	host, port, e = getAddr(l.ctx, addr)
+	return
+}
+
+//
 // Returns address of the Listener
 //
 func (l *ListenTCPStruct) Status() (ltss *ListenerStatusStruct, e error) {
@@ -355,6 +390,7 @@ func (s *SocketTCPStruct) Cancel() {
 	}
 
 	// close(s.readchan)
+	s.socket.Close()
 	s.cancel()
 }
 
@@ -444,7 +480,7 @@ func (s *SocketTCPStruct) Status() (ss *SocketStatusStruct, e error) {
 //
 func (s *SocketTCPStruct) Close() {
 
-	//	contextlib.Logf(s.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
+	contextlib.Logf(s.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
 
 	if s.Done() {
 		return
@@ -484,18 +520,6 @@ func (s *SocketTCPStruct) RemoteAddrString() (addr string, e error) {
 	}
 
 	return s.socket.RemoteAddr().String(), e
-}
-
-//
-// Returns the local address of the socket
-//
-func (l *ListenTCPStruct) LocalAddr() (host string, port int, e error) {
-
-	contextlib.Logf(l.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
-
-	addr := l.listener.Addr().String()
-	host, port, e = getAddr(l.ctx, addr)
-	return
 }
 
 //

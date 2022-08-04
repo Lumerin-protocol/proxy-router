@@ -16,7 +16,7 @@ import (
 	"gitlab.com/TitanInd/lumerin/lumerinlib/testinglib"
 )
 
-var basePort int = 50000
+// var basePort int = 50000
 var localhost string = "127.0.0.1"
 
 // var testAuthorizeMsg = `{"id":2,"method":"mining.authorize","params":["testrig.worker1",""]}`

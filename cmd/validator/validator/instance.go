@@ -3,7 +3,6 @@ package validator
 import (
 	"fmt"
 	"math/big"
-	"math"
 	"strconv"
 	"time"
 )
@@ -12,6 +11,7 @@ import (
 type Validator struct {
 	BH               BlockHeader
 	StartTime        time.Time
+	Hashrates		 []int
 	HashesAnalyzed   uint
 	DifficultyTarget uint
 	ContractHashRate uint
@@ -36,13 +36,11 @@ func (v *Validator) UpdateHashrate() uint {
 	//calculate the number of hashes represented by the pool difficulty target
 	bigDiffTarget := big.NewInt(int64(v.DifficultyTarget))
 	bigHashesAnalyzed := big.NewInt(int64(v.HashesAnalyzed))
-	result1 := new(big.Int).Exp(big.NewInt(2), big.NewInt(256), nil)
-	if bigDiffTarget.Cmp(big.NewInt(0)) == 0 {return 0} // avoid div by 0 panic
-	result2 := new(big.Int).Div(result1, bigDiffTarget)
-	exponent := math.Log2(float64(result2.Int64()))
-	hashesPerSubmission := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(exponent)), nil)
-	//multiply the number of hashes checked by the hashes represented from the difficulty target
+
+	result := new(big.Int).Exp(big.NewInt(2), big.NewInt(32), nil)
+	hashesPerSubmission := new(big.Int).Mul(bigDiffTarget, result)
 	totalHashes := new(big.Int).Mul(hashesPerSubmission, bigHashesAnalyzed)
+
 	//divide represented hashes by time duration
 	if big.NewInt(int64(contractDuration.Seconds())).Cmp(big.NewInt(0)) == 0 {return 0} // avoid div by 0 panic
 	rateBigInt := new(big.Int).Div(totalHashes, big.NewInt(int64(contractDuration.Seconds())))
@@ -75,19 +73,21 @@ func (v *Validator) IncomingHash(credential string, nonce string, time string) (
 	if credential != v.PoolCredentials {
 		return result, fmt.Sprintf("Hashrate Hijacking Detected. Check pool user %s", credential)
 	}
-	calcHash := v.BH.HashInput(nonce, time)                             //calcHash is returned as little endian
+	//calcHash := v.BH.HashInput(nonce, time)                             //calcHash is returned as little endian
 	var hashingResult bool                                              //temp until revised logic put in place
-	hashAsBigInt, hashingErr := BlockHashToBigInt(calcHash) //designed to intake as little endian
-	if hashingErr != nil {
-		return result, fmt.Sprintf("error when hashing block: %s", hashingErr)
-	}
-	var bigDifficulty *big.Int = DifficultyToBigInt(uint32(v.DifficultyTarget))
+	// hashAsBigInt, hashingErr := BlockHashToBigInt(calcHash) //designed to intake as little endian
+	// if hashingErr != nil {
+	// 	return result, fmt.Sprintf("error when hashing block: %s", hashingErr)
+	// }
+	// networkDiff := v.BH.Difficulty
+	// diff,_ := strconv.ParseUint(networkDiff, 16, 32)
+	//var bigDifficulty *big.Int = DifficultyToBigInt(uint32(v.DifficultyTarget + 570425344))
 
-	if hashAsBigInt.Cmp(bigDifficulty) < 1 {
+	//if hashAsBigInt.Cmp(bigDifficulty) < 1 {
 		hashingResult = true
-	} else {
-		hashingResult = false
-	}
+	//} else {
+	//	hashingResult = false
+	//}
 	if hashingResult {
 		v.HashesAnalyzed++
 	}

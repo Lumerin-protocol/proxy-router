@@ -9,6 +9,18 @@ import (
 	"sync"
 )
 
+type ContractManagerConfig struct {
+	Mnemonic            string
+	AccountIndex        int
+	EthNodeAddr         string
+	ClaimFunds          bool
+	TimeThreshold       int
+	CloneFactoryAddress string
+	LumerinTokenAddress string
+	ValidatorAddress    string
+	ProxyAddress        string
+}
+
 type ConcurrentMap struct {
 	sync.RWMutex
 	M map[string]interface{}
@@ -27,6 +39,13 @@ func (r *ConcurrentMap) GetAll() (vals []interface{}) {
 		vals = append(vals, v)
 	}
 	return vals
+}
+
+func (r *ConcurrentMap) GetMap() (map[string]interface{}) {
+	r.RLock()
+	defer r.RUnlock()
+	var cMap map[string]interface{} = r.M
+	return cMap
 }
 
 func (r *ConcurrentMap) Set(key string, val interface{}) {

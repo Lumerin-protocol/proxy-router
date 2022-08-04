@@ -26,19 +26,18 @@ import (
 
 func TestSellerRoutine(t *testing.T) {
 	configPath := "../../ganacheconfig.json"
+	mnemonic := "course surface achieve episode cable brisk flame enjoy beyond hand rival predict"
+	accountIndex := 0
 	l := log.New()
 	ps := msgbus.New(10, l)
-	ts, _, _ := BeforeEach(configPath)
+	ts, _, _ := BeforeEach(configPath, mnemonic)
 	var hashrateContractAddress [4]common.Address
 	var purchasedHashrateContractAddress [4]common.Address
 
 	ctxStruct := contextlib.NewContextStruct(nil, ps, nil, nil, nil)
 	mainCtx := context.WithValue(context.Background(), contextlib.ContextKey, ctxStruct)
 
-	contractManagerCtx, contractManagerCancel := context.WithCancel(mainCtx)
-
-	var contractManagerConfig msgbus.ContractManagerConfig
-	contractManagerConfigID := msgbus.GetRandomIDString()
+	var contractManagerConfig lumerinlib.ContractManagerConfig
 
 	// encrpted cipher text generated from node code using buyer's public key
 	//encryptedDest := "04d9b65eada6828aad11f7956e92a5afaa46718e95c2229b21b371c3c6e317bad00018d15f2cedb6400d2156a3cc1c3360b7f747d5ab7e72926937776fc133ae5b9ada0e1d95b57f29b917220a92ed28ff1f57301b6688f7e5ef4ae87015508aefb7156aba0de5cc25d65d1f11a7d3c75330d54d045ebc22231af70fb1aa02b38a6cf93b34a974076db109433ba4191171b2292885"
@@ -62,8 +61,8 @@ func TestSellerRoutine(t *testing.T) {
 		panic(fmt.Sprintf("failed to load contract manager configuration:%s", err))
 	}
 
-	contractManagerConfig.Mnemonic = contractManagerConfigFile["mnemonic"].(string)
-	contractManagerConfig.AccountIndex = int(contractManagerConfigFile["accountIndex"].(float64))
+	contractManagerConfig.Mnemonic = mnemonic
+	contractManagerConfig.AccountIndex = accountIndex
 	contractManagerConfig.EthNodeAddr = contractManagerConfigFile["ethNodeAddr"].(string)
 	contractManagerConfig.ClaimFunds = contractManagerConfigFile["claimFunds"].(bool)
 	contractManagerConfig.CloneFactoryAddress = ts.CloneFactoryAddress.Hex()
@@ -78,15 +77,12 @@ func TestSellerRoutine(t *testing.T) {
 	Account, PrivateKey := HdWalletKeys(contractManagerConfig.Mnemonic, contractManagerConfig.AccountIndex+1)
 	buyerAddress := Account.Address
 	buyerPrivateKey := PrivateKey
-	fmt.Println("Buyer Account", buyerAddress)
-	fmt.Println("Buyer private key", buyerPrivateKey)
-
-	ps.PubWait(msgbus.ContractManagerConfigMsg, contractManagerConfigID, contractManagerConfig)
 
 	NodeOperator := msgbus.NodeOperator{
 		ID:          msgbus.NodeOperatorID(msgbus.GetRandomIDString()),
 		DefaultDest: defaultDest.ID,
 		IsBuyer:     false,
+		Contracts: make(map[msgbus.ContractID]msgbus.ContractState),
 	}
 	event, err = ps.PubWait(msgbus.NodeOperatorMsg, msgbus.IDString(NodeOperator.ID), NodeOperator)
 	if err != nil {
@@ -98,7 +94,7 @@ func TestSellerRoutine(t *testing.T) {
 
 	// start connection scheduler look at miners
 	connectionCollection := connections.CreateConnectionCollection()
-	cs, err := connectionscheduler.New(&mainCtx, &NodeOperator, false, 0, connectionCollection)
+	cs, err := connectionscheduler.New(&mainCtx, &NodeOperator, false, 20, connectionCollection)
 	if err != nil {
 		panic(fmt.Sprintf("schedule manager failed:%s", err))
 	}
@@ -108,8 +104,7 @@ func TestSellerRoutine(t *testing.T) {
 	}
 
 	var cman SellerContractManager
-	go newConfigMonitor(&mainCtx, contractManagerCtx, contractManagerCancel, &cman, contractManagerConfigID, &NodeOperator)
-	err = cman.init(&contractManagerCtx, contractManagerConfigID, &NodeOperator)
+	err = cman.init(&mainCtx, contractManagerConfig, &NodeOperator)
 	if err != nil {
 		panic(fmt.Sprintf("contract manager init failed:%s", err))
 	}
@@ -175,6 +170,7 @@ loop2:
 		CurrentHashRate: 20,
 		State:           msgbus.OnlineState,
 		Dest:            defaultDest.ID,
+		Contracts:       make(map[msgbus.ContractID]float64),
 	}
 	miner2 := msgbus.Miner{
 		ID:              msgbus.MinerID("MinerID02"),
@@ -182,6 +178,7 @@ loop2:
 		CurrentHashRate: 10,
 		State:           msgbus.OnlineState,
 		Dest:            defaultDest.ID,
+		Contracts:       make(map[msgbus.ContractID]float64),
 	}
 	ps.Pub(msgbus.MinerMsg, msgbus.IDString(miner1.ID), miner1)
 	ps.Pub(msgbus.MinerMsg, msgbus.IDString(miner2.ID), miner2)
@@ -202,7 +199,7 @@ loop2:
 	// connection scheduler sets contract to correct miner
 	m1, _ := ps.MinerGetWait(miner1.ID)
 	m2, _ := ps.MinerGetWait(miner2.ID)
-	if m1.Contracts[msgbus.ContractID(hashrateContractAddress[0].Hex())] {
+	if _,ok := m1.Contracts[msgbus.ContractID(hashrateContractAddress[0].Hex())]; ok {
 		t.Errorf("Miner contracts not set correctly")
 	}
 	if len(m2.Contracts) == 0 {
@@ -263,7 +260,7 @@ loop4:
 	if len(m1.Contracts) == 0 {
 		t.Errorf("Miner contracts not set correctly")
 	}
-	if m2.Contracts[msgbus.ContractID(hashrateContractAddress[1].Hex())] {
+	if _,ok := m2.Contracts[msgbus.ContractID(hashrateContractAddress[1].Hex())]; ok {
 		t.Errorf("Miner contracts not set correctly")
 	}
 
@@ -300,6 +297,7 @@ loop4:
 		CurrentHashRate: 30,
 		State:           msgbus.OnlineState,
 		Dest:            defaultDest.ID,
+		Contracts:       make(map[msgbus.ContractID]float64),
 	}
 	ps.Pub(msgbus.MinerMsg, msgbus.IDString(miner3.ID), miner3)
 
@@ -339,7 +337,7 @@ loop6:
 	if len(m2.Contracts) == 0 {
 		t.Errorf("Miner contracts not set correctly")
 	}
-	if m3.Contracts[msgbus.ContractID(hashrateContractAddress[2].Hex())] {
+	if _,ok := m3.Contracts[msgbus.ContractID(hashrateContractAddress[2].Hex())]; ok {
 		t.Errorf("Miner contracts not set correctly")
 	}
 
@@ -371,6 +369,7 @@ loop6:
 		CurrentHashRate: 15,
 		State:           msgbus.OnlineState,
 		Dest:            defaultDest.ID,
+		Contracts:       make(map[msgbus.ContractID]float64),
 	}
 	ps.Pub(msgbus.MinerMsg, msgbus.IDString(miner4.ID), miner4)
 
@@ -415,7 +414,7 @@ loop8:
 	if len(m3.Contracts) == 0 {
 		t.Errorf("Miner contracts not set correctly")
 	}
-	if m4.Contracts[msgbus.ContractID(hashrateContractAddress[3].Hex())] {
+	if _,ok := m4.Contracts[msgbus.ContractID(hashrateContractAddress[3].Hex())]; ok {
 		t.Errorf("Miner contracts not set correctly")
 	}
 
@@ -460,15 +459,5 @@ loop8:
 	m4, _ = ps.MinerGetWait(miner4.ID)
 	if len(m4.Contracts) == 0 {
 		t.Errorf("Contract 4 was not removed from miner after early closeout")
-	}
-
-	//
-	// test contract manager config updated
-	//
-	contractManagerConfig.ClaimFunds = false
-	ps.SetWait(msgbus.ContractManagerConfigMsg, contractManagerConfigID, contractManagerConfig)
-	time.Sleep(time.Second * 3)
-	if cman.ClaimFunds != false {
-		t.Errorf("Contract manager's configuration was not updated after msgbus update")
 	}
 }
