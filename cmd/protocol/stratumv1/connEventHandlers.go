@@ -547,10 +547,10 @@ func (svs *StratumV1Struct) checkDstResponseSubmit(uid simple.ConnUniqueID, resp
 	var accepted bool = false
 	id := response.ID
 
+	// Recieved error message back from the pool
+	// Pass it back to the miner
 	if response.Error != nil {
 		contextlib.Logf(svs.Ctx(), contextlib.LevelWarn, lumerinlib.FileLineFunc()+" Error returned on ID:%d %s", id, *response.Error)
-		// e = fmt.Errorf(lumerinlib.FileLineFunc()+" %s", response.Error)
-		// return e
 	}
 
 	switch response.Result.(type) {

@@ -503,6 +503,12 @@ func (s *SimpleStruct) Close() {
 		return
 	}
 
+	// Close all of the connectionMappings
+	for uid, l := range s.connectionMapping {
+		l.Close()
+		contextlib.Logf(s.ctx, contextlib.LevelInfo, lumerinlib.FileLineFunc()+" Orderly shutdown of SIMPL UID:%d", uid)
+	}
+
 	s.Cancel()
 }
 
