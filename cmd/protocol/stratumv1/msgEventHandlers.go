@@ -202,7 +202,9 @@ func (svs *StratumV1Struct) handleMsgGetEvent(event *simple.SimpleMsgBusEvent) {
 				svs.SetDstStateUid(uid, DstStateDialing)
 				e := svs.protocol.AsyncDial(&dest)
 				if e != nil {
-					contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" AsyncDial returned error:%s", e)
+					// Shut it all down...
+					contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" AsyncDial returned error:%s", e)
+					svs.Close()
 				}
 			} else {
 				contextlib.Logf(svs.Ctx(), contextlib.LevelWarn, lumerinlib.FileLineFunc()+" Dest already opened:%s", event.ID)

@@ -187,9 +187,8 @@ func main() {
 	// Fire up contract manager
 	//
 	if !configs.DisableContract {
-		var contractManagerConfig msgbus.ContractManagerConfig
+		var contractManagerConfig lumerinlib.ContractManagerConfig
 
-		contractManagerConfig.ID = msgbus.ContractManagerConfigID(msgbus.GetRandomIDString())
 		contractManagerConfig.Mnemonic = configs.Mnemonic
 		contractManagerConfig.AccountIndex = configs.AccountIndex
 		contractManagerConfig.EthNodeAddr = configs.EthNodeAddr
@@ -199,15 +198,12 @@ func main() {
 		contractManagerConfig.ValidatorAddress = configs.ValidatorAddress
 		contractManagerConfig.ProxyAddress = configs.ProxyAddress
 
-		// Publish Contract Manager Config to MsgBus
-		ps.PubWait(msgbus.ContractManagerConfigMsg, msgbus.IDString(contractManagerConfig.ID), contractManagerConfig)
-
 		if configs.BuyerNode {
 			var buyerCM contractmanager.BuyerContractManager
-			err = contractmanager.Run(&mainContext, &buyerCM, msgbus.IDString(contractManagerConfig.ID), &nodeOperator)
+			err = contractmanager.Run(&mainContext, &buyerCM, contractManagerConfig, &nodeOperator)
 		} else {
 			var sellerCM contractmanager.SellerContractManager
-			err = contractmanager.Run(&mainContext, &sellerCM, msgbus.IDString(contractManagerConfig.ID), &nodeOperator)
+			err = contractmanager.Run(&mainContext, &sellerCM, contractManagerConfig, &nodeOperator)
 		}
 		if err != nil {
 			l.Logf(log.LevelPanic, "Contract manager failed to run: %v", err)
@@ -219,7 +215,7 @@ func main() {
 	//
 	if !configs.DisableApi {
 		api := externalapi.New(ps, connectionCollection)
-		go api.Run(configs.ApiPort, l)
+		go api.Run(mainContext, configs.ApiPort)
 	}
 
 	select {

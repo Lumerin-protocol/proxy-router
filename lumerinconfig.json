@@ -26,8 +26,6 @@
 
     "contract": {
         "disable": false,
-        "mnemonic": "YOUR MNEMONIC GOES HERE --- ADD TO GITIGNORE BEFORE PUSHING TO A PUBLIC REPOSITORY",
-        "accountIndex": 0,
         "ethNodeAddr": "ws://127.0.0.1:7545",
         "claimFunds": true,
         "timeThreshold": 10,

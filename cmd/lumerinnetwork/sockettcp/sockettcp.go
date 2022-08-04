@@ -390,6 +390,7 @@ func (s *SocketTCPStruct) Cancel() {
 	}
 
 	// close(s.readchan)
+	s.socket.Close()
 	s.cancel()
 }
 
@@ -479,7 +480,7 @@ func (s *SocketTCPStruct) Status() (ss *SocketStatusStruct, e error) {
 //
 func (s *SocketTCPStruct) Close() {
 
-	//	contextlib.Logf(s.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
+	contextlib.Logf(s.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
 
 	if s.Done() {
 		return

@@ -652,9 +652,11 @@ func (s *StratumV1Struct) switchDest() {
 	currentUID, _ := s.protocol.GetDefaultRouteUID()
 	newUID := s.GetDstUIDDestID(s.switchToDestID)
 
+	// UID no found, something is wrong, so close out this session
 	if newUID < 0 {
-		contextlib.Logf(s.Ctx(), contextlib.LevelPanic, fmt.Sprintf(lumerinlib.FileLineFunc()+" switchToDestID:%s has no UID ", s.switchToDestID))
-		return // Because LevelPanic does not seem to be panicing like it should
+		contextlib.Logf(s.Ctx(), contextlib.LevelError, fmt.Sprintf(lumerinlib.FileLineFunc()+" switchToDestID:%s has no UID ", s.switchToDestID))
+		s.Close()
+		return
 	}
 
 	if currentUID == newUID {
@@ -675,7 +677,6 @@ func (s *StratumV1Struct) switchDest() {
 
 			if v == nil {
 				contextlib.Logf(s.Ctx(), contextlib.LevelPanic, fmt.Sprintf(lumerinlib.FileLineFunc()+" dstDest[%d] ", currentUID))
-				panic("")
 			}
 
 			if ok {
@@ -843,6 +844,7 @@ func (svs *StratumV1Struct) eventHandler(event *simple.SimpleEvent) (e error) {
 		e = svs.handleConnReadEvent(scre)
 		if e != nil {
 			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" handleConnReadEvent() returned error:%s", e)
+			svs.Close()
 		}
 		return
 
@@ -851,23 +853,24 @@ func (svs *StratumV1Struct) eventHandler(event *simple.SimpleEvent) (e error) {
 		e = svs.handleConnOpenEvent(scoe)
 		if e != nil {
 			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" handleConnOpenEvent() returned error:%s", e)
+			svs.Close()
 		}
-		return
+		return e
 
 	case simple.ConnEOFEvent:
 		// Error checking here event == connection event
 		svs.handleConnEOFEvent(event)
-		return
+		return e
 
 	case simple.ConnErrorEvent:
 		// Error checking here event == connection event
 		svs.handleConnErrorEvent(event)
-		return
+		return e
 
 	case simple.ErrorEvent:
 		// Error checking here event == Error event
 		svs.handleErrorEvent(event)
-		return
+		return e
 
 	default:
 		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Default Reached: Event Type:%s", string(event.EventType))

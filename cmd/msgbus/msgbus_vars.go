@@ -11,7 +11,6 @@ const (
 // Need to figure out the IDString for this, for now it is just a string
 type IDString string
 type ConfigID IDString
-type ContractManagerConfigID IDString
 type NodeOperatorID IDString
 type ContractID IDString
 
@@ -21,19 +20,6 @@ type ConfigInfo struct {
 	ID           ConfigID
 	DefaultDest  DestID
 	NodeOperator NodeOperatorID
-}
-
-type ContractManagerConfig struct {
-	ID                  ContractManagerConfigID
-	Mnemonic            string
-	AccountIndex        int
-	EthNodeAddr         string
-	ClaimFunds          bool
-	TimeThreshold       int
-	CloneFactoryAddress string
-	LumerinTokenAddress string
-	ValidatorAddress    string
-	ProxyAddress        string
 }
 
 type NodeOperator struct {

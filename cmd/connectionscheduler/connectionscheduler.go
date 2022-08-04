@@ -85,7 +85,7 @@ func (cs *ConnectionScheduler) Start() (err error) {
 
 	// Monitor Contract Events
 	contractEventChan := msgbus.NewEventChan()
-	_, err = cs.Ps.Sub(msgbus.ContractMsg, "", contractEventChan)
+	_, err = cs.Ps.SubWait(msgbus.ContractMsg, "", contractEventChan)
 	if err != nil {
 		contextlib.Logf(cs.Ctx, log.LevelError, "Failed to subscribe to contract events, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
 		return err
@@ -135,7 +135,7 @@ func (cs *ConnectionScheduler) Start() (err error) {
 
 	// Monitor Miner Events
 	minerEventChan := msgbus.NewEventChan()
-	_, err = cs.Ps.Sub(msgbus.MinerMsg, "", minerEventChan)
+	_, err = cs.Ps.SubWait(msgbus.MinerMsg, "", minerEventChan)
 	if err != nil {
 		contextlib.Logf(cs.Ctx, log.LevelError, "Failed to subscribe to miner events, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
 		return err
@@ -186,6 +186,24 @@ func (cs *ConnectionScheduler) ContractHandler(ch msgbus.EventChan) {
 					cs.Contracts.Delete(string(id))
 				} else {
 					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.Funcname()+"Got Unsubscribe Event, but dont have the ID: %v", event)
+				}
+				
+				// get rid of contracts in miners that were servicing it
+				miners := cs.Ps.MinersContainContract(id)
+				for _, v := range miners {
+					cs.BusyMiners.Delete(string(v.ID))
+					m, err := cs.Ps.MinerRemoveContractWait(v.ID, id, cs.NodeOperator.DefaultDest)
+					if err != nil {
+						contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+					}
+					newRunningContracts := []msgbus.ContractID{}
+					for _, r := range cs.RunningContracts {
+						if r != id {
+							newRunningContracts = append(newRunningContracts, r)
+						}
+					}
+					cs.RunningContracts = newRunningContracts
+					cs.ReadyMiners.Set(string(m.ID), *m)
 				}
 
 				//
@@ -284,14 +302,14 @@ func (cs *ConnectionScheduler) WatchMinerEvents(ch msgbus.EventChan) {
 			case msgbus.UpdateEvent:
 				contextlib.Logf(cs.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Got Miner Update Event: %v", event)
 
-				connection := cs.connectionController.GetConnection(string(id))
-
 				if miner.State != msgbus.OnlineState {
 					cs.connectionController.RemoveConnection(string(id))
 					cs.ReadyMiners.Delete(string(id))
 					cs.BusyMiners.Delete(string(id))
 					break loop
 				}
+
+				connection := cs.connectionController.GetConnection(string(id))
 
 				switch len(miner.Contracts) {
 				case 0: // no contract
@@ -579,15 +597,18 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract) {
 			}
 
 			// check if contract went to available periodically
-			event, err := cs.Ps.GetWait(msgbus.ContractMsg, msgbus.IDString(contract.ID))
-			if err != nil {
-				contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+			event, _ := cs.Ps.GetWait(msgbus.ContractMsg, msgbus.IDString(contract.ID))
+			switch event.Data.(type) {
+			case msgbus.Contract:
+				contract = event.Data.(msgbus.Contract)
+				if contract.State == msgbus.ContAvailableState {
+					contractStateChanged = true
+					break loop1
+				}
+			default:
+				break loop1 // in buyer node contract gets unpublished when back to available
 			}
-			contract = event.Data.(msgbus.Contract)
-			if contract.State == msgbus.ContAvailableState {
-				contractStateChanged = true
-				break loop1
-			}
+			
 			durationPassed += totalDuration / 5
 			time.Sleep(totalDuration / 5)
 		}
@@ -602,19 +623,21 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract) {
 					}
 				}
 
-				// check if contract went to available
-				event, err := cs.Ps.GetWait(msgbus.ContractMsg, msgbus.IDString(contract.ID))
-				if err != nil {
-					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
-				}
-				contract = event.Data.(msgbus.Contract)
-				if contract.State == msgbus.ContAvailableState {
-					contractStateChanged = true
-					break loop2
+				// check if contract went to available periodically
+				event, _ := cs.Ps.GetWait(msgbus.ContractMsg, msgbus.IDString(contract.ID))
+				switch event.Data.(type) {
+				case msgbus.Contract:
+					contract = event.Data.(msgbus.Contract)
+					if contract.State == msgbus.ContAvailableState {
+						contractStateChanged = true
+						break loop2
+					}
+				default:
+					break loop2 // in buyer node contract gets unpublished when back to available
 				}
 
 				contextlib.Logf(cs.Ctx, log.LevelInfo, "Switching Sliced Miner %s Dest to service Contract: %s", m.ID, i)
-				event, err = cs.Ps.GetWait(msgbus.ContractMsg, msgbus.IDString(i))
+				event, err := cs.Ps.GetWait(msgbus.ContractMsg, msgbus.IDString(i))
 				if err != nil {
 					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
 				}
@@ -729,11 +752,8 @@ func (cs *ConnectionScheduler) sortMinersByHashrate(contractId msgbus.ContractID
 	}
 
 	sort.Sort(m)
-	if len(m) > 9 {
-		return m[:9]
-	} else {
-		return m
-	}
+	return m
+
 }
 
 func sumSubsets(sortedMiners MinerList, n int, targetHashrate int, hashrateTolerance float64) (m MinerList, sum int) {
@@ -777,22 +797,36 @@ func sumSubsets(sortedMiners MinerList, n int, targetHashrate int, hashrateToler
 
 // find subsets of list of miners whose hashrate sum equal the target hashrate
 func findSubsets(sortedMiners MinerList, targetHashrate int, hashrateTolerance float64) (minerCombinations []MinerList) {
+	// only use 10 miners at a time for subsets
+	sortedM := sortedMiners
+	sortedMinersLeftOver := false
+	if sortedMiners.Len() > 10 {
+		sortedM = sortedM[:9]
+		sortedMinersLeftOver = true
+	}
+	
 	// Calculate total number of subsets
-	tot := math.Pow(2, float64(sortedMiners.Len()))
-	MAX := int(float64(targetHashrate) * (1 + hashrateTolerance))
+	tot := math.Pow(2, float64(sortedM.Len()))
 	minerCombinationsSums := []int{}
 
 	for i := 0; i < int(tot); i++ {
-		m, s := sumSubsets(sortedMiners, i, targetHashrate, hashrateTolerance)
+		m, s := sumSubsets(sortedM, i, targetHashrate, hashrateTolerance)
 		if m != nil {
 			minerCombinations = append(minerCombinations, m)
 			minerCombinationsSums = append(minerCombinationsSums, s)
 		}
 	}
 
+	// go to next 10 miners if no combinations with these
 	if len(minerCombinations) == 0 {
-		return []MinerList{}
+		if sortedMinersLeftOver {
+			return findSubsets(sortedMiners[10:], targetHashrate, hashrateTolerance)
+		} else {
+			return []MinerList{} 
+		}
 	}
+
+	MAX := int(float64(targetHashrate) * (1 + hashrateTolerance))
 
 	for i, m := range minerCombinations {
 		if minerCombinationsSums[i] > MAX { // need to slice miner

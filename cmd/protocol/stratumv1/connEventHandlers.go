@@ -78,10 +78,14 @@ func (svs *StratumV1Struct) handleConnOpenEvent(scoe *simple.SimpleConnOpenEvent
 			count, e := svs.protocol.WriteDst(uid, msg)
 			if e != nil {
 				svs.SetDstStateUid(uid, DstStateError)
+				return e
 			}
 
 			if count != msgsize {
 				svs.SetDstStateUid(uid, DstStateError)
+				errstr := fmt.Sprintf(lumerinlib.FileLineFunc()+" msgsize sent does not match on UID:%d", uid)
+				contextlib.Logf(svs.Ctx(), contextlib.LevelError, errstr)
+				return fmt.Errorf( errstr )
 			}
 
 			svs.SetDstStateUid(uid, DstStateConfiguring)
@@ -95,7 +99,8 @@ func (svs *StratumV1Struct) handleConnOpenEvent(scoe *simple.SimpleConnOpenEvent
 
 		msg, e := request.createRequestMsg()
 		if e != nil {
-			contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" GetDstConn() bad UID:%d", uid)
+			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" GetDstConn() bad UID:%d", uid)
+			return e
 		}
 
 		LogJson(svs.Ctx(), lumerinlib.FileLineFunc(), JSON_SEND_STOR2DST, msg)
@@ -106,10 +111,14 @@ func (svs *StratumV1Struct) handleConnOpenEvent(scoe *simple.SimpleConnOpenEvent
 			count, e := svs.protocol.WriteDst(uid, msg)
 			if e != nil {
 				svs.SetDstStateUid(uid, DstStateError)
+				return e
 			}
 
 			if count != msgsize {
 				svs.SetDstStateUid(uid, DstStateError)
+				errstr := fmt.Sprintf(lumerinlib.FileLineFunc()+" msgsize sent does not match on UID:%d", uid)
+				contextlib.Logf(svs.Ctx(), contextlib.LevelError, errstr)
+				return fmt.Errorf( errstr )
 			}
 
 			svs.SetDstStateUid(uid, DstStateSubscribing)
@@ -534,23 +543,21 @@ func (svs *StratumV1Struct) handleResponse(uid simple.ConnUniqueID, response *st
 //
 func (svs *StratumV1Struct) checkDstResponseSubmit(uid simple.ConnUniqueID, response *stratumResponse) (e error) {
 
-	// Is validator running?
-	// if !validatorRunning(){
-	//	return nil
-	// }
 
 	var accepted bool = false
 	id := response.ID
+
+	// Recieved error message back from the pool
+	// Pass it back to the miner
+	if response.Error != nil {
+		contextlib.Logf(svs.Ctx(), contextlib.LevelWarn, lumerinlib.FileLineFunc()+" Error returned on ID:%d %s", id, *response.Error)
+	}
 
 	switch response.Result.(type) {
 	case bool:
 		accepted = response.Result.(bool)
 	default:
-		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" default reached on type:%t", response.Result)
-	}
-
-	if response.Error != nil {
-		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Error returned on ID:%d %s", id, *response.Error)
+		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" default reached on type:%t on ID:%d", response.Result, id)
 	}
 
 	// Pull the request
@@ -576,6 +583,12 @@ func (svs *StratumV1Struct) checkDstResponseSubmit(uid simple.ConnUniqueID, resp
 
 		cs := contextlib.GetContextStruct(svs.Ctx())
 		ps := cs.GetMsgBus()
+
+		// Need to check this before sending.
+		// Is validator running?
+		// if !validatorRunning(){
+		//	return nil
+		// }
 		ps.SendValidateSubmit(svs.Ctx(), username, minerID, destID, jobID, extranonce, ntime, nonce)
 
 	}

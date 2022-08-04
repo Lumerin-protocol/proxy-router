@@ -52,7 +52,7 @@ type nonce struct {
 
 type ContractManager interface {
 	start() (err error)
-	init(Ctx *context.Context, contractManagerConfigID msgbus.IDString, nodeOperatorMsg *msgbus.NodeOperator) (err error)
+	init(Ctx *context.Context, contractManagerConfig lumerinlib.ContractManagerConfig, nodeOperatorMsg *msgbus.NodeOperator) (err error)
 	setupExistingContracts() (err error)
 	readContracts() ([]common.Address, error)
 	watchHashrateContract(addr msgbus.ContractID, hrLogs chan types.Log, hrSub ethereum.Subscription)
@@ -82,11 +82,8 @@ type BuyerContractManager struct {
 	Ctx                 context.Context
 }
 
-func Run(Ctx *context.Context, contractManager ContractManager, contractManagerConfigID msgbus.IDString, nodeOperatorMsg *msgbus.NodeOperator) (err error) {
-	contractManagerCtx, contractManagerCancel := context.WithCancel(*Ctx)
-	go newConfigMonitor(Ctx, contractManagerCtx, contractManagerCancel, contractManager, contractManagerConfigID, nodeOperatorMsg)
-
-	err = contractManager.init(&contractManagerCtx, contractManagerConfigID, nodeOperatorMsg)
+func Run(Ctx *context.Context, contractManager ContractManager, contractManagerConfig lumerinlib.ContractManagerConfig, nodeOperatorMsg *msgbus.NodeOperator) (err error) {
+err = contractManager.init(Ctx, contractManagerConfig, nodeOperatorMsg)
 	if err != nil {
 		return err
 	}
@@ -98,42 +95,11 @@ func Run(Ctx *context.Context, contractManager ContractManager, contractManagerC
 	return err
 }
 
-func newConfigMonitor(Ctx *context.Context, contractManagerCtx context.Context, contractManagerCancel context.CancelFunc, contractManager ContractManager, contractManagerConfigID msgbus.IDString, nodeOperatorMsg *msgbus.NodeOperator) {
-	contractConfigCh := msgbus.NewEventChan()
-	cs := contextlib.GetContextStruct(contractManagerCtx)
-	Ps := cs.MsgBus
-
-	event, err := Ps.SubWait(msgbus.ContractManagerConfigMsg, contractManagerConfigID, contractConfigCh)
-	if err != nil {
-		contextlib.Logf(contractManagerCtx, log.LevelPanic, "SubWait failed: %v", err)
-	}
-	if event.EventType != msgbus.SubscribedEvent {
-		contextlib.Logf(contractManagerCtx, log.LevelPanic, "Wrong event type: %v", err)
-	}
-
-	for event = range contractConfigCh {
-		if event.EventType == msgbus.UpdateEvent {
-			contextlib.Logf(contractManagerCtx, log.LevelInfo, "Updated Contract Manager Configuration: Restarting Contract Manager: %v\n", event)
-			contractManagerCancel()
-			err = Run(Ctx, contractManager, contractManagerConfigID, nodeOperatorMsg)
-			if err != nil {
-				contextlib.Logf(contractManagerCtx, log.LevelPanic, "Contract manager failed to run: %v", err)
-			}
-			return
-		}
-	}
-}
-
-func (seller *SellerContractManager) init(Ctx *context.Context, contractManagerConfigID msgbus.IDString, nodeOperatorMsg *msgbus.NodeOperator) (err error) {
+func (seller *SellerContractManager) init(Ctx *context.Context, contractManagerConfig lumerinlib.ContractManagerConfig, nodeOperatorMsg *msgbus.NodeOperator) (err error) {
 	seller.Ctx = *Ctx
 	cs := contextlib.GetContextStruct(seller.Ctx)
 	seller.Ps = cs.MsgBus
 
-	event, err := seller.Ps.GetWait(msgbus.ContractManagerConfigMsg, contractManagerConfigID)
-	if err != nil {
-		return err
-	}
-	contractManagerConfig := event.Data.(msgbus.ContractManagerConfig)
 	seller.ClaimFunds = contractManagerConfig.ClaimFunds
 	ethNodeAddr := contractManagerConfig.EthNodeAddr
 	mnemonic := contractManagerConfig.Mnemonic
@@ -587,16 +553,11 @@ loop:
 	}
 }
 
-func (buyer *BuyerContractManager) init(Ctx *context.Context, contractManagerConfigID msgbus.IDString, nodeOperatorMsg *msgbus.NodeOperator) (err error) {
+func (buyer *BuyerContractManager) init(Ctx *context.Context, contractManagerConfig lumerinlib.ContractManagerConfig, nodeOperatorMsg *msgbus.NodeOperator) (err error) {
 	buyer.Ctx = *Ctx
 	cs := contextlib.GetContextStruct(buyer.Ctx)
 	buyer.Ps = cs.MsgBus
 
-	event, err := buyer.Ps.GetWait(msgbus.ContractManagerConfigMsg, contractManagerConfigID)
-	if err != nil {
-		return err
-	}
-	contractManagerConfig := event.Data.(msgbus.ContractManagerConfig)
 	buyer.TimeThreshold = contractManagerConfig.TimeThreshold
 	ethNodeAddr := contractManagerConfig.EthNodeAddr
 	mnemonic := contractManagerConfig.Mnemonic
@@ -905,30 +866,33 @@ func (buyer *BuyerContractManager) watchHashrateContract(addr msgbus.ContractID,
 }
 
 func (buyer *BuyerContractManager) closeOutMonitor(minerCh msgbus.EventChan, contractCh msgbus.EventChan, contractId msgbus.ContractID) {
+	checkHashrateChan := make(chan bool)
+	go func(){
+		for {
+			time.Sleep(time.Second * time.Duration(buyer.TimeThreshold))
+			// check contract is still running
+			event,_ := buyer.Ps.GetWait(msgbus.ContractMsg, msgbus.IDString(contractId))
+			switch event.Data.(type) {
+			case msgbus.Contract:
+				checkHashrateChan<-true
+			default:
+				return // contract unpublished i.e. not closed out
+			}
+		}
+	}()
 	for {
 		select {
 		case <-buyer.Ctx.Done():
 			contextlib.Logf(buyer.Ctx, log.LevelInfo, "Cancelling current contract manager context: cancelling closeOutMonitor go routine")
 			return
-		case event := <-minerCh:
-			if event.EventType == msgbus.PublishEvent || event.EventType == msgbus.UpdateEvent || event.EventType == msgbus.UnpublishEvent {
-				// check hashrate is being fulfilled for all running contracts
-				time.Sleep(time.Second * time.Duration(buyer.TimeThreshold)) // give buffer time for total hashrate to adjust to multiple updates
-				contractClosed := buyer.checkHashRate(contractId)
-				if contractClosed {
-					return
-				}
+		case <-checkHashrateChan:
+			contractClosed := buyer.checkHashRate(contractId)
+			if contractClosed {
+				return
 			}
 		case event := <-contractCh:
 			if event.EventType == msgbus.UnpublishEvent {
 				return
-			}
-			if event.EventType == msgbus.PublishEvent || event.EventType == msgbus.UpdateEvent {
-				// check hashrate is being fulfilled after contract update
-				contractClosed := buyer.checkHashRate(contractId)
-				if contractClosed {
-					return
-				}
 			}
 		}
 	}
@@ -953,12 +917,11 @@ func (buyer *BuyerContractManager) checkHashRate(contractId msgbus.ContractID) b
 		if err != nil {
 			contextlib.Logf(buyer.Ctx, log.LevelPanic, fmt.Sprintf("Failed to get miner, Fileline::%s, Error::", lumerinlib.FileLine()), err)
 		}
-		if _,ok := miner.Contracts[contractId]; !ok {
-			totalHashrate += miner.CurrentHashRate
+		if _,ok := miner.Contracts[contractId]; ok {
+			totalHashrate += int(float64(miner.CurrentHashRate)*miner.Contracts[contractId])
 		}
 	}
 
-	//hashrateTolerance := float64(contract.Limit) / 100
 	hashrateTolerance := float64(HASHRATE_LIMIT) / 100
 	promisedHashrateMin := int(float64(contract.Speed) * (1 - hashrateTolerance))
 

@@ -106,10 +106,20 @@ func ReadConfigFile() (configs ConfigRead) {
 		if err != nil {
 			panic(fmt.Sprintf("Failed to load contract configuration: %v", err))
 		}
-
+		// read mnemonic and account index from environment variables
+		configs.Mnemonic, err = ConfigGetVal(ConfigContractMnemonic)
+		if err != nil {
+			panic(fmt.Sprintf("Getting Mnemonic val failed, make sure env variable MNEMONIC was set: %s\n", err))
+		}
+		accounIndexStr, err := ConfigGetVal(ConfigContractAccountIndex)
+		if err != nil {
+			panic(fmt.Sprintf("Getting Account Index val failed, make sure env variable ACCOUNTINDEX was set: %s\n", err))
+		}
+		configs.AccountIndex, err = strconv.Atoi(accounIndexStr)
+		if err != nil {
+			panic(fmt.Sprintf("Converting Account Index from string to int failed: %s\n", err))
+		}
 		configs.DisableContract = contractConfig["disable"].(bool)
-		configs.Mnemonic = contractConfig["mnemonic"].(string)
-		configs.AccountIndex = int(contractConfig["accountIndex"].(float64))
 		configs.EthNodeAddr = contractConfig["ethNodeAddr"].(string)
 		configs.ClaimFunds = contractConfig["claimFunds"].(bool)
 		configs.TimeThreshold = int(contractConfig["timeThreshold"].(float64))
