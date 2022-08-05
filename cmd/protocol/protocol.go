@@ -232,7 +232,6 @@ func (ps *ProtocolStruct) Close() {
 
 	// Perform orderly shutdown of all connection here
 
-	ps.simple.Close()
 	ps.Cancel()
 }
 
@@ -251,7 +250,10 @@ func (ps *ProtocolStruct) Cancel() {
 		return
 	}
 
+	// Close individual DST connections
 	ps.dstconn.Cancel()
+	// Close the SRC connection
+	ps.simple.Cancel()
 	ps.cancel()
 }
 

@@ -454,12 +454,8 @@ func (s *StratumV1Struct) Ctx() context.Context {
 //
 //
 func (s *StratumV1Struct) Close() {
-
 	// Orderly shutdown of the system here
-
-	s.protocol.Close()
 	s.Cancel()
-
 }
 
 //
