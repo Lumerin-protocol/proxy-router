@@ -3,13 +3,13 @@ package blockchain
 import (
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/accounts"
 	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
+	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/lumerinlib"
 )
 
 type EthereumWallet struct {
-	Account    accounts.Account
+	Account    interop.BlockchainAccount
 	PrivateKey string
 }
 

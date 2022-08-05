@@ -1,437 +1,248 @@
 package contractmanager
 
 import (
-	"context"
-	"fmt"
 	"sync"
 
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"gitlab.com/TitanInd/hashrouter/constants"
+	"github.com/google/uuid"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
-	"gitlab.com/TitanInd/lumerin/cmd/log"
-	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
-	"gitlab.com/TitanInd/lumerin/lumerinlib"
-	"gitlab.com/TitanInd/lumerin/lumerinlib/clonefactory"
-	contextlib "gitlab.com/TitanInd/lumerin/lumerinlib/context"
-	"gitlab.com/TitanInd/lumerin/lumerinlib/implementation"
+	"gitlab.com/TitanInd/hashrouter/lumerinlib/implementation"
 )
 
 type ContractsService struct {
 	logger interfaces.ILogger
 }
 
-func (service *ContractsService) SubscribeToContractEvents(client *ethclient.Client, contractAddress common.Address) (chan types.Log, ethereum.Subscription, error) {
-	query := ethereum.FilterQuery{
-		Addresses: []common.Address{contractAddress},
-	}
-
-	logs := make(chan types.Log)
-	sub, err := client.SubscribeFilterLogs(context.Background(), query, logs)
-
+func (service *ContractsService) CheckHashRate(contractId string) bool {
+	// check for miners delivering hashrate for this contract
+	totalHashrate := 0
+	contractResult, err := service.GetContract(contractId)
 	if err != nil {
-		service.logger.Error(err)
+		//contextlib.Logf(buyer.Ctx, log.LevelPanic, fmt.Sprintf("Failed to get all miners, Fileline::%s, Error::", lumerinlib.FileLine()), err)
 	}
 
-	return logs, sub, err
-}
+	contract := contractResult
 
-func (service *ContractsService) SetupExistingContracts() (err error) {
-	var contractValues []hashrateContractValues
-	var contractMsgs []Contract
+	// hashrate, err := buyer.Ps.GetHashrate()
+	// TODO: create source/contract relationship
+	// miners, err := buyer.Ps.GetMiners()
 
-	sellerContracts, err := seller.readContracts()
-	if err != nil {
-		return err
-	}
-	seller.Logger.Infof("Existing Seller Contracts: %v", sellerContracts)
+	// if err != nil {
+	// 	//contextlib.Logf(buyer.Ctx, log.LevelPanic, fmt.Sprintf("Failed to get all miners, Fileline::%s, Error::", lumerinlib.FileLine()), err)
+	// }
 
-	for i := range sellerContracts {
-		id := sellerContracts[i].Hex()
-		if _, ok := seller.NodeOperator.Contracts[id]; !ok {
-			contract, err := seller.ReadHashrateContract(sellerContracts[i])
-			if err != nil {
-				return err
-			}
-			contractValues = append(contractValues, contract)
-			contractMsgs = append(contractMsgs, createContractMsg(sellerContracts[i], contractValues[i], true))
+	// for _, miner := range miners {
+	// 	if err != nil {
+	// 		//contextlib.Logf(buyer.Ctx, log.LevelPanic, fmt.Sprintf("Failed to get miner, Fileline::%s, Error::", lumerinlib.FileLine()), err)
+	// 	}
+	// 	if _, ok := miner.Contracts[contractId]; ok {
+	// 		totalHashrate += int(float64(miner.CurrentHashRate) * miner.Contracts[contractId])
+	// 	}
+	// }
 
-			seller.NodeOperator.AddAvailableContract(sellerContracts[i].Hex())
-			seller.NodeOperator.Contracts[sellerContracts[i].Hex()] = constants.ContAvailableState
+	hashrateTolerance := float64(HASHRATE_LIMIT) / 100
+	promisedHashrateMin := int(float64(contract.Speed) * (1 - hashrateTolerance))
 
-			if contractValues[i].State == RunningState {
-
-				seller.NodeOperator.AddRunningContract(sellerContracts[i].Hex())
-				seller.NodeOperator.Contracts[sellerContracts[i].Hex()] = constants.ContRunningState
-
-				destUrl, err := readDestUrl(seller.EthClient, sellerContracts[i], seller.PrivateKey)
-				if err != nil {
-					seller.Logger.Panicln("Reading dest url failed, Fileline::%s, Error::", err)
-				}
-
-				destination, err := seller.RoutableStreamService.TrySaveUniqueDestination(destUrl)
-
-				contractMsgs[i].Dest = destination.GetID()
-			}
-
-			seller.ContractGateway.Create(contractMsgs[i])
-		}
-	}
-
-	seller.NodeOperator.Update()
-
-	return err
-}
-
-func readDestUrl(client *ethclient.Client, contractAddress common.Address, privateKeyString string) (string, error) {
-	instance, err := implementation.NewImplementation(contractAddress, client)
-	if err != nil {
-		// fmt.Printf("Funcname::%s, Fileline::%s, Error::%v\n", lumerinlib.Funcname(), lumerinlib.FileLine(), err)
-		return "", err
-	}
-
-	fmt.Printf("Getting Dest url from contract %s\n\n", contractAddress)
-
-	encryptedDestUrl, err := instance.EncryptedPoolData(nil)
-	if err != nil {
-		// fmt.Printf("Funcname::%s, Fileline::%s, Error::%v\n", lumerinlib.Funcname(), lumerinlib.FileLine(), err)
-		return "", err
-	}
-
-	/*
-		// Decryption Logic
-		destUrlBytes,_ := hex.DecodeString(encryptedDestUrl)
-		PrivateKey, err := crypto.HexToECDSA(privateKeyString)
+	//contextlib.Logf(buyer.Ctx, log.LevelInfo, "Hashrate being sent to contract %s: %d\n", contractId, totalHashrate)
+	if totalHashrate <= promisedHashrateMin {
+		//contextlib.Logf(buyer.Ctx, log.LevelInfo, "Closing out contract %s for not meeting hashrate requirements\n", contractId)
+		var wg sync.WaitGroup
+		wg.Add(1)
+		err := setContractCloseOut(buyer.EthClient, buyer.Account, buyer.PrivateKey, common.HexToAddress(string(contractId)), &wg, &buyer.CurrentNonce, 0, buyer.NodeOperator)
 		if err != nil {
-			log.Printf("Funcname::%s, Fileline::%s, Error::%v", lumerinlib.Funcname(), lumerinlib.FileLine(), err)
-			return "", err
+			//contextlib.Logf(buyer.Ctx, log.LevelPanic, fmt.Sprintf("Contract Close Out failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
 		}
-		privateKeyECIES := ecies.ImportECDSA(PrivateKey)
-		decryptedDestUrlBytes, err := privateKeyECIES.Decrypt(destUrlBytes, nil, nil)
-		if err != nil {
-			log.Printf("Funcname::%s, Fileline::%s, Error::%v", lumerinlib.Funcname(), lumerinlib.FileLine(), err)
-			return "", err
-		}
-		decryptedDestUrl := string(decryptedDestUrlBytes)
-
-		return decryptedDestUrl, err
-	*/
-	return encryptedDestUrl, err
+		wg.Wait()
+		return true
+	}
 }
 
-func (service *ContractsService) readContracts() ([]common.Address, error) {
-	var sellerContractAddresses []common.Address
-	var hashrateContractInstance *implementation.Implementation
-	var hashrateContractSeller common.Address
+func (service *ContractsService) GetContract(contractId string) (interfaces.IContractModel, error) {
+	return nil, nil
+}
 
-	instance, err := clonefactory.NewClonefactory(seller.CloneFactoryAddress, seller.EthClient)
+func (service *ContractsService) HandleContractClosed(contract interfaces.IContractModel) {
+
+	//contextlib.Logf(seller.Ctx, log.LevelInfo, "Hashrate Contract %s Closed \n\n", addr)
+
+	event, err := seller.Ps.GetWait(msgbus.ContractMsg, string(addr))
 	if err != nil {
-		// contextlib.Logf(seller.Ctx, log.LevelError, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
-		return sellerContractAddresses, err
+		//contextlib.Logf(seller.Ctx, log.LevelPanic, "Getting Purchased Contract Failed: %v", err)
 	}
+	if event.Err != nil {
+		//contextlib.Logf(seller.Ctx, log.LevelPanic, "Getting Purchased Contract Failed: %v", event.Err)
+	}
+	contractMsg := event.Data.(Contract)
+	if contractMsg.State == ContRunningState {
+		contractMsg.State = ContAvailableState
+		contractMsg.Buyer = ""
+		seller.Ps.SetWait(msgbus.ContractMsg, string(contractMsg.ID), contractMsg)
 
-	hashrateContractAddresses, err := instance.GetContractList(&bind.CallOpts{})
+		seller.NodeOperator.Contracts[addr] = ContAvailableState
+		seller.Ps.SetWait(msgbus.NodeOperatorMsg, string(seller.NodeOperator.ID), seller.NodeOperator)
+	}
+}
+
+func (service *ContractsService) HandleContractUpdated(contract interfaces.IContractModel) {
+	//contextlib.Logf(seller.Ctx, log.LevelInfo, "Hashrate Contract %s Cipher Text Updated \n\n", addr)
+
+	event, err := seller.Ps.GetWait(ContractMsg, string(addr))
 	if err != nil {
-		// contextlib.Logf(seller.Ctx, log.LevelError, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
-		return sellerContractAddresses, err
+		//contextlib.Logf(seller.Ctx, log.LevelPanic, "Getting Purchased Contract Failed: %v", err)
 	}
-
-	// parse existing hashrate contracts for ones that belong to seller
-	for i := range hashrateContractAddresses {
-		hashrateContractInstance, err = implementation.NewImplementation(hashrateContractAddresses[i], seller.EthClient)
-		if err != nil {
-			// contextlib.Logf(seller.Ctx, log.LevelError, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
-			return sellerContractAddresses, err
-		}
-		hashrateContractSeller, err = hashrateContractInstance.Seller(nil)
-		if err != nil {
-			// contextlib.Logf(seller.Ctx, log.LevelError, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
-			return sellerContractAddresses, err
-		}
-		if hashrateContractSeller == seller.Account {
-			sellerContractAddresses = append(sellerContractAddresses, hashrateContractAddresses[i])
-		}
+	if event.Err != nil {
+		//contextlib.Logf(seller.Ctx, log.LevelPanic, "Getting Purchased Contract Failed: %v", event.Err)
 	}
+	contractMsg := event.Data.(Contract)
+	event, err = seller.Ps.GetWait(DestMsg, string(contractMsg.Dest))
+	if err != nil {
+		//contextlib.Logf(seller.Ctx, log.LevelPanic, "Getting Dest Failed: %v", err)
+	}
+	if event.Err != nil {
+		//contextlib.Logf(seller.Ctx, log.LevelPanic, "Getting Dest Failed: %v", event.Err)
+	}
+	destMsg := event.Data.(msgbus.Dest)
 
-	return sellerContractAddresses, err
+	seller.Ps.SetWait(msgbus.DestMsg, string(destMsg.ID), destMsg)
 }
 
-func (service *ContractsService) watchContractCreation(cfLogs chan types.Log, cfSub ethereum.Subscription) {
-	defer close(cfLogs)
-	defer cfSub.Unsubscribe()
+func (service *ContractsService) HandleContractCreated(contract interfaces.IContractModel) {
 
-	// create event signature to parse out creation event
-	contractCreatedSig := []byte("contractCreated(address,string)")
-	contractCreatedSigHash := crypto.Keccak256Hash(contractCreatedSig)
-	for {
-		select {
-		// case err := <-cfSub.Err():
-		// contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
-		// case <-seller.Ctx.Done():
-		// contextlib.Logf(seller.Ctx, log.LevelInfo, "Cancelling current contract manager context: cancelling watchContractCreation go routine")
-		// return
-		case cfLog := <-cfLogs:
-			if cfLog.Topics[0].Hex() == contractCreatedSigHash.Hex() {
-				// check if contract created belongs to seller
-				// contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading hashrate contract failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
-				service.OnContractCreated(cfLog)
-			}
-		}
-	}
-}
-
-func (*ContractsService) OnContractCreated(cfLog types.Log) {
 	address := common.HexToAddress(cfLog.Topics[1].Hex())
-
+	// check if contract created belongs to seller
 	hashrateContractInstance, err := implementation.NewImplementation(address, seller.EthClient)
 	if err != nil {
-		seller.Logger.Error(err)
+		//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
 	}
 	hashrateContractSeller, err := hashrateContractInstance.Seller(nil)
 	if err != nil {
-		seller.Logger.Error(err)
+		//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
 	}
 	if hashrateContractSeller == seller.Account {
-		seller.Logger.Info("Address of created Hashrate Contract: ", address.Hex())
+		// TODO: Handle logs, errors and data
+		//contextlib.Logf(seller.Ctx, log.LevelInfo, "Address of created Hashrate Contract: %s\n\n", address.Hex())
 
-		createdContractValues, err := seller.ReadHashrateContract(address)
-		if err != nil {
+		// createdContractValues, err := readHashrateContract(seller.EthClient, address)
+		// if err != nil {
+		//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading hashrate contract failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
+		// }
 
-		}
-		createdContractMsg := createContractMsg(address, createdContractValues, true)
-		seller.Ps.PubWait(msgbus.ContractMsg, address.Hex(), createdContractMsg)
+		// createdContractMsg := createContractMsg(address, createdContractValues, true)
+		// seller.Ps.PubWait(ContractMsg, string(address.Hex()), createdContractMsg)
 
-		seller.NodeOperator.Contracts[address.Hex()] = msgbus.ContAvailableState
+		seller.NodeOperator.Contracts[string(address.Hex())] = ContAvailableState
 
-		seller.Ps.SetWait(msgbus.NodeOperatorMsg, seller.NodeOperator.ID, seller.NodeOperator)
+		// seller.Ps.SetWait(NodeOperatorMsg, string(seller.NodeOperator.ID), seller.NodeOperator)
 	}
 }
 
-func (service *ContractsService) watchHashrateContract(addr string, hrLogs chan types.Log, hrSub ethereum.Subscription) {
-	contractEventChan := msgbus.NewEventChan()
+func (service *ContractsService) HandleContractPurchased(contract interfaces.IContractModel) {
+	// buyer := common.HexToAddress(hLog.Topics[1].Hex())
+	//contextlib.Logf(seller.Ctx, log.LevelInfo, "%s purchased Hashrate Contract: %s\n\n", buyer.Hex(), addr)
 
-	// check if contract is already in the running state and needs to be monitored for closeout
-	event, err := seller.Ps.GetWait(msgbus.ContractMsg, addr)
+	destUrl, err := readDestUrl(seller.EthClient, common.HexToAddress(string(addr)), seller.PrivateKey)
 	if err != nil {
-		seller.Logger.Panicf("Getting Hashrate Contract Failed: %v", err)
+		//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading dest url failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
+	}
+	destMsg := Dest{
+		ID:     string(uuid.NewString()),
+		NetUrl: string(destUrl),
+	}
+	seller.Ps.PubWait(DestMsg, string(destMsg.ID), destMsg)
+
+	event, err := seller.Ps.GetWait(ContractMsg, string(addr))
+	if err != nil {
+		//contextlib.Logf(seller.Ctx, log.LevelPanic, "Getting Purchased Contract Failed: %v", err)
 	}
 	if event.Err != nil {
-		seller.Logger.Panicf("Getting Hashrate Contract Failed: %v", event.Err)
+		//contextlib.Logf(seller.Ctx, log.LevelPanic, "Getting Purchased Contract Failed: %v", event.Err)
 	}
-	hashrateContractMsg := event.Data.(msgbus.Contract)
-	if hashrateContractMsg.State == constants.ContRunningState {
-		go seller.closeOutMonitor(hashrateContractMsg)
-	}
-
-	// create event signatures to parse out which event was being emitted from hashrate contract
-	contractPurchasedSig := []byte("contractPurchased(address)")
-	contractClosedSig := []byte("contractClosed()")
-	purchaseInfoUpdatedSig := []byte("purchaseInfoUpdated()")
-	cipherTextUpdatedSig := []byte("cipherTextUpdated(string)")
-	contractPurchasedSigHash := crypto.Keccak256Hash(contractPurchasedSig)
-	contractClosedSigHash := crypto.Keccak256Hash(contractClosedSig)
-	purchaseInfoUpdatedSigHash := crypto.Keccak256Hash(purchaseInfoUpdatedSig)
-	cipherTextUpdatedSigHash := crypto.Keccak256Hash(cipherTextUpdatedSig)
-
-	// routine monitoring and acting upon events emmited by hashrate contract
-	go func() {
-		defer close(hrLogs)
-		defer hrSub.Unsubscribe()
-		for {
-			select {
-			case err := <-hrSub.Err():
-				contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
-			case <-seller.Ctx.Done():
-				contextlib.Logf(seller.Ctx, log.LevelInfo, "Cancelling current contract manager context: cancelling watchHashrateContract go routine")
-				return
-			case hLog := <-hrLogs:
-				switch hLog.Topics[0].Hex() {
-				case contractPurchasedSigHash.Hex():
-					buyer := common.HexToAddress(hLog.Topics[1].Hex())
-					contextlib.Logf(seller.Ctx, log.LevelInfo, "%s purchased Hashrate Contract: %s\n\n", buyer.Hex(), addr)
-
-					destUrl, err := readDestUrl(seller.EthClient, common.HexToAddress(string(addr)), seller.PrivateKey)
-					if err != nil {
-						contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading dest url failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
-					}
-					destMsg := msgbus.Dest{
-						ID:     msgbus.DestID(msgbus.GetRandomIDString()),
-						NetUrl: msgbus.DestNetUrl(destUrl),
-					}
-					seller.Ps.PubWait(msgbus.DestMsg, destMsg.ID, destMsg)
-
-					event, err := seller.Ps.GetWait(msgbus.ContractMsg, addr)
-					if err != nil {
-						contextlib.Logf(seller.Ctx, log.LevelPanic, "Getting Purchased Contract Failed: %v", err)
-					}
-					if event.Err != nil {
-						contextlib.Logf(seller.Ctx, log.LevelPanic, "Getting Purchased Contract Failed: %v", event.Err)
-					}
-					contractValues, err := seller.ReadHashrateContract(common.HexToAddress(string(addr)))
-					if err != nil {
-						contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading hashrate contract failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
-					}
-					contractMsg := createContractMsg(common.HexToAddress(string(addr)), contractValues, true)
-					contractMsg.Dest = destMsg.ID
-					contractMsg.State = msgbus.ContRunningState
-					contractMsg.Buyer = string(buyer.Hex())
-					seller.Ps.SetWait(msgbus.ContractMsg, addr, contractMsg)
-
-					seller.NodeOperator.Contracts[addr] = msgbus.ContRunningState
-					seller.Ps.SetWait(msgbus.NodeOperatorMsg, seller.NodeOperator.ID, seller.NodeOperator)
-
-				case cipherTextUpdatedSigHash.Hex():
-					contextlib.Logf(seller.Ctx, log.LevelInfo, "Hashrate Contract %s Cipher Text Updated \n\n", addr)
-
-					event, err := seller.Ps.GetWait(msgbus.ContractMsg, addr)
-					if err != nil {
-						contextlib.Logf(seller.Ctx, log.LevelPanic, "Getting Purchased Contract Failed: %v", err)
-					}
-					if event.Err != nil {
-						contextlib.Logf(seller.Ctx, log.LevelPanic, "Getting Purchased Contract Failed: %v", event.Err)
-					}
-					contractMsg := event.Data.(msgbus.Contract)
-					event, err = seller.Ps.GetWait(msgbus.DestMsg, contractMsg.Dest)
-					if err != nil {
-						contextlib.Logf(seller.Ctx, log.LevelPanic, "Getting Dest Failed: %v", err)
-					}
-					if event.Err != nil {
-						contextlib.Logf(seller.Ctx, log.LevelPanic, "Getting Dest Failed: %v", event.Err)
-					}
-					destMsg := event.Data.(msgbus.Dest)
-
-					destUrl, err := readDestUrl(seller.EthClient, common.HexToAddress(string(addr)), seller.PrivateKey)
-					if err != nil {
-						contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading dest url failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
-					}
-					destMsg.NetUrl = msgbus.DestNetUrl(destUrl)
-					seller.Ps.SetWait(msgbus.DestMsg, destMsg.ID, destMsg)
-
-				case contractClosedSigHash.Hex():
-					contextlib.Logf(seller.Ctx, log.LevelInfo, "Hashrate Contract %s Closed \n\n", addr)
-
-					event, err := seller.Ps.GetWait(msgbus.ContractMsg, addr)
-					if err != nil {
-						contextlib.Logf(seller.Ctx, log.LevelPanic, "Getting Purchased Contract Failed: %v", err)
-					}
-					if event.Err != nil {
-						contextlib.Logf(seller.Ctx, log.LevelPanic, "Getting Purchased Contract Failed: %v", event.Err)
-					}
-					contractMsg := event.Data.(msgbus.Contract)
-					if contractMsg.State == msgbus.ContRunningState {
-						contractMsg.State = msgbus.ContAvailableState
-						contractMsg.Buyer = ""
-						seller.Ps.SetWait(msgbus.ContractMsg, contractMsg.ID, contractMsg)
-
-						seller.NodeOperator.Contracts[addr] = msgbus.ContAvailableState
-						seller.Ps.SetWait(msgbus.NodeOperatorMsg, seller.NodeOperator.ID, seller.NodeOperator)
-					}
-
-				case purchaseInfoUpdatedSigHash.Hex():
-					seller.Logger.Info("Hashrate Contract %s Purchase Info Updated \n\n", addr)
-
-					event, err := seller.Ps.GetWait(msgbus.ContractMsg, addr)
-					if err != nil {
-						seller.Logger.Panicf("Getting Purchased Contract Failed: %v", err)
-					}
-					if event.Err != nil {
-						seller.Logger.Panicf("Getting Purchased Contract Failed: %v", event.Err)
-					}
-
-					contractMsg := event.Data.(Contract)
-
-					updatedContractValues, err := seller.ReadHashrateContract(common.HexToAddress(string(addr)))
-					if err != nil {
-						contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading hashrate contract failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
-					}
-					updateContractMsg(&contractMsg, updatedContractValues)
-					seller.Ps.SetWait(msgbus.ContractMsg, contractMsg.ID, contractMsg)
-				}
-			}
-		}
-	}()
-
-	_, err = seller.Ps.Sub(msgbus.ContractMsg, addr, contractEventChan)
+	contractValues, err := readHashrateContract(seller.EthClient, common.HexToAddress(string(addr)))
 	if err != nil {
-		contextlib.Logf(seller.Ctx, log.LevelPanic, "Subscribing to Contract Failed: %v", err)
+		//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading hashrate contract failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
 	}
-	// once contract is running, closeout after length of contract has passed if it was not closed out early
-	for {
-		select {
-		case <-seller.Ctx.Done():
-			contextlib.Logf(seller.Ctx, log.LevelInfo, "Cancelling current contract manager context: cancelling watchHashrateContract go routine")
-			return
-		case event := <-contractEventChan:
-			if event.EventType == msgbus.UpdateEvent {
-				runningContractMsg := event.Data.(msgbus.Contract)
-				if runningContractMsg.State == msgbus.ContRunningState {
-					// run routine for each running contract to check if contract length has passed and contract should be closed out
-					go seller.closeOutMonitor(runningContractMsg)
-				}
-			}
-		}
-	}
+	contractMsg := createContractMsg(common.HexToAddress(string(addr)), contractValues, true)
+	contractMsg.Dest = destMsg.ID
+	contractMsg.State = ContRunningState
+	contractMsg.Buyer = string(buyer.Hex())
+	seller.Ps.SetWait(ContractMsg, string(addr), contractMsg)
+
+	seller.NodeOperator.Contracts[addr] = ContRunningState
+	seller.Ps.SetWait(NodeOperatorMsg, string(seller.NodeOperator.ID), seller.NodeOperator)
 }
 
-func (service *ContractsService) closeOutMonitor(contractMsg Contract) {
-	contractFinishedTimestamp := contractMsg.StartingBlockTimestamp + contractMsg.Length
+func (service *ContractsService) HandleBuyerContractPurchased(args interfaces.IContractModel) {
 
-	// subscribe to latest block headers
-	headers := make(chan *types.Header)
-	sub, err := seller.EthClient.SubscribeNewHead(context.Background(), headers)
+	contractMsg := contract.(Contract)
+
+	destMsg := msgbus.Dest{
+		ID:     string(msgbus.GetRandomIDString()),
+		NetUrl: string(destUrl),
+	}
+	buyer.Ps.PubWait(msgbus.DestMsg, string(destMsg.ID), destMsg)
+
+	contractMsg.Dest = destMsg.ID
+	contractMsg.State = ContRunningState
+	buyer.Ps.PubWait(msgbus.ContractMsg, string(contractMsg.ID), contractMsg)
+
+	buyer.NodeOperator.Contracts[contractMsg.ID] = ContRunningState
+	buyer.Ps.SetWait(msgbus.NodeOperatorMsg, string(buyer.NodeOperator.ID), buyer.NodeOperator)
+}
+
+func (service *ContractsService) HandleBuyerContractUpdated(args interfaces.IContractModel) {
+	//contextlib.Logf(buyer.Ctx, log.LevelInfo, "Hashrate Contract %s Purchase Info Updated \n\n", addr)
+
+	event, err := buyer.Ps.GetWait(msgbus.ContractMsg, string(addr))
 	if err != nil {
-		contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
+		//contextlib.Logf(buyer.Ctx, log.LevelPanic, "Getting Purchased Contract Failed: %v", err)
 	}
-	defer close(headers)
-	defer sub.Unsubscribe()
-
-loop:
-	for {
-		select {
-		case err := <-sub.Err():
-			contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
-		case <-seller.Ctx.Done():
-			contextlib.Logf(seller.Ctx, log.LevelInfo, "Cancelling current contract manager context: cancelling closeout monitor go routine")
-			return
-		case header := <-headers:
-			// get latest block from header
-			block, err := seller.EthClient.BlockByHash(context.Background(), header.Hash())
-			if err != nil {
-				contextlib.Logf(seller.Ctx, log.LevelWarn, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
-			} else {
-				// check if contract length has passed
-				if block.Time() >= uint64(contractFinishedTimestamp) {
-					var closeOutType uint
-
-					// seller only wants to closeout
-					closeOutType = 2
-					// seller wants to claim funds with closeout
-					if seller.ClaimFunds {
-						closeOutType = 3
-					}
-
-					// if contract was not already closed early, close out here
-					contractValues, err := seller.ReadHashrateContract(common.HexToAddress(string(contractMsg.ID)))
-					if err != nil {
-						contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading hashrate contract failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
-					}
-					if contractValues.State == RunningState {
-						var wg sync.WaitGroup
-						wg.Add(1)
-						err = setContractCloseOut(seller.EthClient, seller.Account, seller.PrivateKey, common.HexToAddress(string(contractMsg.ID)), &wg, &seller.CurrentNonce, closeOutType, seller.Ps, seller.NodeOperator)
-						if err != nil {
-							contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Contract Close Out failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
-						}
-						wg.Wait()
-					}
-					break loop
-				}
-			}
-
-		}
+	if event.Err != nil {
+		//contextlib.Logf(buyer.Ctx, log.LevelPanic, "Getting Purchased Contract Failed: %v", event.Err)
 	}
+	contractMsg := event.Data.(Contract)
+
+	updatedContractValues, err := readHashrateContract(buyer.EthClient, common.HexToAddress(string(addr)))
+	if err != nil {
+		//contextlib.Logf(buyer.Ctx, log.LevelPanic, fmt.Sprintf("Reading hashrate contract failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
+	}
+	updateContractMsg(&contractMsg, updatedContractValues)
+	buyer.Ps.SetWait(msgbus.ContractMsg, string(contractMsg.ID), contractMsg)
+}
+
+func (service *ContractsService) HandleBuyerDestinationUpdated(args interfaces.IContractModel) {
+	//contextlib.Logf(buyer.Ctx, log.LevelInfo, "Hashrate Contract %s Cipher Text Updated \n\n", addr)
+
+	event, err := buyer.Ps.GetWait(msgbus.ContractMsg, string(addr))
+	if err != nil {
+		//contextlib.Logf(buyer.Ctx, log.LevelPanic, "Getting Purchased Contract Failed: %v", err)
+	}
+	if event.Err != nil {
+		//contextlib.Logf(buyer.Ctx, log.LevelPanic, "Getting Purchased Contract Failed: %v", event.Err)
+	}
+	contractMsg := event.Data.(Contract)
+	event, err = buyer.Ps.GetWait(msgbus.DestMsg, string(contractMsg.Dest))
+	if err != nil {
+		//contextlib.Logf(buyer.Ctx, log.LevelPanic, "Getting Dest Failed: %v", err)
+	}
+	if event.Err != nil {
+		//contextlib.Logf(buyer.Ctx, log.LevelPanic, "Getting Dest Failed: %v", event.Err)
+	}
+	destMsg := event.Data.(msgbus.Dest)
+
+	destUrl, err := readDestUrl(buyer.EthClient, common.HexToAddress(string(addr)), buyer.PrivateKey)
+	if err != nil {
+		//contextlib.Logf(buyer.Ctx, log.LevelPanic, fmt.Sprintf("Reading dest url failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
+	}
+	destMsg.NetUrl = string(destUrl)
+	buyer.Ps.SetWait(msgbus.DestMsg, string(destMsg.ID), destMsg)
+}
+
+func (service *ContractsService) HandleBuyerContractClosed(args interfaces.IContractModel) {
+
+	//contextlib.Logf(buyer.Ctx, log.LevelInfo, "Hashrate Contract %s Closed \n\n", addr)
+
+	buyer.Ps.Unpub(msgbus.ContractMsg, string(addr))
+
+	delete(buyer.NodeOperator.Contracts, addr)
+	buyer.Ps.SetWait(msgbus.NodeOperatorMsg, string(buyer.NodeOperator.ID), buyer.NodeOperator)
 }
