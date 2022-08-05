@@ -382,15 +382,18 @@ func createNewSocket(ctx context.Context, conn net.Conn) (soc *SocketTCPStruct) 
 //
 func (s *SocketTCPStruct) Cancel() {
 
-	//	contextlib.Logf(s.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
+	contextlib.Logf(s.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
+
+	e := s.socket.Close()
+	if e != nil {
+		contextlib.Logf(s.ctx, contextlib.LevelDebug, lumerinlib.FileLineFunc()+" socket.Close() returned an error:%s", e)
+	}
 
 	if s.Done() {
 		contextlib.Logf(s.ctx, contextlib.LevelError, lumerinlib.FileLineFunc()+" Already called")
 		return
 	}
 
-	// close(s.readchan)
-	s.socket.Close()
 	s.cancel()
 }
 
@@ -422,7 +425,7 @@ func (s *SocketTCPStruct) Read(buf []byte) (count int, e error) {
 		case io.EOF:
 			contextlib.Logf(s.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" Socket Read() return EOF")
 		default:
-			contextlib.Logf(s.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" Socket Read() return default close")
+			contextlib.Logf(s.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" Socket Read() return default close: %s", e)
 			e = ErrSocTCPClosed
 		}
 		s.Close()
@@ -479,18 +482,6 @@ func (s *SocketTCPStruct) Status() (ss *SocketStatusStruct, e error) {
 //
 //
 func (s *SocketTCPStruct) Close() {
-
-	contextlib.Logf(s.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
-
-	if s.Done() {
-		return
-	}
-
-	e := s.socket.Close()
-	if e != nil {
-		contextlib.Logf(s.ctx, contextlib.LevelDebug, lumerinlib.FileLineFunc()+" socket.Close() returned an error:%s", e)
-	}
-
 	s.Cancel()
 }
 

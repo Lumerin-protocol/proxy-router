@@ -556,8 +556,8 @@ func (svs *StratumV1Struct) checkDstResponseSubmit(uid simple.ConnUniqueID, resp
 	switch response.Result.(type) {
 	case bool:
 		accepted = response.Result.(bool)
-	default:
-		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" default reached on type:%t on ID:%d", response.Result, id)
+	//default:
+	//	contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" default reached on type:%t on ID:%d", response.Result, id)
 	}
 
 	// Pull the request

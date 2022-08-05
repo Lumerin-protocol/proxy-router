@@ -470,33 +470,6 @@ func (l *LumerinSocketStruct) Status() (stat *LumerinConnectionStatusStruct, e e
 //
 //
 //
-func (l *LumerinSocketStruct) Close() (e error) {
-
-	if l == nil {
-		return errors.New(lumerinlib.FileLineFunc() + " nil pointer ")
-	}
-
-	//	contextlib.Logf(l.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
-
-	if l.Done() {
-		return ErrLumConSocketClosed
-	}
-
-	switch l.socket.(type) {
-	case *sockettcp.SocketTCPStruct:
-		l.socket.(*sockettcp.SocketTCPStruct).Close()
-	default:
-		contextlib.Logf(l.ctx, contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Default reached, type: %T", l.socket)
-	}
-
-	l.Cancel()
-
-	return e
-}
-
-//
-//
-//
 func (l *LumerinSocketStruct) GetRemoteAddr() (addr net.Addr, e error) {
 
 	if l == nil {
@@ -517,6 +490,27 @@ func (l *LumerinSocketStruct) GetRemoteAddr() (addr net.Addr, e error) {
 //
 //
 //
+func (l *LumerinSocketStruct) Close() (e error) {
+
+	if l == nil {
+		return errors.New(lumerinlib.FileLineFunc() + " nil pointer ")
+	}
+
+	//	contextlib.Logf(l.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
+
+	if l.Done() {
+		return ErrLumConSocketClosed
+	}
+
+	l.Cancel()
+
+	return e
+}
+
+
+//
+//
+//
 func (l *LumerinSocketStruct) Cancel() {
 
 	//	contextlib.Logf(l.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
@@ -529,6 +523,13 @@ func (l *LumerinSocketStruct) Cancel() {
 	if l.cancel == nil {
 		//		contextlib.Logf(l.ctx, contextlib.LevelError, lumerinlib.FileLineFunc()+" cancel function is nul, struct:%v", l)
 		return
+	}
+
+	switch l.socket.(type) {
+	case *sockettcp.SocketTCPStruct:
+		l.socket.(*sockettcp.SocketTCPStruct).Close()
+	default:
+		contextlib.Logf(l.ctx, contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Default reached, type: %T", l.socket)
 	}
 
 	l.cancel()

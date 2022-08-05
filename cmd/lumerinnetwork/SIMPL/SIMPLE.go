@@ -499,16 +499,6 @@ func (s *SimpleStruct) Done() bool {
 // Close()
 //
 func (s *SimpleStruct) Close() {
-	if s.Done() {
-		return
-	}
-
-	// Close all of the connectionMappings
-	for uid, l := range s.connectionMapping {
-		l.Close()
-		contextlib.Logf(s.ctx, contextlib.LevelInfo, lumerinlib.FileLineFunc()+" Orderly shutdown of SIMPL UID:%d", uid)
-	}
-
 	s.Cancel()
 }
 
@@ -525,6 +515,17 @@ func (s *SimpleStruct) Cancel() {
 	if s.Done() {
 		return
 	}
+
+	// Close all of the connectionMappings
+	for uid, l := range s.connectionMapping {
+		e := l.Close()
+		if e != nil {
+			contextlib.Logf(s.ctx, contextlib.LevelInfo, lumerinlib.FileLineFunc()+" Error closeing SIMPL UID:%d: %s", uid, e)
+		}
+		contextlib.Logf(s.ctx, contextlib.LevelInfo, lumerinlib.FileLineFunc()+" Orderly shutdown of SIMPL UID:%d", uid)
+	}
+
+	s.ConnectionStruct.Cancel()
 
 	//
 	// Close all channles if they are still open

@@ -376,13 +376,6 @@ func (cs *ConnectionStruct) GetReadChan() <-chan *ConnectionReadEvent {
 //
 func (cs *ConnectionStruct) Close() {
 
-	// 	contextlib.Logf(cs.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
-
-	// Close out all of the Lumerin connections
-	cs.src.Close()
-	for i := 0; i < len(cs.dst); i++ {
-		cs.dst[i].Close()
-	}
 
 	cs.Cancel() // This should close all open src and dst connections
 
@@ -393,16 +386,21 @@ func (cs *ConnectionStruct) Close() {
 //
 func (cs *ConnectionStruct) Cancel() {
 
-	//	contextlib.Logf(cs.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
+	contextlib.Logf(cs.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
 
 	if cs.Done() {
-		//		contextlib.Logf(cs.ctx, contextlib.LevelError, lumerinlib.FileLineFunc()+" called already")
+		contextlib.Logf(cs.ctx, contextlib.LevelError, lumerinlib.FileLineFunc()+" called already")
 		return
 	}
 
 	if cs.cancel == nil {
-		//		contextlib.Logf(cs.ctx, contextlib.LevelError, fmt.Sprintf(lumerinlib.FileLineFunc()+" cancel func it nil, struct:%v", cs))
+		contextlib.Logf(cs.ctx, contextlib.LevelError, fmt.Sprintf(lumerinlib.FileLineFunc()+" cancel func it nil, struct:%v", cs))
 		return
+	}
+
+	cs.src.Close()
+	for i := 0; i < len(cs.dst); i++ {
+		cs.dst[i].Close()
 	}
 
 	//close(cs.readChan)
