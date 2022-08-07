@@ -55,7 +55,6 @@ const (
 	CLIENT_MINING_SUGGEST_TARGET     stratumMethods = "mining.suggest_target"
 	CLIENT_MINING_CONFIGURE          stratumMethods = "mining.configure"
 	CLIENT_MINING_MULTI_VERSION      stratumMethods = "mining.multi_version"
-	MINING_SET_TARGET                stratumMethods = "mining.set_target"
 	SERVER_GET_VERSION               stratumMethods = "client.get_version"
 	SERVER_RECONNECT                 stratumMethods = "client.reconnect"
 	SERVER_SHOW_MESSAGE              stratumMethods = "client.show_message"
@@ -65,6 +64,7 @@ const (
 	SERVER_MINING_SET_EXTRANONCE     stratumMethods = "mining.set_extranonce"
 	SERVER_MINING_SET_GOAL           stratumMethods = "mining.set_goal"
 	SERVER_MINING_SET_VERSION_MASK   stratumMethods = "mining.set_version_mask"
+	SERVER_MINING_SET_TARGET         stratumMethods = "mining.set_target"
 )
 
 const (
