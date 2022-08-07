@@ -618,6 +618,9 @@ func (svs *StratumV1Struct) handleNotice(uid simple.ConnUniqueID, notice *stratu
 			svs.handleDstNoticeSetExtranonce(uid, notice)
 		case string(SERVER_MINING_SET_DIFFICULTY):
 			svs.handleDstNoticeSetDifficulty(uid, notice)
+		case string(SERVER_MINING_SET_TARGET):
+			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Droppping Set Version Mask Message Type Recieved:%s", notice.Method)
+			svs.Close()
 		case string(SERVER_MINING_SET_VERSION_MASK):
 			contextlib.Logf(svs.Ctx(), contextlib.LevelWarn, lumerinlib.FileLineFunc()+" Droppping Set Version Mask Message Type Recieved:%s", notice.Method)
 			//svs.handleDstNoticeSetVersionMask(uid, notice)
