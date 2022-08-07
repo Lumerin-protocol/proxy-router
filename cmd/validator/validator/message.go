@@ -4,8 +4,6 @@ import "encoding/json"
 import "reflect"
 import "fmt"
 import "strings"
-//import "strconv"
-//import "errors"
 
 type StratumSubmitMessage struct {
 	Params []string `json:"params"`
