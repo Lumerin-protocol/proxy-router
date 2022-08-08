@@ -41,6 +41,10 @@ type SetDifficulty struct {
 	Diff int
 }
 
+type SetTarget struct {
+	Target string
+}
+
 func newValidate(id ValidateID, minerID string, destID string, data interface{}) (v *Validate) {
 
 	v = &Validate{
@@ -94,6 +98,15 @@ func newSetDiff(diff int) (d *SetDifficulty) {
 	return d
 }
 
+func newSetTarget(target string) (t *SetTarget) {
+
+	t = &SetTarget{
+		Target: target,
+	}
+
+	return t
+}
+
 //
 //
 //
@@ -138,6 +151,22 @@ func (ps *PubSub) SendValidateNotify(ctx context.Context, m MinerID, d DestID, u
 func (ps *PubSub) SendValidateSetDiff(ctx context.Context, m MinerID, d DestID, diff int) {
 
 	setdiff := newSetDiff(diff)
+	id := getValidateID()
+	validate := newValidate(id, string(m), string(d), setdiff)
+
+	_, e := ps.Pub(ValidateMsg, IDString(id), validate)
+	if e != nil {
+		panic(fmt.Sprintf(lumerinlib.FileLineFunc()+" Pub() error:%s", e))
+	}
+}
+
+
+//
+//
+//
+func (ps *PubSub) SendValidateSetTarget(ctx context.Context, m MinerID, d DestID, target string) {
+
+	setdiff := newSetTarget(target)
 	id := getValidateID()
 	validate := newValidate(id, string(m), string(d), setdiff)
 

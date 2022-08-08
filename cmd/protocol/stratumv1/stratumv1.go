@@ -81,6 +81,7 @@ type StratumV1Struct struct {
 	dstExtranonce2size  map[simple.ConnUniqueID]int
 	dstVersionMask      map[simple.ConnUniqueID]string
 	dstLastSetDiff      map[simple.ConnUniqueID]int
+	dstLastSetTarget    map[simple.ConnUniqueID]string
 	dstLastMiningNotice map[simple.ConnUniqueID]*stratumNotice
 	dstLastReqNotify    map[simple.ConnUniqueID]*stratumRequest
 	dstLastSubmit       *stratumDstLastSubmitStruct
@@ -279,6 +280,7 @@ func NewStratumV1Struct(ctx context.Context, ps *protocol.ProtocolStruct, schedu
 	du := make(map[simple.ConnUniqueID]string)
 	de2 := make(map[simple.ConnUniqueID]int)
 	lsd := make(map[simple.ConnUniqueID]int)
+	lst := make(map[simple.ConnUniqueID]string)
 	vm := make(map[simple.ConnUniqueID]string)
 	lmn := make(map[simple.ConnUniqueID]*stratumNotice)
 	lrn := make(map[simple.ConnUniqueID]*stratumRequest)
@@ -335,6 +337,7 @@ func NewStratumV1Struct(ctx context.Context, ps *protocol.ProtocolStruct, schedu
 		dstExtranonce:       de,
 		dstExtranonce2size:  de2,
 		dstLastSetDiff:      lsd,
+		dstLastSetTarget:    lst,
 		dstVersionMask:      vm,
 		dstLastMiningNotice: lmn,
 		dstLastReqNotify:    lrn,
@@ -728,6 +731,7 @@ func (s *StratumV1Struct) switchDest() {
 		s.sendSetExtranonceNotice(newUID)
 		s.sendLastSetDifficultyNotice(newUID)
 		s.sendLastMiningNotice(newUID)
+		s.sendLastSetTargetNotice(newUID)
 		s.sendLastReqNotify(newUID)
 
 		// Reset the switchToState
@@ -896,6 +900,63 @@ func (svs *StratumV1Struct) sendSetExtranonceNotice(uid simple.ConnUniqueID) (e 
 
 	if e != nil {
 		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" createSetExtranonceNoticeMsg error:%s", e)
+		return e
+	}
+
+	LogJson(svs.Ctx(), lumerinlib.FileLineFunc(), JSON_SEND_STOR2SRC, msg)
+
+	count, e := svs.protocol.WriteSrc(msg)
+	if e != nil {
+		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write error:%s", e)
+		return e
+	}
+
+	if count != len(msg) {
+		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write bad count:%d, %d", count, len(msg))
+		e = fmt.Errorf(lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
+	}
+
+	return e
+
+}
+
+//
+// setLastSetTargetNotice()
+//
+func (svs *StratumV1Struct) setLastSetTargetNotice(uid simple.ConnUniqueID, n *stratumNotice) (e error) {
+
+	if n.Method != string(SERVER_MINING_SET_TARGET) {
+		contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" bad Method[%s]", n.Method)
+	}
+
+	target, e := n.getSetTarget()
+	svs.dstLastSetTarget[uid] = target
+
+	return e
+
+}
+
+//
+// sendSetTargetNotice()
+//
+func (svs *StratumV1Struct) sendLastSetTargetNotice(uid simple.ConnUniqueID) (e error) {
+
+	contextlib.Logf(svs.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" on  UID:%d", uid)
+
+	target, ok := svs.dstLastSetTarget[uid]
+	if !ok {
+		contextlib.Logf(svs.Ctx(), contextlib.LevelWarn, lumerinlib.FileLineFunc()+" dstLastSetTarget[%d] DNE ", uid)
+		return nil
+	}
+
+	cs := contextlib.GetContextStruct(svs.Ctx())
+	ps := cs.GetMsgBus()
+	ps.SendValidateSetTarget(svs.Ctx(), svs.minerRec.ID, svs.dstDest[uid].ID, target)
+
+	msg, e := createSetTargetNoticeMsg(target)
+
+	if e != nil {
+		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" createSetTargetNoticeMsg() error:%s", e)
 		return e
 	}
 
