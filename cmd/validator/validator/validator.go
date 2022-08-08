@@ -462,6 +462,11 @@ func (v *MainValidator) hashrateCalculator(instance *Validator, minerId msgbus.M
 		contextlib.Logf(v.Ctx, log.LevelTrace, lumerinlib.Funcname()+" Current Hashrate Moving Average for Miner %s: %d", miner.ID, newHashrate)
 
 		// update miner with new hashrate value and fix slicing percentages accordingly
+		miner, err = v.Ps.MinerGetWait(minerId)
+		if err != nil {
+			contextlib.Logf(v.Ctx, log.LevelError, "Failed to get miner, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+			return
+		}
 		miner.CurrentHashRate = newHashrate
 		timeSlice := false
 		if len(miner.Contracts) > 0 && len(instance.Hashrates) > 1 {
