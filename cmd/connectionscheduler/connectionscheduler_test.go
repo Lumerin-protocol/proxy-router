@@ -370,6 +370,7 @@ func TestTimeSlicing(t *testing.T) {
 
 func TestMultiTimeSlicing(t *testing.T) {
 	l := log.New()
+	l.SetLevel(log.Level(4))
 	ps := msgbus.New(10, l)
 
 	ctxStruct := contextlib.NewContextStruct(nil, ps, nil, nil, nil)
@@ -406,7 +407,6 @@ func TestMultiTimeSlicing(t *testing.T) {
 		panic(fmt.Sprintf("schedule manager failed to start:%s", err))
 	}
 
-
 	fmt.Print("\n\n/// Multiple miners connecting to node ///\n\n\n")
 
 	miner1 := msgbus.Miner{
@@ -442,7 +442,7 @@ func TestMultiTimeSlicing(t *testing.T) {
 		State: msgbus.OnlineState,
 		Dest: defaultDest.ID,
 	}
-	for i := 4; i <= 100; i ++ {
+	for i := 4; i <= 30; i ++ {
 		minerTemp.ID = msgbus.MinerID("MinerID0" + strconv.Itoa(i))
 		minerTemp.IP = "IpAddress" + strconv.Itoa(i)
 		minerTemp.Contracts = make(map[msgbus.ContractID]float64)
@@ -455,9 +455,6 @@ func TestMultiTimeSlicing(t *testing.T) {
 		}
 		ps.PubWait(msgbus.MinerMsg, msgbus.IDString(minerTemp.ID), minerTemp)
 	}
-
-	time.Sleep(time.Second * hashrateCalcLagTime)
-
 
 	fmt.Print("\n\n/// Validator updated miner hashrates ///\n\n\n")
 
@@ -478,7 +475,7 @@ func TestMultiTimeSlicing(t *testing.T) {
 		State:    msgbus.ContAvailableState,
 		Price:    10,
 		Limit:    10,
-		Speed:    175,
+		Speed:    550,
 	}
 	contract2 := msgbus.Contract{
 		IsSeller: true,
@@ -486,11 +483,19 @@ func TestMultiTimeSlicing(t *testing.T) {
 		State:    msgbus.ContAvailableState,
 		Price:    10,
 		Limit:    10,
-		Speed:    125,
+		Speed:    625,
+	}
+	contract3 := msgbus.Contract{
+		IsSeller: true,
+		ID:       msgbus.ContractID("ContractID03"),
+		State:    msgbus.ContAvailableState,
+		Price:    10,
+		Limit:    10,
+		Speed:    830,
 	}
 	ps.PubWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), contract1)
 	ps.PubWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), contract2)
-
+	ps.PubWait(msgbus.ContractMsg, msgbus.IDString(contract3.ID), contract3)
 
 	fmt.Print("\n\n/// Contract 1 purchased and now running ///\n\n\n")
 
@@ -504,6 +509,7 @@ func TestMultiTimeSlicing(t *testing.T) {
 	contract1.Buyer = "buyer1"
 	contract1.Dest = targetDest.ID
 	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), contract1)
+	time.Sleep(time.Second * hashrateCalcLagTime)
 	time.Sleep(reAdjustmentTime*time.Second)
 
 	fmt.Print("\n--Time Slice 1--\n")
@@ -514,7 +520,7 @@ func TestMultiTimeSlicing(t *testing.T) {
 	}
 	fmt.Println()
 
-	time.Sleep((3*hashrateCalcLagTime/4 - reAdjustmentTime)*time.Second)
+	time.Sleep((hashrateCalcLagTime/2 - reAdjustmentTime)*time.Second)
 
 	time.Sleep(reAdjustmentTime*time.Second)
 
@@ -526,10 +532,10 @@ func TestMultiTimeSlicing(t *testing.T) {
 	}
 	fmt.Println()
 
-	time.Sleep((hashrateCalcLagTime/4 - reAdjustmentTime)*time.Second)
+	time.Sleep((hashrateCalcLagTime/2 - reAdjustmentTime)*time.Second)
 
 
-	fmt.Print("\n\n/// Contract 2 purchased and now running ///\n\n\n")
+	fmt.Print("\n\n/// Contract 2 purchased and now running with Contract 1 ///\n\n\n")
 
 	targetDest2 := msgbus.Dest{
 		ID:     msgbus.DestID(msgbus.GetRandomIDString()),
@@ -552,7 +558,7 @@ func TestMultiTimeSlicing(t *testing.T) {
 	}
 	fmt.Println()
 
-	time.Sleep((3*hashrateCalcLagTime/4 - reAdjustmentTime)*time.Second)
+	time.Sleep((hashrateCalcLagTime/2 - reAdjustmentTime)*time.Second)
 
 	time.Sleep(reAdjustmentTime*time.Second)
 
@@ -582,13 +588,51 @@ func TestMultiTimeSlicing(t *testing.T) {
 	}
 	fmt.Println()
 
-	time.Sleep((hashrateCalcLagTime/4 - reAdjustmentTime)*time.Second)
+	time.Sleep((hashrateCalcLagTime - reAdjustmentTime)*time.Second)
 
+	fmt.Print("\n\n/// Contract 3 purchased and now running with Contract 2///\n\n\n")
 
-	fmt.Print("\n\n/// Contract 2 closes out ///\n\n\n")
+	targetDest3 := msgbus.Dest{
+		ID:     msgbus.DestID(msgbus.GetRandomIDString()),
+		NetUrl: "stratum+tcp://127.0.0.1:77777/",
+	}
+	ps.PubWait(msgbus.DestMsg, msgbus.IDString(targetDest3.ID), targetDest3)
+
+	contract3.State = msgbus.ContRunningState
+	contract3.Buyer = "buyer3"
+	contract3.Dest = targetDest3.ID
+	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract3.ID), contract3)
+	time.Sleep(hashrateCalcLagTime*time.Second)
+	time.Sleep(reAdjustmentTime*time.Second)
+
+	fmt.Print("\n--Time Slice 1--\n")
+	minerIDs,_ = ps.MinerGetAllWait()
+	for i,m := range minerIDs {
+		miner,_ := ps.MinerGetWait(m)
+		fmt.Printf("Miner%d: %v\n", i, miner)
+	}
+	fmt.Println()
+
+	time.Sleep((hashrateCalcLagTime/2 - reAdjustmentTime)*time.Second)
+
+	time.Sleep(reAdjustmentTime*time.Second)
+
+	fmt.Print("\n--Time Slice 2--\n")
+	minerIDs,_ = ps.MinerGetAllWait()
+	for i,m := range minerIDs {
+		miner,_ := ps.MinerGetWait(m)
+		fmt.Printf("Miner%d: %v\n", i, miner)
+	}
+	fmt.Println()
+
+	time.Sleep((hashrateCalcLagTime/2 - reAdjustmentTime)*time.Second)
+
+	fmt.Print("\n\n/// Contract 2 and 3 closes out ///\n\n\n")
 
 	contract2.State = msgbus.ContAvailableState
 	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), contract2)
+	contract3.State = msgbus.ContAvailableState
+	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract3.ID), contract3)
 	time.Sleep(hashrateCalcLagTime*time.Second)
 	time.Sleep(reAdjustmentTime*time.Second)
 
