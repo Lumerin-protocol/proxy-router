@@ -1,4 +1,4 @@
-package validatorv2
+package hashrate
 
 import (
 	"math"

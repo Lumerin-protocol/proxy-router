@@ -3,19 +3,19 @@ package protocol
 import (
 	"context"
 
+	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
-	"gitlab.com/TitanInd/hashrouter/validatorv2"
 )
 
 type stratumV1MinerModel struct {
 	pool      StratumV1DestConn
 	miner     StratumV1SourceConn
-	validator *validatorv2.Validator
+	validator *hashrate.Hashrate
 	log       interfaces.ILogger
 }
 
-func NewStratumV1MinerModel(poolPool StratumV1DestConn, miner StratumV1SourceConn, validator *validatorv2.Validator, log interfaces.ILogger) *stratumV1MinerModel {
+func NewStratumV1MinerModel(poolPool StratumV1DestConn, miner StratumV1SourceConn, validator *hashrate.Hashrate, log interfaces.ILogger) *stratumV1MinerModel {
 	return &stratumV1MinerModel{
 		pool:      poolPool,
 		miner:     miner,
@@ -82,18 +82,15 @@ func (s *stratumV1MinerModel) Run() error {
 func (s *stratumV1MinerModel) minerInterceptor(msg stratumv1_message.MiningMessageGeneric) {
 	switch m := msg.(type) {
 	case *stratumv1_message.MiningSubmit:
-		s.validator.IncomingHash(m.GetWorkerName(), m.GetNonce(), m.GetNtime())
-		s.validator.UpdateHashrate()
+		s.validator.OnSubmit(m.GetWorkerName(), m.GetNonce(), m.GetNtime())
 	}
 }
 
 func (s *stratumV1MinerModel) poolInterceptor(msg stratumv1_message.MiningMessageGeneric) {
 	switch m := msg.(type) {
-	case *stratumv1_message.MiningNotify:
-		s.validator.OnMinerNotify(m.GetVersion(), m.GetPrevBlockHash(), m.GetNbits(), m.GetNtime(), m.GetMerkel())
 	case *stratumv1_message.MiningSetDifficulty:
 		//TODO: some pools return difficulty in float, decide if we need that kind of precision
-		s.validator.SetNewDiff(int(m.GetDifficulty()))
+		s.validator.OnSetDefficulty(int(m.GetDifficulty()))
 	}
 }
 
