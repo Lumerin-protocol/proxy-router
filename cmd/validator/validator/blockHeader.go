@@ -3,12 +3,13 @@ package validator
 import (
 	"encoding/binary"
 	"encoding/json"
-	wire "gitlab.com/TitanInd/lumerin/cmd/validator/wire"
 	"fmt"
 	"github.com/btcsuite/btcd/blockchain"
+	wire "github.com/btcsuite/btcd/wire"
 	chainhashOnline "github.com/btcsuite/btcd/chaincfg/chainhash"
 	"math/big"
 	"strconv"
+	"time"
 )
 
 type BlockHeader struct {
@@ -73,9 +74,9 @@ func NewHashFromStr(hash string) [32]byte{
 }
 
 // takes a given nonce and timestamp, and returns the little-endian block hash
-func (bh *BlockHeader) HashInput(nonce string, time string) [32]byte {
+func (bh *BlockHeader) HashInput(nonce string, t string) [32]byte {
 	sVersion, _ := strconv.ParseInt(bh.Version, 16, 32)
-	sTime, _ := strconv.ParseInt(time, 16, 32)
+	sTime, _ := strconv.ParseInt(t, 16, 32)
 	sDifficulty, _ := strconv.ParseInt(bh.Difficulty, 16, 32)
 	sNonce, _ := strconv.Atoi(nonce)
 
@@ -84,7 +85,7 @@ func (bh *BlockHeader) HashInput(nonce string, time string) [32]byte {
 		Version:    int32(sVersion),
 		PrevBlock:  NewHashFromStr(bh.PreviousBlockHash),
 		MerkleRoot: NewHashFromStr(bh.MerkleRoot),
-		Timestamp:  int32(sTime),
+		Timestamp:  time.Unix(int64(sTime), 0),
 		Bits:       uint32(sDifficulty),
 		Nonce:      uint32(sNonce),
 	}
@@ -111,5 +112,4 @@ func BlockHashToBigInt(hash [32]byte) (*big.Int, error) {
 //expects the block difficulty as a uint32, returns a big int
 func DifficultyToBigInt(diff uint32) *big.Int {
 	return blockchain.CompactToBig(diff)
-	//return blockchain.CalcWork(diff)
 }

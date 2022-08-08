@@ -193,6 +193,7 @@ func main() {
 		contractManagerConfig.AccountIndex = configs.AccountIndex
 		contractManagerConfig.EthNodeAddr = configs.EthNodeAddr
 		contractManagerConfig.ClaimFunds = configs.ClaimFunds
+		contractManagerConfig.TimeThreshold = configs.TimeThreshold
 		contractManagerConfig.CloneFactoryAddress = configs.CloneFactoryAddress
 		contractManagerConfig.LumerinTokenAddress = configs.LumerinTokenAddress
 		contractManagerConfig.ValidatorAddress = configs.ValidatorAddress
