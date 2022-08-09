@@ -614,13 +614,15 @@ func (svs *StratumV1Struct) handleNotice(uid simple.ConnUniqueID, notice *stratu
 		switch notice.Method {
 		case string(SERVER_MINING_NOTIFY):
 			svs.handleDstNoticeNotify(uid, notice)
+		case string(SERVER_MINING_SET_TARGET):
+			svs.handleDstNoticeSetTarget(uid, notice)
 		case string(SERVER_MINING_SET_EXTRANONCE):
 			svs.handleDstNoticeSetExtranonce(uid, notice)
 		case string(SERVER_MINING_SET_DIFFICULTY):
 			svs.handleDstNoticeSetDifficulty(uid, notice)
-		case string(SERVER_MINING_SET_TARGET):
-			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Droppping Set Version Mask Message Type Recieved:%s", notice.Method)
-			svs.Close()
+		//case string(SERVER_MINING_SET_TARGET):
+		//	contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Droppping Set Version Mask Message Type Recieved:%s", notice.Method)
+		//	svs.Close()
 		case string(SERVER_MINING_SET_VERSION_MASK):
 			contextlib.Logf(svs.Ctx(), contextlib.LevelWarn, lumerinlib.FileLineFunc()+" Droppping Set Version Mask Message Type Recieved:%s", notice.Method)
 			//svs.handleDstNoticeSetVersionMask(uid, notice)
@@ -1353,6 +1355,72 @@ func (svs *StratumV1Struct) handleDstNoticeNotify(uid simple.ConnUniqueID, notic
 	e = svs.setLastMiningNotice(uid, notice)
 	if e != nil {
 		contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" error:%s", e)
+	}
+
+	return e
+}
+
+//
+// handleDstSetNoticeTarget()
+// handles incoming set difficulty message from a pool connection
+//
+func (svs *StratumV1Struct) handleDstNoticeSetTarget(uid simple.ConnUniqueID, notice *stratumNotice) (e error) {
+
+	contextlib.Logf(svs.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" enter")
+
+	// is index the current default destination?
+	// If not, store the notify?
+	// If so, pass it to the Src
+
+	dststate := svs.GetDstStateUid(uid)
+	switch dststate {
+	case DstStateSubscribing:
+		fallthrough
+	case DstStateAuthorizing:
+		fallthrough
+	case DstStateRunning:
+		fallthrough
+	case DstStateStandBy:
+		contextlib.Logf(svs.Ctx(), contextlib.LevelDebug, lumerinlib.FileLineFunc()+" storing difficulty for state:%s", dststate)
+		msg, e := notice.createNoticeSetTargetMsg()
+		if e != nil {
+			contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" createResponseMsg() error:%s", e)
+		}
+		LogJson(svs.Ctx(), lumerinlib.FileLineFunc(), JSON_STOR_DST, msg)
+
+		svs.setLastSetTargetNotice(uid, notice)
+
+	default:
+		contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+"  state:%s not handled", dststate)
+		return ErrDstReqNotSupported
+	}
+
+	//
+	// If Default Route not set, set it.
+	//
+	defRouteUid, _ := svs.protocol.GetDefaultRouteUID()
+	// This is the default route
+	if defRouteUid == uid {
+		target, e := notice.getSetTarget()
+		if e != nil {
+			return e
+		}
+
+		cs := contextlib.GetContextStruct(svs.Ctx())
+		ps := cs.GetMsgBus()
+		ps.SendValidateSetTarget(svs.Ctx(), svs.minerRec.ID, svs.dstDest[uid].ID, target)
+
+		msg, e := notice.createNoticeSetTargetMsg()
+		if e != nil {
+			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" createNoticeSetTargetMsg() returned error:%s", e)
+			return e
+		}
+
+		LogJson(svs.Ctx(), lumerinlib.FileLineFunc(), JSON_SEND_DST2SRC, msg)
+
+		svs.protocol.WriteSrc(msg)
+	} else {
+		contextlib.Logf(svs.Ctx(), contextlib.LevelInfo, lumerinlib.FileLineFunc()+" uid:%d is not the default dst:%d, should we store or drop the message", uid, defRouteUid)
 	}
 
 	return e

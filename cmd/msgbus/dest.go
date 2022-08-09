@@ -75,7 +75,21 @@ func (d *Dest) NetAddr() (addr net.Addr, e error) {
 
 	// Assum TCP for the moment.
 
-	tcp, e := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%s", d.Host(), d.Port()))
+	host, e := d.host()
+	if e != nil {
+		return nil, e
+	}
+
+	port, e := d.port()
+	if e != nil {
+		return nil, e
+	}
+
+	tcp, e := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%s", host, port))
+	if e != nil {
+		return nil, e
+	}
+
 	addr = net.Addr(tcp)
 
 	return addr, e
@@ -94,37 +108,27 @@ func (ps *PubSub) DestExistsWait(id DestID) bool {
 //---------------------------------------------------------------
 //
 //---------------------------------------------------------------
-func (d *Dest) Host() (host string) {
+func (d *Dest) host() (host string, e error) {
 
 	u, err := url.Parse(string(d.NetUrl))
-	if err != nil {
-		panic(fmt.Sprintf(lumerinlib.FileLine()+"url: %s, err %s\n", u, err))
+	if err == nil {
+		host, _, err = net.SplitHostPort(u.Host)
 	}
 
-	host, _, err = net.SplitHostPort(u.Host)
-	if err != nil {
-		panic(fmt.Sprintf(lumerinlib.FileLine()+"url: %s, err %s\n", u, err))
-	}
-
-	return host
+	return host, err
 }
 
 //---------------------------------------------------------------
 //
 //---------------------------------------------------------------
-func (d *Dest) Port() (port string) {
+func (d *Dest) port() (port string, e error) {
 
 	u, err := url.Parse(string(d.NetUrl))
-	if err != nil {
-		panic(fmt.Sprintf(lumerinlib.FileLine()+"url: %s, err %s\n", u, err))
+	if err == nil {
+		_, port, err = net.SplitHostPort(u.Host)
 	}
 
-	_, port, err = net.SplitHostPort(u.Host)
-	if err != nil {
-		panic(fmt.Sprintf(lumerinlib.FileLine()+"url: %s, err %s\n", u, err))
-	}
-
-	return port
+	return port, err
 }
 
 //---------------------------------------------------------------

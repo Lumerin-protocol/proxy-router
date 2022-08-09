@@ -598,13 +598,6 @@ func (buyer *BuyerContractManager) start() (err error) {
 	}
 	go buyer.watchContractPurchase(cfLogs, cfSub)
 
-	// miner event channel for miner monitor that checks miner publishes, updates, and deletes
-	minerEventChan := msgbus.NewEventChan()
-	_, err = buyer.Ps.Sub(msgbus.MinerMsg, msgbus.IDString(""), minerEventChan)
-	if err != nil {
-		contextlib.Logf(buyer.Ctx, log.LevelPanic, fmt.Sprintf("Failed to subscribe to miner events on msgbus, Fileline::%s, Error::", lumerinlib.FileLine()), err)
-	}
-
 	// routine starts routines for buyers's contracts that monitors contract running and close events
 	go func() {
 		// start watch hashrate contract for existing running contracts
@@ -614,13 +607,7 @@ func (buyer *BuyerContractManager) start() (err error) {
 				contextlib.Logf(buyer.Ctx, log.LevelPanic, fmt.Sprintf("Failed to subscribe to events on hashrate contract %s, Fileline::%s, Error::", addr, lumerinlib.FileLine()), err)
 			}
 			go buyer.watchHashrateContract(addr, hrLogs, hrSub)
-
-			contractEventChan := msgbus.NewEventChan()
-			_, err = buyer.Ps.Sub(msgbus.ContractMsg, msgbus.IDString(addr), contractEventChan)
-			if err != nil {
-				contextlib.Logf(buyer.Ctx, log.LevelPanic, fmt.Sprintf("Failed to subscribe to contract %s events, Fileline::%s, Error::", addr, lumerinlib.FileLine()), err)
-			}
-			go buyer.closeOutMonitor(minerEventChan, contractEventChan, addr)
+			go buyer.closeOutMonitor(addr)
 		}
 
 		// monitor new contracts getting purchased and start watch hashrate conrtract routine when they are purchased
@@ -643,13 +630,7 @@ func (buyer *BuyerContractManager) start() (err error) {
 						contextlib.Logf(buyer.Ctx, log.LevelPanic, fmt.Sprintf("Failed to subscribe to events on hashrate contract %s, Fileline::%s, Error::", addr, lumerinlib.FileLine()), err)
 					}
 					go buyer.watchHashrateContract(msgbus.ContractID(addr.Hex()), hrLogs, hrSub)
-
-					newContractEventChan := msgbus.NewEventChan()
-					_, err = buyer.Ps.Sub(msgbus.ContractMsg, msgbus.IDString(newContract.ID), newContractEventChan)
-					if err != nil {
-						contextlib.Logf(buyer.Ctx, log.LevelPanic, fmt.Sprintf("Failed to subscribe to contract %s events, Fileline::%s, Error::", newContract.ID, lumerinlib.FileLine()), err)
-					}
-					go buyer.closeOutMonitor(minerEventChan, newContractEventChan, newContract.ID)
+					go buyer.closeOutMonitor(newContract.ID)
 				}
 			}
 		}
@@ -660,7 +641,6 @@ func (buyer *BuyerContractManager) start() (err error) {
 func (buyer *BuyerContractManager) setupExistingContracts() (err error) {
 	var contractValues []hashrateContractValues
 	var contractMsgs []msgbus.Contract
-	var nodeOperatorUpdated bool
 
 	buyerContracts, err := buyer.readContracts()
 	if err != nil {
@@ -680,13 +660,10 @@ func (buyer *BuyerContractManager) setupExistingContracts() (err error) {
 			buyer.Ps.PubWait(msgbus.ContractMsg, msgbus.IDString(contractMsgs[i].ID), contractMsgs[i])
 
 			buyer.NodeOperator.Contracts[msgbus.ContractID(buyerContracts[i].Hex())] = msgbus.ContRunningState
-			nodeOperatorUpdated = true
 		}
 	}
 
-	if nodeOperatorUpdated {
-		buyer.Ps.PubWait(msgbus.NodeOperatorMsg, msgbus.IDString(buyer.NodeOperator.ID), buyer.NodeOperator)
-	}
+	buyer.Ps.SetWait(msgbus.NodeOperatorMsg, msgbus.IDString(buyer.NodeOperator.ID), buyer.NodeOperator)
 
 	return err
 }
@@ -865,36 +842,18 @@ func (buyer *BuyerContractManager) watchHashrateContract(addr msgbus.ContractID,
 	}
 }
 
-func (buyer *BuyerContractManager) closeOutMonitor(minerCh msgbus.EventChan, contractCh msgbus.EventChan, contractId msgbus.ContractID) {
-	checkHashrateChan := make(chan bool)
-	go func(){
-		for {
-			time.Sleep(time.Second * time.Duration(buyer.TimeThreshold))
-			// check contract is still running
-			event,_ := buyer.Ps.GetWait(msgbus.ContractMsg, msgbus.IDString(contractId))
-			switch event.Data.(type) {
-			case msgbus.Contract:
-				checkHashrateChan<-true
-			default:
-				return // contract unpublished i.e. not closed out
-			}
-		}
-	}()
-	for {
-		select {
-		case <-buyer.Ctx.Done():
-			contextlib.Logf(buyer.Ctx, log.LevelInfo, "Cancelling current contract manager context: cancelling closeOutMonitor go routine")
+func (buyer *BuyerContractManager) closeOutMonitor(contractId msgbus.ContractID) {
+	time.Sleep(time.Second * time.Duration(buyer.TimeThreshold))
+	// check contract is still running
+	event,_ := buyer.Ps.GetWait(msgbus.ContractMsg, msgbus.IDString(contractId))
+	switch event.Data.(type) {
+	case msgbus.Contract:
+		contractClosed := buyer.checkHashRate(contractId)
+		if contractClosed {
 			return
-		case <-checkHashrateChan:
-			contractClosed := buyer.checkHashRate(contractId)
-			if contractClosed {
-				return
-			}
-		case event := <-contractCh:
-			if event.EventType == msgbus.UnpublishEvent {
-				return
-			}
 		}
+	default:
+		return // contract unpublished i.e. closed out
 	}
 }
 

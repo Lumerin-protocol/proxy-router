@@ -125,6 +125,13 @@ type noticeMiningSetDifficulty struct {
 	Jsonrpc string  `json:"jsonrpc,omitempty"`
 }
 
+type noticeMiningSetTarget struct {
+	ID      *string `json:"id"`
+	Method  string  `json:"method"`
+	Params  []string   `json:"params"`
+	Jsonrpc string  `json:"jsonrpc,omitempty"`
+}
+
 type noticeMiningSetExtranonce struct {
 	ID      *string       `json:"id"`
 	Method  string        `json:"method"`
@@ -399,6 +406,28 @@ func (r *stratumRequest) getSetDifficulty() (difficulty int, err error) {
 
 //------------------------------------------------------
 //
+// {"id":null ,"jsonrpc":"2.0","method":"mining.set_target","params":["000011111FFFFFFF000000000000000..."]}
+//------------------------------------------------------
+func (n *stratumNotice) getSetTarget() (target string, err error) {
+
+	target = ""
+
+	if n.Method != string(SERVER_MINING_SET_TARGET) {
+		err = fmt.Errorf(lumerinlib.FileLineFunc()+" wrong method, expetecting mining.set_target, got: %s", n.Method)
+	} else {
+		switch t := n.Params.(type) {
+		case []string:
+			target = n.Params.([]string)[0]
+		default:
+			err = fmt.Errorf(lumerinlib.FileLineFunc()+" Error bad type:%T\n", t)
+		}
+	}
+
+	return target, err
+}
+
+//------------------------------------------------------
+//
 // {"id":0,"jsonrpc":"2.0","method":"mining.set_difficulty","params":[65535]}
 //------------------------------------------------------
 func (n *stratumNotice) getSetExtranonce() (e1 string, e2size int, err error) {
@@ -662,6 +691,8 @@ func (n *stratumNotice) createNoticeMsg() (msg []byte, err error) {
 	switch n.Method {
 	case string(SERVER_MINING_SET_DIFFICULTY):
 		msg, err = n.createNoticeSetDifficultyMsg()
+	case string(SERVER_MINING_SET_TARGET):
+		msg, err = n.createNoticeSetTargetMsg()
 	case string(SERVER_MINING_SET_EXTRANONCE):
 		msg, err = n.createNoticeSetExtranonceMsg()
 	case string(SERVER_MINING_SET_VERSION_MASK):
@@ -680,6 +711,54 @@ func (n *stratumNotice) createNoticeMsg() (msg []byte, err error) {
 
 	return msg, err
 }
+
+//------------------------------------------------------
+//
+// {\"id\": null, \"method\": \"mining.set_target\", \"params\": [\"00001FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF\"]}\n"
+//
+//------------------------------------------------------
+func (n *stratumNotice) createNoticeSetTargetMsg() (msg []byte, err error) {
+
+	// fmt.Printf(lumerinlib.Funcname()+": %v\n", n)
+
+	err = nil
+
+	var nst noticeMiningSetTarget
+	nst.ID = n.ID
+	nst.Method = n.Method
+	nst.Params = make([]string, 0)
+
+	var p interface{}
+	var ok bool = false
+
+	switch params := n.Params.(type) {
+	case []interface{}:
+		p, ok = params[0].(interface{})
+		if !ok {
+			panic(fmt.Sprintf(lumerinlib.FileLineFunc() + " Params is empty"))
+		}
+
+	default:
+		panic(fmt.Sprintf(lumerinlib.FileLineFunc()+" type:%t not supported", n.Params))
+	}
+
+	switch p := p.(type) {
+	case string:
+		nst.Params = append(nst.Params, string(p))
+	default:
+		panic(fmt.Sprintf(lumerinlib.FileLineFunc()+" type:%t not supported", n.Params))
+	}
+
+	msg, err = json.Marshal(nst)
+	if err != nil {
+		fmt.Printf(lumerinlib.FileLineFunc()+"Error Marshaling Request Err:%s\n", err)
+		return nil, err
+	}
+
+	msg = []byte(string(msg) + "\n")
+	return msg, err
+}
+
 
 //------------------------------------------------------
 //
@@ -1145,7 +1224,25 @@ func createSetExtranonceNoticeMsg(n1 string, n2size int) (msg []byte, e error) {
 }
 
 //
-// sendDifficultyNoticeMsg()
+// sendSetTargetNoticeMsg()
+//
+func createSetTargetNoticeMsg(target string) (msg []byte, e error) {
+
+	params := make([]interface{}, 1)
+	params[0] = target
+
+	notice := &stratumNotice{
+		ID:     nil,
+		Method: string(SERVER_MINING_SET_TARGET),
+		Params: params,
+	}
+
+	return notice.createNoticeMsg()
+
+}
+
+//
+// sendSetDifficultyNoticeMsg()
 //
 func createSetDifficultyNoticeMsg(diff int) (msg []byte, e error) {
 
