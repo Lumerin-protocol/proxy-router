@@ -31,7 +31,7 @@ import (
 const (
 	AvailableState uint8 = 0
 	RunningState   uint8 = 1
-	HASHRATE_LIMIT = 20
+	HASHRATE_LIMIT       = 20
 )
 
 type hashrateContractValues struct {
@@ -444,7 +444,7 @@ func (seller *SellerContractManager) watchHashrateContract(addr msgbus.ContractI
 						contractMsg.State = msgbus.ContAvailableState
 						contractMsg.Buyer = ""
 						seller.Ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contractMsg.ID), contractMsg)
-	
+
 						seller.NodeOperator.Contracts[addr] = msgbus.ContAvailableState
 						seller.Ps.SetWait(msgbus.NodeOperatorMsg, msgbus.IDString(seller.NodeOperator.ID), seller.NodeOperator)
 					}

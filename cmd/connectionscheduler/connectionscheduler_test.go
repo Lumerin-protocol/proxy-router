@@ -112,7 +112,7 @@ func TestPassthroughConnectionScheduler(t *testing.T) {
 
 	for _, m := range miners {
 		miner, _ := ps.MinerGetWait(m)
-		if _,ok :=miner.Contracts[contract1.ID]; !ok || miner.Dest != contract1.Dest {
+		if _, ok := miner.Contracts[contract1.ID]; !ok || miner.Dest != contract1.Dest {
 			t.Errorf("Miner contract and dest field incorrect")
 		}
 	}
@@ -133,7 +133,7 @@ func TestPassthroughConnectionScheduler(t *testing.T) {
 	time.Sleep(time.Second * 5)
 
 	miner, _ := ps.MinerGetWait(miner4.ID)
-	if _,ok := miner.Contracts[contract1.ID]; !ok || miner.Dest != contract1.Dest {
+	if _, ok := miner.Contracts[contract1.ID]; !ok || miner.Dest != contract1.Dest {
 		t.Errorf("Miner contract and dest field incorrect")
 	}
 
@@ -274,29 +274,29 @@ func TestTimeSlicing(t *testing.T) {
 	contract1.Buyer = "buyer1"
 	contract1.Dest = targetDest.ID
 	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), contract1)
-	time.Sleep(reAdjustmentTime*time.Second)
+	time.Sleep(reAdjustmentTime * time.Second)
 
 	fmt.Print("\n--Time Slice 1--\n")
-	minerIDs,_ := ps.MinerGetAllWait()
-	for i,m := range minerIDs {
-		miner,_ := ps.MinerGetWait(m)
+	minerIDs, _ := ps.MinerGetAllWait()
+	for i, m := range minerIDs {
+		miner, _ := ps.MinerGetWait(m)
 		fmt.Printf("Miner%d: %v\n", i, miner)
 	}
 	fmt.Println()
 
-	time.Sleep((hashrateCalcLagTime/2 - reAdjustmentTime)*time.Second)
+	time.Sleep((hashrateCalcLagTime/2 - reAdjustmentTime) * time.Second)
 
-	time.Sleep(reAdjustmentTime*time.Second)
+	time.Sleep(reAdjustmentTime * time.Second)
 
 	fmt.Print("\n--Time Slice 2--\n")
-	minerIDs,_ = ps.MinerGetAllWait()
-	for i,m := range minerIDs {
-		miner,_ := ps.MinerGetWait(m)
+	minerIDs, _ = ps.MinerGetAllWait()
+	for i, m := range minerIDs {
+		miner, _ := ps.MinerGetWait(m)
 		fmt.Printf("Miner%d: %v\n", i, miner)
 	}
 	fmt.Println()
 
-	time.Sleep((hashrateCalcLagTime/2 - reAdjustmentTime)*time.Second)
+	time.Sleep((hashrateCalcLagTime/2 - reAdjustmentTime) * time.Second)
 
 	fmt.Print("\n\n/// Contract 2 purchased and now running ///\n\n\n")
 
@@ -310,59 +310,59 @@ func TestTimeSlicing(t *testing.T) {
 	contract2.Buyer = "buyer2"
 	contract2.Dest = targetDest2.ID
 	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), contract2)
-	time.Sleep(hashrateCalcLagTime*time.Second)
-	time.Sleep(reAdjustmentTime*time.Second)
+	time.Sleep(hashrateCalcLagTime * time.Second)
+	time.Sleep(reAdjustmentTime * time.Second)
 
 	fmt.Print("\n--Time Slice 1--\n")
-	minerIDs,_ = ps.MinerGetAllWait()
-	for i,m := range minerIDs {
-		miner,_ := ps.MinerGetWait(m)
+	minerIDs, _ = ps.MinerGetAllWait()
+	for i, m := range minerIDs {
+		miner, _ := ps.MinerGetWait(m)
 		fmt.Printf("Miner%d: %v\n", i, miner)
 	}
 	fmt.Println()
 
-	time.Sleep((hashrateCalcLagTime/2 - reAdjustmentTime)*time.Second)
+	time.Sleep((hashrateCalcLagTime/2 - reAdjustmentTime) * time.Second)
 
-	time.Sleep(reAdjustmentTime*time.Second)
+	time.Sleep(reAdjustmentTime * time.Second)
 
 	fmt.Print("\n--Time Slice 2--\n")
-	minerIDs,_ = ps.MinerGetAllWait()
-	for i,m := range minerIDs {
-		miner,_ := ps.MinerGetWait(m)
+	minerIDs, _ = ps.MinerGetAllWait()
+	for i, m := range minerIDs {
+		miner, _ := ps.MinerGetWait(m)
 		fmt.Printf("Miner%d: %v\n", i, miner)
 	}
 	fmt.Println()
 
-	time.Sleep((hashrateCalcLagTime/2 - reAdjustmentTime)*time.Second)
+	time.Sleep((hashrateCalcLagTime/2 - reAdjustmentTime) * time.Second)
 
 	fmt.Print("\n\n/// Contract 1 closes out ///\n\n\n")
 
 	contract1.State = msgbus.ContAvailableState
 	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), contract1)
-	time.Sleep(hashrateCalcLagTime*time.Second)
-	time.Sleep(reAdjustmentTime*time.Second)
+	time.Sleep(hashrateCalcLagTime * time.Second)
+	time.Sleep(reAdjustmentTime * time.Second)
 
-	minerIDs,_ = ps.MinerGetAllWait()
+	minerIDs, _ = ps.MinerGetAllWait()
 	fmt.Println()
-	for i,m := range minerIDs {
-		miner,_ := ps.MinerGetWait(m)
+	for i, m := range minerIDs {
+		miner, _ := ps.MinerGetWait(m)
 		fmt.Printf("Miner%d: %v\n", i, miner)
 	}
 	fmt.Println()
 
-	time.Sleep((hashrateCalcLagTime/2 - reAdjustmentTime)*time.Second)
+	time.Sleep((hashrateCalcLagTime/2 - reAdjustmentTime) * time.Second)
 
 	fmt.Print("\n\n/// Contract 2 closes out ///\n\n\n")
 
 	contract2.State = msgbus.ContAvailableState
 	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), contract2)
-	time.Sleep(hashrateCalcLagTime*time.Second)
-	time.Sleep(reAdjustmentTime*time.Second)
+	time.Sleep(hashrateCalcLagTime * time.Second)
+	time.Sleep(reAdjustmentTime * time.Second)
 
-	minerIDs,_ = ps.MinerGetAllWait()
+	minerIDs, _ = ps.MinerGetAllWait()
 	fmt.Println()
-	for i,m := range minerIDs {
-		miner,_ := ps.MinerGetWait(m)
+	for i, m := range minerIDs {
+		miner, _ := ps.MinerGetWait(m)
 		fmt.Printf("Miner%d: %v\n", i, miner)
 	}
 	fmt.Println()
@@ -466,7 +466,6 @@ func TestMultiTimeSlicing(t *testing.T) {
 	ps.SetWait(msgbus.MinerMsg, msgbus.IDString(miner3.ID), miner3)
 	time.Sleep(time.Second * 1)
 
-
 	fmt.Print("\n\n/// 2 New available contracts found ///\n\n\n")
 
 	contract1 := msgbus.Contract{
@@ -513,21 +512,21 @@ func TestMultiTimeSlicing(t *testing.T) {
 	time.Sleep(reAdjustmentTime*time.Second)
 
 	fmt.Print("\n--Time Slice 1--\n")
-	minerIDs,_ := ps.MinerGetAllWait()
-	for i,m := range minerIDs {
-		miner,_ := ps.MinerGetWait(m)
+	minerIDs, _ := ps.MinerGetAllWait()
+	for i, m := range minerIDs {
+		miner, _ := ps.MinerGetWait(m)
 		fmt.Printf("Miner%d: %v\n", i, miner)
 	}
 	fmt.Println()
 
 	time.Sleep((hashrateCalcLagTime/2 - reAdjustmentTime)*time.Second)
 
-	time.Sleep(reAdjustmentTime*time.Second)
+	time.Sleep(reAdjustmentTime * time.Second)
 
 	fmt.Print("\n--Time Slice 2--\n")
-	minerIDs,_ = ps.MinerGetAllWait()
-	for i,m := range minerIDs {
-		miner,_ := ps.MinerGetWait(m)
+	minerIDs, _ = ps.MinerGetAllWait()
+	for i, m := range minerIDs {
+		miner, _ := ps.MinerGetWait(m)
 		fmt.Printf("Miner%d: %v\n", i, miner)
 	}
 	fmt.Println()
@@ -547,43 +546,42 @@ func TestMultiTimeSlicing(t *testing.T) {
 	contract2.Buyer = "buyer2"
 	contract2.Dest = targetDest2.ID
 	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), contract2)
-	time.Sleep(hashrateCalcLagTime*time.Second)
-	time.Sleep(reAdjustmentTime*time.Second)
+	time.Sleep(hashrateCalcLagTime * time.Second)
+	time.Sleep(reAdjustmentTime * time.Second)
 
 	fmt.Print("\n--Time Slice 1--\n")
-	minerIDs,_ = ps.MinerGetAllWait()
-	for i,m := range minerIDs {
-		miner,_ := ps.MinerGetWait(m)
+	minerIDs, _ = ps.MinerGetAllWait()
+	for i, m := range minerIDs {
+		miner, _ := ps.MinerGetWait(m)
 		fmt.Printf("Miner%d: %v\n", i, miner)
 	}
 	fmt.Println()
 
 	time.Sleep((hashrateCalcLagTime/2 - reAdjustmentTime)*time.Second)
 
-	time.Sleep(reAdjustmentTime*time.Second)
+	time.Sleep(reAdjustmentTime * time.Second)
 
 	fmt.Print("\n--Time Slice 2--\n")
-	minerIDs,_ = ps.MinerGetAllWait()
-	for i,m := range minerIDs {
-		miner,_ := ps.MinerGetWait(m)
+	minerIDs, _ = ps.MinerGetAllWait()
+	for i, m := range minerIDs {
+		miner, _ := ps.MinerGetWait(m)
 		fmt.Printf("Miner%d: %v\n", i, miner)
 	}
 	fmt.Println()
 
-	time.Sleep((hashrateCalcLagTime/2 - reAdjustmentTime)*time.Second)
-
+	time.Sleep((hashrateCalcLagTime/2 - reAdjustmentTime) * time.Second)
 
 	fmt.Print("\n\n/// Contract 1 closes out ///\n\n\n")
 
 	contract1.State = msgbus.ContAvailableState
 	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), contract1)
-	time.Sleep(hashrateCalcLagTime*time.Second)
-	time.Sleep(reAdjustmentTime*time.Second)
+	time.Sleep(hashrateCalcLagTime * time.Second)
+	time.Sleep(reAdjustmentTime * time.Second)
 
-	minerIDs,_ = ps.MinerGetAllWait()
+	minerIDs, _ = ps.MinerGetAllWait()
 	fmt.Println()
-	for i,m := range minerIDs {
-		miner,_ := ps.MinerGetWait(m)
+	for i, m := range minerIDs {
+		miner, _ := ps.MinerGetWait(m)
 		fmt.Printf("Miner%d: %v\n", i, miner)
 	}
 	fmt.Println()
@@ -636,16 +634,16 @@ func TestMultiTimeSlicing(t *testing.T) {
 	time.Sleep(hashrateCalcLagTime*time.Second)
 	time.Sleep(reAdjustmentTime*time.Second)
 
-	minerIDs,_ = ps.MinerGetAllWait()
+	minerIDs, _ = ps.MinerGetAllWait()
 	fmt.Println()
-	for i,m := range minerIDs {
-		miner,_ := ps.MinerGetWait(m)
+	for i, m := range minerIDs {
+		miner, _ := ps.MinerGetWait(m)
 		fmt.Printf("Miner%d: %v\n", i, miner)
 	}
 	fmt.Println()
 }
 
-func TestEdgeCases (t *testing.T) {
+func TestEdgeCases(t *testing.T) {
 	l := log.New()
 	ps := msgbus.New(10, l)
 
@@ -682,7 +680,6 @@ func TestEdgeCases (t *testing.T) {
 	if err != nil {
 		panic(fmt.Sprintf("schedule manager failed to start:%s", err))
 	}
-
 
 	fmt.Print("\n\n/// Multiple miners connecting to node ///\n\n\n")
 
@@ -748,7 +745,6 @@ func TestEdgeCases (t *testing.T) {
 	ps.PubWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), contract1)
 	ps.PubWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), contract2)
 
-
 	fmt.Print("\n\n/// Contract 1 purchased and now running ///\n\n\n")
 
 	targetDest := msgbus.Dest{
@@ -761,63 +757,61 @@ func TestEdgeCases (t *testing.T) {
 	contract1.Buyer = "buyer1"
 	contract1.Dest = targetDest.ID
 	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), contract1)
-	time.Sleep(reAdjustmentTime*time.Second)
+	time.Sleep(reAdjustmentTime * time.Second)
 
 	fmt.Print("\n--Time Slice 1--\n")
-	minerIDs,_ := ps.MinerGetAllWait()
-	for i,m := range minerIDs {
-		miner,_ := ps.MinerGetWait(m)
+	minerIDs, _ := ps.MinerGetAllWait()
+	for i, m := range minerIDs {
+		miner, _ := ps.MinerGetWait(m)
 		fmt.Printf("Miner%d: %v\n", i, miner)
 	}
 	fmt.Println()
 
-	time.Sleep((3*hashrateCalcLagTime/4 - reAdjustmentTime)*time.Second)
+	time.Sleep((3*hashrateCalcLagTime/4 - reAdjustmentTime) * time.Second)
 
-	time.Sleep(reAdjustmentTime*time.Second)
+	time.Sleep(reAdjustmentTime * time.Second)
 
 	fmt.Print("\n--Time Slice 2--\n")
-	minerIDs,_ = ps.MinerGetAllWait()
-	for i,m := range minerIDs {
-		miner,_ := ps.MinerGetWait(m)
+	minerIDs, _ = ps.MinerGetAllWait()
+	for i, m := range minerIDs {
+		miner, _ := ps.MinerGetWait(m)
 		fmt.Printf("Miner%d: %v\n", i, miner)
 	}
 	fmt.Println()
 
-	time.Sleep((hashrateCalcLagTime/4 - reAdjustmentTime)*time.Second)
-
+	time.Sleep((hashrateCalcLagTime/4 - reAdjustmentTime) * time.Second)
 
 	fmt.Print("\n\n/// Miner disconnects and reconnects ///\n\n\n")
 
-	time.Sleep(reAdjustmentTime*time.Second)
+	time.Sleep(reAdjustmentTime * time.Second)
 
 	ps.UnpubWait(msgbus.MinerMsg, msgbus.IDString(miner3.ID))
-	time.Sleep(reAdjustmentTime*time.Second)
-	
+	time.Sleep(reAdjustmentTime * time.Second)
+
 	miner3.ID = msgbus.MinerID("MinerID03-Reconnect")
-	time.Sleep(reAdjustmentTime*time.Second)
+	time.Sleep(reAdjustmentTime * time.Second)
 
 	fmt.Print("\n--Time Slice 1--\n")
-	minerIDs,_ = ps.MinerGetAllWait()
-	for i,m := range minerIDs {
-		miner,_ := ps.MinerGetWait(m)
+	minerIDs, _ = ps.MinerGetAllWait()
+	for i, m := range minerIDs {
+		miner, _ := ps.MinerGetWait(m)
 		fmt.Printf("Miner%d: %v\n", i, miner)
 	}
 	fmt.Println()
 
-	time.Sleep((3*hashrateCalcLagTime/4 - reAdjustmentTime)*time.Second)
+	time.Sleep((3*hashrateCalcLagTime/4 - reAdjustmentTime) * time.Second)
 
-	time.Sleep(reAdjustmentTime*time.Second)
+	time.Sleep(reAdjustmentTime * time.Second)
 
 	fmt.Print("\n--Time Slice 2--\n")
-	minerIDs,_ = ps.MinerGetAllWait()
-	for i,m := range minerIDs {
-		miner,_ := ps.MinerGetWait(m)
+	minerIDs, _ = ps.MinerGetAllWait()
+	for i, m := range minerIDs {
+		miner, _ := ps.MinerGetWait(m)
 		fmt.Printf("Miner%d: %v\n", i, miner)
 	}
 	fmt.Println()
 
-	time.Sleep((hashrateCalcLagTime/4 - reAdjustmentTime)*time.Second)
-
+	time.Sleep((hashrateCalcLagTime/4 - reAdjustmentTime) * time.Second)
 
 	fmt.Print("\n\n/// Contract 2 purchased and now running ///\n\n\n")
 
@@ -831,62 +825,60 @@ func TestEdgeCases (t *testing.T) {
 	contract2.Buyer = "buyer2"
 	contract2.Dest = targetDest2.ID
 	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), contract2)
-	time.Sleep(hashrateCalcLagTime*time.Second)
-	time.Sleep(reAdjustmentTime*time.Second)
+	time.Sleep(hashrateCalcLagTime * time.Second)
+	time.Sleep(reAdjustmentTime * time.Second)
 
 	fmt.Print("\n--Time Slice 1--\n")
-	minerIDs,_ = ps.MinerGetAllWait()
-	for i,m := range minerIDs {
-		miner,_ := ps.MinerGetWait(m)
+	minerIDs, _ = ps.MinerGetAllWait()
+	for i, m := range minerIDs {
+		miner, _ := ps.MinerGetWait(m)
 		fmt.Printf("Miner%d: %v\n", i, miner)
 	}
 	fmt.Println()
 
-	time.Sleep((3*hashrateCalcLagTime/4 - reAdjustmentTime)*time.Second)
+	time.Sleep((3*hashrateCalcLagTime/4 - reAdjustmentTime) * time.Second)
 
-	time.Sleep(reAdjustmentTime*time.Second)
+	time.Sleep(reAdjustmentTime * time.Second)
 
 	fmt.Print("\n--Time Slice 2--\n")
-	minerIDs,_ = ps.MinerGetAllWait()
-	for i,m := range minerIDs {
-		miner,_ := ps.MinerGetWait(m)
+	minerIDs, _ = ps.MinerGetAllWait()
+	for i, m := range minerIDs {
+		miner, _ := ps.MinerGetWait(m)
 		fmt.Printf("Miner%d: %v\n", i, miner)
 	}
 	fmt.Println()
 
-	time.Sleep((hashrateCalcLagTime/2 - reAdjustmentTime)*time.Second)
-
+	time.Sleep((hashrateCalcLagTime/2 - reAdjustmentTime) * time.Second)
 
 	fmt.Print("\n\n/// Contract 1 closes out in middle of slice period ///\n\n\n")
 
-	time.Sleep(reAdjustmentTime*time.Second)
+	time.Sleep(reAdjustmentTime * time.Second)
 	contract1.State = msgbus.ContAvailableState
 	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), contract1)
-	time.Sleep(hashrateCalcLagTime*time.Second)
-	time.Sleep(reAdjustmentTime*time.Second)
+	time.Sleep(hashrateCalcLagTime * time.Second)
+	time.Sleep(reAdjustmentTime * time.Second)
 
-	minerIDs,_ = ps.MinerGetAllWait()
+	minerIDs, _ = ps.MinerGetAllWait()
 	fmt.Println()
-	for i,m := range minerIDs {
-		miner,_ := ps.MinerGetWait(m)
+	for i, m := range minerIDs {
+		miner, _ := ps.MinerGetWait(m)
 		fmt.Printf("Miner%d: %v\n", i, miner)
 	}
 	fmt.Println()
 
-	time.Sleep((hashrateCalcLagTime/4 - reAdjustmentTime)*time.Second)
-
+	time.Sleep((hashrateCalcLagTime/4 - reAdjustmentTime) * time.Second)
 
 	fmt.Print("\n\n/// Contract 2 closes out ///\n\n\n")
 
 	contract2.State = msgbus.ContAvailableState
 	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), contract2)
-	time.Sleep(hashrateCalcLagTime*time.Second)
-	time.Sleep(reAdjustmentTime*time.Second)
+	time.Sleep(hashrateCalcLagTime * time.Second)
+	time.Sleep(reAdjustmentTime * time.Second)
 
-	minerIDs,_ = ps.MinerGetAllWait()
+	minerIDs, _ = ps.MinerGetAllWait()
 	fmt.Println()
-	for i,m := range minerIDs {
-		miner,_ := ps.MinerGetWait(m)
+	for i, m := range minerIDs {
+		miner, _ := ps.MinerGetWait(m)
 		fmt.Printf("Miner%d: %v\n", i, miner)
 	}
 	fmt.Println()

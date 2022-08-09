@@ -12,10 +12,10 @@ import (
 	"time"
 
 	"gitlab.com/TitanInd/lumerin/cmd/connectionscheduler"
-	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
 	"gitlab.com/TitanInd/lumerin/cmd/log"
-	"gitlab.com/TitanInd/lumerin/connections"
+	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
 	"gitlab.com/TitanInd/lumerin/cmd/protocol/stratumv1"
+	"gitlab.com/TitanInd/lumerin/connections"
 	"gitlab.com/TitanInd/lumerin/lumerinlib"
 	contextlib "gitlab.com/TitanInd/lumerin/lumerinlib/context"
 )
@@ -175,14 +175,14 @@ func TestDisabled(t *testing.T) {
 	fmt.Print("\n\n/// Miner connecting to node ///\n\n\n")
 
 	miner := msgbus.Miner{
-		ID:                   msgbus.MinerID("MinerID01"),
-		IP:                   "IpAddress1",
-		State:                msgbus.OnlineState,
-		Dest:                 defaultDestID,
+		ID:    msgbus.MinerID("MinerID01"),
+		IP:    "IpAddress1",
+		State: msgbus.OnlineState,
+		Dest:  defaultDestID,
 	}
 
 	time.Sleep(sleepTime)
-	
+
 	_ = miner
 	//ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner.ID), miner)
 
@@ -235,7 +235,7 @@ func TestDisabled(t *testing.T) {
 	miners, _ = ps.MinerGetAllWait()
 	for _, v := range miners {
 		miner, _ := ps.MinerGetWait(msgbus.MinerID(v))
-		if _,ok := miner.Contracts["ContractID01"]; ok || miner.Dest != targetDest.ID {
+		if _, ok := miner.Contracts["ContractID01"]; ok || miner.Dest != targetDest.ID {
 			t.Errorf("Miner contract and dest not set correctly")
 		}
 	}
@@ -253,7 +253,7 @@ func TestDisabled(t *testing.T) {
 	miners, _ = ps.MinerGetAllWait()
 	for _, v := range miners {
 		miner, _ := ps.MinerGetWait(msgbus.MinerID(v))
-		if _,ok := miner.Contracts["ContractID01"]; !ok || miner.Dest != targetDest.ID {
+		if _, ok := miner.Contracts["ContractID01"]; !ok || miner.Dest != targetDest.ID {
 			t.Errorf("Miner contract and dest not set correctly")
 		}
 	}

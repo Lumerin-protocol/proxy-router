@@ -18,8 +18,8 @@ import (
 	"gitlab.com/TitanInd/lumerin/cmd/contractmanager"
 	"gitlab.com/TitanInd/lumerin/cmd/log"
 	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
-	"gitlab.com/TitanInd/lumerin/connections"
 	"gitlab.com/TitanInd/lumerin/cmd/protocol/stratumv1"
+	"gitlab.com/TitanInd/lumerin/connections"
 	"gitlab.com/TitanInd/lumerin/lumerinlib"
 	contextlib "gitlab.com/TitanInd/lumerin/lumerinlib/context"
 )
@@ -261,7 +261,7 @@ func TestEnabled(t *testing.T) {
 			case cfLog := <-cfLogs:
 				switch {
 				case cfLog.Topics[0].Hex() == contractCreatedSigHash.Hex():
-					hashrateContractAddresses = append(hashrateContractAddresses, msgbus.ContractID(common.HexToAddress(cfLog.Topics[1].Hex()).String())) 
+					hashrateContractAddresses = append(hashrateContractAddresses, msgbus.ContractID(common.HexToAddress(cfLog.Topics[1].Hex()).String()))
 					fmt.Printf("Address of created Hashrate Contract: %s\n\n", hashrateContractAddresses[i])
 					i++
 
@@ -280,11 +280,11 @@ func TestEnabled(t *testing.T) {
 	fmt.Print("\n\n/// Miner connecting to node ///\n\n\n")
 
 	miner := msgbus.Miner{
-		ID:                   msgbus.MinerID("MinerID01"),
-		IP:                   "IpAddress1",
-		State:                msgbus.OnlineState,
-		Dest:                 defaultDestID,
-		CurrentHashRate: 	  20,
+		ID:              msgbus.MinerID("MinerID01"),
+		IP:              "IpAddress1",
+		State:           msgbus.OnlineState,
+		Dest:            defaultDestID,
+		CurrentHashRate: 20,
 	}
 
 	time.Sleep(sleepTime)
@@ -326,7 +326,7 @@ loop1:
 
 	contractmanager.PurchaseHashrateContract(cm.EthClient, buyerAddress, buyerPrivateKey, cm.CloneFactoryAddress, common.HexToAddress(string(hashrateContractAddresses[0])), buyerAddress, targetDest1Url)
 	time.Sleep(sleepTime)
-	
+
 	// wait until hashrate contract was purchased before continuing
 loop2:
 	for {
@@ -359,7 +359,7 @@ loop2:
 	miners, _ = ps.MinerGetAllWait()
 	for _, v := range miners {
 		miner, _ := ps.MinerGetWait(msgbus.MinerID(v))
-		if _,ok := miner.Contracts[hashrateContractAddresses[0]]; !ok || miner.Dest != targetDest1 {
+		if _, ok := miner.Contracts[hashrateContractAddresses[0]]; !ok || miner.Dest != targetDest1 {
 			t.Errorf("Miner contract and dest not set correctly")
 		}
 	}
@@ -369,18 +369,18 @@ loop2:
 	//
 	fmt.Print("\n\n/// More miners connection to node ///\n\n\n")
 	miner2 := msgbus.Miner{
-		ID:                   msgbus.MinerID("MinerID02"),
-		IP:                   "IpAddress2",
-		State:                msgbus.OnlineState,
-		Dest:                 defaultDestID,
-		CurrentHashRate: 	  10,
+		ID:              msgbus.MinerID("MinerID02"),
+		IP:              "IpAddress2",
+		State:           msgbus.OnlineState,
+		Dest:            defaultDestID,
+		CurrentHashRate: 10,
 	}
 	miner3 := msgbus.Miner{
-		ID:                   msgbus.MinerID("MinerID03"),
-		IP:                   "IpAddress3",
-		State:                msgbus.OnlineState,
-		Dest:                 defaultDestID,
-		CurrentHashRate: 	  50,
+		ID:              msgbus.MinerID("MinerID03"),
+		IP:              "IpAddress3",
+		State:           msgbus.OnlineState,
+		Dest:            defaultDestID,
+		CurrentHashRate: 50,
 	}
 
 	_ = miner2
@@ -396,7 +396,7 @@ loop2:
 
 	contractmanager.PurchaseHashrateContract(cm.EthClient, buyerAddress, buyerPrivateKey, cm.CloneFactoryAddress, common.HexToAddress(string(hashrateContractAddresses[1])), buyerAddress, targetDest2Url)
 	time.Sleep(sleepTime)
-	
+
 	// wait until hashrate contract was purchased before continuing
 loop3:
 	for {

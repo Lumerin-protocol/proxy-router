@@ -16,10 +16,10 @@ import (
 
 	"gitlab.com/TitanInd/lumerin/cmd/connectionscheduler"
 	"gitlab.com/TitanInd/lumerin/cmd/contractmanager"
-	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
 	"gitlab.com/TitanInd/lumerin/cmd/log"
-	"gitlab.com/TitanInd/lumerin/connections"
+	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
 	"gitlab.com/TitanInd/lumerin/cmd/protocol/stratumv1"
+	"gitlab.com/TitanInd/lumerin/connections"
 	"gitlab.com/TitanInd/lumerin/lumerinlib"
 	contextlib "gitlab.com/TitanInd/lumerin/lumerinlib/context"
 )
@@ -276,10 +276,10 @@ func TestEnabled(t *testing.T) {
 	fmt.Print("\n\n/// Miner connecting to node ///\n\n\n")
 
 	miner := msgbus.Miner{
-		ID:                   msgbus.MinerID("MinerID01"),
-		IP:                   "IpAddress1",
-		State:                msgbus.OnlineState,
-		Dest:                 defaultDestID,
+		ID:    msgbus.MinerID("MinerID01"),
+		IP:    "IpAddress1",
+		State: msgbus.OnlineState,
+		Dest:  defaultDestID,
 	}
 
 	time.Sleep(sleepTime)
@@ -319,7 +319,7 @@ loop1:
 
 	contractmanager.PurchaseHashrateContract(cm.EthClient, buyerAddress, buyerPrivateKey, cm.CloneFactoryAddress, common.HexToAddress(string(hashrateContractAddress)), buyerAddress, targetDest1)
 	time.Sleep(sleepTime)
-	
+
 	// wait until hashrate contract was purchased before continuing
 loop2:
 	for {
@@ -352,7 +352,7 @@ loop2:
 	miners, _ = ps.MinerGetAllWait()
 	for _, v := range miners {
 		miner, _ := ps.MinerGetWait(msgbus.MinerID(v))
-		if _,ok := miner.Contracts[hashrateContractAddress]; ok || miner.Dest != targetDest {
+		if _, ok := miner.Contracts[hashrateContractAddress]; ok || miner.Dest != targetDest {
 			t.Errorf("Miner contract and dest not set correctly")
 		}
 	}
@@ -405,7 +405,7 @@ loop3:
 	miners, _ = ps.MinerGetAllWait()
 	for _, v := range miners {
 		miner, _ := ps.MinerGetWait(msgbus.MinerID(v))
-		if _,ok := miner.Contracts[hashrateContractAddress]; !ok || miner.Dest != targetDest {
+		if _, ok := miner.Contracts[hashrateContractAddress]; !ok || miner.Dest != targetDest {
 			t.Errorf("Miner contract and dest not set correctly")
 		}
 	}

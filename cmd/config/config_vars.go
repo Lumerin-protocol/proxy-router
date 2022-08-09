@@ -59,7 +59,7 @@ const (
 	DisableConnection                 ConfigConst = "DisableConnection"
 	DisableContract                   ConfigConst = "DisableContract"
 	DisableSchedule                   ConfigConst = "DisableSchedule"
-	DisableValidate					  ConfigConst = "DisableValidator"
+	DisableValidate                   ConfigConst = "DisableValidator"
 	DisableStratumv1                  ConfigConst = "DisableStratumV1"
 	DisableAPI                        ConfigConst = "DisableAPI"
 )

@@ -12,10 +12,10 @@ import (
 	"time"
 
 	"gitlab.com/TitanInd/lumerin/cmd/connectionscheduler"
-	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
 	"gitlab.com/TitanInd/lumerin/cmd/log"
-	"gitlab.com/TitanInd/lumerin/connections"
+	"gitlab.com/TitanInd/lumerin/cmd/msgbus"
 	"gitlab.com/TitanInd/lumerin/cmd/protocol/stratumv1"
+	"gitlab.com/TitanInd/lumerin/connections"
 	"gitlab.com/TitanInd/lumerin/lumerinlib"
 	contextlib "gitlab.com/TitanInd/lumerin/lumerinlib/context"
 )
@@ -176,15 +176,15 @@ func TestDisabled(t *testing.T) {
 	fmt.Print("\n\n/// Miner connecting to node ///\n\n\n")
 
 	miner := msgbus.Miner{
-		ID:                   msgbus.MinerID("MinerID01"),
-		IP:                   "IpAddress1",
-		State:                msgbus.OnlineState,
-		Dest:                 defaultDestID,
-		CurrentHashRate: 	  20,
+		ID:              msgbus.MinerID("MinerID01"),
+		IP:              "IpAddress1",
+		State:           msgbus.OnlineState,
+		Dest:            defaultDestID,
+		CurrentHashRate: 20,
 	}
 
 	time.Sleep(sleepTime)
-	
+
 	_ = miner
 	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner.ID), miner)
 
@@ -247,7 +247,7 @@ func TestDisabled(t *testing.T) {
 	miners, _ = ps.MinerGetAllWait()
 	for _, v := range miners {
 		miner, _ := ps.MinerGetWait(msgbus.MinerID(v))
-		if _,ok := miner.Contracts["ContractID01"]; !ok || miner.Dest != targetDest.ID {
+		if _, ok := miner.Contracts["ContractID01"]; !ok || miner.Dest != targetDest.ID {
 			t.Errorf("Miner contract and dest not set correctly")
 		}
 	}
@@ -257,18 +257,18 @@ func TestDisabled(t *testing.T) {
 	//
 	fmt.Print("\n\n/// More miners connection to node ///\n\n\n")
 	miner2 := msgbus.Miner{
-		ID:                   msgbus.MinerID("MinerID02"),
-		IP:                   "IpAddress2",
-		State:                msgbus.OnlineState,
-		Dest:                 defaultDestID,
-		CurrentHashRate: 	  10,
+		ID:              msgbus.MinerID("MinerID02"),
+		IP:              "IpAddress2",
+		State:           msgbus.OnlineState,
+		Dest:            defaultDestID,
+		CurrentHashRate: 10,
 	}
 	miner3 := msgbus.Miner{
-		ID:                   msgbus.MinerID("MinerID03"),
-		IP:                   "IpAddress3",
-		State:                msgbus.OnlineState,
-		Dest:                 defaultDestID,
-		CurrentHashRate: 	  50,
+		ID:              msgbus.MinerID("MinerID03"),
+		IP:              "IpAddress3",
+		State:           msgbus.OnlineState,
+		Dest:            defaultDestID,
+		CurrentHashRate: 50,
 	}
 
 	_ = miner2
@@ -302,13 +302,13 @@ func TestDisabled(t *testing.T) {
 		minersArr = append(minersArr, *miner)
 	}
 
-	if _,ok := minersArr[0].Contracts["ContractID01"]; !ok && miner.Dest != targetDest.ID {
+	if _, ok := minersArr[0].Contracts["ContractID01"]; !ok && miner.Dest != targetDest.ID {
 		t.Errorf("Miner 1 contract and dest not set correctly")
 	}
-	if _,ok := minersArr[1].Contracts["ContractID02"]; !ok && miner.Dest != targetDest2.ID {
+	if _, ok := minersArr[1].Contracts["ContractID02"]; !ok && miner.Dest != targetDest2.ID {
 		t.Errorf("Miner 2 contract and dest not set correctly")
 	}
-	if _,ok := minersArr[2].Contracts["ContractID03"]; !ok && miner.Dest != targetDest2.ID {
+	if _, ok := minersArr[2].Contracts["ContractID03"]; !ok && miner.Dest != targetDest2.ID {
 		t.Errorf("Miner 3 contract and dest not set correctly")
 	}
 
