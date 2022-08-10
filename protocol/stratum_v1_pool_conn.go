@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
@@ -29,6 +30,7 @@ type StratumV1PoolConn struct {
 
 	msgCh     chan stratumv1_message.MiningMessageGeneric // auxillary channel to relay messages
 	isReading bool                                        // if false messages will not be availabe to read from outside, used for authentication handshake
+	mu        sync.Mutex                                  // guards isReading
 
 	lastRequestId *atomic.Uint32                 // stratum request id counter
 	resHandlers   map[int]StratumV1ResultHandler // allows to register callbacks for particular messages to simplify transaction flow
@@ -38,22 +40,21 @@ type StratumV1PoolConn struct {
 
 func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, url string, authUser string, authPass string) *StratumV1PoolConn {
 	return &StratumV1PoolConn{
-		conn:          conn,
-		msgCh:         make(chan stratumv1_message.MiningMessageGeneric, 100),
-		notifyMsgs:    make([]stratumv1_message.MiningNotify, 100),
-		isReading:     false,
-		lastRequestId: atomic.NewUint32(0),
-		resHandlers:   make(map[int]StratumV1ResultHandler),
-		log:           log,
-
 		url:      url,
 		authUser: authUser,
 		authPass: authPass,
-	}
-}
 
-func (s *StratumV1PoolConn) RemoteAddr() string {
-	return s.conn.RemoteAddr().String()
+		conn:       conn,
+		notifyMsgs: make([]stratumv1_message.MiningNotify, 100),
+
+		msgCh:     make(chan stratumv1_message.MiningMessageGeneric, 100),
+		isReading: false,
+
+		lastRequestId: atomic.NewUint32(0),
+		resHandlers:   make(map[int]StratumV1ResultHandler),
+
+		log: log,
+	}
 }
 
 func (s *StratumV1PoolConn) Run(ctx context.Context) error {
@@ -78,7 +79,7 @@ func (s *StratumV1PoolConn) run(ctx context.Context) error {
 			return err
 		}
 
-		lib.LogMsg(false, true, line, s.log)
+		lib.LogMsg(false, true, s.url, line, s.log)
 
 		m, err := stratumv1_message.ParseMessageFromPool(line)
 		if err != nil {
@@ -106,11 +107,16 @@ func (s *StratumV1PoolConn) run(ctx context.Context) error {
 			}
 		}
 
+		s.mu.Lock()
+
 		if s.isReading {
 			s.msgCh <- m
+			s.log.Debugf("pool message was emitted")
 		} else {
-			s.log.Debugf("not reading")
+			s.log.Debugf("pool message was cached but not emitted")
 		}
+
+		s.mu.Unlock()
 	}
 }
 
@@ -152,7 +158,10 @@ func (m *StratumV1PoolConn) Connect() error {
 	m.log.Debug("connect: authorize sent")
 
 	m.resendRelevantNotifications(context.TODO())
+
+	m.mu.Lock()
 	m.isReading = true
+	m.mu.Unlock()
 
 	return nil
 }
@@ -192,9 +201,15 @@ func (m *StratumV1PoolConn) registerResultHandler(id int, handler StratumV1Resul
 
 // Pauses emitting any pool messages, then sends cached messages for a recent job, and then resumes pool message flow
 func (m *StratumV1PoolConn) ResendRelevantNotifications(ctx context.Context) {
+	m.mu.Lock()
 	m.isReading = false
+	m.mu.Unlock()
+
 	m.resendRelevantNotifications(ctx)
+
+	m.mu.Lock()
 	m.isReading = true
+	m.mu.Unlock()
 }
 
 // resendRelevantNotifications sends cached extranonce, set_difficulty and notify messages
@@ -224,7 +239,7 @@ func (m *StratumV1PoolConn) Write(ctx context.Context, msg stratumv1_message.Min
 		typedMsg.SetWorkerName(m.authUser)
 		msg = typedMsg
 	}
-	lib.LogMsg(false, false, msg.Serialize(), m.log)
+	lib.LogMsg(false, false, m.url, msg.Serialize(), m.log)
 	b := fmt.Sprintf("%s\n", msg.Serialize())
 	_, err := m.conn.Write([]byte(b))
 	return err
@@ -237,4 +252,8 @@ func (m *StratumV1PoolConn) GetExtranonce() (string, int) {
 
 func (m *StratumV1PoolConn) GetDest() (string, string, string) {
 	return m.url, m.authUser, m.authPass
+}
+
+func (s *StratumV1PoolConn) RemoteAddr() string {
+	return s.conn.RemoteAddr().String()
 }

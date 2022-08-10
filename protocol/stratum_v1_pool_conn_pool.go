@@ -12,8 +12,11 @@ import (
 // Wraps the stratum miner pool connection to reuse multiple pool connections without handshake
 type StratumV1PoolConnPool struct {
 	pool sync.Map
+
 	conn *StratumV1PoolConn
-	log  interfaces.ILogger
+	mu   sync.Mutex // guards conn
+
+	log interfaces.ILogger
 }
 
 func NewStratumV1PoolPool(log interfaces.ILogger) *StratumV1PoolConnPool {
@@ -24,12 +27,17 @@ func NewStratumV1PoolPool(log interfaces.ILogger) *StratumV1PoolConnPool {
 }
 
 func (p *StratumV1PoolConnPool) SetDest(addr string, authUser string, authPass string) error {
+	p.mu.Lock()
 	if p.conn != nil {
 		if a, u, pwd := p.conn.GetDest(); a == addr && u == authUser && pwd == authPass {
 			// noop if connection is the same
+			p.log.Debug("dest wasn't changed, as it is the same")
+			p.mu.Unlock()
 			return nil
 		}
 	}
+	p.mu.Unlock()
+
 	// TODO: maintain separate connections per address+user
 	conn, ok := p.load(addr)
 	if ok {
@@ -54,9 +62,12 @@ func (p *StratumV1PoolConnPool) SetDest(addr string, authUser string, authPass s
 		return err
 	}
 
-	// TODO add lock
+	p.mu.Lock()
 	p.conn = conn
+	p.mu.Unlock()
+
 	p.store(addr, conn)
+	p.log.Infof("=========> dest was set %s", addr)
 	return nil
 }
 

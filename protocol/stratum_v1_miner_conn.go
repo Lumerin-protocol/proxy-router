@@ -13,13 +13,15 @@ import (
 )
 
 type StratumV1Miner struct {
-	conn          net.Conn
-	reader        *bufio.Reader
-	log           interfaces.ILogger
-	isWriting     bool
-	mu            *sync.Mutex
+	conn   net.Conn
+	reader *bufio.Reader
+
+	isWriting bool        // used to temporarily pause writing messages to miner
+	mu        *sync.Mutex // guards isWriting
+
 	cond          *sync.Cond
 	extraNonceMsg *stratumv1_message.MiningSubscribeResult
+	log           interfaces.ILogger
 }
 
 func NewStratumV1Miner(conn net.Conn, log interfaces.ILogger, extraNonce *stratumv1_message.MiningSubscribeResult) *StratumV1Miner {
@@ -27,11 +29,11 @@ func NewStratumV1Miner(conn net.Conn, log interfaces.ILogger, extraNonce *stratu
 	return &StratumV1Miner{
 		conn,
 		bufio.NewReader(conn),
-		log,
 		false,
 		mu,
 		sync.NewCond(mu),
 		extraNonce,
+		log,
 	}
 }
 
@@ -48,7 +50,7 @@ func (m *StratumV1Miner) Write(ctx context.Context, msg stratumv1_message.Mining
 
 // write writes to miner omitting locks
 func (m *StratumV1Miner) write(ctx context.Context, msg stratumv1_message.MiningMessageGeneric) error {
-	lib.LogMsg(true, false, msg.Serialize(), m.log)
+	lib.LogMsg(true, false, m.conn.RemoteAddr().String(), msg.Serialize(), m.log)
 
 	b := fmt.Sprintf("%s\n", msg.Serialize())
 	_, err := m.conn.Write([]byte(b))
@@ -56,7 +58,6 @@ func (m *StratumV1Miner) write(ctx context.Context, msg stratumv1_message.Mining
 }
 
 func (s *StratumV1Miner) Read(ctx context.Context) (stratumv1_message.MiningMessageGeneric, error) {
-
 	for {
 		line, isPrefix, err := s.reader.ReadLine()
 		if isPrefix {
@@ -67,7 +68,7 @@ func (s *StratumV1Miner) Read(ctx context.Context) (stratumv1_message.MiningMess
 			return nil, err
 		}
 
-		lib.LogMsg(true, true, line, s.log)
+		lib.LogMsg(true, true, s.conn.RemoteAddr().String(), line, s.log)
 
 		m, err := stratumv1_message.ParseMessageToPool(line)
 
@@ -93,7 +94,7 @@ func (s *StratumV1Miner) Read(ctx context.Context) (stratumv1_message.MiningMess
 			}
 			s.mu.Lock()
 			s.isWriting = true
-			s.log.Debug("Miner is writing")
+			s.log.Debug("Writing is released")
 			s.cond.Broadcast()
 			s.mu.Unlock()
 
