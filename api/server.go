@@ -22,13 +22,13 @@ func NewServer(address string, log interfaces.ILogger, minerController *miner.Mi
 	mux := http.NewServeMux()
 
 	// mux.HandleFunc("/connections", connectionsController.ServeHTTP)
-	mux.HandleFunc("/change-dest", func(w http.ResponseWriter, r *http.Request) {
-		host := r.URL.Query().Get("host")
-		user := r.URL.Query().Get("user")
-		pwd := r.URL.Query().Get("pwd")
-		minerController.ChangeDestAll(host, user, pwd)
-		w.Write([]byte("success"))
-	})
+	// mux.HandleFunc("/change-dest", func(w http.ResponseWriter, r *http.Request) {
+	// host := r.URL.Query().Get("host")
+	// user := r.URL.Query().Get("user")
+	// pwd := r.URL.Query().Get("pwd")
+	// minerController.ChangeDestAll(host, user, pwd)
+	// 	w.Write([]byte("success"))
+	// })
 
 	server := http.Server{Addr: address, Handler: mux}
 

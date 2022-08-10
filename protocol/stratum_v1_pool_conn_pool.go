@@ -24,6 +24,13 @@ func NewStratumV1PoolPool(log interfaces.ILogger) *StratumV1PoolConnPool {
 }
 
 func (p *StratumV1PoolConnPool) SetDest(addr string, authUser string, authPass string) error {
+	if p.conn != nil {
+		if a, u, pwd := p.conn.GetDest(); a == addr && u == authUser && pwd == authPass {
+			// noop if connection is the same
+			return nil
+		}
+	}
+	// TODO: maintain separate connections per address+user
 	conn, ok := p.load(addr)
 	if ok {
 		// TODO add lock
@@ -40,7 +47,7 @@ func (p *StratumV1PoolConnPool) SetDest(addr string, authUser string, authPass s
 	}
 	p.log.Infof("Dialed dest %s", addr)
 
-	conn = NewStratumV1Pool(c, p.log, authUser, authPass)
+	conn = NewStratumV1Pool(c, p.log, addr, authUser, authPass)
 
 	err = conn.Connect()
 	if err != nil {

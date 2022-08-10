@@ -16,6 +16,7 @@ import (
 
 // StratumV1PoolConn represents connection to the pool on the protocol level
 type StratumV1PoolConn struct {
+	url      string // pool url address
 	authUser string // pool auth
 	authPass string // pool auth
 
@@ -35,7 +36,7 @@ type StratumV1PoolConn struct {
 	log interfaces.ILogger
 }
 
-func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, authUser string, authPass string) *StratumV1PoolConn {
+func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, url string, authUser string, authPass string) *StratumV1PoolConn {
 	return &StratumV1PoolConn{
 		conn:          conn,
 		msgCh:         make(chan stratumv1_message.MiningMessageGeneric, 100),
@@ -44,8 +45,10 @@ func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, authUser string, au
 		lastRequestId: atomic.NewUint32(0),
 		resHandlers:   make(map[int]StratumV1ResultHandler),
 		log:           log,
-		authUser:      authUser,
-		authPass:      authPass,
+
+		url:      url,
+		authUser: authUser,
+		authPass: authPass,
 	}
 }
 
@@ -230,4 +233,8 @@ func (m *StratumV1PoolConn) Write(ctx context.Context, msg stratumv1_message.Min
 // Returns current extranonce values
 func (m *StratumV1PoolConn) GetExtranonce() (string, int) {
 	return m.extraNonceMsg.GetExtranonce()
+}
+
+func (m *StratumV1PoolConn) GetDest() (string, string, string) {
+	return m.url, m.authUser, m.authPass
 }
