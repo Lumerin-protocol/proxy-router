@@ -1,4 +1,4 @@
-package blockchain
+package interop
 
 import (
 	"context"
@@ -6,19 +6,30 @@ import (
 	"math"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"gitlab.com/TitanInd/hashrouter/config"
 	"gitlab.com/TitanInd/hashrouter/lumerinlib"
 )
 
-func NewEthereumClient(clientAddress string, contractManagerAccount common.Address) (client *ethclient.Client, err error) {
-	client, err = ethclient.Dial(clientAddress)
+type BlockchainClient = ethclient.Client
+type BlockchainAccount = accounts.Account
+type BlockchainAddress = common.Address
+type BlockchainEvent = types.Log
+type BlockchainEventSubscription = ethereum.Subscription
+type BlockchainEventQuery = ethereum.FilterQuery
+
+func NewBlockchainClient(configuration *config.Config, contractManagerAccount common.Address) (client *BlockchainClient, err error) {
+	client, err = ethclient.Dial(configuration.EthNode.Address)
 	if err != nil {
 		fmt.Printf("Funcname::%s, Fileline::%s, Error::%v\n", lumerinlib.Funcname(), lumerinlib.FileLine(), err)
 		return client, err
 	}
 
-	fmt.Printf("Connected to rpc client at %v\n", clientAddress)
+	fmt.Printf("Connected to rpc client at %v\n", configuration.EthNode.Address)
 
 	var balance *big.Int
 	balance, err = client.BalanceAt(context.Background(), contractManagerAccount, nil)
