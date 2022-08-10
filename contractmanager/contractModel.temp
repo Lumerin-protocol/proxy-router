@@ -130,7 +130,7 @@ type nonce struct {
 	nonce uint64
 }
 
-func NewContractModel(ctx context.Context, logger interfaces.ILogger, configuration *config.Config, eventManager interfaces.IEventManager, client *ethclient.Client, nodeOperator *NodeOperator, account *accounts.Account, privateKey string) *ContractModel {
+func NewContractModel(ctx context.Context, logger interfaces.ILogger, configuration *config.Config, eventManager interfaces.IEventManager, client *ethclient.Client, nodeOperator *NodeOperator, account *interop.BlockchainAccount, privateKey string) *ContractModel {
 
 	// var client *ethclient.Client
 	// client, err = setUpClient(ethNodeAddr, seller.Account)
