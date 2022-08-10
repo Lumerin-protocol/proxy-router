@@ -42,7 +42,10 @@ func (p *StratumV1PoolConnPool) SetDest(addr string, authUser string, authPass s
 	conn, ok := p.load(addr)
 	if ok {
 		// TODO add lock
+		p.mu.Lock()
 		p.conn = conn
+		p.mu.Unlock()
+
 		p.conn.ResendRelevantNotifications(context.TODO())
 		p.log.Infof("conn reused %s", addr)
 
@@ -93,6 +96,18 @@ func (p *StratumV1PoolConnPool) load(addr string) (*StratumV1PoolConn, bool) {
 
 func (p *StratumV1PoolConnPool) store(addr string, conn *StratumV1PoolConn) {
 	p.pool.Store(addr, conn)
+}
+
+func (p *StratumV1PoolConnPool) getConn() *StratumV1PoolConn {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.conn
+}
+
+func (p *StratumV1PoolConnPool) setConn(conn *StratumV1PoolConn) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.conn = conn
 }
 
 var _ StratumV1DestConn = new(StratumV1PoolConnPool)

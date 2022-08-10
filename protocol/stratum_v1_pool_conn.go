@@ -3,7 +3,6 @@ package protocol
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -26,11 +25,13 @@ type StratumV1PoolConn struct {
 	notifyMsgs    []stratumv1_message.MiningNotify       // recent relevant notify messages, (respects stratum clean_jobs flag)
 	setDiffMsg    *stratumv1_message.MiningSetDifficulty // recent difficulty message
 	extraNonceMsg *stratumv1_message.MiningSetExtranonce // keeps relevant extranonce (picked from mining.subscribe response)
+
 	// TODO: handle pool setExtranonce message
 
-	msgCh     chan stratumv1_message.MiningMessageGeneric // auxillary channel to relay messages
-	isReading bool                                        // if false messages will not be availabe to read from outside, used for authentication handshake
-	mu        sync.Mutex                                  // guards isReading
+	msgCh              chan stratumv1_message.MiningMessageGeneric // auxillary channel to relay messages
+	customPriorityMsgs chan stratumv1_message.MiningMessageGeneric
+	isReading          bool       // if false messages will not be availabe to read from outside, used for authentication handshake
+	mu                 sync.Mutex // guards isReading
 
 	lastRequestId *atomic.Uint32                 // stratum request id counter
 	resHandlers   map[int]StratumV1ResultHandler // allows to register callbacks for particular messages to simplify transaction flow
@@ -48,7 +49,9 @@ func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, url string, authUse
 		notifyMsgs: make([]stratumv1_message.MiningNotify, 100),
 
 		msgCh:     make(chan stratumv1_message.MiningMessageGeneric, 100),
-		isReading: false,
+		isReading: false, // hold on emitting messages to destination, until handshake
+
+		customPriorityMsgs: make(chan stratumv1_message.MiningMessageGeneric, 100),
 
 		lastRequestId: atomic.NewUint32(0),
 		resHandlers:   make(map[int]StratumV1ResultHandler),
@@ -86,37 +89,15 @@ func (s *StratumV1PoolConn) run(ctx context.Context) error {
 			s.log.Errorf("Unknown miner message", string(line))
 		}
 
-		switch typedMessage := m.(type) {
-		case *stratumv1_message.MiningNotify:
-			if typedMessage.GetCleanJobs() {
-				s.notifyMsgs = s.notifyMsgs[:0]
-			}
-			s.notifyMsgs = append(s.notifyMsgs, *typedMessage)
+		m = s.readInterceptor(m)
 
-		case *stratumv1_message.MiningSetDifficulty:
-			s.setDiffMsg = typedMessage
-
-		case *stratumv1_message.MiningResult:
-			id := typedMessage.GetID()
-			handler, ok := s.resHandlers[id]
-			if ok {
-				handledMsg := handler(*typedMessage)
-				if handledMsg != nil {
-					m = handledMsg.(*stratumv1_message.MiningResult)
-				}
-			}
-		}
-
-		s.mu.Lock()
-
-		if s.isReading {
+		if s.getIsReading() {
 			s.msgCh <- m
 			s.log.Debugf("pool message was emitted")
 		} else {
 			s.log.Debugf("pool message was cached but not emitted")
 		}
 
-		s.mu.Unlock()
 	}
 }
 
@@ -136,13 +117,10 @@ func (m *StratumV1PoolConn) Connect() error {
 	}
 	m.log.Debug("connect: subscribe sent")
 
-	data := [3]interface{}{}
-
-	err = json.Unmarshal(subscribeRes.Result, &data)
+	extranonce, extranonceSize, err := stratumv1_message.ParseExtranonceSubscribeResult(subscribeRes)
 	if err != nil {
-		return fmt.Errorf("cannot unmarhal subscribe response %s %w", subscribeRes.Serialize(), err)
+		return err
 	}
-	extranonce, extranonceSize := data[1].(string), int(data[2].(float64))
 	msg := stratumv1_message.NewMiningSetExtranonce()
 	msg.SetExtranonce(extranonce, extranonceSize)
 	m.extraNonceMsg = msg
@@ -159,9 +137,7 @@ func (m *StratumV1PoolConn) Connect() error {
 
 	m.resendRelevantNotifications(context.TODO())
 
-	m.mu.Lock()
-	m.isReading = true
-	m.mu.Unlock()
+	m.setIsReading(true)
 
 	return nil
 }
@@ -201,15 +177,9 @@ func (m *StratumV1PoolConn) registerResultHandler(id int, handler StratumV1Resul
 
 // Pauses emitting any pool messages, then sends cached messages for a recent job, and then resumes pool message flow
 func (m *StratumV1PoolConn) ResendRelevantNotifications(ctx context.Context) {
-	m.mu.Lock()
-	m.isReading = false
-	m.mu.Unlock()
-
+	m.setIsReading(false)
+	defer m.setIsReading(true)
 	m.resendRelevantNotifications(ctx)
-
-	m.mu.Lock()
-	m.isReading = true
-	m.mu.Unlock()
 }
 
 // resendRelevantNotifications sends cached extranonce, set_difficulty and notify messages
@@ -220,6 +190,7 @@ func (m *StratumV1PoolConn) resendRelevantNotifications(ctx context.Context) {
 
 	m.msgCh <- m.setDiffMsg
 	m.log.Infof("set-difficulty was resent")
+
 	for _, msg := range m.notifyMsgs {
 		m.msgCh <- &msg
 	}
@@ -234,12 +205,10 @@ func (s *StratumV1PoolConn) Read() (stratumv1_message.MiningMessageGeneric, erro
 
 // Write writes message to pool
 func (m *StratumV1PoolConn) Write(ctx context.Context, msg stratumv1_message.MiningMessageGeneric) error {
-	switch typedMsg := msg.(type) {
-	case *stratumv1_message.MiningSubmit:
-		typedMsg.SetWorkerName(m.authUser)
-		msg = typedMsg
-	}
+	msg = m.writeInterceptor(msg)
+
 	lib.LogMsg(false, false, m.url, msg.Serialize(), m.log)
+
 	b := fmt.Sprintf("%s\n", msg.Serialize())
 	_, err := m.conn.Write([]byte(b))
 	return err
@@ -256,4 +225,52 @@ func (m *StratumV1PoolConn) GetDest() (string, string, string) {
 
 func (s *StratumV1PoolConn) RemoteAddr() string {
 	return s.conn.RemoteAddr().String()
+}
+
+// readInterceptor caches relevant messages and invokes callbacks
+func (s *StratumV1PoolConn) readInterceptor(m stratumv1_message.MiningMessageGeneric) stratumv1_message.MiningMessageGeneric {
+	switch typedMessage := m.(type) {
+	case *stratumv1_message.MiningNotify:
+		if typedMessage.GetCleanJobs() {
+			s.notifyMsgs = s.notifyMsgs[:0]
+		}
+		s.notifyMsgs = append(s.notifyMsgs, *typedMessage)
+
+	case *stratumv1_message.MiningSetDifficulty:
+		s.setDiffMsg = typedMessage
+
+	case *stratumv1_message.MiningResult:
+		id := typedMessage.GetID()
+		handler, ok := s.resHandlers[id]
+		if ok {
+			handledMsg := handler(*typedMessage)
+			if handledMsg != nil {
+				m = handledMsg.(*stratumv1_message.MiningResult)
+			}
+		}
+	}
+
+	return m
+}
+
+//
+func (s *StratumV1PoolConn) writeInterceptor(m stratumv1_message.MiningMessageGeneric) stratumv1_message.MiningMessageGeneric {
+	switch typedMsg := m.(type) {
+	case *stratumv1_message.MiningSubmit:
+		typedMsg.SetWorkerName(s.authUser)
+		m = typedMsg
+	}
+	return m
+}
+
+func (s *StratumV1PoolConn) setIsReading(b bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.isReading = b
+}
+
+func (s *StratumV1PoolConn) getIsReading() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.isReading
 }

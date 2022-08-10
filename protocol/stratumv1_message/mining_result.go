@@ -1,6 +1,9 @@
 package stratumv1_message
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // Message: {"id":47,"result":true,"error":null}
 // Message: {"id":1,"result":[[["mining.set_difficulty","1"],["mining.notify","1"]],"06650601bd171b",8],"error":null}
@@ -43,3 +46,17 @@ func (m *MiningResult) Serialize() []byte {
 }
 
 var _ MiningMessageGeneric = new(MiningResult)
+
+// Parses Subscribe result message
+//
+// Message: {"id":1,"result":[[["mining.set_difficulty","1"],["mining.notify","1"]],"06650601bd171b",8],"error":null}
+func ParseExtranonceSubscribeResult(m *MiningResult) (extranonce string, extranonceSize int, err error) {
+	data := [3]interface{}{}
+
+	err = json.Unmarshal(m.Result, &data)
+	if err != nil {
+		return "", 0, fmt.Errorf("cannot unmarhal subscribe response %s %w", string(m.Result), err)
+	}
+
+	return data[1].(string), int(data[2].(float64)), nil
+}
