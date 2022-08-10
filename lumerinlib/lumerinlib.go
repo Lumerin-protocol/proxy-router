@@ -48,6 +48,16 @@ func (r *ConcurrentMap) GetMap() (map[string]interface{}) {
 	return cMap
 }
 
+func (r *ConcurrentMap) GetMapRLock() (map[string]interface{}) {
+	r.RLock()
+	var cMap map[string]interface{} = r.M
+	return cMap
+}
+
+func (r *ConcurrentMap) GetMapRUnlock() {
+	r.RUnlock()
+}
+
 func (r *ConcurrentMap) Set(key string, val interface{}) {
 	r.Lock()
 	defer r.Unlock()

@@ -250,4 +250,4 @@ func (ps *PubSub) MinerContractSlicedUtilization(minerId MinerID, contractId Con
 
 	return (1 - contractSlicedPercent)
 }
-}
+
