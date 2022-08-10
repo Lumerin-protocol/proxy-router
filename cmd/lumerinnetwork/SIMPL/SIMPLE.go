@@ -480,6 +480,7 @@ FORLOOP:
 		}
 	}
 
+	close(s.eventChan)
 	contextlib.Logf(s.ctx, contextlib.LevelWarn, lumerinlib.FileLineFunc()+" exit")
 }
 
@@ -527,14 +528,18 @@ func (s *SimpleStruct) Cancel() {
 
 	s.ConnectionStruct.Cancel()
 
+	s.cancel()
+
 	//
 	// Close all channles if they are still open
 	//
 	var ok bool
-	_, ok = <-s.eventChan
-	if ok {
-		close(s.eventChan)
-	}
+
+	// Moved to the goEvent function
+	//_, ok = <-s.eventChan
+	//if ok {
+	//	close(s.eventChan)
+	//}
 	_, ok = <-s.msgbusChan
 	if ok {
 		close(s.msgbusChan)
@@ -543,7 +548,6 @@ func (s *SimpleStruct) Cancel() {
 	if ok {
 		close(s.openChan)
 	}
-	s.cancel()
 }
 
 //
