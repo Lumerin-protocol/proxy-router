@@ -3,20 +3,24 @@ package protocol
 import (
 	"context"
 
+	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
 )
 
 type stratumV1MinerModel struct {
-	pool  StratumV1DestConn
-	miner StratumV1SourceConn
-	log   interfaces.ILogger
+	pool      StratumV1DestConn
+	miner     StratumV1SourceConn
+	validator *hashrate.Hashrate
+	log       interfaces.ILogger
 }
 
-func NewStratumV1MinerModel(poolPool StratumV1DestConn, miner StratumV1SourceConn, log interfaces.ILogger) *stratumV1MinerModel {
+func NewStratumV1MinerModel(poolPool StratumV1DestConn, miner StratumV1SourceConn, validator *hashrate.Hashrate, log interfaces.ILogger) *stratumV1MinerModel {
 	return &stratumV1MinerModel{
-		pool:  poolPool,
-		miner: miner,
-		log:   log,
+		pool:      poolPool,
+		miner:     miner,
+		validator: validator,
+		log:       log,
 	}
 }
 
@@ -31,6 +35,9 @@ func (s *stratumV1MinerModel) Run() error {
 				errCh <- err
 				return
 			}
+
+			s.poolInterceptor(msg)
+
 			err = s.miner.Write(context.TODO(), msg)
 			if err != nil {
 				s.log.Error(err)
@@ -49,6 +56,8 @@ func (s *stratumV1MinerModel) Run() error {
 				return
 			}
 
+			s.minerInterceptor(msg)
+
 			err = s.pool.Write(context.TODO(), msg)
 			if err != nil {
 				s.log.Error(err)
@@ -58,7 +67,31 @@ func (s *stratumV1MinerModel) Run() error {
 		}
 	}()
 
+	go func() {
+		err := s.validator.Run(context.TODO())
+		if err != nil {
+			s.log.Error(err)
+			errCh <- err
+			return
+		}
+	}()
+
 	return <-errCh
+}
+
+func (s *stratumV1MinerModel) minerInterceptor(msg stratumv1_message.MiningMessageGeneric) {
+	switch m := msg.(type) {
+	case *stratumv1_message.MiningSubmit:
+		s.validator.OnSubmit(m.GetWorkerName(), m.GetNonce(), m.GetNtime())
+	}
+}
+
+func (s *stratumV1MinerModel) poolInterceptor(msg stratumv1_message.MiningMessageGeneric) {
+	switch m := msg.(type) {
+	case *stratumv1_message.MiningSetDifficulty:
+		//TODO: some pools return difficulty in float, decide if we need that kind of precision
+		s.validator.OnSetDefficulty(int(m.GetDifficulty()))
+	}
 }
 
 func (s *stratumV1MinerModel) ChangeDest(addr string, authUser string, authPwd string) error {
@@ -70,6 +103,6 @@ func (s *stratumV1MinerModel) GetID() string {
 	return s.miner.GetID()
 }
 
-func (s *stratumV1MinerModel) IsAvailable() bool {
-	return true
+func (s *stratumV1MinerModel) GetHashRate() int {
+	return s.validator.GetHashrate()
 }

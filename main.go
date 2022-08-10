@@ -5,6 +5,8 @@ package main
 
 import (
 	"context"
+	"os"
+
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/google/wire"
 	"gitlab.com/TitanInd/hashrouter/api"
@@ -17,7 +19,6 @@ import (
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/miner"
 	"gitlab.com/TitanInd/hashrouter/tcpserver"
-	"os"
 )
 
 const VERSION = "0.01"
@@ -36,6 +37,7 @@ var protocolSet = wire.NewSet(miner.NewMinerRepo, provideMinerController, eventb
 var contractsSet = wire.NewSet(blockchain.NewBlockchainWallet, provideEthClient, blockchain.NewBlockchainGateway, provideContractFactory, contractmanager.NewContractsGateway, contractmanager.NewNodeOperator, contractmanager.NewContractsService, provideSellerContractManager)
 var hashrateCalculationSet = wire.NewSet(provideHashrateCalculator)
 
+//TODO: make sure all providers initialized
 func InitApp() (*app.App, error) {
 	wire.Build(
 		provideConfig,

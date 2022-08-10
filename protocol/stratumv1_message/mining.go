@@ -30,6 +30,9 @@ func ParseMessageToPool(raw []byte) (MiningMessageToPool, error) {
 	case MethodMiningSubmit:
 		return ParseMiningSubmit(raw)
 
+	case MethodMiningMultiVersion:
+		return ParseMiningMultiVersion(raw)
+
 	default:
 		return nil, lib.WrapError(fmt.Errorf("unknown message to pool: %s", raw), ErrStratumV1Unknown)
 	}

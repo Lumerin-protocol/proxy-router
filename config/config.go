@@ -15,8 +15,8 @@ type Config struct {
 	}
 	Contract struct {
 		Address             string `env:"CONTRACT_ADDRESS" flag:"contract-address" validate:"required,eth_addr"`
-		IsBuyer             bool   `env:"IS_BUYER" flag:"is-buyer" validate:"required,boolean"`
-		Mnemonic            string
+		IsBuyer             bool   `env:"IS_BUYER" flag:"is-buyer"`
+		Mnemonic            string `env:"CONTRACT_MNEMONIC"`
 		AccountIndex        int
 		EthNodeAddr         string
 		ClaimFunds          bool

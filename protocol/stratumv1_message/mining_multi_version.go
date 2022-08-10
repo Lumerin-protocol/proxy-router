@@ -7,6 +7,7 @@ import "encoding/json"
 const MethodMiningMultiVersion = "mining.multi_version"
 
 type MiningMultiVersion struct {
+	ID     int                       `json:"id"`
 	Method string                    `json:"method,omitempty"`
 	Params *miningMultiVersionParams `json:"params"`
 }
@@ -23,6 +24,14 @@ func NewMiningMultiVersion(version int) *MiningMultiVersion {
 func ParseMiningMultiVersion(b []byte) (*MiningMultiVersion, error) {
 	m := &MiningMultiVersion{}
 	return m, json.Unmarshal(b, m)
+}
+
+func (m *MiningMultiVersion) GetID() int {
+	return m.ID
+}
+
+func (m *MiningMultiVersion) SetID(ID int) {
+	m.ID = ID
 }
 
 func (m *MiningMultiVersion) GetVersion() int {
