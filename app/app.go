@@ -17,9 +17,9 @@ type App struct {
 	TCPServer       *tcpserver.TCPServer
 	MinerController *miner.MinerController
 	Server          *api.Server
-	// ContractManager *contractmanager.SellerContractManager
-	Logger interfaces.ILogger
-	// EventsRouter interfaces.IEventsRouter
+	ContractManager interfaces.ContractManager
+	Logger          interfaces.ILogger
+	// EventsRouter    interfaces.IEventsRouter
 }
 
 func (a *App) Run() {

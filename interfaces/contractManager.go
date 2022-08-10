@@ -6,7 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-type IContractManager interface {
+type ContractManager interface {
 	Start() (err error)
 	SetupExistingContracts() (err error)
 	ReadContracts() ([]common.Address, error)

@@ -41,7 +41,7 @@ func (c *EventBusController) Bootstrap() {
 
 }
 
-func (c *EventBusController) SubscribeConfig(ctx context.Context, cb func(event IConfigEvent)) {
+func (c *EventBusController) SubscribeConfig(ctx context.Context, cb func(event ConfigEventData)) {
 	c.eventBus.Subscribe(ctx, ConnectionEventName, func(val interface{}) {
 		cb(val.(ConfigEventData))
 	})
