@@ -5,3 +5,5 @@ import (
 )
 
 type UUID = uuid.UUID
+
+var NewUniqueIdString = uuid.NewString

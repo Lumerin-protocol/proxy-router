@@ -12,4 +12,5 @@ type IContractModel interface {
 	GetCurrentNonce() uint64
 	Save()
 	Execute()
+	GetCloseOutType() uint
 }

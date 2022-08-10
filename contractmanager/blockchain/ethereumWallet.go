@@ -5,6 +5,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
+	"gitlab.com/TitanInd/hashrouter/config"
+	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/lumerinlib"
 )
@@ -19,7 +21,18 @@ func (wallet *EthereumWallet) HexToAddress(hexAddress string) interop.Blockchain
 	return common.HexToAddress(hexAddress)
 }
 
-func NewWallet(mnemonic string, accountIndex int) *EthereumWallet {
+func (wallet *EthereumWallet) GetAddress() (interop.BlockchainAddress, error) {
+	return wallet.ethWallet.Address(wallet.Account)
+}
+
+func (wallet *EthereumWallet) GetPrivateKey() string {
+	return wallet.PrivateKey
+}
+
+func NewBlockchainWallet(configuration *config.Config) interfaces.IBlockchainWallet {
+	mnemonic := configuration.Contract.Mnemonic
+	accountIndex := configuration.Contract.AccountIndex
+
 	wallet, err := hdwallet.NewFromMnemonic(mnemonic)
 
 	if err != nil {

@@ -1,6 +1,6 @@
 package interfaces
 
-type IContractGateway interface {
+type IContractsGateway interface {
 	GetContract(contractId string) IContractModel
 	SaveContract(IContractModel)
 }

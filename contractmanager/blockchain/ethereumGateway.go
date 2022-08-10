@@ -50,7 +50,7 @@ func (gateway *EthereumGateway) SetContractCloseOut(contract interfaces.IContrac
 
 	// CurrentNonce.mutex.Lock()
 
-	instance, err := implementation.NewImplementation(gateway.wallet.HexToAddress(contract.GetAddress()), client)
+	instance, err := implementation.NewImplementation(gateway.wallet.HexToAddress(contractAddress), client)
 
 	if err != nil {
 		fmt.Printf("Funcname::%s, Fileline::%s, Error::%v\n", lumerinlib.Funcname(), lumerinlib.FileLine(), err)
@@ -84,14 +84,15 @@ func (gateway *EthereumGateway) SetContractCloseOut(contract interfaces.IContrac
 	auth.GasLimit = uint64(3000000) // in units
 	auth.Value = big.NewInt(0)      // in wei
 
-	CurrentNonce.nonce, err = client.PendingNonceAt(context.Background(), fromAddress)
+	currentNonce, err = client.PendingNonceAt(context.Background(), gateway.wallet.HexToAddress(fromAddress))
 	if err != nil {
 		fmt.Printf("Funcname::%s, Fileline::%s, Error::%v\n", lumerinlib.Funcname(), lumerinlib.FileLine(), err)
 		return err
 	}
-	auth.Nonce = big.NewInt(int64(CurrentNonce.nonce))
 
-	tx, err := instance.SetContractCloseOut(auth, big.NewInt(int64(closeOutType)))
+	auth.Nonce = big.NewInt(int64(currentNonce))
+
+	tx, err := instance.SetContractCloseOut(auth, big.NewInt(int64(contract.GetCloseOutType())))
 	if err != nil {
 		fmt.Printf("Funcname::%s, Fileline::%s, Error::%v\n", lumerinlib.Funcname(), lumerinlib.FileLine(), err)
 		return err
@@ -122,7 +123,7 @@ func (gateway *EthereumGateway) SetContractCloseOut(contract interfaces.IContrac
 	return err
 }
 
-func NewEthereumClientWrapper(ethClient *interop.BlockchainClient) (client interfaces.IBlockchainGateway, err error) {
+func NewBlockchainGateway(ethClient *interop.BlockchainClient) (client interfaces.IBlockchainGateway, err error) {
 
 	return &EthereumGateway{
 		client: ethClient,

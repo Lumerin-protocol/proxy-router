@@ -6,8 +6,8 @@ type IContractsService interface {
 	CreateDestination(destUrl string)
 	SaveContracts([]IContractModel)
 	GetContract(id string) (IContractModel, error)
-	GetHashrate() int64
-
+	GetHashrate() uint64
+	ContractExists(id string) bool
 	CheckHashRate(contractId string) bool
 
 	//	Event listeners

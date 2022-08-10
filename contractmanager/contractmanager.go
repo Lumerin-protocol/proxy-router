@@ -101,6 +101,24 @@ type NodeOperator struct {
 	Contracts              map[string]string
 }
 
+func NewNodeOperator(configuration *config.Config, wallet interfaces.IBlockchainWallet) (*NodeOperator, error) {
+	address, err := wallet.GetAddress()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &NodeOperator{
+		ID:                     interop.NewUniqueIdString(),
+		IsBuyer:                configuration.Contract.IsBuyer,
+		DefaultDest:            configuration.Pool.Address,
+		EthereumAccount:        address.Hex(),
+		TotalAvailableHashRate: 0,
+		UnusedHashRate:         0,
+		Contracts:              make(map[string]string),
+	}, nil
+}
+
 type ContractManagerConfig struct {
 	Mnemonic            string
 	AccountIndex        int
@@ -122,7 +140,7 @@ type Contract struct {
 	interfaces.IContractModel
 	logger                 interfaces.ILogger
 	ethereumGateway        interfaces.IBlockchainGateway
-	contractsGateway       interfaces.IContractGateway
+	contractsGateway       interfaces.IContractsGateway
 	IsSeller               bool
 	ID                     string
 	State                  string
@@ -140,6 +158,10 @@ type Contract struct {
 	CurrentNonce     *nonce
 	closeOutType     uint
 	NodeOperator     *NodeOperator
+}
+
+func (c *Contract) GetCloseOutType() uint {
+	return c.closeOutType
 }
 
 func (c *Contract) HasDestination() bool {
@@ -223,8 +245,13 @@ func NewContractManager(
 	contractFactory interfaces.IContractFactory,
 	client *ethclient.Client,
 	nodeOperator *NodeOperator,
-	account *interop.BlockchainAccount,
-	privateKey string) interfaces.ContractManager {
+	wallet interfaces.IBlockchainWallet) (interfaces.ContractManager, error) {
+
+	address, err := wallet.GetAddress()
+
+	if err != nil {
+		return nil, err
+	}
 
 	if configuration.Contract.IsBuyer {
 		buyer := &BuyerContractManager{
@@ -235,15 +262,15 @@ func NewContractManager(
 			EthClient:           client,
 			CloneFactoryAddress: common.HexToAddress(configuration.Contract.CloneFactoryAddress),
 			NodeOperator:        nodeOperator,
-			PrivateKey:          privateKey,
-			Account:             account.Address,
+			PrivateKey:          wallet.GetPrivateKey(),
+			Account:             address,
 		}
 
 		if buyer.NodeOperator.Contracts == nil {
 			buyer.NodeOperator.Contracts = make(map[string]string)
 		}
 
-		return buyer
+		return buyer, nil
 
 	}
 
@@ -255,8 +282,8 @@ func NewContractManager(
 		CloneFactoryAddress: common.HexToAddress(configuration.Contract.CloneFactoryAddress),
 		NodeOperator:        nodeOperator,
 		ClaimFunds:          configuration.Contract.ClaimFunds,
-		PrivateKey:          privateKey,
-		Account:             account.Address,
+		PrivateKey:          wallet.GetPrivateKey(),
+		Account:             address,
 	}
 
 	// ethNodeAddr := configuration.Contract.EthNodeAddr
@@ -273,18 +300,7 @@ func NewContractManager(
 	seller.NodeOperator = nodeOperator
 	seller.NodeOperator.EthereumAccount = seller.Account.Hex()
 
-	return seller
-	// ethNodeAddr :=  configuration.Contract.EthNodeAddr
-	// mnemonic := configuration.Contract.Mnemonic
-	// accountIndex := configuration.Contract.AccountIndex
-
-	// Account, PrivateKey := HdWalletKeys(mnemonic, accountIndex)
-
-	// var client *ethclient.Client
-	// client, err = setUpClient(ethNodeAddr, buyer.Account)
-	// if err != nil {
-	// 	return err
-	// }
+	return seller, nil
 }
 
 func (seller *SellerContractManager) Start() (err error) {
@@ -331,7 +347,7 @@ func (seller *SellerContractManager) Start() (err error) {
 
 func (seller *SellerContractManager) SetupExistingContracts() (err error) {
 	var contractValues []hashrateContractValues
-	var contractMsgs []interfaces.IContractModel
+	var contractModels []interfaces.IContractModel
 
 	sellerContracts, err := seller.ReadContracts()
 	if err != nil {
@@ -340,16 +356,20 @@ func (seller *SellerContractManager) SetupExistingContracts() (err error) {
 	//contextlib.Logf(seller.Ctx, log.LevelInfo, "Existing Seller Contracts: %v", sellerContracts)
 
 	// get existing dests in msgbus to see if contract's dest already exists
-	existingDests := seller.Ps.GetDestinations()
+	// existingDests := seller.Ps.GetDestinations()
 	for i := range sellerContracts {
 		id := string(sellerContracts[i].Hex())
-		if _, ok := seller.NodeOperator.Contracts[id]; !ok {
-			contract, err := readHashrateContract(seller.EthClient, sellerContracts[i])
+		if !seller.Ps.ContractExists(id) {
+
+			contractMsg, err := readHashrateContract(seller.EthClient, sellerContracts[i])
+
+			// seller.ContractFactory.CreateContract(true, id, contract.State, contract.Buyer.String(), contract.Price, contract.Limit, contract.Length, contract.StartingBlockTimestamp, contract.)
 			if err != nil {
 				return err
 			}
-			contractValues = append(contractValues, contract)
-			contractMsgs = append(contractMsgs, createContractMsg(sellerContracts[i], contractValues[i], true))
+			contract := createContractMsg(sellerContracts[i], contractValues[i], true)
+			contractValues = append(contractValues, contractMsg)
+			contractModels = append(contractModels, contract)
 
 			seller.NodeOperator.Contracts[string(sellerContracts[i].Hex())] = ContAvailableState
 
@@ -361,28 +381,13 @@ func (seller *SellerContractManager) SetupExistingContracts() (err error) {
 					//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading dest url failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
 				}
 
-				// if msgbus has dest with same target address, use that as contract msg dest
-				for _, existingDest := range existingDests {
-
-					if existingDest == destUrl {
-						contractMsgs[i].SetDestination(existingDest)
-					}
-				}
-
-				// msgbus does not have dest with that target address
-				if !contractMsgs[i].HasDestination() {
-					seller.Ps.CreateDestination(destUrl)
-
-					contractMsgs[i].SetDestination(destUrl)
-				}
+				contract.SetDestination(destUrl)
 			}
 
 		}
 	}
 
-	seller.Ps.SaveContracts(contractMsgs)
-	// seller.Ps.SaveContracts(contractMsgs)
-	// seller.Ps.SetWait(NodeOperatorMsg, string(seller.NodeOperator.ID), seller.NodeOperator)
+	seller.Ps.SaveContracts(contractModels)
 
 	return err
 }
@@ -542,7 +547,7 @@ func (seller *SellerContractManager) WatchHashrateContract(addr string, hrLogs c
 
 					hashrateContractMsg.Dest = destUrl
 
-					seller.Ps.HandleContractUpdated(hashrateContractMsg)
+					seller.Ps.HandleDestinationUpdated(hashrateContractMsg)
 
 				case contractClosedSigHash.Hex():
 					seller.Ps.HandleContractClosed(hashrateContractMsg)
@@ -844,13 +849,13 @@ func (buyer *BuyerContractManager) WatchHashrateContract(addr string, hrLogs cha
 			switch hLog.Topics[0].Hex() {
 			case contractClosedSigHash.Hex():
 
-				buyer.Ps.HandleBuyerContractClosed(contract)
+				buyer.Ps.HandleContractClosed(contract)
 
 			case purchaseInfoUpdatedSigHash.Hex():
-				buyer.Ps.HandleBuyerContractUpdated(contract)
+				buyer.Ps.HandleContractUpdated(contract)
 
 			case cipherTextUpdatedSigHash.Hex():
-				buyer.Ps.HandleBuyerDestinationUpdated(contract)
+				buyer.Ps.HandleContractUpdated(contract)
 			}
 		}
 	}

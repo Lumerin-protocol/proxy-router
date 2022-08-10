@@ -11,9 +11,15 @@ type ContractsService struct {
 	connectionsService interfaces.IConnectionsService
 	blockchainGateway  interfaces.IBlockchainGateway
 	factory            interfaces.IContractFactory
-	contractGateway    interfaces.IContractGateway
+	contractGateway    interfaces.IContractsGateway
 
 	configuration *config.Config
+}
+
+func (service *ContractsService) ContractExists(id string) bool {
+	contract := service.contractGateway.GetContract(id)
+
+	return contract != nil
 }
 
 func (service *ContractsService) CheckHashRate(contractId string) bool {
@@ -66,11 +72,40 @@ func (service *ContractsService) GetContract(contractId string) (interfaces.ICon
 	return service.contractGateway.GetContract(contractId), nil
 }
 
+func (service *ContractsService) CreateDestination(destinationUrl string) {
+	panic("ContractsService.CreateDestination not implemented")
+}
+
+func (service *ContractsService) GetDestinations() []string {
+	panic("ContractsService.Getdestinations not implemented")
+}
+
+func (service *ContractsService) GetHashrate() uint64 {
+	panic("ContractsService.GetHashrate not implemented")
+}
+
+func (service *ContractsService) SaveContracts([]interfaces.IContractModel) {
+	panic("ContractsService.SaveContracts not implemented")
+}
+
+var _ interfaces.IContractsService = (*ContractsService)(nil)
+
+// Event Listeners
+
+func (service *ContractsService) OnContractCreated(func(newContract interfaces.IContractModel)) {
+	panic("ContractsService.OnContractCreated not implemented")
+}
+
+//	Event handlers
 func (service *ContractsService) HandleContractClosed(contract interfaces.IContractModel) {
 	contract.MakeAvailable()
 }
 
 func (service *ContractsService) HandleContractUpdated(contract interfaces.IContractModel) {
+	contract.Save()
+}
+
+func (service *ContractsService) HandleDestinationUpdated(contract interfaces.IContractModel) {
 	contract.Save()
 }
 
@@ -80,6 +115,26 @@ func (service *ContractsService) HandleContractCreated(contract interfaces.ICont
 
 func (service *ContractsService) HandleContractPurchased(contract interfaces.IContractModel) {
 	contract.Execute()
+}
+
+func NewContractsService(
+	logger interfaces.ILogger,
+	validatorService interfaces.IValidatorsService,
+	connectionsService interfaces.IConnectionsService,
+	blockchainGateway interfaces.IBlockchainGateway,
+	factory interfaces.IContractFactory,
+	contractGateway interfaces.IContractsGateway,
+	configuration *config.Config) interfaces.IContractsService {
+
+	return &ContractsService{
+		logger:             logger,
+		validatorService:   validatorService,
+		connectionsService: connectionsService,
+		blockchainGateway:  blockchainGateway,
+		factory:            factory,
+		contractGateway:    contractGateway,
+		configuration:      configuration,
+	}
 }
 
 // func (service *ContractsService) HandleBuyerContractPurchased(args interfaces.IContractModel) {
@@ -141,5 +196,3 @@ func (service *ContractsService) HandleContractPurchased(contract interfaces.ICo
 // 	delete(buyer.NodeOperator.Contracts, addr)
 // 	buyer.Ps.SetWait(msgbus.NodeOperatorMsg, string(buyer.NodeOperator.ID), buyer.NodeOperator)
 // }
-
-var _ interfaces.IContractsService = (*ContractsService)(nil)

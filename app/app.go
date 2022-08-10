@@ -7,7 +7,6 @@ import (
 	"syscall"
 
 	"gitlab.com/TitanInd/hashrouter/api"
-	"gitlab.com/TitanInd/hashrouter/contractmanager"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/miner"
 	"gitlab.com/TitanInd/hashrouter/tcpserver"
@@ -18,9 +17,9 @@ type App struct {
 	TCPServer       *tcpserver.TCPServer
 	MinerController *miner.MinerController
 	Server          *api.Server
-	ContractManager *contractmanager.SellerContractManager
+	ContractManager interfaces.ContractManager
 	Logger          interfaces.ILogger
-	EventsRouter    interfaces.IEventsRouter
+	// EventsRouter    interfaces.IEventsRouter
 }
 
 func (a *App) Run() {
@@ -58,9 +57,9 @@ func (a *App) Run() {
 		return a.Server.Run(subCtx)
 	})
 
-	g.Go(func() error {
-		return a.EventsRouter.Run()
-	})
+	// g.Go(func() error {
+	// 	return a.EventsRouter.Run()
+	// })
 
 	err := g.Wait()
 
