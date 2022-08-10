@@ -16,6 +16,55 @@ func ParseMiningNotify(b []byte) (*MiningNotify, error) {
 	return m, json.Unmarshal(b, m)
 }
 
+// jobID := n[0].(string)
+// prevblock := n[1].(string)
+// gen1 := n[2].(string)
+// gen2 := n[3].(string)
+// merkel := n[4].([]interface{})
+// version := n[5].(string)
+// nbits := n[6].(string)
+// ntime := n[7].(string)
+// clean := n[8].(bool)
+
+func (m *MiningNotify) GetJobID() string {
+	return string(m.Params[0])
+}
+
+func (m *MiningNotify) GetPrevBlockHash() string {
+	return string(m.Params[1])
+}
+
+func (m *MiningNotify) GetGen1() string {
+	return string(m.Params[2])
+}
+
+func (m *MiningNotify) GetGen2() string {
+	return string(m.Params[3])
+}
+
+func (m *MiningNotify) GetMerkel() []interface{} {
+	merkel := []interface{}{}
+	err := json.Unmarshal(m.Params[4], &merkel)
+	if err != nil {
+		panic(err)
+	}
+	return merkel
+}
+
+func (m *MiningNotify) GetVersion() string {
+	return string(m.Params[5])
+}
+
+func (m *MiningNotify) GetNbits() string {
+	return string(m.Params[6])
+
+}
+
+func (m *MiningNotify) GetNtime() string {
+	return string(m.Params[7])
+
+}
+
 func (m *MiningNotify) GetCleanJobs() bool {
 	var cleanJobs bool
 	err := json.Unmarshal(m.Params[8], &cleanJobs)
