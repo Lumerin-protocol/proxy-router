@@ -1,4 +1,4 @@
 package interfaces
 
-type IConnectionsController interface {
+type IConnectionsService interface {
 }

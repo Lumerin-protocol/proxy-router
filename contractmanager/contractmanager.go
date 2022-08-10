@@ -119,8 +119,10 @@ type nonce struct {
 }
 
 type Contract struct {
-	interfaces.IContractManager
+	interfaces.IContractModel
+	logger                 interfaces.ILogger
 	ethereumGateway        interfaces.IBlockchainGateway
+	contractsGateway       interfaces.IContractGateway
 	IsSeller               bool
 	ID                     string
 	State                  string
@@ -131,6 +133,13 @@ type Contract struct {
 	Length                 int
 	StartingBlockTimestamp int
 	Dest                   string
+
+	fromAddress      interop.BlockchainAddress
+	privateKeyString string
+	contractAddress  interop.BlockchainAddress
+	CurrentNonce     *nonce
+	closeOutType     uint
+	NodeOperator     *NodeOperator
 }
 
 func (c *Contract) HasDestination() bool {
@@ -149,8 +158,28 @@ func (c *Contract) SubscribeToContractEvents(address string) (chan interop.Block
 	return c.ethereumGateway.SubscribeToContractEvents(address)
 }
 
-func (c *Contract) GetHexAddress() string {
+func (c *Contract) GetAddress() string {
 	return c.ID
+}
+
+func (c *Contract) GetPromisedHashrateMin() uint64 {
+	panic("Contract.GetPromisedHashrateMin unimplemented")
+	return 0
+}
+
+func (c *Contract) MakeAvailable() {
+
+	if c.State == ContRunningState {
+
+		c.State = ContAvailableState
+		c.Buyer = ""
+
+		c.Save()
+	}
+}
+
+func (c *Contract) Save() {
+	c.contractsGateway.SaveContract(c)
 }
 
 var _ interfaces.IContractModel = (*Contract)(nil)
@@ -158,6 +187,7 @@ var _ interfaces.IContractModel = (*Contract)(nil)
 type SellerContractManager struct {
 	ContractFactory     interfaces.IContractFactory
 	Ps                  interfaces.IContractsService
+	logger              interfaces.ILogger
 	EthClient           *ethclient.Client
 	CloneFactoryAddress interop.BlockchainAddress
 	Account             interop.BlockchainAddress
@@ -172,6 +202,7 @@ type SellerContractManager struct {
 type BuyerContractManager struct {
 	ContractFactory     interfaces.IContractFactory
 	Ps                  interfaces.IContractsService
+	logger              interfaces.ILogger
 	EthClient           *ethclient.Client
 	CloneFactoryAddress interop.BlockchainAddress
 	Account             interop.BlockchainAddress
@@ -284,7 +315,7 @@ func (seller *SellerContractManager) Start() (err error) {
 		seller.Ps.OnContractCreated(func(newContract interfaces.IContractModel) {
 
 			if newContract.IsAvailable() {
-				addr := common.HexToAddress(newContract.GetHexAddress())
+				addr := common.HexToAddress(newContract.GetAddress())
 				hrLogs, hrSub, err := SubscribeToContractEvents(seller.EthClient, addr)
 				if err != nil {
 					//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Failed to subscribe to events on hashrate contract %s, Fileline::%s, Error::", newContract.ID, lumerinlib.FileLine()), err)
@@ -495,8 +526,9 @@ func (seller *SellerContractManager) WatchHashrateContract(addr string, hrLogs c
 					if err != nil {
 						//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading dest url failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
 					}
-
+					buyer := common.HexToAddress(hLog.Topics[1].Hex())
 					hashrateContractMsg.Dest = destUrl
+					hashrateContractMsg.Buyer = string(buyer.Hex())
 
 					seller.Ps.HandleContractPurchased(hashrateContractMsg)
 
@@ -554,7 +586,7 @@ func (seller *SellerContractManager) WatchHashrateContract(addr string, hrLogs c
 	// }
 }
 
-func (seller *SellerContractManager) closeOutMonitor(contractMsg Contract) {
+func (seller *SellerContractManager) closeOutMonitor(contractMsg *Contract) {
 	contractFinishedTimestamp := contractMsg.StartingBlockTimestamp + contractMsg.Length
 
 	// subscribe to latest block headers
@@ -642,14 +674,14 @@ func (buyer *BuyerContractManager) Start() (err error) {
 
 		// monitor new contracts getting purchased and start watch hashrate conrtract routine when they are purchased
 		buyer.Ps.OnContractCreated(func(newContract interfaces.IContractModel) {
-			addr := common.HexToAddress(string(newContract.GetHexAddress()))
+			addr := common.HexToAddress(string(newContract.GetAddress()))
 			hrLogs, hrSub, err := SubscribeToContractEvents(buyer.EthClient, addr)
 			if err != nil {
 				//contextlib.Logf(buyer.Ctx, log.LevelPanic, fmt.Sprintf("Failed to subscribe to events on hashrate contract %s, Fileline::%s, Error::", addr, lumerinlib.FileLine()), err)
 			}
 			go buyer.WatchHashrateContract(string(addr.Hex()), hrLogs, hrSub)
 
-			go buyer.closeOutMonitor(newContract.GetHexAddress())
+			go buyer.closeOutMonitor(newContract.GetAddress())
 		})
 	}()
 	return nil
@@ -773,7 +805,7 @@ func (buyer *BuyerContractManager) watchContractPurchase(cfLogs chan types.Log, 
 					contractMsg := createContractMsg(address, purchasedContractValues, false)
 					contractMsg.SetDestination(destUrl)
 
-					buyer.Ps.HandleBuyerContractPurchased(contractMsg)
+					buyer.Ps.HandleContractPurchased(contractMsg)
 
 				}
 			}
@@ -803,16 +835,22 @@ func (buyer *BuyerContractManager) WatchHashrateContract(addr string, hrLogs cha
 		// case err := <-hrSub.Err():
 		//contextlib.Logf(buyer.Ctx, log.LevelPanic, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
 		case hLog := <-hrLogs:
+			contract, err := buyer.Ps.GetContract(addr)
+
+			if err == nil {
+				buyer.logger.Errorf(err.Error())
+			}
+
 			switch hLog.Topics[0].Hex() {
 			case contractClosedSigHash.Hex():
 
-				buyer.Ps.HandleBuyerContractClosed(buyer, addr)
+				buyer.Ps.HandleBuyerContractClosed(contract)
 
 			case purchaseInfoUpdatedSigHash.Hex():
-				buyer.Ps.HandleBuyerContractUpdated(buyer, addr)
+				buyer.Ps.HandleBuyerContractUpdated(contract)
 
 			case cipherTextUpdatedSigHash.Hex():
-				buyer.Ps.HandleBuyerDestinationUpdated(buyer, addr)
+				buyer.Ps.HandleBuyerDestinationUpdated(contract)
 			}
 		}
 	}
@@ -882,9 +920,9 @@ func (buyer *BuyerContractManager) closeOutMonitor(contractId string) {
 // 		return true
 // 	}
 
-	//contextlib.Logf(buyer.Ctx, log.LevelInfo, "Hashrate promised by contract %s is being fulfilled\n", contractId)
-	return false
-}
+//contextlib.Logf(buyer.Ctx, log.LevelInfo, "Hashrate promised by contract %s is being fulfilled\n", contractId)
+// 	return false
+// }
 
 func HdWalletKeys(mnemonic string, accountIndex int) (interop.BlockchainAccount, string) {
 	wallet, err := hdwallet.NewFromMnemonic(mnemonic)

@@ -20,8 +20,8 @@ type IContractsService interface {
 	HandleDestinationUpdated(IContractModel)
 	HandleContractClosed(IContractModel)
 
-	HandleBuyerContractPurchased(IContractModel)
-	HandleBuyerContractUpdated(IContractModel)
-	HandleBuyerDestinationUpdated(IContractModel)
-	HandleBuyerContractClosed(IContractModel)
+	// HandleBuyerContractPurchased(IContractModel)
+	// HandleBuyerContractUpdated(IContractModel)
+	// HandleBuyerDestinationUpdated(IContractModel)
+	// HandleBuyerContractClosed(IContractModel)
 }
