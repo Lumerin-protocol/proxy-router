@@ -12,7 +12,10 @@ type stratumV1MinerModel struct {
 	pool      StratumV1DestConn
 	miner     StratumV1SourceConn
 	validator *hashrate.Hashrate
-	log       interfaces.ILogger
+
+	difficulty int64
+
+	log interfaces.ILogger
 }
 
 func NewStratumV1MinerModel(poolPool StratumV1DestConn, miner StratumV1SourceConn, validator *hashrate.Hashrate, log interfaces.ILogger) *stratumV1MinerModel {
@@ -67,22 +70,13 @@ func (s *stratumV1MinerModel) Run() error {
 		}
 	}()
 
-	go func() {
-		err := s.validator.Run(context.TODO())
-		if err != nil {
-			s.log.Error(err)
-			errCh <- err
-			return
-		}
-	}()
-
 	return <-errCh
 }
 
 func (s *stratumV1MinerModel) minerInterceptor(msg stratumv1_message.MiningMessageGeneric) {
-	switch m := msg.(type) {
+	switch msg.(type) {
 	case *stratumv1_message.MiningSubmit:
-		s.validator.OnSubmit(m.GetWorkerName(), m.GetNonce(), m.GetNtime())
+		s.validator.OnSubmit(s.difficulty)
 	}
 }
 
@@ -90,7 +84,7 @@ func (s *stratumV1MinerModel) poolInterceptor(msg stratumv1_message.MiningMessag
 	switch m := msg.(type) {
 	case *stratumv1_message.MiningSetDifficulty:
 		//TODO: some pools return difficulty in float, decide if we need that kind of precision
-		s.validator.OnSetDefficulty(int(m.GetDifficulty()))
+		s.difficulty = int64(m.GetDifficulty())
 	}
 }
 
@@ -103,6 +97,6 @@ func (s *stratumV1MinerModel) GetID() string {
 	return s.miner.GetID()
 }
 
-func (s *stratumV1MinerModel) GetHashRate() int {
+func (s *stratumV1MinerModel) GetHashRate() int64 {
 	return s.validator.GetHashrate()
 }
