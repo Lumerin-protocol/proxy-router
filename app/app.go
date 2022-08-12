@@ -48,9 +48,9 @@ func (a *App) Run() {
 	})
 
 	//Bootstrap contracts layer
-	// g.Go(func() error {
-	// 	return a.SellerManager.Run(subCtx)
-	// })
+	g.Go(func() error {
+		return a.ContractManager.Run(subCtx)
+	})
 
 	//Bootstrap API
 	g.Go(func() error {

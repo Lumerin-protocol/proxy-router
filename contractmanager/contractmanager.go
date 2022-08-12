@@ -137,10 +137,9 @@ type nonce struct {
 }
 
 type Contract struct {
-	interfaces.IContractModel
-	logger                 interfaces.ILogger
-	ethereumGateway        interfaces.IBlockchainGateway
-	contractsGateway       interfaces.IContractsGateway
+	Logger                 interfaces.ILogger
+	EthereumGateway        interfaces.IBlockchainGateway
+	ContractsGateway       interfaces.IContractsGateway
 	IsSeller               bool
 	ID                     string
 	State                  string
@@ -160,6 +159,30 @@ type Contract struct {
 	NodeOperator     *NodeOperator
 }
 
+func (c *Contract) GetCurrentNonce() uint64 {
+	return c.CurrentNonce.nonce
+}
+func (c *Contract) GetBuyerAddress() string {
+	return c.Buyer
+}
+
+func (c *Contract) Execute() (interfaces.IContractModel, error) {
+	panic("Contract.Execute not implemented")
+	// return c, nil
+}
+
+func (c *Contract) GetId() string {
+	return c.ID
+}
+
+func (c *Contract) SetId(id string) interfaces.IBaseModel {
+	newContract := *c
+
+	newContract.ID = id
+
+	return &newContract
+}
+
 func (c *Contract) GetCloseOutType() uint {
 	return c.closeOutType
 }
@@ -177,7 +200,7 @@ func (c *Contract) IsAvailable() bool {
 }
 
 func (c *Contract) SubscribeToContractEvents(address string) (chan interop.BlockchainEvent, interop.BlockchainEventSubscription, error) {
-	return c.ethereumGateway.SubscribeToContractEvents(address)
+	return c.EthereumGateway.SubscribeToContractEvents(address)
 }
 
 func (c *Contract) GetAddress() string {
@@ -200,8 +223,20 @@ func (c *Contract) MakeAvailable() {
 	}
 }
 
-func (c *Contract) Save() {
-	c.contractsGateway.SaveContract(c)
+func (c *Contract) Save() (interfaces.IContractModel, error) {
+	return c.ContractsGateway.SaveContract(c)
+}
+
+func (c *Contract) GetPrivateKey() string {
+	return c.privateKeyString
+}
+
+func (c *Contract) TryRunningAt(dest string) (interfaces.IContractModel, error) {
+	if c.State == ContRunningState {
+		return c.Execute()
+	}
+
+	return c, nil
 }
 
 var _ interfaces.IContractModel = (*Contract)(nil)
@@ -224,7 +259,7 @@ type SellerContractManager struct {
 type BuyerContractManager struct {
 	ContractFactory     interfaces.IContractFactory
 	Ps                  interfaces.IContractsService
-	logger              interfaces.ILogger
+	Logger              interfaces.ILogger
 	EthClient           *ethclient.Client
 	CloneFactoryAddress interop.BlockchainAddress
 	Account             interop.BlockchainAddress
@@ -255,12 +290,13 @@ func NewContractManager(
 
 	if configuration.Contract.IsBuyer {
 		buyer := &BuyerContractManager{
+			Logger:              logger,
 			ContractFactory:     contractFactory,
 			Ctx:                 ctx,
 			Ps:                  contractsService,
 			TimeThreshold:       configuration.Contract.TimeThreshold,
 			EthClient:           client,
-			CloneFactoryAddress: common.HexToAddress(configuration.Contract.CloneFactoryAddress),
+			CloneFactoryAddress: common.HexToAddress(configuration.Contract.Address),
 			NodeOperator:        nodeOperator,
 			PrivateKey:          wallet.GetPrivateKey(),
 			Account:             address,
@@ -275,35 +311,24 @@ func NewContractManager(
 	}
 
 	seller := &SellerContractManager{
+		logger:              logger,
 		ContractFactory:     contractFactory,
 		Ctx:                 ctx,
 		Ps:                  contractsService,
 		EthClient:           client,
-		CloneFactoryAddress: common.HexToAddress(configuration.Contract.CloneFactoryAddress),
+		CloneFactoryAddress: common.HexToAddress(configuration.Contract.Address),
 		NodeOperator:        nodeOperator,
 		ClaimFunds:          configuration.Contract.ClaimFunds,
 		PrivateKey:          wallet.GetPrivateKey(),
 		Account:             address,
 	}
 
-	// ethNodeAddr := configuration.Contract.EthNodeAddr
-	mnemonic := configuration.Contract.Mnemonic
-	accountIndex := configuration.Contract.AccountIndex
-
-	Account, PrivateKey := HdWalletKeys(mnemonic, accountIndex)
-	seller.Account = Account.Address
-	seller.PrivateKey = PrivateKey
-
-	seller.EthClient = client
-	seller.CloneFactoryAddress = common.HexToAddress(configuration.Contract.CloneFactoryAddress)
-
-	seller.NodeOperator = nodeOperator
 	seller.NodeOperator.EthereumAccount = seller.Account.Hex()
 
 	return seller, nil
 }
 
-func (seller *SellerContractManager) Start() (err error) {
+func (seller *SellerContractManager) Run(ctx context.Context) (err error) {
 	err = seller.SetupExistingContracts()
 	if err != nil {
 		return err
@@ -329,7 +354,7 @@ func (seller *SellerContractManager) Start() (err error) {
 
 		// monitor new contracts getting created and start hashrate conrtract monitor routine when they are created
 		seller.Ps.OnContractCreated(func(newContract interfaces.IContractModel) {
-
+			seller.logger.Infof("created a contract %v", newContract.GetId())
 			if newContract.IsAvailable() {
 				addr := common.HexToAddress(newContract.GetAddress())
 				hrLogs, hrSub, err := SubscribeToContractEvents(seller.EthClient, addr)
@@ -340,13 +365,16 @@ func (seller *SellerContractManager) Start() (err error) {
 			}
 		})
 	}()
-	fmt.Printf("Error in start: %v\n", err)
+
+	if err != nil {
+		fmt.Printf("Error in start: %v\n", err)
+	}
 
 	return err
 }
 
 func (seller *SellerContractManager) SetupExistingContracts() (err error) {
-	var contractValues []hashrateContractValues
+	// var contractValues []hashrateContractValues
 	var contractModels []interfaces.IContractModel
 
 	sellerContracts, err := seller.ReadContracts()
@@ -357,37 +385,39 @@ func (seller *SellerContractManager) SetupExistingContracts() (err error) {
 
 	// get existing dests in msgbus to see if contract's dest already exists
 	// existingDests := seller.Ps.GetDestinations()
-	for i := range sellerContracts {
-		id := string(sellerContracts[i].Hex())
+	for _, sellerContract := range sellerContracts {
+		id := string(sellerContract.Hex())
 		if !seller.Ps.ContractExists(id) {
 
-			contractMsg, err := readHashrateContract(seller.EthClient, sellerContracts[i])
+			contractMsg, err := readHashrateContract(seller.EthClient, sellerContract)
 
-			// seller.ContractFactory.CreateContract(true, id, contract.State, contract.Buyer.String(), contract.Price, contract.Limit, contract.Length, contract.StartingBlockTimestamp, contract.)
 			if err != nil {
 				return err
 			}
-			contract := createContractMsg(sellerContracts[i], contractValues[i], true)
-			contractValues = append(contractValues, contractMsg)
-			contractModels = append(contractModels, contract)
 
-			seller.NodeOperator.Contracts[string(sellerContracts[i].Hex())] = ContAvailableState
+			destUrl, err := readDestUrl(seller.EthClient, sellerContract, seller.PrivateKey)
 
-			if contractValues[i].State == RunningState {
-				seller.NodeOperator.Contracts[string(sellerContracts[i].Hex())] = ContRunningState
-
-				destUrl, err := readDestUrl(seller.EthClient, sellerContracts[i], seller.PrivateKey)
-				if err != nil {
-					//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading dest url failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
-				}
-
-				contract.SetDestination(destUrl)
+			if err != nil {
+				return err
 			}
 
+			contract, err := seller.ContractFactory.CreateContract(true, sellerContract.Hex(), ContractStateEnum[contractMsg.State], contractMsg.Buyer.Hex(), contractMsg.Price, contractMsg.Limit, contractMsg.Speed, contractMsg.Length, contractMsg.StartingBlockTimestamp, destUrl)
+
+			if err != nil {
+				return err
+			}
+
+			contractModels = append(contractModels, contract)
+
+			contract, err = contract.TryRunningAt(destUrl)
+
+			if err != nil {
+				return err
+			}
 		}
 	}
 
-	seller.Ps.SaveContracts(contractModels)
+	_, err = seller.Ps.SaveContracts(contractModels)
 
 	return err
 }
@@ -397,6 +427,7 @@ func (seller *SellerContractManager) ReadContracts() ([]interop.BlockchainAddres
 	var hashrateContractInstance *implementation.Implementation
 	var hashrateContractSeller interop.BlockchainAddress
 
+	seller.logger.Infof("instantiating clonefactory %v", seller.CloneFactoryAddress)
 	instance, err := clonefactory.NewClonefactory(seller.CloneFactoryAddress, seller.EthClient)
 	if err != nil {
 		//contextlib.Logf(seller.Ctx, log.LevelError, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
@@ -446,8 +477,9 @@ func (seller *SellerContractManager) watchContractCreation(cfLogs chan types.Log
 			return
 		case cfLog := <-cfLogs:
 			if cfLog.Topics[0].Hex() == contractCreatedSigHash.Hex() {
-
 				address := common.HexToAddress(cfLog.Topics[1].Hex())
+
+				seller.logger.Debugf("contract created: %v", address)
 				// check if contract created belongs to seller
 				hashrateContractInstance, err := implementation.NewImplementation(address, seller.EthClient)
 				if err != nil {
@@ -651,7 +683,7 @@ loop:
 	}
 }
 
-func (buyer *BuyerContractManager) Start() (err error) {
+func (buyer *BuyerContractManager) Run(ctx context.Context) (err error) {
 	err = buyer.SetupExistingContracts()
 	if err != nil {
 		return err
@@ -679,6 +711,7 @@ func (buyer *BuyerContractManager) Start() (err error) {
 
 		// monitor new contracts getting purchased and start watch hashrate conrtract routine when they are purchased
 		buyer.Ps.OnContractCreated(func(newContract interfaces.IContractModel) {
+			buyer.Logger.Infof("created a contract %v", newContract.GetId())
 			addr := common.HexToAddress(string(newContract.GetAddress()))
 			hrLogs, hrSub, err := SubscribeToContractEvents(buyer.EthClient, addr)
 			if err != nil {
@@ -843,7 +876,7 @@ func (buyer *BuyerContractManager) WatchHashrateContract(addr string, hrLogs cha
 			contract, err := buyer.Ps.GetContract(addr)
 
 			if err == nil {
-				buyer.logger.Errorf(err.Error())
+				buyer.Logger.Errorf(err.Error())
 			}
 
 			switch hLog.Topics[0].Hex() {
@@ -998,10 +1031,12 @@ func readHashrateContract(client *ethclient.Client, contractAddress interop.Bloc
 	}
 
 	state, price, limit, speed, length, startingBlockTimestamp, buyer, seller, _, err := instance.GetPublicVariables(&bind.CallOpts{})
+
 	if err != nil {
 		fmt.Printf("Funcname::%s, Fileline::%s, Error::%v\n", lumerinlib.Funcname(), lumerinlib.FileLine(), err)
 		return contractValues, err
 	}
+
 	contractValues.State = state
 	contractValues.Price = int(price.Int64())
 	contractValues.Limit = int(limit.Int64())

@@ -4,7 +4,7 @@ type IContractsService interface {
 	//	Data management
 	GetDestinations() []string
 	CreateDestination(destUrl string)
-	SaveContracts([]IContractModel)
+	SaveContracts([]IContractModel) ([]IContractModel, error)
 	GetContract(id string) (IContractModel, error)
 	GetHashrate() uint64
 	ContractExists(id string) bool
