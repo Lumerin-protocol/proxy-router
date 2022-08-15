@@ -1,0 +1,121 @@
+package data
+
+import (
+	"fmt"
+	"reflect"
+
+	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/interop"
+)
+
+type InMemoryConcreteRepository[T any, PT interfaces.BaseModelTypeConstraint[T]] struct {
+	transactionsChannel TransactionsChannel
+	store               Store
+	storageKey          string
+	logger              interfaces.ILogger
+}
+
+func (repo *InMemoryConcreteRepository[T, PT]) MakeTransactionChannels() (chan *T, chan error, func() (*T, error)) {
+
+	resultChannel := make(chan *T)
+	errorResultChannel := make(chan error)
+
+	return resultChannel, errorResultChannel, func() (*T, error) {
+		select {
+		case result := <-resultChannel:
+			return result, nil
+		case errorResult := <-errorResultChannel:
+			return nil, errorResult
+		}
+	}
+}
+
+// Deposit adds money to an account.
+func (repo *InMemoryConcreteRepository[T, PT]) Get(id string) (*T, error) {
+
+	resultChannel, errorResultChannel, callback := repo.MakeTransactionChannels()
+
+	repo.transactionsChannel <- func() {
+		item := repo.store[repo.storageKey][id]
+
+		if item == nil {
+			errorResultChannel <- fmt.Errorf("InMemoryConcreteRepository.Get - %v %v does not exist", repo.storageKey, id)
+			return
+		}
+
+		resultItem, ok := item.(*T)
+
+		if ok {
+			resultChannel <- resultItem
+		}
+
+		errorResultChannel <- fmt.Errorf("InMemoryConcreteRepository.Get - item is %v, not %v", reflect.TypeOf(item).String(), reflect.TypeOf(resultItem).String())
+	}
+
+	return callback()
+}
+
+func (repo *InMemoryConcreteRepository[T, PT]) Save(payload *T) (*T, error) {
+
+	if PT(payload).GetId() != "" {
+		return repo.Update(payload)
+	}
+
+	return repo.Create(payload)
+}
+
+func (repo *InMemoryConcreteRepository[T, PT]) Create(payload *T) (*T, error) {
+	id := interop.NewUniqueIdString()
+
+	result := PT(payload).SetId(id)
+
+	repo.transactionsChannel <- func() {
+		repo.store[repo.storageKey][id] = result
+	}
+
+	return result.(interface{}).(*T), nil
+}
+
+func (repo *InMemoryConcreteRepository[T, PT]) Update(payload *T) (*T, error) {
+
+	repo.transactionsChannel <- func() {
+		repo.store[repo.storageKey][PT(payload).GetId()] = payload
+	}
+
+	return payload, nil
+}
+
+func (repo *InMemoryConcreteRepository[T, PT]) FindOne(payload *T) (*T, error) {
+	return repo.Get(PT(payload).GetId())
+}
+
+func (repo *InMemoryConcreteRepository[T, PT]) Query(query *T) []*T {
+
+	// return repo.db.Where(query).Value.([]*T)
+
+	return nil
+
+}
+
+func (repo *InMemoryConcreteRepository[T, PT]) Delete(query *T) (*T, error) {
+	// log.Printf("delete entity: %v", query)
+	// repo.db.Delete(query)
+
+	// return query, nil
+
+	return nil, nil
+}
+
+func NewInMemoryConcreteRepository[T any, PT interfaces.BaseModelTypeConstraint[T]](logger interfaces.ILogger, store Store, transactionsChannel TransactionsChannel) interfaces.IConcreteRepository[T] {
+	var temp T
+	dataKey := reflect.TypeOf(temp).String()
+
+	store[dataKey] = make(map[string]interface{})
+
+	return &InMemoryConcreteRepository[T, PT]{
+		logger:              logger,
+		store:               store,
+		transactionsChannel: transactionsChannel,
+		storageKey:          dataKey,
+	}
+}

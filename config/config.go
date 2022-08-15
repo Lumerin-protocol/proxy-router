@@ -21,7 +21,6 @@ type Config struct {
 		EthNodeAddr         string
 		ClaimFunds          bool
 		TimeThreshold       int
-		CloneFactoryAddress string
 		LumerinTokenAddress string
 		ValidatorAddress    string
 		ProxyAddress        string

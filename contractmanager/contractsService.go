@@ -14,10 +14,15 @@ type ContractsService struct {
 	contractGateway    interfaces.IContractsGateway
 
 	configuration *config.Config
+	handlers      []func(contract interfaces.IContractModel)
 }
 
 func (service *ContractsService) ContractExists(id string) bool {
-	contract := service.contractGateway.GetContract(id)
+	contract, err := service.contractGateway.GetContract(id)
+
+	if err != nil {
+		return false
+	}
 
 	return contract != nil
 }
@@ -69,7 +74,7 @@ func (service *ContractsService) CheckHashRate(contractId string) bool {
 }
 
 func (service *ContractsService) GetContract(contractId string) (interfaces.IContractModel, error) {
-	return service.contractGateway.GetContract(contractId), nil
+	return service.contractGateway.GetContract(contractId)
 }
 
 func (service *ContractsService) CreateDestination(destinationUrl string) {
@@ -84,16 +89,26 @@ func (service *ContractsService) GetHashrate() uint64 {
 	panic("ContractsService.GetHashrate not implemented")
 }
 
-func (service *ContractsService) SaveContracts([]interfaces.IContractModel) {
-	panic("ContractsService.SaveContracts not implemented")
+func (service *ContractsService) SaveContracts(models []interfaces.IContractModel) ([]interfaces.IContractModel, error) {
+	for i, contract := range models {
+		contract, err := contract.Save()
+
+		if err != nil {
+			return models, err
+		}
+
+		models[i] = contract
+	}
+
+	return models, nil
 }
 
 var _ interfaces.IContractsService = (*ContractsService)(nil)
 
 // Event Listeners
 
-func (service *ContractsService) OnContractCreated(func(newContract interfaces.IContractModel)) {
-	panic("ContractsService.OnContractCreated not implemented")
+func (service *ContractsService) OnContractCreated(handler func(newContract interfaces.IContractModel)) {
+	service.handlers = append(service.handlers, handler)
 }
 
 //	Event handlers
@@ -111,11 +126,17 @@ func (service *ContractsService) HandleDestinationUpdated(contract interfaces.IC
 
 func (service *ContractsService) HandleContractCreated(contract interfaces.IContractModel) {
 	contract.Save()
+
+	for _, handler := range service.handlers {
+		handler(contract)
+	}
 }
 
 func (service *ContractsService) HandleContractPurchased(contract interfaces.IContractModel) {
 	contract.Execute()
 }
+
+var _ interfaces.IContractsService = (*ContractsService)(nil)
 
 func NewContractsService(
 	logger interfaces.ILogger,

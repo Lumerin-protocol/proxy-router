@@ -1,6 +1,7 @@
 package interfaces
 
 type IContractModel interface {
+	IBaseModel
 	SetDestination(string)
 	HasDestination() bool
 	IsAvailable() bool
@@ -10,7 +11,8 @@ type IContractModel interface {
 	GetPrivateKey() string
 	GetBuyerAddress() string
 	GetCurrentNonce() uint64
-	Save()
-	Execute()
+	Save() (IContractModel, error)
+	Execute() (IContractModel, error)
 	GetCloseOutType() uint
+	TryRunningAt(dest string) (IContractModel, error)
 }
