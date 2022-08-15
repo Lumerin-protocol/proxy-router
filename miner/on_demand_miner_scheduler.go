@@ -43,6 +43,25 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 		default:
 		}
 
+		// if only one destination
+		if len(m.destSplit.Iter()) == 1 {
+			splitItem := m.destSplit.Iter()[0]
+			err := m.minerModel.ChangeDest(splitItem.DestAddr, splitItem.DestUser, splitItem.DestPassword)
+			if err != nil {
+				return err
+			}
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case err := <-minerModelErr:
+				return err
+			case <-m.reset:
+				continue
+			}
+		}
+
+		// if multiple destinations
 	cycle:
 		for _, splitItem := range m.destSplit.Iter() {
 			m.log.Infof("changing destination to %s ", splitItem.DestAddr)
@@ -81,9 +100,9 @@ func (m *OnDemandMinerScheduler) GetUnallocatedPercentage() uint8 {
 // GetUnallocatedHashpower returns the available miner hashrate
 // TODO: discuss with a team. As hashpower may fluctuate, define some kind of expected hashpower being
 // the average hashpower value excluding the periods potential drop during reconnection
-func (m *OnDemandMinerScheduler) GetUnallocatedHashpower() int {
+func (m *OnDemandMinerScheduler) GetUnallocatedHashpower() int64 {
 	// the remainder should be small enough to ignore
-	return int(m.destSplit.GetUnallocated()) * m.minerModel.GetHashRate() / 100
+	return int64(m.destSplit.GetUnallocated()) * m.minerModel.GetHashRate() / 100
 }
 
 // IsBusy returns true if miner is fulfilling at least one contract
@@ -105,6 +124,6 @@ func (m *OnDemandMinerScheduler) Deallocate(percentage uint8, destAddr, destUser
 	return m.destSplit.Deallocate(destAddr, destUser)
 }
 
-func (m *OnDemandMinerScheduler) GetHashRate() int {
+func (m *OnDemandMinerScheduler) GetHashRate() int64 {
 	return m.minerModel.GetHashRate()
 }
