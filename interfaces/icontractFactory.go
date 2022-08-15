@@ -12,5 +12,5 @@ type IContractFactory interface {
 		Length int,
 		StartingBlockTimestamp int,
 		Dest string,
-	) IContractModel
+	) (IContractModel, error)
 }
