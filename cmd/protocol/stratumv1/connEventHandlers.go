@@ -487,16 +487,17 @@ func (svs *StratumV1Struct) handleResponse(uid simple.ConnUniqueID, response *st
 
 			LogJson(svs.Ctx(), lumerinlib.FileLineFunc(), JSON_SEND_DST2SRC, msg)
 
-			count, e := svs.protocol.WriteSrc(msg)
+			e = svs.writeSrc(msg)
+			// count, e := svs.protocol.WriteSrc(msg)
 			if e != nil {
-				contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" WriteSrc error:%s", e)
+				//contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" WriteSrc error:%s", e)
 				return e
 			}
-			if count != len(msg) {
-				contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
-				e = fmt.Errorf(lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
-				return e
-			}
+			//if count != len(msg) {
+			//	contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
+			//	e = fmt.Errorf(lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
+			//	return e
+			//}
 
 			//
 			// Send configure Here?

@@ -384,10 +384,6 @@ func (s *StratumV1Struct) Run() {
 	s.protocol.Run()
 	go s.goEvent()
 
-	// Moved to after recievin Subscribe
-	// s.newMinerRecordPub()
-	// s.openDefaultConnection()
-
 }
 
 //
@@ -469,6 +465,8 @@ func (s *StratumV1Struct) Cancel() {
 	contextlib.Logf(s.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
 
 	s.protocol.Unpub(simple.MinerMsg, simple.IDString(s.minerRec.ID))
+
+	contextlib.Logf(s.Ctx(), contextlib.LevelInfo, lumerinlib.FileLineFunc()+" Unpublish Miner record:%s", s.minerRec.ID)
 
 	s.protocol.Cancel()
 
@@ -631,6 +629,9 @@ func (s *StratumV1Struct) newMinerRecordPub() {
 	if e != nil {
 		contextlib.Logf(s.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Miner Pub() error:%s RID:%d", e, rid)
 	}
+
+	contextlib.Logf(s.Ctx(), contextlib.LevelInfo, lumerinlib.FileLineFunc()+" Published new Miner record:%s", miner.ID)
+
 }
 
 //
@@ -659,7 +660,7 @@ func (s *StratumV1Struct) switchDest() {
 	}
 
 	if currentUID == newUID {
-		contextlib.Logf(s.Ctx(), contextlib.LevelError, fmt.Sprintf(lumerinlib.FileLineFunc()+" new Dest[%d] is the current dest, skipping switch",newUID))
+		contextlib.Logf(s.Ctx(), contextlib.LevelError, fmt.Sprintf(lumerinlib.FileLineFunc()+" new Dest[%d] is the current dest, skipping switch", newUID))
 		s.switchToDestID = ""
 		return
 	}
@@ -695,13 +696,13 @@ func (s *StratumV1Struct) switchDest() {
 			// Should we be here? Perhaps a panic is in order
 			contextlib.Logf(s.Ctx(), contextlib.LevelWarn, fmt.Sprintf(lumerinlib.FileLineFunc()+" UID:[%d] is closed... huh? ", currentUID))
 
-	case DstStateDialing:
-		fallthrough
-	case DstStateConfiguring:
-		fallthrough
-	case DstStateSubscribing:
-		fallthrough
-	case DstStateAuthorizing:
+		case DstStateDialing:
+			fallthrough
+		case DstStateConfiguring:
+			fallthrough
+		case DstStateSubscribing:
+			fallthrough
+		case DstStateAuthorizing:
 		default:
 			contextlib.Logf(s.Ctx(), contextlib.LevelPanic, fmt.Sprintf(lumerinlib.FileLineFunc()+" UID:[%d] is in state:%s ", currentUID, state))
 		}
@@ -783,13 +784,14 @@ func (s *StratumV1Struct) sendConfigure() {
 
 	LogJson(s.Ctx(), lumerinlib.FileLineFunc(), JSON_SEND_STOR2DST, msg)
 
-	count, e := s.protocol.Write(msg)
-	if e != nil {
-		contextlib.Logf(s.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" WriteSrc error:%s", e)
-	}
-	if count != len(msg) {
-		contextlib.Logf(s.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
-	}
+	s.write(msg)
+	//count, e := s.protocol.Write(msg)
+	//if e != nil {
+	//	contextlib.Logf(s.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Write error:%s", e)
+	//}
+	//if count != len(msg) {
+	//	contextlib.Logf(s.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Write bad count:%d, %d", count, len(msg))
+	//}
 }
 
 //
@@ -810,13 +812,14 @@ func (s *StratumV1Struct) sendExtranonce() {
 
 	LogJson(s.Ctx(), lumerinlib.FileLineFunc(), JSON_SEND_STOR2DST, msg)
 
-	count, e := s.protocol.Write(msg)
-	if e != nil {
-		contextlib.Logf(s.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" WriteSrc error:%s", e)
-	}
-	if count != len(msg) {
-		contextlib.Logf(s.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
-	}
+	s.write(msg)
+	//count, e := s.protocol.Write(msg)
+	//if e != nil {
+	//	contextlib.Logf(s.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Write error:%s", e)
+	//}
+	//if count != len(msg) {
+	//	contextlib.Logf(s.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Write bad count:%d, %d", count, len(msg))
+	//}
 }
 
 //
@@ -905,16 +908,17 @@ func (svs *StratumV1Struct) sendSetExtranonceNotice(uid simple.ConnUniqueID) (e 
 
 	LogJson(svs.Ctx(), lumerinlib.FileLineFunc(), JSON_SEND_STOR2SRC, msg)
 
-	count, e := svs.protocol.WriteSrc(msg)
-	if e != nil {
-		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write error:%s", e)
-		return e
-	}
+	e = svs.writeSrc(msg)
+	//count, e := svs.protocol.WriteSrc(msg)
+	//if e != nil {
+	//	contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write error:%s", e)
+	//	return e
+	//}
 
-	if count != len(msg) {
-		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write bad count:%d, %d", count, len(msg))
-		e = fmt.Errorf(lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
-	}
+	//if count != len(msg) {
+	//	contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write bad count:%d, %d", count, len(msg))
+	//	e = fmt.Errorf(lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
+	//}
 
 	return e
 
@@ -962,16 +966,17 @@ func (svs *StratumV1Struct) sendLastSetTargetNotice(uid simple.ConnUniqueID) (e 
 
 	LogJson(svs.Ctx(), lumerinlib.FileLineFunc(), JSON_SEND_STOR2SRC, msg)
 
-	count, e := svs.protocol.WriteSrc(msg)
-	if e != nil {
-		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write error:%s", e)
-		return e
-	}
+	e = svs.writeSrc(msg)
+	//count, e := svs.protocol.WriteSrc(msg)
+	//if e != nil {
+	//	contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write error:%s", e)
+	//	return e
+	//}
 
-	if count != len(msg) {
-		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write bad count:%d, %d", count, len(msg))
-		e = fmt.Errorf(lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
-	}
+	//if count != len(msg) {
+	//	contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write bad count:%d, %d", count, len(msg))
+	//	e = fmt.Errorf(lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
+	//}
 
 	return e
 
@@ -1035,16 +1040,17 @@ func (svs *StratumV1Struct) sendLastSetDifficultyNotice(uid simple.ConnUniqueID)
 
 	LogJson(svs.Ctx(), lumerinlib.FileLineFunc(), JSON_SEND_STOR2SRC, msg)
 
-	count, e := svs.protocol.WriteSrc(msg)
-	if e != nil {
-		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write error:%s", e)
-		return e
-	}
+	e = svs.writeSrc(msg)
+	//count, e := svs.protocol.WriteSrc(msg)
+	//if e != nil {
+	//	contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write error:%s", e)
+	//	return e
+	//}
 
-	if count != len(msg) {
-		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write bad count:%d, %d", count, len(msg))
-		e = fmt.Errorf(lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
-	}
+	//if count != len(msg) {
+	//	contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write bad count:%d, %d", count, len(msg))
+	//	e = fmt.Errorf(lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
+	//}
 
 	return e
 
@@ -1110,16 +1116,17 @@ func (svs *StratumV1Struct) sendLastMiningNotice(uid simple.ConnUniqueID) (e err
 
 	LogJson(svs.Ctx(), lumerinlib.FileLineFunc(), JSON_SEND_STOR2SRC, msg)
 
-	count, e := svs.protocol.WriteSrc(msg)
-	if e != nil {
-		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write error:%s", e)
-		return e
-	}
+	e = svs.writeSrc(msg)
+	//count, e := svs.protocol.WriteSrc(msg)
+	//if e != nil {
+	//	contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write error:%s", e)
+	//	return e
+	//}
 
-	if count != len(msg) {
-		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write bad count:%d, %d", count, len(msg))
-		e = fmt.Errorf(lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
-	}
+	//if count != len(msg) {
+	//	contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write bad count:%d, %d", count, len(msg))
+	//	e = fmt.Errorf(lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
+	//}
 
 	return e
 
@@ -1166,15 +1173,48 @@ func (svs *StratumV1Struct) sendLastReqNotify(uid simple.ConnUniqueID) (e error)
 
 	LogJson(svs.Ctx(), lumerinlib.FileLineFunc(), JSON_SEND_STOR2SRC, msg)
 
-	count, e := svs.protocol.WriteSrc(msg)
+	e = svs.writeSrc(msg)
+	//count, e := svs.protocol.WriteSrc(msg)
+	//if e != nil {
+	//	contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write error:%s", e)
+	//	return e
+	//}
+
+	//if count != len(msg) {
+	//	contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write bad count:%d, %d", count, len(msg))
+	//	e = fmt.Errorf(lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
+	//}
+
+	return e
+}
+
+func (svs *StratumV1Struct) write(msg []byte) (e error) {
+
+	count, e := svs.protocol.Write(msg)
 	if e != nil {
-		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write error:%s", e)
-		return e
+		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write() error:%s", e)
+		svs.Close()
+	}
+	if count != len(msg) {
+		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write() bad count:%d, %d", count, len(msg))
+		e = fmt.Errorf(lumerinlib.FileLineFunc()+" Write() bad count:%d, %d", count, len(msg))
+		svs.Close()
 	}
 
+	return e
+}
+
+func (svs *StratumV1Struct) writeSrc(msg []byte) (e error) {
+
+	count, e := svs.protocol.WriteSrc(msg)
+	if e != nil {
+		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" WriteSrc() error:%s", e)
+		svs.Close()
+	}
 	if count != len(msg) {
-		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write bad count:%d, %d", count, len(msg))
-		e = fmt.Errorf(lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
+		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" WriteSrc() bad count:%d, %d", count, len(msg))
+		e = fmt.Errorf(lumerinlib.FileLineFunc()+" WriteSrc() bad count:%d, %d", count, len(msg))
+		svs.Close()
 	}
 
 	return e
