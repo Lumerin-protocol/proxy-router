@@ -15,6 +15,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/config"
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
 	"gitlab.com/TitanInd/hashrouter/contractmanager/blockchain"
+	"gitlab.com/TitanInd/hashrouter/data"
 	"gitlab.com/TitanInd/hashrouter/eventbus"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
@@ -50,7 +51,10 @@ func InitApp() (*app.App, error) {
 		return nil, err
 	}
 	iContractFactory := provideContractFactory()
-	iContractsGateway := contractmanager.NewContractsGateway()
+	v := data.NewInMemoryDataStore()
+	v2 := data.NewTransactionsChannel()
+	iContractsRepository := provideContractsRepository(iLogger, v, v2)
+	iContractsGateway := provideContractsGateway(iContractsRepository)
 	iContractsService := contractmanager.NewContractsService(iLogger, iValidatorsService, iConnectionsService, iBlockchainGateway, iContractFactory, iContractsGateway, config)
 	iEventManager := eventbus.NewEventBus()
 	iBlockchainWallet := blockchain.NewBlockchainWallet(config)
@@ -72,6 +76,31 @@ func InitApp() (*app.App, error) {
 	return appApp, nil
 }
 
+func initContractModel() (interfaces.IContractModel, error) {
+	config, err := provideConfig()
+	if err != nil {
+		return nil, err
+	}
+	iLogger, err := provideLogger(config)
+	if err != nil {
+		return nil, err
+	}
+	client, err := provideEthClient(config)
+	if err != nil {
+		return nil, err
+	}
+	iBlockchainGateway, err := blockchain.NewBlockchainGateway(client)
+	if err != nil {
+		return nil, err
+	}
+	v := data.NewInMemoryDataStore()
+	v2 := data.NewTransactionsChannel()
+	iContractsRepository := provideContractsRepository(iLogger, v, v2)
+	iContractsGateway := provideContractsGateway(iContractsRepository)
+	iContractModel := provideContractModel(iLogger, iBlockchainGateway, iContractsGateway)
+	return iContractModel, nil
+}
+
 // main.go:
 
 const VERSION = "0.01"
@@ -85,16 +114,22 @@ func main() {
 	appInstance.Run()
 }
 
+var dataSet = wire.NewSet(data.NewTransactionsChannel, data.NewInMemoryDataStore)
+
 var networkSet = wire.NewSet(provideTCPServer, provideServer)
 
 var protocolSet = wire.NewSet(miner.NewMinerRepo, provideMinerController, eventbus.NewEventBus, provideConnectionsService)
 
-var contractsSet = wire.NewSet(blockchain.NewBlockchainWallet, provideEthClient, blockchain.NewBlockchainGateway, provideContractFactory, contractmanager.NewContractsGateway, contractmanager.NewNodeOperator, contractmanager.NewContractsService, provideSellerContractManager)
+var contractsSet = wire.NewSet(provideContractsRepository, blockchain.NewBlockchainWallet, provideEthClient, blockchain.NewBlockchainGateway, provideContractFactory, provideContractsGateway, contractmanager.NewNodeOperator, contractmanager.NewContractsService, provideSellerContractManager)
 
 var hashrateCalculationSet = wire.NewSet(provideHashrateCalculator)
 
-func provideContractFactory() interfaces.IContractFactory {
-	return nil
+func provideContractsRepository(logger interfaces.ILogger, dataStore data.Store, transactionsChannel data.TransactionsChannel) contractmanager.IContractsRepository {
+	return data.NewInMemoryRepository[interfaces.IContractModel](logger, dataStore, transactionsChannel)
+}
+
+func provideContractsGateway(repo contractmanager.IContractsRepository) interfaces.IContractsGateway {
+	return contractmanager.NewContractsGateway(repo)
 }
 
 func provideConnectionsService() interfaces.IConnectionsService {
@@ -102,6 +137,7 @@ func provideConnectionsService() interfaces.IConnectionsService {
 }
 
 func provideHashrateCalculator() interfaces.IValidatorsService {
+
 	return nil
 }
 
@@ -141,4 +177,36 @@ func provideLogger(cfg *config.Config) (interfaces.ILogger, error) {
 func provideConfig() (*config.Config, error) {
 	var cfg config.Config
 	return &cfg, config.LoadConfig(&cfg, &os.Args)
+}
+
+func provideContractFactory() interfaces.IContractFactory {
+	return &ContractFactory{}
+}
+
+type ContractFactory struct {
+}
+
+func (*ContractFactory) CreateContract(
+	IsSeller bool,
+	ID string,
+	State string,
+	Buyer string,
+	Price int,
+	Limit int,
+	Speed int,
+	Length int,
+	StartingBlockTimestamp int,
+	Dest string,
+) (interfaces.IContractModel, error) {
+	model, err := initContractModel()
+
+	return model, err
+}
+
+func provideContractModel(logger interfaces.ILogger, ethereumGateway interfaces.IBlockchainGateway, contractsGateway interfaces.IContractsGateway) interfaces.IContractModel {
+	return &contractmanager.Contract{
+		Logger:           logger,
+		EthereumGateway:  ethereumGateway,
+		ContractsGateway: contractsGateway,
+	}
 }

@@ -1,0 +1,25 @@
+package data
+
+import (
+	"testing"
+
+	"gitlab.com/TitanInd/hashrouter/interfaces"
+)
+
+type TestConcreteModel struct {
+}
+
+func (*TestConcreteModel) GetId() string {
+	return "testid"
+}
+
+func (t *TestConcreteModel) SetId(id string) interfaces.IBaseModel {
+	return t
+}
+
+func TestNewInMemoryConcreteRepository(t *testing.T) {
+	var transactionsChannel chan func()
+	transactionsChannel = NewTransactionsChannel()
+
+	NewInMemoryConcreteRepository[TestConcreteModel](nil, NewInMemoryDataStore(), transactionsChannel)
+}
