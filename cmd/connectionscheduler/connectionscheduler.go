@@ -191,11 +191,6 @@ func (cs *ConnectionScheduler) ContractHandler(ch msgbus.EventChan) {
 				// get rid of contracts in miners that were servicing it
 				miners := cs.Ps.MinersContainContract(id)
 				for _, v := range miners {
-					cs.BusyMiners.Delete(string(v.ID))
-					m, err := cs.Ps.MinerRemoveContractWait(v.ID, id, cs.NodeOperator.DefaultDest)
-					if err != nil {
-						contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
-					}
 					newRunningContracts := []msgbus.ContractID{}
 					for _, r := range cs.RunningContracts {
 						if r != id {
@@ -203,6 +198,12 @@ func (cs *ConnectionScheduler) ContractHandler(ch msgbus.EventChan) {
 						}
 					}
 					cs.RunningContracts = newRunningContracts
+					cs.BusyMiners.Delete(string(v.ID))
+					m, err := cs.Ps.MinerRemoveContractWait(v.ID, id, cs.NodeOperator.DefaultDest)
+					if err != nil {
+						contextlib.Logf(cs.Ctx, log.LevelError, lumerinlib.FileLine()+"Error:%v", err)
+						continue
+					}
 					cs.ReadyMiners.Set(string(m.ID), *m)
 				}
 
@@ -358,7 +359,8 @@ func (cs *ConnectionScheduler) RunningContractsManager() {
 		for i := range miners {
 			miner, err := cs.Ps.MinerGetWait(miners[i])
 			if err != nil {
-				contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+				contextlib.Logf(cs.Ctx, log.LevelError, lumerinlib.FileLine()+"Error:%v", err)
+				continue
 			}
 			if miner.State == msgbus.OnlineState {
 				if len(miner.Contracts) == 0 {
@@ -386,11 +388,6 @@ func (cs *ConnectionScheduler) RunningContractsManager() {
 				// if in available state make sure no miners are servicing it
 				miners := cs.Ps.MinersContainContract(c.(msgbus.Contract).ID)
 				for _, v := range miners {
-					cs.BusyMiners.Delete(string(v.ID))
-					m, err := cs.Ps.MinerRemoveContractWait(v.ID, c.(msgbus.Contract).ID, cs.NodeOperator.DefaultDest)
-					if err != nil {
-						contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
-					}
 					newRunningContracts := []msgbus.ContractID{}
 					for _, r := range cs.RunningContracts {
 						if r != c.(msgbus.Contract).ID {
@@ -398,6 +395,13 @@ func (cs *ConnectionScheduler) RunningContractsManager() {
 						}
 					}
 					cs.RunningContracts = newRunningContracts
+					cs.BusyMiners.Delete(string(v.ID))
+					m, err := cs.Ps.MinerRemoveContractWait(v.ID, c.(msgbus.Contract).ID, cs.NodeOperator.DefaultDest)
+					if err != nil {
+						contextlib.Logf(cs.Ctx, log.LevelError, lumerinlib.FileLine()+"Error:%v", err)
+						continue
+					}
+					
 					cs.ReadyMiners.Set(string(m.ID), *m)
 				}
 			}
@@ -481,7 +485,8 @@ func (cs *ConnectionScheduler) ContractRunning(contractId msgbus.ContractID) {
 			if _, ok := v.(msgbus.Miner).Contracts[contractId]; ok {
 				m, err := cs.Ps.MinerRemoveContractWait(v.(msgbus.Miner).ID, contractId, cs.NodeOperator.DefaultDest)
 				if err != nil {
-					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+					contextlib.Logf(cs.Ctx, log.LevelError, lumerinlib.FileLine()+"Error:%v", err)
+					continue
 				}
 				if len(m.Contracts) == 0 {
 					cs.BusyMiners.Delete(string(m.ID))
@@ -539,7 +544,8 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract, contract
 			} else {
 				m, err := cs.Ps.MinerRemoveContractWait(m.id, contract.ID, cs.NodeOperator.DefaultDest)
 				if err != nil {
-					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+					contextlib.Logf(cs.Ctx, log.LevelError, lumerinlib.FileLine()+"Error:%v", err)
+					continue
 				}
 				if len(m.Contracts) == 0 {
 					cs.BusyMiners.Delete(string(m.ID))
@@ -607,7 +613,8 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract, contract
 			} else {
 				m, err := cs.Ps.MinerRemoveContractWait(m.id, contract.ID, cs.NodeOperator.DefaultDest)
 				if err != nil {
-					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+					contextlib.Logf(cs.Ctx, log.LevelError, lumerinlib.FileLine()+"Error:%v", err)
+					continue
 				}
 				if len(m.Contracts) == 0 {
 					cs.BusyMiners.Delete(string(m.ID))
@@ -628,7 +635,8 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract, contract
 
 			m, err := cs.Ps.MinerRemoveContractWait(miner.id, contract.ID, cs.NodeOperator.DefaultDest)
 			if err != nil {
-				contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+				contextlib.Logf(cs.Ctx, log.LevelError, lumerinlib.FileLine()+"Error:%v", err)
+				continue
 			}
 			if len(m.Contracts) == 0 {
 				cs.BusyMiners.Delete(string(m.ID))
@@ -693,23 +701,26 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract, contract
 	for _, v := range minerCombination {
 		miner, err := cs.Ps.MinerGetWait(v.id)
 		if err != nil {
-			contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
-		}
-
+			contextlib.Logf(cs.Ctx, log.LevelError, lumerinlib.FileLine()+"Error:%v", err)
+			continue
+		} 
 		if v.slicePercent < 1 {
 			_, err = cs.Ps.MinerSetContractWait(v.id, contract.ID, v.slicePercent, true)
 			if err != nil {
-				contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+				contextlib.Logf(cs.Ctx, log.LevelError, lumerinlib.FileLine()+"Error:%v", err)
+				continue
 			}
 			slicedMiners = append(slicedMiners, *miner)
 		} else {
 			_, err = cs.Ps.MinerSetContractWait(v.id, contract.ID, v.slicePercent, false)
 			if err != nil {
-				contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+				contextlib.Logf(cs.Ctx, log.LevelError, lumerinlib.FileLine()+"Error:%v", err)
+				continue
 			}
 			miner, err = cs.Ps.MinerSetDestWait(v.id, destid)
 			if err != nil {
-				contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+				contextlib.Logf(cs.Ctx, log.LevelError, lumerinlib.FileLine()+"Error:%v", err)
+				continue
 			}
 		}
 		cs.ReadyMiners.Delete(string(miner.ID))
@@ -784,7 +795,8 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract, contract
 				}
 				_, err = cs.Ps.MinerSetDestWait(m.ID, contract.Dest)
 				if err != nil {
-					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+					contextlib.Logf(cs.Ctx, log.LevelError, lumerinlib.FileLine()+"Error:%v", err)
+					break loop2
 				}
 				slicedDuration := time.Second * time.Duration(int(float64(cs.HashrateCalcLagTime)*v))
 				readyMiners := cs.ReadyMiners.GetAll()
@@ -801,7 +813,8 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract, contract
 				}
 				_, err := cs.Ps.MinerSetDestWait(m.ID, cs.NodeOperator.DefaultDest)
 				if err != nil {
-					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+					contextlib.Logf(cs.Ctx, log.LevelError, lumerinlib.FileLine()+"Error:%v", err)
+					break loop2
 				}
 				readyMiners := cs.ReadyMiners.GetAll()
 				busyMiners := cs.BusyMiners.GetAll()
@@ -817,7 +830,8 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract, contract
 			if _, ok := v.(msgbus.Miner).Contracts[contract.ID]; ok {
 				m, err := cs.Ps.MinerRemoveContractWait(v.(msgbus.Miner).ID, contract.ID, cs.NodeOperator.DefaultDest)
 				if err != nil {
-					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
+					contextlib.Logf(cs.Ctx, log.LevelError, lumerinlib.FileLine()+"Error:%v", err)
+					continue
 				}
 				if len(m.Contracts) == 0 {
 					cs.BusyMiners.Delete(string(m.ID))
