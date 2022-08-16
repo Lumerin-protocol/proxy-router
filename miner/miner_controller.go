@@ -40,7 +40,7 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	extranonce, size := poolPool.GetExtranonce()
 	msg := stratumv1_message.NewMiningSubscribeResult(extranonce, size)
 	miner := protocol.NewStratumV1Miner(incomingConn, p.log, msg)
-	validator := hashrate.NewHashrate(p.log)
+	validator := hashrate.NewHashrate(p.log, hashrate.EMA_INTERVAL)
 	minerModel := protocol.NewStratumV1MinerModel(poolPool, miner, validator, p.log)
 
 	destSplit := NewDestSplit()
