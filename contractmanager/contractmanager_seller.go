@@ -117,15 +117,7 @@ func (seller *SellerContractManager) Run(ctx context.Context) (err error) {
 
 		// monitor new contracts getting created and start hashrate conrtract monitor routine when they are created
 		seller.Ps.OnContractCreated(func(newContract interfaces.IContractModel) {
-			seller.logger.Infof("created a contract %v", newContract.GetId())
-			if newContract.IsAvailable() {
-				addr := common.HexToAddress(newContract.GetAddress())
-				hrLogs, hrSub, err := SubscribeToContractEvents(seller.EthClient, addr)
-				if err != nil {
-					//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Failed to subscribe to events on hashrate contract %s, Fileline::%s, Error::", newContract.ID, lumerinlib.FileLine()), err)
-				}
-				go seller.WatchHashrateContract(addr.Hex(), hrLogs, hrSub)
-			}
+
 		})
 	}()
 

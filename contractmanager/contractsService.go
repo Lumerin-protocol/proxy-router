@@ -125,10 +125,18 @@ func (service *ContractsService) HandleDestinationUpdated(contract interfaces.IC
 }
 
 func (service *ContractsService) HandleContractCreated(contract interfaces.IContractModel) {
+	service.logger.Infof("created a contract %v", contract.GetId())
+
 	contract.Save()
 
-	for _, handler := range service.handlers {
-		handler(contract)
+	if contract.IsAvailable() {
+		contract.SubscribeToContractEvents()
+		// addr := service.blockchainGateway.HexToAddress(newContract.GetAddress())
+		// hrLogs, hrSub, err := SubscribeToContractEvents(seller.EthClient, addr)
+		// if err != nil {
+		//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Failed to subscribe to events on hashrate contract %s, Fileline::%s, Error::", newContract.ID, lumerinlib.FileLine()), err)
+		// }
+		// go seller.WatchHashrateContract(addr.Hex(), hrLogs, hrSub)
 	}
 }
 
