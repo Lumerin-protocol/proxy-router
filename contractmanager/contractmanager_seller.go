@@ -91,6 +91,7 @@ func NewContractManager(
 }
 
 func (seller *SellerContractManager) Run(ctx context.Context) (err error) {
+
 	err = seller.SetupExistingContracts()
 	if err != nil {
 		return err
@@ -232,7 +233,8 @@ func (seller *SellerContractManager) watchContractCreation(cfLogs chan types.Log
 	for {
 		select {
 		// TODO: handle errors
-		// case err := <-cfSub.Err():
+		case err := <-cfSub.Err():
+			seller.logger.Errorf("%v", err)
 		// contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
 		case <-seller.Ctx.Done():
 			//contextlib.Logf(seller.Ctx, log.LevelInfo, "Cancelling current contract manager context: cancelling watchContractCreation go routine")
