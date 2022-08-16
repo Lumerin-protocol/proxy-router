@@ -785,6 +785,15 @@ func (s *SimpleStruct) Unsub(msgtype MsgType, id IDString) (rid int, e error) {
 }
 
 //
+// Unsub()
+//
+func (s *SimpleStruct) UnsubWait(msgtype MsgType, id IDString) (event *msgbus.Event, e error) {
+
+	event, e = s.msgbus.UnsubWait(msgbus.MsgType(msgtype), msgbus.IDString(id), s.msgbusChan)
+	return event, e
+}
+
+//
 // Get()
 //
 func (s *SimpleStruct) Get(msgtype MsgType, id IDString) (rid int, e error) {
@@ -794,12 +803,30 @@ func (s *SimpleStruct) Get(msgtype MsgType, id IDString) (rid int, e error) {
 }
 
 //
+// GetWait()
+//
+func (s *SimpleStruct) GetWait(msgtype MsgType, id IDString) (event *msgbus.Event, e error) {
+
+	event, e = s.msgbus.GetWait(msgbus.MsgType(msgtype), msgbus.IDString(id))
+	return event, e
+}
+
+//
 // Set()
 //
 func (s *SimpleStruct) Set(msgtype MsgType, id IDString, data interface{}) (rid int, e error) {
 
 	rid, e = s.msgbus.Set(msgbus.MsgType(msgtype), msgbus.IDString(id), data)
 	return rid, e
+}
+
+//
+// Set()
+//
+func (s *SimpleStruct) SetWait(msgtype MsgType, id IDString, data interface{}) (event *msgbus.Event, e error) {
+
+	event, e = s.msgbus.SetWait(msgbus.MsgType(msgtype), msgbus.IDString(id), data)
+	return event, e
 }
 
 //
