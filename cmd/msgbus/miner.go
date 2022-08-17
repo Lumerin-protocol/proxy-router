@@ -2,6 +2,7 @@ package msgbus
 
 import (
 	"fmt"
+	"time"
 
 	"gitlab.com/TitanInd/lumerin/lumerinlib"
 )
@@ -23,6 +24,8 @@ type Miner struct {
 	Port                    int
 	MAC                     string
 	State                   MinerState
+	StateChange				time.Time
+	Reconnect				int
 	Contracts               map[ContractID]float64 // Updated by Connection Scheduler
 	Dest                    DestID                 // Updated by Connection Scheduler
 	InitialMeasuredHashRate int
