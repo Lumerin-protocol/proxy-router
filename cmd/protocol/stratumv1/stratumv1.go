@@ -491,7 +491,7 @@ func (s *StratumV1Struct) Cancel() {
 //
 func (s *StratumV1Struct) setMinerOffline() {
 
-	if s == nil || s.minerRec == nil {
+	if s == nil || s.minerRec == nil || s.minerRec.ID == "" {
 		return
 	}
 
