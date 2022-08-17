@@ -492,6 +492,15 @@ func (ps *ProtocolStruct) Unsub(msgtype simple.MsgType, id simple.IDString) (rid
 //
 //
 //
+func (ps *ProtocolStruct) UnsubWait(msgtype simple.MsgType, id simple.IDString) (event *msgbus.Event, e error) {
+
+	event, e = ps.simple.UnsubWait(msgtype, id)
+	return event, e
+}
+
+//
+//
+//
 func (ps *ProtocolStruct) Get(msgtype simple.MsgType, id simple.IDString) (rid int, e error) {
 
 	rid, e = ps.simple.Get(msgtype, id)
@@ -501,10 +510,28 @@ func (ps *ProtocolStruct) Get(msgtype simple.MsgType, id simple.IDString) (rid i
 //
 //
 //
+func (ps *ProtocolStruct) GetWait(msgtype simple.MsgType, id simple.IDString) (event *msgbus.Event, e error) {
+
+	event, e = ps.simple.GetWait(msgtype, id)
+	return event, e
+}
+
+//
+//
+//
 func (ps *ProtocolStruct) Set(msgtype simple.MsgType, id simple.IDString, data interface{}) (rid int, e error) {
 
 	rid, e = ps.simple.Set(msgtype, id, data)
 	return rid, e
+}
+
+//
+//
+//
+func (ps *ProtocolStruct) SetWait(msgtype simple.MsgType, id simple.IDString, data interface{}) (event *msgbus.Event, e error) {
+
+	event, e = ps.simple.SetWait(msgtype, id, data)
+	return event, e
 }
 
 //
