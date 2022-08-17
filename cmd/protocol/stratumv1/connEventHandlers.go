@@ -85,7 +85,7 @@ func (svs *StratumV1Struct) handleConnOpenEvent(scoe *simple.SimpleConnOpenEvent
 				svs.SetDstStateUid(uid, DstStateError)
 				errstr := fmt.Sprintf(lumerinlib.FileLineFunc()+" msgsize sent does not match on UID:%d", uid)
 				contextlib.Logf(svs.Ctx(), contextlib.LevelError, errstr)
-				return fmt.Errorf( errstr )
+				return fmt.Errorf(errstr)
 			}
 
 			svs.SetDstStateUid(uid, DstStateConfiguring)
@@ -118,7 +118,7 @@ func (svs *StratumV1Struct) handleConnOpenEvent(scoe *simple.SimpleConnOpenEvent
 				svs.SetDstStateUid(uid, DstStateError)
 				errstr := fmt.Sprintf(lumerinlib.FileLineFunc()+" msgsize sent does not match on UID:%d", uid)
 				contextlib.Logf(svs.Ctx(), contextlib.LevelError, errstr)
-				return fmt.Errorf( errstr )
+				return fmt.Errorf(errstr)
 			}
 
 			svs.SetDstStateUid(uid, DstStateSubscribing)
@@ -487,16 +487,17 @@ func (svs *StratumV1Struct) handleResponse(uid simple.ConnUniqueID, response *st
 
 			LogJson(svs.Ctx(), lumerinlib.FileLineFunc(), JSON_SEND_DST2SRC, msg)
 
-			count, e := svs.protocol.WriteSrc(msg)
+			e = svs.writeSrc(msg)
+			// count, e := svs.protocol.WriteSrc(msg)
 			if e != nil {
-				contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" WriteSrc error:%s", e)
+				//contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" WriteSrc error:%s", e)
 				return e
 			}
-			if count != len(msg) {
-				contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
-				e = fmt.Errorf(lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
-				return e
-			}
+			//if count != len(msg) {
+			//	contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
+			//	e = fmt.Errorf(lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(msg))
+			//	return e
+			//}
 
 			//
 			// Send configure Here?
@@ -543,7 +544,6 @@ func (svs *StratumV1Struct) handleResponse(uid simple.ConnUniqueID, response *st
 //
 func (svs *StratumV1Struct) checkDstResponseSubmit(uid simple.ConnUniqueID, response *stratumResponse) (e error) {
 
-
 	var accepted bool = false
 	id := response.ID
 
@@ -556,8 +556,8 @@ func (svs *StratumV1Struct) checkDstResponseSubmit(uid simple.ConnUniqueID, resp
 	switch response.Result.(type) {
 	case bool:
 		accepted = response.Result.(bool)
-	//default:
-	//	contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" default reached on type:%t on ID:%d", response.Result, id)
+		//default:
+		//	contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" default reached on type:%t on ID:%d", response.Result, id)
 	}
 
 	// Pull the request
@@ -718,7 +718,7 @@ func (svs *StratumV1Struct) handleSrcReqAuthorize(request *stratumRequest) (e er
 	contextlib.Logf(svs.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" enter")
 
 	state := svs.GetSrcState()
-	// Validate the current sstate of the SRC connection
+	// Validate the current state of the SRC connection
 	switch state {
 	case SrcStateNew:
 		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Got Authorize, expect subscribe")
@@ -784,7 +784,7 @@ func (svs *StratumV1Struct) handleSrcReqAuthorize(request *stratumRequest) (e er
 	//
 	// Sets up mining record in the MsgBus
 	//
-	svs.newMinerRecordPub()
+	svs.pubMinerRecord()
 
 	//
 	// Open up the default pool connection
@@ -1004,22 +1004,22 @@ func (svs *StratumV1Struct) handleSrcReqSuggestDifficulty(request *stratumReques
 		response := Response(id, false)
 		respmsg, e := response.createResponseMsg()
 		if e != nil {
-		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" createResponsMsg() error:%s", e)
-		return e
+			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" createResponsMsg() error:%s", e)
+			return e
 		}
 
-	LogJson(svs.Ctx(), lumerinlib.FileLineFunc(), JSON_SEND_STOR2SRC, respmsg)
+		LogJson(svs.Ctx(), lumerinlib.FileLineFunc(), JSON_SEND_STOR2SRC, respmsg)
 
-	count, e := svs.protocol.WriteSrc(respmsg)
-	if e != nil {
-		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write error:%s", e)
-		return e
-	}
-	if count != len(respmsg) {
-		contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write bad count:%d, %d", count, len(respmsg))
-		e = fmt.Errorf(lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(respmsg))
-		return e
-	}
+		count, e := svs.protocol.WriteSrc(respmsg)
+		if e != nil {
+			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write error:%s", e)
+			return e
+		}
+		if count != len(respmsg) {
+			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Write bad count:%d, %d", count, len(respmsg))
+			e = fmt.Errorf(lumerinlib.FileLineFunc()+" WriteSrc bad count:%d, %d", count, len(respmsg))
+			return e
+		}
 
 	default:
 		contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Src state:%s", state)

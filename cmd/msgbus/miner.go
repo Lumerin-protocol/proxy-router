@@ -2,6 +2,7 @@ package msgbus
 
 import (
 	"fmt"
+	"time"
 
 	"gitlab.com/TitanInd/lumerin/lumerinlib"
 )
@@ -23,6 +24,8 @@ type Miner struct {
 	Port                    int
 	MAC                     string
 	State                   MinerState
+	StateChange				time.Time
+	Reconnect				int
 	Contracts               map[ContractID]float64 // Updated by Connection Scheduler
 	Dest                    DestID                 // Updated by Connection Scheduler
 	InitialMeasuredHashRate int
@@ -175,6 +178,9 @@ func (ps *PubSub) MinerSetContractWait(miner MinerID, contract ContractID, slice
 	return m, err
 }
 
+//---------------------------------------------------------------
+//
+//---------------------------------------------------------------
 func (ps *PubSub) MinerRemoveContractWait(miner MinerID, contract ContractID, defaultDest DestID) (m *Miner, err error) {
 	m, err = ps.MinerGetWait(miner)
 	if err != nil {
@@ -207,6 +213,9 @@ func (ps *PubSub) MinerRemoveContractWait(miner MinerID, contract ContractID, de
 	return m, err
 }
 
+//---------------------------------------------------------------
+//
+//---------------------------------------------------------------
 func (ps *PubSub) MinersContainContract(contract ContractID) (result []Miner) {
 	miners, err := ps.MinerGetAllWait()
 	if err != nil {
@@ -223,6 +232,9 @@ func (ps *PubSub) MinersContainContract(contract ContractID) (result []Miner) {
 	return result
 }
 
+//---------------------------------------------------------------
+//
+//---------------------------------------------------------------
 func (ps *PubSub) MinerSlicedUtilization(id MinerID) float64 {
 	miner, err := ps.MinerGetWait(id)
 	if err != nil {
@@ -236,6 +248,9 @@ func (ps *PubSub) MinerSlicedUtilization(id MinerID) float64 {
 	return (1 - contractSlicedPercent)
 }
 
+//---------------------------------------------------------------
+//
+//---------------------------------------------------------------
 func (ps *PubSub) MinerContractSlicedUtilization(minerId MinerID, contractId ContractID) float64 {
 	miner,err := ps.MinerGetWait(minerId)
 	if err != nil {
