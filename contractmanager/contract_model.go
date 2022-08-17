@@ -6,10 +6,10 @@ import (
 )
 
 type Contract struct {
-	Logger            interfaces.ILogger
-	EthereumGateway   interfaces.IBlockchainGateway
-	ContractsGateway  interfaces.IContractsGateway
-	ConnectionService interfaces.IRoutableStreamsService
+	Logger                interfaces.ILogger
+	EthereumGateway       interfaces.IBlockchainGateway
+	ContractsGateway      interfaces.IContractsGateway
+	RoutableStreamService interfaces.IRoutableStreamsService
 
 	IsSeller               bool
 	ID                     string
@@ -33,13 +33,19 @@ type Contract struct {
 func (c *Contract) GetCurrentNonce() uint64 {
 	return c.CurrentNonce.nonce
 }
+
 func (c *Contract) GetBuyerAddress() string {
 	return c.Buyer
 }
 
-func (c *Contract) Execute() (interfaces.IContractModel, error) {
+func (c *Contract) SetBuyerAddress(buyer string) {
+	c.Buyer = buyer
+}
 
-	panic("Contract.Execute not implemented")
+func (c *Contract) Execute() (interfaces.IContractModel, error) {
+	c.RoutableStreamService.ChangeDestAll(c.Dest, "", "")
+	c.Logger.Debugf("Changed destination to %v", c.Dest)
+	// panic("Contract.Execute not implemented")
 	return c, nil
 }
 

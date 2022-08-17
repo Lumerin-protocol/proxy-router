@@ -39,13 +39,13 @@ func (gateway *EthereumGateway) SubscribeToContractEvents(contract interfaces.IC
 	}
 
 	contractPurchasedSig := []byte("contractPurchased(address)")
-	contractClosedSig := []byte("contractClosed()")
-	purchaseInfoUpdatedSig := []byte("purchaseInfoUpdated()")
-	cipherTextUpdatedSig := []byte("cipherTextUpdated(string)")
+	// contractClosedSig := []byte("contractClosed()")
+	// purchaseInfoUpdatedSig := []byte("purchaseInfoUpdated()")
+	// cipherTextUpdatedSig := []byte("cipherTextUpdated(string)")
 	contractPurchasedSigHash := crypto.Keccak256Hash(contractPurchasedSig)
-	contractClosedSigHash := crypto.Keccak256Hash(contractClosedSig)
-	purchaseInfoUpdatedSigHash := crypto.Keccak256Hash(purchaseInfoUpdatedSig)
-	cipherTextUpdatedSigHash := crypto.Keccak256Hash(cipherTextUpdatedSig)
+	// contractClosedSigHash := crypto.Keccak256Hash(contractClosedSig)
+	// purchaseInfoUpdatedSigHash := crypto.Keccak256Hash(purchaseInfoUpdatedSig)
+	// cipherTextUpdatedSigHash := crypto.Keccak256Hash(cipherTextUpdatedSig)
 
 	// routine monitoring and acting upon events emmited by hashrate contract
 	go func() {
@@ -63,52 +63,55 @@ func (gateway *EthereumGateway) SubscribeToContractEvents(contract interfaces.IC
 				return
 			case hLog := <-logs:
 
-				hashrateContractMsg.Dest = destUrl
-
 				switch hLog.Topics[0].Hex() {
 				case contractPurchasedSigHash.Hex():
-					destUrl, err := readDestUrl(seller.EthClient, common.HexToAddress(string(addr)), seller.PrivateKey)
+					destUrl, err := gateway.readDestUrl(common.HexToAddress(contract.GetAddress()), contract.GetPrivateKey())
 
+					buyer := common.HexToAddress(hLog.Topics[1].Hex())
 					if err != nil {
 						//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading dest url failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
 					}
 					contract.SetDestination(destUrl)
-					contract.SetBuyer(buyer.Hex())
+					contract.SetBuyerAddress(buyer.Hex())
 					contract.Execute()
-				// case cipherTextUpdatedSigHash.Hex():
+					// case cipherTextUpdatedSigHash.Hex():
 
-				// 	destUrl, err := readDestUrl(seller.EthClient, common.HexToAddress(string(addr)), seller.PrivateKey)
+					// 	destUrl, err := readDestUrl(seller.EthClient, common.HexToAddress(string(addr)), seller.PrivateKey)
 
-				// 	if err != nil {
-				// 		//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading dest url failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
-				// 	}
+					// 	if err != nil {
+					// 		//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading dest url failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
+					// 	}
 
-				// 	hashrateContractMsg.Dest = destUrl
+					// 	hashrateContractMsg.Dest = destUrl
 
-				// 	seller.Ps.HandleDestinationUpdated(hashrateContractMsg)
+					// 	seller.Ps.HandleDestinationUpdated(hashrateContractMsg)
 
-				// case contractClosedSigHash.Hex():
-				// 	seller.Ps.HandleContractClosed(hashrateContractMsg)
+					// case contractClosedSigHash.Hex():
+					// 	seller.Ps.HandleContractClosed(hashrateContractMsg)
 
-				// case purchaseInfoUpdatedSigHash.Hex():
-				// 	updatedContractValues, err := readHashrateContract(seller.EthClient, common.HexToAddress(string(addr)))
+					// case purchaseInfoUpdatedSigHash.Hex():
+					// 	updatedContractValues, err := readHashrateContract(seller.EthClient, common.HexToAddress(string(addr)))
 
-				// 	if err != nil {
-				// 		//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading hashrate contract failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
-				// 	}
+					// 	if err != nil {
+					// 		//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading hashrate contract failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
+					// 	}
 
-				// 	updateContractMsg(hashrateContractMsg, updatedContractValues)
+					// 	updateContractMsg(hashrateContractMsg, updatedContractValues)
 
-				// 	seller.Ps.HandleContractUpdated(hashrateContractMsg)
+					// 	seller.Ps.HandleContractUpdated(hashrateContractMsg)
 
-				// }
+					// }
+				}
 			}
 		}
 	}()
+
 	return logs, sub, err
 }
 
-func (gateway *EthereumGateway) readDestUrl(client *interop.BlockchainClient, contractAddress interop.BlockchainAddress, privateKeyString string) (string, error) {
+func (gateway *EthereumGateway) readDestUrl(contractAddress interop.BlockchainAddress, privateKeyString string) (string, error) {
+
+	client := gateway.client
 	instance, err := implementation.NewImplementation(contractAddress, client)
 	if err != nil {
 		fmt.Printf("Funcname::%s, Fileline::%s, Error::%v\n", lumerinlib.Funcname(), lumerinlib.FileLine(), err)
