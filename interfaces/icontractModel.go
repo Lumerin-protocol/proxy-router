@@ -10,6 +10,7 @@ type IContractModel interface {
 	GetPromisedHashrateMin() uint64
 	GetPrivateKey() string
 	GetBuyerAddress() string
+	SetBuyerAddress(buyer string)
 	GetCurrentNonce() uint64
 	Save() (IContractModel, error)
 	Execute() (IContractModel, error)
