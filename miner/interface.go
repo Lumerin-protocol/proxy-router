@@ -14,4 +14,5 @@ type MinerScheduler interface {
 	SetDestSplit(*DestSplit)
 	GetID() string // get miner unique id (host:port for example)
 	GetHashRate() int64
+	Allocate(percentage uint8, destAddr, destUser, destPassword string)
 }

@@ -130,7 +130,7 @@ func (service *ContractsService) HandleContractCreated(contract interfaces.ICont
 	contract.Save()
 
 	if contract.IsAvailable() {
-		contract.SubscribeToContractEvents()
+		service.SubscribeToContractEvents(contract)
 		// addr := service.blockchainGateway.HexToAddress(newContract.GetAddress())
 		// hrLogs, hrSub, err := SubscribeToContractEvents(seller.EthClient, addr)
 		// if err != nil {
@@ -138,6 +138,17 @@ func (service *ContractsService) HandleContractCreated(contract interfaces.ICont
 		// }
 		// go seller.WatchHashrateContract(addr.Hex(), hrLogs, hrSub)
 	}
+}
+
+func (service *ContractsService) SubscribeToContractEvents(contract interfaces.IContractModel) error {
+
+	_, _, err := service.blockchainGateway.SubscribeToContractEvents(contract)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (service *ContractsService) HandleContractPurchased(contract interfaces.IContractModel) {

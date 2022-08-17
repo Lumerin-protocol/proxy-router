@@ -15,5 +15,4 @@ type IContractModel interface {
 	Execute() (IContractModel, error)
 	GetCloseOutType() uint
 	TryRunningAt(dest string) (IContractModel, error)
-	SubscribeToContractEvents() error
 }

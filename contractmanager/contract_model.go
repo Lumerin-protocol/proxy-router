@@ -6,10 +6,11 @@ import (
 )
 
 type Contract struct {
-	Logger                 interfaces.ILogger
-	EthereumGateway        interfaces.IBlockchainGateway
-	ContractsGateway       interfaces.IContractsGateway
-	ConnectionService      interfaces.IConnectionsService
+	Logger            interfaces.ILogger
+	EthereumGateway   interfaces.IBlockchainGateway
+	ContractsGateway  interfaces.IContractsGateway
+	ConnectionService interfaces.IRoutableStreamsService
+
 	IsSeller               bool
 	ID                     string
 	State                  string
@@ -37,9 +38,9 @@ func (c *Contract) GetBuyerAddress() string {
 }
 
 func (c *Contract) Execute() (interfaces.IContractModel, error) {
-	c.ConnectionService.Allocate(c.GetAddress())
+
 	panic("Contract.Execute not implemented")
-	// return c, nil
+	return c, nil
 }
 
 func (c *Contract) GetId() string {
@@ -68,16 +69,6 @@ func (c *Contract) SetDestination(destination string) {
 
 func (c *Contract) IsAvailable() bool {
 	return c.State == ContAvailableState
-}
-
-func (c *Contract) SubscribeToContractEvents([]func()) error {
-	_, _, err := c.EthereumGateway.SubscribeToContractEvents(c.GetId())
-
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (c *Contract) GetAddress() string {
