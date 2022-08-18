@@ -107,7 +107,7 @@ func main() {
 		DefaultDest: dest.ID,
 		Contracts: make(map[msgbus.ContractID]msgbus.ContractState),
 	}
-	event, err = ps.PubWait(msgbus.NodeOperatorMsg, msgbus.IDString(nodeOperator.ID), nodeOperator)
+	event, err = ps.PubWait(msgbus.NodeOperatorMsg, msgbus.IDString(nodeOperator.ID), &nodeOperator)
 	if err != nil {
 		l.Logf(log.LevelError, "Adding Node Operator Failed: %s", err)
 		return

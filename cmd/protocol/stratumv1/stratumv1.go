@@ -696,6 +696,9 @@ func (s *StratumV1Struct) pubMinerRecord() {
 	if event.Data != nil {
 		switch t := event.Data.(type) {
 		case msgbus.Miner:
+
+		contextlib.Logf(s.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Should we be getting this?")
+
 			if t.State == msgbus.OnlineState {
 				contextlib.Logf(s.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" record already online:%s", t.ID)
 				s.Close()
