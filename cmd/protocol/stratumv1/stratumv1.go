@@ -495,6 +495,8 @@ func (s *StratumV1Struct) setMinerOffline() {
 		return
 	}
 
+	contextlib.Logf(s.ctx, contextlib.LevelTrace, fmt.Sprint(lumerinlib.FileLineFunc()+" %v", s))
+
 	event, e := s.protocol.GetWait(simple.MinerMsg, simple.IDString(s.minerRec.ID))
 	if e != nil {
 		contextlib.Logf(s.ctx, contextlib.LevelPanic, fmt.Sprint(lumerinlib.FileLineFunc()+" GetWait() on minerRec:%s error:%s", s.minerRec.ID, e))
@@ -511,13 +513,15 @@ func (s *StratumV1Struct) setMinerOffline() {
 		m.Port = 0
 		m.State = msgbus.OfflineState
 		m.StateChange = time.Now()
-		_, e = s.protocol.SetWait(simple.MinerMsg, simple.IDString(s.minerRec.ID), &m)
+		s.minerRec = &m
+		_, e = s.protocol.SetWait(simple.MinerMsg, simple.IDString(s.minerRec.ID), s.minerRec)
 	case *msgbus.Miner:
 		m.IP = ""
 		m.Port = 0
 		m.State = msgbus.OfflineState
 		m.StateChange = time.Now()
-		_, e = s.protocol.SetWait(simple.MinerMsg, simple.IDString(s.minerRec.ID), m)
+		s.minerRec = m
+		_, e = s.protocol.SetWait(simple.MinerMsg, simple.IDString(s.minerRec.ID), s.minerRec)
 	default:
 		contextlib.Logf(s.ctx, contextlib.LevelPanic, fmt.Sprint(lumerinlib.FileLineFunc()+" default reached type:%t", m))
 	}
@@ -692,6 +696,9 @@ func (s *StratumV1Struct) pubMinerRecord() {
 	if event.Data != nil {
 		switch t := event.Data.(type) {
 		case msgbus.Miner:
+
+		contextlib.Logf(s.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Should we be getting this?")
+
 			if t.State == msgbus.OnlineState {
 				contextlib.Logf(s.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" record already online:%s", t.ID)
 				s.Close()

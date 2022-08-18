@@ -200,6 +200,51 @@ func (ps *PubSub) Pub(msg MsgType, id IDString, data interface{}, ech ...EventCh
 		}
 	}
 
+	switch t := data.(type) {
+	case *ConfigInfo:
+		if msg != ConfigMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *lumerinlib.ContractManagerConfig:
+		if msg != ContractManagerConfigMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *Dest:
+		if msg != DestMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *NodeOperator:
+		if msg != NodeOperatorMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *Contract:
+		if msg != ContractMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *Miner:
+		if msg != MinerMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *Connection:
+		if msg != ConnectionMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *Validate:
+		if msg != ValidateMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *Submit:
+		if msg != ValidateMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *Notify:
+		if msg != ValidateMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	default:
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+"Default reached - Bad Type:%t",t))
+	}
+
 	c := cmd{
 		op:        opPub,
 		sync:      false,
@@ -228,6 +273,51 @@ func (ps *PubSub) PubWait(msg MsgType, id IDString, data interface{}) (e *Event,
 
 	if data == nil {
 		return e, getCommandError(MsgBusErrNoData)
+	}
+
+	switch t := data.(type) {
+	case *ConfigInfo:
+		if msg != ConfigMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *lumerinlib.ContractManagerConfig:
+		if msg != ContractManagerConfigMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *Dest:
+		if msg != DestMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *NodeOperator:
+		if msg != NodeOperatorMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *Contract:
+		if msg != ContractMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *Miner:
+		if msg != MinerMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *Connection:
+		if msg != ConnectionMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *Validate:
+		if msg != ValidateMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *Submit:
+		if msg != ValidateMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *Notify:
+		if msg != ValidateMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	default:
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+"Default reached - Bad Type:%t",t))
 	}
 
 	c := cmd{
