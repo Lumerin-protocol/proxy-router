@@ -354,12 +354,10 @@ func (cs *ConnectionScheduler) minerHandler(minerId msgbus.MinerID, ch msgbus.Ev
 				}
 
 				if miner.State == msgbus.OfflineState {
-					timeOfflineLimit := time.Minute * 10
+					timeOfflineLimit := time.Second * time.Duration(cs.HashrateCalcLagTime - 15)
 					timeOffline := time.Since(miner.StateChange)
 					if timeOffline > timeOfflineLimit {
 						cs.connectionController.RemoveConnection(string(id))
-						cs.ReadyMiners.Delete(string(id))
-						cs.BusyMiners.Delete(string(id))
 					}
 				} 
 
@@ -407,12 +405,23 @@ func (cs *ConnectionScheduler) RunningContractsManager() {
 				contextlib.Logf(cs.Ctx, log.LevelError, lumerinlib.FileLine()+"Error:%v", err)
 				continue
 			}
-			if miner.State == msgbus.OnlineState {
-				if len(miner.Contracts) == 0 {
-					cs.ReadyMiners.Set(string(miners[i]), *miner)
-				} else {
-					cs.BusyMiners.Set(string(miners[i]), *miner)
+
+			// check if miner has been offline for a while
+			if miner.State == msgbus.OfflineState {
+				timeOfflineLimit := time.Second * time.Duration(cs.HashrateCalcLagTime - 15)
+				timeOffline := time.Since(miner.StateChange)
+				if timeOffline > timeOfflineLimit { // ignore miner if its been offline for more than 9:45 minutes
+					contextlib.Logf(cs.Ctx, log.LevelInfo, lumerinlib.FileLine()+"Scheduler ignoring Miner %s for being offline for more than 9:45 minutes", miner.ID)
+					cs.ReadyMiners.Delete(string(miner.ID))
+					cs.BusyMiners.Delete(string(miner.ID))
+					continue
 				}
+			}
+
+			if len(miner.Contracts) == 0 {
+				cs.ReadyMiners.Set(string(miner.ID), *miner)
+			} else {
+				cs.BusyMiners.Set(string(miner.ID), *miner)
 			}
 		}
 

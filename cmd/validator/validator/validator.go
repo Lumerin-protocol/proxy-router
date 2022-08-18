@@ -424,7 +424,7 @@ func (v *MainValidator) hashrateCalculator(instance *Validator, minerId msgbus.M
 
 		// check if miner has been offline for a while
 		if miner.State == msgbus.OfflineState {
-			timeOfflineLimit := time.Second * (EMA_INTERVAL - 15)
+			timeOfflineLimit := time.Second * time.Duration(EMA_INTERVAL - 15)
 			timeOffline := time.Since(miner.StateChange)
 			if timeOffline > timeOfflineLimit && v.MinersVal.Exists(string(minerId)) { // close validator instance for this miner if its been offline for more than 9:45 minutes
 				contextlib.Logf(v.Ctx, log.LevelInfo, "Closing validator instance for Miner: %v", minerId)
