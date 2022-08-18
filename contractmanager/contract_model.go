@@ -20,7 +20,7 @@ type Contract struct {
 	Speed                  int
 	Length                 int
 	StartingBlockTimestamp int
-	Dest                   string
+	Dest                   interop.Dest
 
 	fromAddress      interop.BlockchainAddress
 	privateKeyString string
@@ -43,7 +43,7 @@ func (c *Contract) SetBuyerAddress(buyer string) {
 }
 
 func (c *Contract) Execute() (interfaces.IContractModel, error) {
-	c.RoutableStreamService.ChangeDestAll(c.Dest, "", "")
+	c.RoutableStreamService.ChangeDestAll(c.Dest)
 	c.Logger.Debugf("Changed destination to %v", c.Dest)
 	// panic("Contract.Execute not implemented")
 	return c, nil
@@ -65,12 +65,8 @@ func (c *Contract) GetCloseOutType() uint {
 	return c.closeOutType
 }
 
-func (c *Contract) HasDestination() bool {
-	return c.Dest != ""
-}
-
-func (c *Contract) SetDestination(destination string) {
-	c.Dest = destination
+func (c *Contract) SetDestination(dest interop.Dest) {
+	c.Dest = dest
 }
 
 func (c *Contract) IsAvailable() bool {

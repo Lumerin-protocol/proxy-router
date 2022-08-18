@@ -103,9 +103,9 @@ func (c *ContractV2) IsAvailable() bool {
 	return c.State == ContAvailableState
 }
 
-func (c *ContractV2) SubscribeToContractEvents(address string) (chan interop.BlockchainEvent, interop.BlockchainEventSubscription, error) {
-	return c.EthereumGateway.SubscribeToContractEvents(address)
-}
+// func (c *ContractV2) SubscribeToContractEvents(address string) (chan interop.BlockchainEvent, interop.BlockchainEventSubscription, error) {
+// 	return c.EthereumGateway.SubscribeToContractEvents(address)
+// }
 
 func (c *ContractV2) GetAddress() string {
 	return c.ID
@@ -116,31 +116,31 @@ func (c *ContractV2) GetPromisedHashrateMin() uint64 {
 	return 0
 }
 
-func (c *ContractV2) MakeAvailable() {
+// func (c *ContractV2) MakeAvailable() {
 
-	if c.State == ContRunningState {
+// 	if c.State == ContRunningState {
 
-		c.State = ContAvailableState
-		c.Buyer = ""
+// 		c.State = ContAvailableState
+// 		c.Buyer = ""
 
-		c.Save()
-	}
-}
+// 		c.Save()
+// 	}
+// }
 
-func (c *ContractV2) Save() (interfaces.IContractModel, error) {
-	return c.ContractsGateway.SaveContract(c)
-}
+// func (c *ContractV2) Save() (interfaces.IContractModel, error) {
+// 	return c.ContractsGateway.SaveContract(c)
+// }
 
 func (c *ContractV2) GetPrivateKey() string {
 	return c.privateKeyString
 }
 
-func (c *ContractV2) TryRunningAt(dest string) (interfaces.IContractModel, error) {
-	if c.State == ContRunningState {
-		return c.Execute()
-	}
+// func (c *ContractV2) TryRunningAt(dest string) (interfaces.IContractModel, error) {
+// 	if c.State == ContRunningState {
+// 		return c.Execute()
+// 	}
 
-	return c, nil
-}
+// 	return c, nil
+// }
 
 var _ interfaces.IContractModel = (*Contract)(nil)

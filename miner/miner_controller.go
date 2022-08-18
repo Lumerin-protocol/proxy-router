@@ -54,11 +54,11 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	// return nil
 }
 
-func (p *MinerController) ChangeDestAll(addr string, username string, pwd string) error {
+func (p *MinerController) ChangeDestAll(dest interop.Dest) error {
 	p.repo.Range(func(miner MinerScheduler) bool {
-		p.log.Infof("changing pool to %s for minerID %s", addr, miner.GetID())
+		p.log.Infof("changing pool to %s for minerID %s", dest.Host, miner.GetID())
 
-		miner.Allocate(100, addr, username, pwd)
+		miner.Allocate(100, dest)
 
 		return true
 	})

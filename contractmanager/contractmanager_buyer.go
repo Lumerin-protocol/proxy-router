@@ -2,6 +2,7 @@ package contractmanager
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -189,7 +190,8 @@ func (buyer *BuyerContractManager) watchContractPurchase(cfLogs chan types.Log, 
 					}
 
 					contractMsg := createContractMsg(address, purchasedContractValues, false)
-					contractMsg.SetDestination(destUrl)
+					fmt.Printf(destUrl)
+					// contractMsg.SetDestination(destUrl)
 
 					buyer.Ps.HandleContractPurchased(contractMsg)
 
