@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
 )
 
@@ -26,10 +27,10 @@ func NewStratumV1PoolPool(log interfaces.ILogger) *StratumV1PoolConnPool {
 	}
 }
 
-func (p *StratumV1PoolConnPool) SetDest(addr string, authUser string, authPass string) error {
+func (p *StratumV1PoolConnPool) SetDest(dest interop.Dest) error {
 	p.mu.Lock()
 	if p.conn != nil {
-		if a, u, pwd := p.conn.GetDest(); a == addr && u == authUser && pwd == authPass {
+		if p.conn.GetDest().IsEqual(dest) {
 			// noop if connection is the same
 			p.log.Debug("dest wasn't changed, as it is the same")
 			p.mu.Unlock()
@@ -38,27 +39,25 @@ func (p *StratumV1PoolConnPool) SetDest(addr string, authUser string, authPass s
 	}
 	p.mu.Unlock()
 
-	// TODO: maintain separate connections per address+user
-	conn, ok := p.load(addr)
+	conn, ok := p.load(dest.String())
 	if ok {
-		// TODO add lock
 		p.mu.Lock()
 		p.conn = conn
 		p.mu.Unlock()
 
 		p.conn.ResendRelevantNotifications(context.TODO())
-		p.log.Infof("conn reused %s", addr)
+		p.log.Infof("conn reused %s", dest.String())
 
 		return nil
 	}
 
-	c, err := net.Dial("tcp", addr)
+	c, err := net.Dial("tcp", dest.Host)
 	if err != nil {
 		return err
 	}
-	p.log.Infof("Dialed dest %s", addr)
+	p.log.Infof("Dialed dest %s", dest.Host)
 
-	conn = NewStratumV1Pool(c, p.log, addr, authUser, authPass)
+	conn = NewStratumV1Pool(c, p.log, &dest)
 
 	err = conn.Connect()
 	if err != nil {
@@ -69,8 +68,8 @@ func (p *StratumV1PoolConnPool) SetDest(addr string, authUser string, authPass s
 	p.conn = conn
 	p.mu.Unlock()
 
-	p.store(addr, conn)
-	p.log.Infof("=========> dest was set %s", addr)
+	p.store(dest.String(), conn)
+	p.log.Infof("=========> dest was set %s", dest.Host)
 	return nil
 }
 

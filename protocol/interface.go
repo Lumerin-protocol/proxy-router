@@ -3,6 +3,7 @@ package protocol
 import (
 	"context"
 
+	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
 )
 
@@ -13,7 +14,7 @@ type StratumV1SourceConn interface {
 }
 
 type StratumV1DestConn interface {
-	SetDest(addr string, user string, pwd string) error
+	SetDest(dest interop.Dest) error
 	Read(ctx context.Context) (stratumv1_message.MiningMessageGeneric, error)
 	Write(ctx context.Context, msg stratumv1_message.MiningMessageGeneric) error
 	GetExtranonce() (string, int)
