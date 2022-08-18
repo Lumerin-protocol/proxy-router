@@ -131,6 +131,15 @@ func (cs *ConnectionScheduler) Start() (err error) {
 				cs.BusyMiners.Set(string(miners[i]), *miner)
 			}
 		}
+
+		// Monitor Miner Update Events for all miners 
+		minerEventChan := msgbus.NewEventChan()
+		_, err = cs.Ps.Sub(msgbus.MinerMsg, msgbus.IDString(miner.ID), minerEventChan)
+		if err != nil {
+			contextlib.Logf(cs.Ctx, log.LevelError, "Failed to subscribe to all miner events, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+			return err
+		}
+		go cs.minerHandler(miner.ID, minerEventChan)
 	}
 
 	// Monitor Miner Events
@@ -262,7 +271,6 @@ func (cs *ConnectionScheduler) WatchMinerEvents(ch msgbus.EventChan) {
 				miner = *m
 			}
 
-		loop:
 			switch event.EventType {
 			//
 			// Publish Event
@@ -297,18 +305,63 @@ func (cs *ConnectionScheduler) WatchMinerEvents(ch msgbus.EventChan) {
 					}
 				}
 
-				//
-				// Update Event
-				//
-			case msgbus.UpdateEvent:
-				contextlib.Logf(cs.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Got Miner Update Event: %v", event)
-
-				if miner.State != msgbus.OnlineState {
-					cs.connectionController.RemoveConnection(string(id))
-					cs.ReadyMiners.Delete(string(id))
-					cs.BusyMiners.Delete(string(id))
-					break loop
+				// watch miner update events
+				minerEventChan := msgbus.NewEventChan()
+				_, err = cs.Ps.Sub(msgbus.MinerMsg, msgbus.IDString(id), minerEventChan)
+				if err != nil {
+					contextlib.Logf(cs.Ctx, log.LevelPanic, "Failed to subscribe to miner events, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
 				}
+				go cs.minerHandler(id, minerEventChan)
+
+				//
+				// Unpublish Event
+				//
+			case msgbus.UnpublishEvent:
+				contextlib.Logf(cs.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Got Miner Unpublish/Unsubscribe Event: %v", event)
+				cs.connectionController.RemoveConnection(string(id))
+				cs.ReadyMiners.Delete(string(id))
+				cs.BusyMiners.Delete(string(id))
+
+			default:
+				contextlib.Logf(cs.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Got Miner Event: %v", event)
+			}
+		}
+	}
+}
+
+func (cs *ConnectionScheduler) minerHandler(minerId msgbus.MinerID, ch msgbus.EventChan) {
+	for {
+		select {
+		case <-cs.Ctx.Done():
+			contextlib.Logf(cs.Ctx, log.LevelInfo, "Cancelling current connection scheduler context: cancelling minerHandler go routine")
+			return
+
+		case event := <-ch:
+			switch event.EventType {
+			case msgbus.UpdateEvent:
+				id := msgbus.MinerID(event.ID)
+				if id != minerId {
+					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.Funcname()+"Got miner event with wrong id for miner %s: %v", minerId, event)
+				}
+
+				var miner msgbus.Miner
+				switch event.Data.(type) {
+				case msgbus.Miner:
+					miner = event.Data.(msgbus.Miner)
+				case *msgbus.Miner:
+					m := event.Data.(*msgbus.Miner)
+					miner = *m
+				}
+
+				if miner.State == msgbus.OfflineState {
+					timeOfflineLimit := time.Minute * 10
+					timeOffline := time.Since(miner.StateChange)
+					if timeOffline > timeOfflineLimit {
+						cs.connectionController.RemoveConnection(string(id))
+						cs.ReadyMiners.Delete(string(id))
+						cs.BusyMiners.Delete(string(id))
+					}
+				} 
 
 				connection := cs.connectionController.GetConnection(string(id))
 
@@ -322,17 +375,9 @@ func (cs *ConnectionScheduler) WatchMinerEvents(ch msgbus.EventChan) {
 					//cs.BusyMiners.Set(string(id), miner)
 				}
 
-				//
-				// Unpublish Event
-				//
 			case msgbus.UnpublishEvent:
-				contextlib.Logf(cs.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Got Miner Unpublish/Unsubscribe Event: %v", event)
-				cs.connectionController.RemoveConnection(string(id))
-				cs.ReadyMiners.Delete(string(id))
-				cs.BusyMiners.Delete(string(id))
-
-			default:
-				contextlib.Logf(cs.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Got Miner Event: %v", event)
+				contextlib.Logf(cs.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Got Miner Unpublish Event for miner %s: %v", minerId, event)
+				return
 			}
 		}
 	}

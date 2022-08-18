@@ -260,7 +260,6 @@ func (v *MainValidator) minersHandler(ch msgbus.EventChan) {
 }
 
 func (v *MainValidator) minerHandler(minerId msgbus.MinerID, ch msgbus.EventChan) {
-	minerOffline := false
 	for {
 		select {
 		case <-v.Ctx.Done():
@@ -284,13 +283,7 @@ func (v *MainValidator) minerHandler(minerId msgbus.MinerID, ch msgbus.EventChan
 					miner = *m
 				}
 
-				if miner.State == msgbus.OfflineState {
-					minerOffline = true
-				} else {
-					minerOffline = false
-				}
-
-				if minerOffline {
+				if miner.State == msgbus.OfflineState  {
 					timeOfflineLimit := time.Minute * 10
 					timeOffline := time.Since(miner.StateChange)
 					if timeOffline > timeOfflineLimit && v.MinersVal.Exists(string(id)) { // close validator instance for this miner if its been offline for more than 10 minutes
