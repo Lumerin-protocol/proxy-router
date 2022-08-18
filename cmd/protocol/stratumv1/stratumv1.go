@@ -495,6 +495,8 @@ func (s *StratumV1Struct) setMinerOffline() {
 		return
 	}
 
+	contextlib.Logf(s.ctx, contextlib.LevelTrace, fmt.Sprint(lumerinlib.FileLineFunc()+" %v", s))
+
 	event, e := s.protocol.GetWait(simple.MinerMsg, simple.IDString(s.minerRec.ID))
 	if e != nil {
 		contextlib.Logf(s.ctx, contextlib.LevelPanic, fmt.Sprint(lumerinlib.FileLineFunc()+" GetWait() on minerRec:%s error:%s", s.minerRec.ID, e))

@@ -201,55 +201,49 @@ func (ps *PubSub) Pub(msg MsgType, id IDString, data interface{}, ech ...EventCh
 	}
 
 	switch t := data.(type) {
-	case *Config:
+	case *ConfigInfo:
 		if msg != ConfigMsg{
-			panic(fmt.Sprinf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
 		}
 	case *lumerinlib.ContractManagerConfig:
 		if msg != ContractManagerConfigMsg{
-			panic(fmt.Sprinf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
 		}
 	case *Dest:
 		if msg != DestMsg{
-			panic(fmt.Sprinf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
 		}
 	case *NodeOperator:
 		if msg != NodeOperatorMsg{
-			panic(fmt.Sprinf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
 		}
 	case *Contract:
 		if msg != ContractMsg{
-			panic(fmt.Sprinf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
 		}
 	case *Miner:
 		if msg != MinerMsg{
-			panic(fmt.Sprinf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
 		}
 	case *Connection:
 		if msg != ConnectionMsg{
-			panic(fmt.Sprinf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
 		}
 	case *Validate:
-		fallthrough
+		if msg != ValidateMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
 	case *Submit:
-		fallthrough
+		if msg != ValidateMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
 	case *Notify:
 		if msg != ValidateMsg{
-			panic(fmt.Sprinf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
 		}
 	default:
-			panic(fmt.Sprinf( lumerinlib.FileLineFunc()+"Default reached - Bad Type:%t",t))
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+"Default reached - Bad Type:%t",t))
 	}
-
-	ConfigMsg                MsgType = "ConfigMsg"
-	ContractManagerConfigMsg MsgType = "ContractManagerConfigMsg"
-	DestMsg                  MsgType = "DestMsg"
-	NodeOperatorMsg          MsgType = "NodeOperatorMsg"
-	ContractMsg              MsgType = "ContractMsg"
-	MinerMsg                 MsgType = "MinerMsg"
-	ConnectionMsg            MsgType = "ConnectionMsg"
-	LogMsg                   MsgType = "LogMsg"
-	ValidateMsg              MsgType = "ValidateMsg"
 
 	c := cmd{
 		op:        opPub,
