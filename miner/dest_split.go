@@ -2,8 +2,14 @@ package miner
 
 import (
 	"fmt"
+	"math"
 	"sync"
+
+	"gitlab.com/TitanInd/hashrouter/interop"
 )
+
+// TODO: consider storing percentage in float64 to simplify the code
+var AllocationPrecision uint8 = 10 // the precision for percentages, should be a divisor of 100
 
 type DestSplit struct {
 	split []Split // array of the percentages of splitted hashpower, total should be less than 100
@@ -11,18 +17,28 @@ type DestSplit struct {
 }
 
 type Split struct {
-	Percentage   uint8  // percentage of total miner power, value in range from 1 to 100
-	DestAddr     string // the address of destination pool
-	DestUser     string
-	DestPassword string
+	Percentage uint8 // percentage of total miner power, value in range from 1 to 100
+	Dest       interop.Dest
 }
 
 func NewDestSplit() *DestSplit {
 	return &DestSplit{}
 }
 
-func (d *DestSplit) Allocate(percentage uint8, destAddr, destUser, destPassword string) error {
-	if percentage > 100 {
+func (d *DestSplit) Allocate(percentage float64, dest interop.Dest) error {
+	adjustedPercentage := d.adjustPercentage(percentage)
+	return d.allocate(adjustedPercentage, dest)
+}
+
+// adjustPercentage reduces precision of percentage according to AllocationPrecision
+// to avoid changing destination for short periods of time. it always rounds up
+func (d *DestSplit) adjustPercentage(percentage float64) uint8 {
+	return uint8(math.Ceil(percentage/float64(AllocationPrecision))) * AllocationPrecision
+}
+
+// allocate is used adjustPercentage is called for percentage
+func (d *DestSplit) allocate(percentage uint8, dest interop.Dest) error {
+	if percentage > 100 || percentage == 0 {
 		panic("percentage should be withing range 1..100")
 	}
 
@@ -35,17 +51,15 @@ func (d *DestSplit) Allocate(percentage uint8, destAddr, destUser, destPassword 
 	// TODO: check if already allocated to this destination
 	d.split = append(d.split, Split{
 		percentage,
-		destAddr,
-		destUser,
-		destPassword,
+		dest,
 	})
 
 	return nil
 }
 
-func (d *DestSplit) Deallocate(destAddr, destUser string) (ok bool) {
+func (d *DestSplit) Deallocate(dest interop.Dest) (ok bool) {
 	for i, spl := range d.split {
-		if spl.DestAddr == destAddr && spl.DestUser == destUser {
+		if spl.Dest.Host == dest.Host && spl.Dest.User.Username() == dest.User.Username() {
 			newLength := len(d.split) - 1
 			d.split[i] = d.split[newLength] // puts last element in place of the deleted one
 			d.split = d.split[:newLength]   // pops last element
@@ -55,12 +69,12 @@ func (d *DestSplit) Deallocate(destAddr, destUser string) (ok bool) {
 	return false
 }
 
-func (d *DestSplit) AllocateRemaining(destAddr, destUser, destPassword string) {
+func (d *DestSplit) AllocateRemaining(dest interop.Dest) {
 	remaining := d.GetUnallocated()
 	if remaining == 0 {
 		return
 	}
-	d.Allocate(remaining, destAddr, destUser, destPassword)
+	d.allocate(remaining, dest)
 }
 
 func (d *DestSplit) GetAllocated() uint8 {
@@ -80,4 +94,19 @@ func (d *DestSplit) GetUnallocated() uint8 {
 
 func (d *DestSplit) Iter() []Split {
 	return d.split
+}
+
+func (d *DestSplit) Copy() *DestSplit {
+	newSplit := make([]Split, len(d.split))
+	for i, v := range d.split {
+		newSplit[i] = Split{
+			Percentage: v.Percentage,
+			Dest:       v.Dest,
+		}
+	}
+
+	return &DestSplit{
+		split: newSplit,
+		mutex: *new(sync.RWMutex),
+	}
 }

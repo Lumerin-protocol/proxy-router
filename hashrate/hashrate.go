@@ -31,8 +31,8 @@ func (h *Hashrate) OnSubmit(diff int64) {
 	h.log.Debugf("new submit: diff %d hashrate %.3f TH/s", diff, float64(h.GetHashrate())/float64(math.Pow10(12)))
 }
 
-func (h *Hashrate) GetHashrate() int64 {
-	return int64(h.ema.ValuePer(time.Second)) * int64(math.Pow(2, 32))
+func (h *Hashrate) GetHashrate() uint64 {
+	return uint64(h.ema.ValuePer(time.Second)) * uint64(math.Pow(2, 32))
 }
 
 func (h *Hashrate) GetTotalHashes() uint64 {
