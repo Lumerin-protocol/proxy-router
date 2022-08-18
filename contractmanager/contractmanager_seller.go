@@ -129,6 +129,7 @@ func (seller *SellerContractManager) Run(ctx context.Context) (err error) {
 }
 
 func (seller *SellerContractManager) SetupExistingContracts() (err error) {
+	seller.logger.Debug("Setting up existing contracts")
 	// var contractValues []hashrateContractValues
 	var contractModels []interfaces.IContractModel
 
@@ -136,43 +137,50 @@ func (seller *SellerContractManager) SetupExistingContracts() (err error) {
 	if err != nil {
 		return err
 	}
+	seller.logger.Infof("Existing Seller Contracts: %v", sellerContracts)
 	//contextlib.Logf(seller.Ctx, log.LevelInfo, "Existing Seller Contracts: %v", sellerContracts)
 
 	// get existing dests in msgbus to see if contract's dest already exists
 	// existingDests := seller.Ps.GetDestinations()
 	for _, sellerContract := range sellerContracts {
-		id := string(sellerContract.Hex())
-		if !seller.Ps.ContractExists(id) {
+		// id := string(sellerContract.Hex())
 
-			contractMsg, err := readHashrateContract(seller.EthClient, sellerContract)
+		destUrl, err := readDestUrl(seller.EthClient, sellerContract, seller.PrivateKey)
 
-			if err != nil {
-				return err
-			}
-
-			destUrl, err := readDestUrl(seller.EthClient, sellerContract, seller.PrivateKey)
-
-			if err != nil {
-				return err
-			}
-
-			contract, err := seller.ContractFactory.CreateContract(true, sellerContract.Hex(), ContractStateEnum[contractMsg.State], contractMsg.Buyer.Hex(), contractMsg.Price, contractMsg.Limit, contractMsg.Speed, contractMsg.Length, contractMsg.StartingBlockTimestamp, destUrl)
-
-			if err != nil {
-				return err
-			}
-
-			contractModels = append(contractModels, contract)
-
-			contract, err = contract.TryRunningAt(destUrl)
-
-			if err != nil {
-				return err
-			}
+		if err != nil {
+			return err
 		}
+
+		// if !seller.Ps.ContractExists(id) {
+
+		contractMsg, err := readHashrateContract(seller.EthClient, sellerContract)
+
+		if err != nil {
+			return err
+		}
+
+		contract, err := seller.ContractFactory.CreateContract(true, sellerContract.Hex(), ContractStateEnum[contractMsg.State], contractMsg.Buyer.Hex(), contractMsg.Price, contractMsg.Limit, contractMsg.Speed, contractMsg.Length, contractMsg.StartingBlockTimestamp, destUrl)
+
+		if err != nil {
+			return err
+		}
+
+		contractModels = append(contractModels, contract)
+
+		contract.SetDestination(destUrl)
+
+		seller.logger.Debug("Executing contract %v", contract.GetId())
+		_, err = contract.Execute()
+
+		if err != nil {
+			return err
+		}
+		// }
 	}
 
+	seller.logger.Debug("Saving existing contracts")
 	_, err = seller.Ps.SaveContracts(contractModels)
+	seller.logger.Debug("Saved existing contracts; err: %v", err)
 
 	return err
 }
@@ -245,6 +253,8 @@ func (seller *SellerContractManager) watchContractCreation(cfLogs chan types.Log
 				if err != nil {
 					//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
 				}
+
+				seller.logger.Debugf("contract created... comparing hashrateContractSeller (%v) with seller.Account (%v)", hashrateContractSeller, seller.Account)
 				if hashrateContractSeller == seller.Account {
 					// TODO: Handle logs, errors and data
 					//contextlib.Logf(seller.Ctx, log.LevelInfo, "Address of created Hashrate Contract: %s\n\n", address.Hex())
