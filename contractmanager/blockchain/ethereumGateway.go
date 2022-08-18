@@ -32,8 +32,10 @@ func (gateway *EthereumGateway) SubscribeToContractEvents(contract interfaces.IC
 	}
 
 	logs := make(chan interop.BlockchainEvent)
-	sub, err := gateway.client.SubscribeFilterLogs(context.Background(), query, logs)
+	gateway.logger.Debugf("subscribing to blockchain client log events: %v", contract.GetId())
+	sub, err := gateway.client.SubscribeFilterLogs(ctx, query, logs)
 	if err != nil {
+		gateway.logger.Debugf("error subscribing to contract events: %v", err)
 		// fmt.Printf("Funcname::%s, Fileline::%s, Error::%v\n", lumerinlib.Funcname(), lumerinlib.FileLine(), err)
 		return logs, sub, err
 	}
@@ -62,15 +64,19 @@ func (gateway *EthereumGateway) SubscribeToContractEvents(contract interfaces.IC
 				// contextlib.Logf(seller.Ctx, log.LevelInfo, "Cancelling current contract manager context: cancelling watchHashrateContract go routine")
 				return
 			case hLog := <-logs:
-
+				gateway.logger.Debugf("contract event")
 				switch hLog.Topics[0].Hex() {
 				case contractPurchasedSigHash.Hex():
+
+					gateway.logger.Debugf("contract purchased event")
 					destUrl, err := gateway.readDestUrl(common.HexToAddress(contract.GetAddress()), contract.GetPrivateKey())
 
-					buyer := common.HexToAddress(hLog.Topics[1].Hex())
 					if err != nil {
 						//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading dest url failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
 					}
+
+					buyer := common.HexToAddress(hLog.Topics[1].Hex())
+
 					contract.SetDestination(destUrl)
 					contract.SetBuyerAddress(buyer.Hex())
 					contract.Execute()

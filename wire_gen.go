@@ -76,7 +76,7 @@ func InitApp() (*app.App, error) {
 	return appApp, nil
 }
 
-func initContractModel() (interfaces.IContractModel, error) {
+func initContractModel() (*contractmanager.Contract, error) {
 	config, err := provideConfig()
 	if err != nil {
 		return nil, err
@@ -97,8 +97,8 @@ func initContractModel() (interfaces.IContractModel, error) {
 	v2 := data.NewTransactionsChannel()
 	iContractsRepository := provideContractsRepository(iLogger, v, v2)
 	iContractsGateway := provideContractsGateway(iContractsRepository)
-	iContractModel := provideContractModel(iLogger, iBlockchainGateway, iContractsGateway)
-	return iContractModel, nil
+	contract := provideContractModel(iLogger, iBlockchainGateway, iContractsGateway)
+	return contract, nil
 }
 
 // main.go:
@@ -200,10 +200,26 @@ func (*ContractFactory) CreateContract(
 ) (interfaces.IContractModel, error) {
 	model, err := initContractModel()
 
+	if err != nil {
+		return model, err
+	}
+
+	model.IsSeller = IsSeller
+	model.ID = ID
+	model.State = State
+	model.State = State
+	model.Buyer = Buyer
+	model.Price = Price
+	model.Limit = Limit
+	model.Speed = Speed
+	model.Length = Length
+	model.StartingBlockTimestamp = StartingBlockTimestamp
+	model.Dest = Dest
+
 	return model, err
 }
 
-func provideContractModel(logger interfaces.ILogger, ethereumGateway interfaces.IBlockchainGateway, contractsGateway interfaces.IContractsGateway) interfaces.IContractModel {
+func provideContractModel(logger interfaces.ILogger, ethereumGateway interfaces.IBlockchainGateway, contractsGateway interfaces.IContractsGateway) *contractmanager.Contract {
 	return &contractmanager.Contract{
 		Logger:           logger,
 		EthereumGateway:  ethereumGateway,

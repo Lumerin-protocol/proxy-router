@@ -31,6 +31,7 @@ func (wallet *EthereumWallet) GetPrivateKey() string {
 
 func NewBlockchainWallet(configuration *config.Config) interfaces.IBlockchainWallet {
 	mnemonic := configuration.Contract.Mnemonic
+
 	accountIndex := configuration.Contract.AccountIndex
 
 	wallet, err := hdwallet.NewFromMnemonic(mnemonic)

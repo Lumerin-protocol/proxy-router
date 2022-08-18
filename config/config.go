@@ -24,6 +24,7 @@ type Config struct {
 		LumerinTokenAddress string
 		ValidatorAddress    string
 		ProxyAddress        string
+		WalletAddress       string `env:SELLER_ADDRESS`
 	}
 	EthNode struct {
 		Address string `env:"ETH_NODE_ADDRESS" flag:"eth-node-address" validate:"required,url"`

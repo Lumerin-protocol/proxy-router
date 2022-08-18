@@ -1,5 +1,4 @@
 //go:build wireinject
-// +build wireinject
 
 package main
 
@@ -130,28 +129,42 @@ func (*ContractFactory) CreateContract(
 ) (interfaces.IContractModel, error) {
 	model, err := initContractModel()
 
-	// IsSeller               bool
-	// ID                     string
-	// State                  string
-	// Buyer                  string
-	// Price                  int
-	// Limit                  int
-	// Speed                  int
-	// Length                 int
-	// StartingBlockTimestamp int
-	// Dest                   string
+	if err != nil {
+		return model, err
+	}
 
-	// fromAddress      interop.BlockchainAddress
-	// privateKeyString string
-	// contractAddress  interop.BlockchainAddress
-	// CurrentNonce     *nonce
-	// closeOutType     uint
-	// NodeOperator     *NodeOperator
+	model.IsSeller = IsSeller
+	model.ID = ID
+	model.State = State
+	model.State = State
+	model.Buyer = Buyer
+	model.Price = Price
+	model.Limit = Limit
+	model.Speed = Speed
+	model.Length = Length
+	model.StartingBlockTimestamp = StartingBlockTimestamp
+	model.Dest = Dest
+	// ID
+	// State
+	// Buyer
+	// Price
+	// Limit
+	// Speed
+	// Length
+	// StartingBlockTimestamp
+	// Dest
+
+	// fromAddress
+	// privateKeyString
+	// contractAddress
+	// CurrentNonce
+	// closeOutType
+	// NodeOperator
 
 	return model, err
 }
 
-func initContractModel() (interfaces.IContractModel, error) {
+func initContractModel() (*contractmanager.Contract, error) {
 	wire.Build(
 		provideLogger,
 		provideConfig,
@@ -162,7 +175,7 @@ func initContractModel() (interfaces.IContractModel, error) {
 	return nil, nil
 }
 
-func provideContractModel(logger interfaces.ILogger, ethereumGateway interfaces.IBlockchainGateway, contractsGateway interfaces.IContractsGateway) interfaces.IContractModel {
+func provideContractModel(logger interfaces.ILogger, ethereumGateway interfaces.IBlockchainGateway, contractsGateway interfaces.IContractsGateway) *contractmanager.Contract {
 	return &contractmanager.Contract{
 		Logger:           logger,
 		EthereumGateway:  ethereumGateway,

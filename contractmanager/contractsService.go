@@ -128,7 +128,7 @@ func (service *ContractsService) HandleContractCreated(contract interfaces.ICont
 	service.logger.Infof("created a contract %v", contract.GetId())
 
 	contract.Save()
-
+	service.logger.Debugf("Contract is available: %v", contract.IsAvailable())
 	if contract.IsAvailable() {
 		service.SubscribeToContractEvents(contract)
 		// addr := service.blockchainGateway.HexToAddress(newContract.GetAddress())
@@ -141,7 +141,7 @@ func (service *ContractsService) HandleContractCreated(contract interfaces.ICont
 }
 
 func (service *ContractsService) SubscribeToContractEvents(contract interfaces.IContractModel) error {
-
+	service.logger.Debugf("Subscribing to blockchain gateway events for %v", contract.GetId())
 	_, _, err := service.blockchainGateway.SubscribeToContractEvents(contract)
 
 	if err != nil {
