@@ -208,21 +208,6 @@ func (v *MainValidator) Start() error {
 	}
 	go v.minersHandler(minersEventChan)
 
-	// Monitor Miner Update Events for all miners 
-	minerIds, err := v.Ps.MinerGetAllWait()
-	if err != nil {
-		contextlib.Logf(v.Ctx, log.LevelError, "Failed to get all miners, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
-		return err
-	}
-	for _, minerId := range minerIds {
-		minerEventChan := msgbus.NewEventChan()
-		_, err = v.Ps.Sub(msgbus.MinerMsg, msgbus.IDString(minerId), minerEventChan)
-		if err != nil {
-			contextlib.Logf(v.Ctx, log.LevelError, "Failed to subscribe to all miner events, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
-			return err
-		}
-		go v.minerHandler(minerId, minerEventChan)
-	}
 	return nil
 }
 
@@ -237,14 +222,6 @@ func (v *MainValidator) minersHandler(ch msgbus.EventChan) {
 			id := msgbus.MinerID(event.ID)
 
 			switch event.EventType {
-			case msgbus.PublishEvent:
-				minerEventChan := msgbus.NewEventChan()
-				_, err := v.Ps.Sub(msgbus.MinerMsg, msgbus.IDString(id), minerEventChan)
-				if err != nil {
-					contextlib.Logf(v.Ctx, log.LevelPanic, "Failed to subscribe to miner events, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
-				}
-				go v.minerHandler(id, minerEventChan)
-				
 			case msgbus.UnpublishEvent:
 				contextlib.Logf(v.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Got Miner Unpublish Event: %v", event)
 		
@@ -259,50 +236,6 @@ func (v *MainValidator) minersHandler(ch msgbus.EventChan) {
 	}
 }
 
-func (v *MainValidator) minerHandler(minerId msgbus.MinerID, ch msgbus.EventChan) {
-	for {
-		select {
-		case <-v.Ctx.Done():
-			contextlib.Logf(v.Ctx, log.LevelInfo, "Cancelling current validator context: cancelling minerHandler go routine")
-			return
-
-		case event := <-ch:
-			switch event.EventType {
-			case msgbus.UpdateEvent:
-				id := msgbus.MinerID(event.ID)
-				if id != minerId {
-					contextlib.Logf(v.Ctx, log.LevelPanic, lumerinlib.Funcname()+"Got miner event with wrong id for miner %s: %v", minerId, event)
-				}
-
-				var miner msgbus.Miner
-				switch event.Data.(type) {
-				case msgbus.Miner:
-					miner = event.Data.(msgbus.Miner)
-				case *msgbus.Miner:
-					m := event.Data.(*msgbus.Miner)
-					miner = *m
-				}
-
-				if miner.State == msgbus.OfflineState  {
-					timeOfflineLimit := time.Minute * 10
-					timeOffline := time.Since(miner.StateChange)
-					if timeOffline > timeOfflineLimit && v.MinersVal.Exists(string(id)) { // close validator instance for this miner if its been offline for more than 10 minutes
-						contextlib.Logf(v.Ctx, log.LevelInfo, "Closing validator instance for Miner: %v", id)
-						v.MinersVal.Delete(string(id))
-						var closeMessage = Message{}
-						closeMessage.Address = string(id)
-						closeMessage.MessageType = "closeValidator"
-						v.SendMessageToValidator(closeMessage)
-					}
-				}
-
-			case msgbus.UnpublishEvent:
-				contextlib.Logf(v.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Got Miner Unpublish Event for miner %s: %v", minerId, event)
-				return
-			}
-		}
-	}
-}
 
 func (v *MainValidator) validateHandler(ch msgbus.EventChan) {
 	for {
@@ -487,6 +420,21 @@ func (v *MainValidator) hashrateCalculator(instance *Validator, minerId msgbus.M
 		if err != nil {
 			contextlib.Logf(v.Ctx, log.LevelError, "Failed to get miner, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
 			return
+		}
+
+		// check if miner has been offline for a while
+		if miner.State == msgbus.OfflineState {
+			timeOfflineLimit := time.Second * (EMA_INTERVAL - 15)
+			timeOffline := time.Since(miner.StateChange)
+			if timeOffline > timeOfflineLimit && v.MinersVal.Exists(string(minerId)) { // close validator instance for this miner if its been offline for more than 9:45 minutes
+				contextlib.Logf(v.Ctx, log.LevelInfo, "Closing validator instance for Miner: %v", minerId)
+				v.MinersVal.Delete(string(minerId))
+				var closeMessage = Message{}
+				closeMessage.Address = string(minerId)
+				closeMessage.MessageType = "closeValidator"
+				v.SendMessageToValidator(closeMessage)
+				return
+			}
 		}
 
 		// calculate 5 minute moving average of hashrate
