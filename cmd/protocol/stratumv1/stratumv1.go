@@ -511,13 +511,15 @@ func (s *StratumV1Struct) setMinerOffline() {
 		m.Port = 0
 		m.State = msgbus.OfflineState
 		m.StateChange = time.Now()
-		_, e = s.protocol.SetWait(simple.MinerMsg, simple.IDString(s.minerRec.ID), &m)
+		s.minerRec = &m
+		_, e = s.protocol.SetWait(simple.MinerMsg, simple.IDString(s.minerRec.ID), s.minerRec)
 	case *msgbus.Miner:
 		m.IP = ""
 		m.Port = 0
 		m.State = msgbus.OfflineState
 		m.StateChange = time.Now()
-		_, e = s.protocol.SetWait(simple.MinerMsg, simple.IDString(s.minerRec.ID), m)
+		s.minerRec = m
+		_, e = s.protocol.SetWait(simple.MinerMsg, simple.IDString(s.minerRec.ID), s.minerRec)
 	default:
 		contextlib.Logf(s.ctx, contextlib.LevelPanic, fmt.Sprint(lumerinlib.FileLineFunc()+" default reached type:%t", m))
 	}
