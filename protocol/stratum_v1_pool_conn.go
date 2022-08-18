@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
 	"go.uber.org/atomic"
@@ -16,9 +17,7 @@ import (
 
 // StratumV1PoolConn represents connection to the pool on the protocol level
 type StratumV1PoolConn struct {
-	url      string // pool url address
-	authUser string // pool auth
-	authPass string // pool auth
+	dest *interop.Dest // destination TODO: replace it with value type, instead of pointer
 
 	conn net.Conn // tcp connection
 
@@ -39,11 +38,10 @@ type StratumV1PoolConn struct {
 	log interfaces.ILogger
 }
 
-func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, url string, authUser string, authPass string) *StratumV1PoolConn {
+func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest *interop.Dest) *StratumV1PoolConn {
 	return &StratumV1PoolConn{
-		url:      url,
-		authUser: authUser,
-		authPass: authPass,
+
+		dest: dest,
 
 		conn:       conn,
 		notifyMsgs: make([]stratumv1_message.MiningNotify, 100),
@@ -82,7 +80,7 @@ func (s *StratumV1PoolConn) run(ctx context.Context) error {
 			return err
 		}
 
-		lib.LogMsg(false, true, s.url, line, s.log)
+		lib.LogMsg(false, true, s.dest.Host, line, s.log)
 
 		m, err := stratumv1_message.ParseMessageFromPool(line)
 		if err != nil {
@@ -125,7 +123,7 @@ func (m *StratumV1PoolConn) Connect() error {
 	msg.SetExtranonce(extranonce, extranonceSize)
 	m.extraNonceMsg = msg
 
-	authMsg := stratumv1_message.NewMiningAuthorize(1, m.authUser, m.authPass)
+	authMsg := stratumv1_message.NewMiningAuthorize(1, m.dest.Username(), m.dest.Password())
 	_, err = m.sendPoolRequestWait(authMsg)
 	if err != nil {
 		m.log.Debugf("reconnect: error sent subscribe %w", err)
@@ -207,7 +205,7 @@ func (s *StratumV1PoolConn) Read() (stratumv1_message.MiningMessageGeneric, erro
 func (m *StratumV1PoolConn) Write(ctx context.Context, msg stratumv1_message.MiningMessageGeneric) error {
 	msg = m.writeInterceptor(msg)
 
-	lib.LogMsg(false, false, m.url, msg.Serialize(), m.log)
+	lib.LogMsg(false, false, m.dest.Host, msg.Serialize(), m.log)
 
 	b := fmt.Sprintf("%s\n", msg.Serialize())
 	_, err := m.conn.Write([]byte(b))
@@ -219,8 +217,8 @@ func (m *StratumV1PoolConn) GetExtranonce() (string, int) {
 	return m.extraNonceMsg.GetExtranonce()
 }
 
-func (m *StratumV1PoolConn) GetDest() (string, string, string) {
-	return m.url, m.authUser, m.authPass
+func (m *StratumV1PoolConn) GetDest() *interop.Dest {
+	return m.dest
 }
 
 func (s *StratumV1PoolConn) RemoteAddr() string {
@@ -257,7 +255,7 @@ func (s *StratumV1PoolConn) readInterceptor(m stratumv1_message.MiningMessageGen
 func (s *StratumV1PoolConn) writeInterceptor(m stratumv1_message.MiningMessageGeneric) stratumv1_message.MiningMessageGeneric {
 	switch typedMsg := m.(type) {
 	case *stratumv1_message.MiningSubmit:
-		typedMsg.SetWorkerName(s.authUser)
+		typedMsg.SetWorkerName(s.dest.Username())
 		m = typedMsg
 	}
 	return m

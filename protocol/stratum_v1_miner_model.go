@@ -5,6 +5,7 @@ import (
 
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
 )
 
@@ -88,8 +89,8 @@ func (s *stratumV1MinerModel) poolInterceptor(msg stratumv1_message.MiningMessag
 	}
 }
 
-func (s *stratumV1MinerModel) ChangeDest(addr string, authUser string, authPwd string) error {
-	err := s.pool.SetDest(addr, authUser, authPwd)
+func (s *stratumV1MinerModel) ChangeDest(dest interop.Dest) error {
+	err := s.pool.SetDest(dest)
 	return err
 }
 
@@ -97,6 +98,6 @@ func (s *stratumV1MinerModel) GetID() string {
 	return s.miner.GetID()
 }
 
-func (s *stratumV1MinerModel) GetHashRate() int64 {
+func (s *stratumV1MinerModel) GetHashRate() uint64 {
 	return s.validator.GetHashrate()
 }

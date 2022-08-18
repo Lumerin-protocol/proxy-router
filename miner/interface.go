@@ -1,17 +1,23 @@
 package miner
 
-import "context"
+import (
+	"context"
+
+	"gitlab.com/TitanInd/hashrouter/interop"
+)
 
 type MinerModel interface {
 	Run() error // shouldn't be available as public method, should be called when new miner announced
-	ChangeDest(addr string, authUser string, authPwd string) error
+	ChangeDest(dest interop.Dest) error
 	GetID() string // get miner unique id (host:port for example)
-	GetHashRate() int64
+	GetHashRate() uint64
 }
 
 type MinerScheduler interface {
 	Run(context.Context) error
 	SetDestSplit(*DestSplit)
-	GetID() string // get miner unique id (host:port for example)
-	GetHashRate() int64
+	GetID() string                                        // get miner unique id (host:port for example)
+	GetHashRate() uint64                                  // get miner hashrate in H/s
+	GetUnallocatedHashrate() uint64                       // get hashrate which is directed to default pool in H/s
+	Allocate(percentage float64, dest interop.Dest) error // allocates available miner resources
 }
