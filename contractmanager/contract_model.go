@@ -43,6 +43,7 @@ func (c *Contract) SetBuyerAddress(buyer string) {
 }
 
 func (c *Contract) Execute() (interfaces.IContractModel, error) {
+	c.Logger.Debugf("Executing contract %v", c.GetId())
 	c.RoutableStreamService.ChangeDestAll(c.Dest, "", "")
 	c.Logger.Debugf("Changed destination to %v", c.Dest)
 	// panic("Contract.Execute not implemented")
