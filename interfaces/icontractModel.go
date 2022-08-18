@@ -1,9 +1,10 @@
 package interfaces
 
+import "gitlab.com/TitanInd/hashrouter/interop"
+
 type IContractModel interface {
 	IBaseModel
-	SetDestination(string)
-	HasDestination() bool
+	SetDestination(interop.Dest)
 	IsAvailable() bool
 	MakeAvailable()
 	GetAddress() string

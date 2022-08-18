@@ -6,33 +6,30 @@ import (
 
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/protocol"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
 )
 
 type MinerController struct {
-	poolAddr     string
-	poolUser     string
-	poolPassword string
+	defaultDest *interop.Dest
 
 	repo *MinerRepo
 
 	log interfaces.ILogger
 }
 
-func NewMinerController(poolAddr string, poolUser string, poolPassword string, repo *MinerRepo, log interfaces.ILogger) *MinerController {
+func NewMinerController(defaultDest *interop.Dest, repo *MinerRepo, log interfaces.ILogger) *MinerController {
 	return &MinerController{
-		poolAddr:     poolAddr,
-		poolUser:     poolUser,
-		poolPassword: poolPassword,
-		log:          log,
-		repo:         repo,
+		defaultDest: defaultDest,
+		log:         log,
+		repo:        repo,
 	}
 }
 
 func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net.Conn) error {
 	poolPool := protocol.NewStratumV1PoolPool(p.log)
-	err := poolPool.SetDest(p.poolAddr, p.poolUser, p.poolPassword)
+	err := poolPool.SetDest(*p.defaultDest)
 	if err != nil {
 		p.log.Error(err)
 		return err
@@ -47,7 +44,7 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	// destSplit.Allocate(30, "stratum.slushpool.com:3333", "shev8.local", "anything123")
 	// destSplit.AllocateRemaining("btc.f2pool.com:3333", "shev8.001", "21235365876986800")
 
-	minerScheduler := NewOnDemandMinerScheduler(minerModel, destSplit, p.log)
+	minerScheduler := NewOnDemandMinerScheduler(minerModel, destSplit, p.log, interop.Dest{})
 	// try to connect to dest before running
 
 	p.repo.Store(minerScheduler)
@@ -57,11 +54,11 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	// return nil
 }
 
-func (p *MinerController) ChangeDestAll(addr string, username string, pwd string) error {
+func (p *MinerController) ChangeDestAll(dest interop.Dest) error {
 	p.repo.Range(func(miner MinerScheduler) bool {
-		p.log.Infof("changing pool to %s for minerID %s", addr, miner.GetID())
+		p.log.Infof("changing pool to %s for minerID %s", dest.Host, miner.GetID())
 
-		miner.Allocate(100, addr, username, pwd)
+		miner.Allocate(100, dest)
 
 		return true
 	})

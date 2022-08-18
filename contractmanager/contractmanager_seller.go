@@ -305,22 +305,22 @@ func (seller *SellerContractManager) WatchHashrateContract(addr string, hrLogs c
 			case hLog := <-hrLogs:
 
 				destUrl, err := readDestUrl(seller.EthClient, common.HexToAddress(string(addr)), seller.PrivateKey)
-
+				fmt.Printf(destUrl)
 				if err != nil {
 					//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading dest url failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
 				}
 
-				hashrateContractMsg.Dest = destUrl
+				// hashrateContractMsg.Dest = destUrl
 
 				switch hLog.Topics[0].Hex() {
 				case contractPurchasedSigHash.Hex():
 					destUrl, err := readDestUrl(seller.EthClient, common.HexToAddress(string(addr)), seller.PrivateKey)
-
+					fmt.Printf(destUrl)
 					if err != nil {
 						//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading dest url failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
 					}
 					buyer := common.HexToAddress(hLog.Topics[1].Hex())
-					hashrateContractMsg.Dest = destUrl
+					// hashrateContractMsg.Dest = destUrl
 					hashrateContractMsg.Buyer = string(buyer.Hex())
 
 					seller.Ps.HandleContractPurchased(hashrateContractMsg)
@@ -333,7 +333,8 @@ func (seller *SellerContractManager) WatchHashrateContract(addr string, hrLogs c
 						//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading dest url failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
 					}
 
-					hashrateContractMsg.Dest = destUrl
+					fmt.Printf(destUrl)
+					// hashrateContractMsg.Dest = destUrl
 
 					seller.Ps.HandleDestinationUpdated(hashrateContractMsg)
 

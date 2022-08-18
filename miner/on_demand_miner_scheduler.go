@@ -5,26 +5,29 @@ import (
 	"time"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/interop"
 )
 
 // OnDemandMinerScheduler is responsible for distributing the resources of a single miner across multiple destinations
 // and falling back to default pool for unallocated resources
 type OnDemandMinerScheduler struct {
-	minerModel MinerModel
-	destSplit  *DestSplit
-	reset      chan struct{} // used to start over the destination cycle after update has been made
-	log        interfaces.ILogger
+	minerModel  MinerModel
+	destSplit   *DestSplit    // may be not allocated fully, the remaining will be directed to defaultDest
+	reset       chan struct{} // used to start over the destination cycle after update has been made
+	log         interfaces.ILogger
+	defaultDest interop.Dest // the default destination that is used for unallocated part of destSplit
 }
 
 // const ON_DEMAND_SWITCH_TIMEOUT = 10 * time.Minute
 const ON_DEMAND_SWITCH_TIMEOUT = 1 * time.Minute
 
-func NewOnDemandMinerScheduler(minerModel MinerModel, destSplit *DestSplit, log interfaces.ILogger) *OnDemandMinerScheduler {
+func NewOnDemandMinerScheduler(minerModel MinerModel, destSplit *DestSplit, log interfaces.ILogger, defaultDest interop.Dest) *OnDemandMinerScheduler {
 	return &OnDemandMinerScheduler{
 		minerModel,
 		destSplit,
 		make(chan struct{}),
 		log,
+		defaultDest,
 	}
 }
 
@@ -46,7 +49,7 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 		// if only one destination
 		if len(m.destSplit.Iter()) == 1 {
 			splitItem := m.destSplit.Iter()[0]
-			err := m.minerModel.ChangeDest(splitItem.DestAddr, splitItem.DestUser, splitItem.DestPassword)
+			err := m.minerModel.ChangeDest(splitItem.Dest)
 			if err != nil {
 				return err
 			}
@@ -63,16 +66,16 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 
 		// if multiple destinations
 	cycle:
-		for _, splitItem := range m.destSplit.Iter() {
-			m.log.Infof("changing destination to %s ", splitItem.DestAddr)
+		for _, splitItem := range m.getDest().Iter() {
+			m.log.Infof("changing destination to %s ", splitItem.Dest.Host)
 
-			err := m.minerModel.ChangeDest(splitItem.DestAddr, splitItem.DestUser, splitItem.DestPassword)
+			err := m.minerModel.ChangeDest(splitItem.Dest)
 			if err != nil {
 				return err
 			}
 
 			splitDuration := time.Duration(int64(ON_DEMAND_SWITCH_TIMEOUT/100) * int64(splitItem.Percentage))
-			m.log.Infof("destination was changed to %s for %.2f seconds", splitItem.DestAddr, splitDuration.Seconds())
+			m.log.Infof("destination was changed to %s for %.2f seconds", splitItem.Dest.Host, splitDuration.Seconds())
 
 			select {
 			case <-ctx.Done():
@@ -97,12 +100,12 @@ func (m *OnDemandMinerScheduler) GetUnallocatedPercentage() uint8 {
 	return m.destSplit.GetUnallocated()
 }
 
-// GetUnallocatedHashpower returns the available miner hashrate
+// GetUnallocatedHashrate returns the available miner hashrate
 // TODO: discuss with a team. As hashpower may fluctuate, define some kind of expected hashpower being
 // the average hashpower value excluding the periods potential drop during reconnection
-func (m *OnDemandMinerScheduler) GetUnallocatedHashpower() int64 {
+func (m *OnDemandMinerScheduler) GetUnallocatedHashrate() uint64 {
 	// the remainder should be small enough to ignore
-	return int64(m.destSplit.GetUnallocated()) * m.minerModel.GetHashRate() / 100
+	return uint64(m.destSplit.GetUnallocated()) * m.minerModel.GetHashRate() / 100
 }
 
 // IsBusy returns true if miner is fulfilling at least one contract
@@ -115,15 +118,22 @@ func (m *OnDemandMinerScheduler) SetDestSplit(destSplit *DestSplit) {
 }
 
 // Allocate directs miner resources to the destination
-func (m *OnDemandMinerScheduler) Allocate(percentage uint8, destAddr, destUser, destPassword string) {
-	m.destSplit.Allocate(percentage, destAddr, destUser, destPassword)
+func (m *OnDemandMinerScheduler) Allocate(percentage float64, dest interop.Dest) error {
+	return m.destSplit.Allocate(percentage, dest)
 }
 
 // Deallocate removes destination from miner's resource allocation
-func (m *OnDemandMinerScheduler) Deallocate(percentage uint8, destAddr, destUser, destPassword string) (ok bool) {
-	return m.destSplit.Deallocate(destAddr, destUser)
+func (m *OnDemandMinerScheduler) Deallocate(dest interop.Dest) (ok bool) {
+	return m.destSplit.Deallocate(dest)
 }
 
-func (m *OnDemandMinerScheduler) GetHashRate() int64 {
+func (m *OnDemandMinerScheduler) GetHashRate() uint64 {
 	return m.minerModel.GetHashRate()
+}
+
+// getDest adds default destination to remaining part of destination split
+func (m *OnDemandMinerScheduler) getDest() *DestSplit {
+	dest := m.destSplit.Copy()
+	dest.AllocateRemaining(m.defaultDest)
+	return dest
 }
