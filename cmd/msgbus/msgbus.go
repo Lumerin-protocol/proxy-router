@@ -581,7 +581,7 @@ func (ps *PubSub) SetWait(msg MsgType, id IDString, data interface{}) (e *Event,
 		return e, getCommandError(MsgBusErrNoData)
 	}
 
-dataMatchCheck(msg, data)
+	dataMatchCheck(msg, data)
 
 	c := cmd{
 		op:      opSet,
@@ -1370,10 +1370,6 @@ func dataMatchCheck(msg MsgType, data interface{}) {
 			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
 		}
 	case *Contract:
-		if msg != ContractMsg{
-			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
-		}
-	case Contract:
 		if msg != ContractMsg{
 			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
 		}

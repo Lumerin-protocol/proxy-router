@@ -49,7 +49,7 @@ func (r *DestRepo) AddDest(dest DestJSON) {
 }
 
 //Converts Dest struct from msgbus to JSON struct and adds it to Repo
-func (r *DestRepo) AddDestFromMsgBus(destID msgbus.DestID, dest msgbus.Dest) {
+func (r *DestRepo) AddDestFromMsgBus(destID msgbus.DestID, dest *msgbus.Dest) {
 	var destJSON DestJSON
 
 	destJSON.ID = string(destID)
@@ -100,14 +100,8 @@ func (r *DestRepo) SubscribeToDestMsgBus() {
 			if err != nil {
 				panic(fmt.Sprintf("Getting Dest Failed: %s", err))
 			}
-			switch event.Data.(type) {
-			case msgbus.Dest:
-				dest := event.Data.(msgbus.Dest)
-				r.AddDestFromMsgBus(msgbus.DestID(dests[i]), dest)
-			case *msgbus.Dest:
 				dest := event.Data.(*msgbus.Dest)
-				r.AddDestFromMsgBus(msgbus.DestID(dests[i]), *dest)
-			}
+				r.AddDestFromMsgBus(msgbus.DestID(dests[i]), dest)
 		}
 	}
 
@@ -141,14 +135,8 @@ func (r *DestRepo) SubscribeToDestMsgBus() {
 					break loop
 				}
 			}
-			switch event.Data.(type) {
-			case msgbus.Dest:
-				dest := event.Data.(msgbus.Dest)
-				r.AddDestFromMsgBus(destID, dest)
-			case *msgbus.Dest:
 				dest := event.Data.(*msgbus.Dest)
-				r.AddDestFromMsgBus(destID, *dest)
-			} 
+				r.AddDestFromMsgBus(destID, dest)
 			
 			//
 			// Delete/Unpublish Event
@@ -166,7 +154,7 @@ func (r *DestRepo) SubscribeToDestMsgBus() {
 		case msgbus.UpdateEvent:
 			fmt.Printf(lumerinlib.Funcname()+" Update Event: %v\n", event)
 			destID := msgbus.DestID(event.ID)
-			dest := event.Data.(msgbus.Dest)
+			dest := event.Data.(*msgbus.Dest)
 			destJSON := ConvertDestMSGtoDestJSON(dest)
 			r.UpdateDest(string(destID), destJSON)
 
@@ -189,7 +177,7 @@ func ConvertDestJSONtoDestMSG(dest DestJSON) msgbus.Dest {
 	return msg
 }
 
-func ConvertDestMSGtoDestJSON(msg msgbus.Dest) (dest DestJSON) {
+func ConvertDestMSGtoDestJSON(msg *msgbus.Dest) (dest DestJSON) {
 	dest.ID = string(msg.ID)
 	dest.NetUrl = string(msg.NetUrl)
 

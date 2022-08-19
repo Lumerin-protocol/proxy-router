@@ -50,7 +50,7 @@ func (r *ConfigInfoRepo) AddConfigInfo(conf ConfigInfoJSON) {
 }
 
 //Converts ConfigInfo struct from msgbus to JSON struct and adds it to Repo
-func (r *ConfigInfoRepo) AddConfigInfoFromMsgBus(confID msgbus.ConfigID, conf msgbus.ConfigInfo) {
+func (r *ConfigInfoRepo) AddConfigInfoFromMsgBus(confID msgbus.ConfigID, conf *msgbus.ConfigInfo) {
 	var confJSON ConfigInfoJSON
 
 	confJSON.ID = string(confID)
@@ -105,7 +105,7 @@ func (r *ConfigInfoRepo) SubscribeToConfigInfoMsgBus() {
 			if err != nil {
 				panic(fmt.Sprintf("Getting Config Failed: %s", err))
 			}
-			config := event.Data.(msgbus.ConfigInfo)
+			config := event.Data.(*msgbus.ConfigInfo)
 			r.AddConfigInfoFromMsgBus(msgbus.ConfigID(configs[i]), config)
 		}
 	}
@@ -140,7 +140,7 @@ func (r *ConfigInfoRepo) SubscribeToConfigInfoMsgBus() {
 					break loop
 				}
 			}
-			config := event.Data.(msgbus.ConfigInfo)
+			config := event.Data.(*msgbus.ConfigInfo)
 			r.AddConfigInfoFromMsgBus(configID, config)
 
 			//
@@ -159,7 +159,7 @@ func (r *ConfigInfoRepo) SubscribeToConfigInfoMsgBus() {
 		case msgbus.UpdateEvent:
 			fmt.Printf(lumerinlib.Funcname()+" Update Event: %v\n", event)
 			configID := msgbus.ConfigID(event.ID)
-			config := event.Data.(msgbus.ConfigInfo)
+			config := event.Data.(*msgbus.ConfigInfo)
 			configJSON := ConvertConfigInfoMSGtoConfigInfoJSON(config)
 			r.UpdateConfigInfo(string(configID), configJSON)
 
@@ -182,7 +182,7 @@ func ConvertConfigInfoJSONtoConfigInfoMSG(conf ConfigInfoJSON) msgbus.ConfigInfo
 	return msg
 }
 
-func ConvertConfigInfoMSGtoConfigInfoJSON(msg msgbus.ConfigInfo) (conf ConfigInfoJSON) {
+func ConvertConfigInfoMSGtoConfigInfoJSON(msg *msgbus.ConfigInfo) (conf ConfigInfoJSON) {
 	conf.ID = string(msg.ID)
 	conf.DefaultDest = string(msg.DefaultDest)
 	conf.NodeOperator = string(msg.NodeOperator)
