@@ -79,8 +79,8 @@ func (cs *ConnectionScheduler) Start() (err error) {
 			contextlib.Logf(cs.Ctx, log.LevelError, "Failed to get contract, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
 			return err
 		}
-		contract := event.Data.(msgbus.Contract)
-		cs.Contracts.Set(string(contracts[i]), contract)
+		contract := event.Data.(*msgbus.Contract)
+		cs.Contracts.Set(string(contracts[i]), *contract)
 	}
 
 	// Monitor Contract Events
@@ -177,7 +177,7 @@ func (cs *ConnectionScheduler) ContractHandler(ch msgbus.EventChan) {
 			//
 			case msgbus.PublishEvent:
 				contextlib.Logf(cs.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Got Contract Publish Event: %v", event)
-				contract := event.Data.(msgbus.Contract)
+				contract := event.Data.(*msgbus.Contract)
 
 				if !cs.Contracts.Exists(string(id)) {
 					cs.Contracts.Set(string(id), contract)
@@ -228,12 +228,12 @@ func (cs *ConnectionScheduler) ContractHandler(ch msgbus.EventChan) {
 
 				// Update the current contract data
 				currentContract := cs.Contracts.Get(string(id)).(msgbus.Contract)
-				cs.Contracts.Set(string(id), event.Data.(msgbus.Contract))
+				cs.Contracts.Set(string(id), *event.Data.(*msgbus.Contract))
 
-				if currentContract.State == event.Data.(msgbus.Contract).State {
+				if currentContract.State == event.Data.(*msgbus.Contract).State {
 					contextlib.Logf(cs.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Got Contract change with no state change: %v", event)
 				} else {
-					switch event.Data.(msgbus.Contract).State {
+					switch event.Data.(*msgbus.Contract).State {
 					case msgbus.ContAvailableState:
 						contextlib.Logf(cs.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Found Available Contract: %v", event)
 
@@ -481,7 +481,7 @@ func (cs *ConnectionScheduler) ContractRunningPassthrough(contractId msgbus.Cont
 	if err != nil {
 		contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", event)
 	}
-	contract := event.Data.(msgbus.Contract)
+	contract := event.Data.(*msgbus.Contract)
 	destid := contract.Dest
 
 	if destid == "" {
@@ -520,7 +520,7 @@ func (cs *ConnectionScheduler) ContractRunning(contractId msgbus.ContractID) {
 	if err != nil {
 		contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
 	}
-	contract := event.Data.(msgbus.Contract)
+	contract := event.Data.(*msgbus.Contract)
 
 	hashrateTolerance := float64(HASHRATE_LIMIT) / 100
 
@@ -529,7 +529,7 @@ func (cs *ConnectionScheduler) ContractRunning(contractId msgbus.ContractID) {
 	MIN := int(float64(contract.Speed) - float64(contract.Speed)*hashrateTolerance)
 
 	if availableHashrate >= MIN {
-		cs.SetMinerTarget(contract, contractHashrate)
+		cs.SetMinerTarget(*contract, contractHashrate)
 	} else {
 		contextlib.Logf(cs.Ctx, log.LevelWarn, "Not enough available hashrate to fulfill contract: %v", contract.ID)
 
@@ -801,8 +801,8 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract, contract
 			// check if contract went to available periodically
 			event, _ := cs.Ps.GetWait(msgbus.ContractMsg, msgbus.IDString(contract.ID))
 			switch event.Data.(type) {
-			case msgbus.Contract:
-				contract = event.Data.(msgbus.Contract)
+			case *msgbus.Contract:
+				contract = *event.Data.(*msgbus.Contract)
 				if contract.State == msgbus.ContAvailableState {
 					contractStateChanged = true
 					break loop1
@@ -828,8 +828,8 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract, contract
 				// check if contract went to available periodically
 				event, _ := cs.Ps.GetWait(msgbus.ContractMsg, msgbus.IDString(contract.ID))
 				switch event.Data.(type) {
-				case msgbus.Contract:
-					contract = event.Data.(msgbus.Contract)
+				case *msgbus.Contract:
+					contract = *event.Data.(*msgbus.Contract)
 					if contract.State == msgbus.ContAvailableState {
 						contractStateChanged = true
 						break loop2
@@ -843,7 +843,7 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract, contract
 				if err != nil {
 					contextlib.Logf(cs.Ctx, log.LevelPanic, lumerinlib.FileLine()+"Error:%v", err)
 				}
-				contract = event.Data.(msgbus.Contract)
+				contract = *event.Data.(*msgbus.Contract)
 				if !cs.Ps.MinerExistsWait(m.ID) {
 					break loop2
 				}

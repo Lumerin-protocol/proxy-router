@@ -48,7 +48,7 @@ func TestSellerRoutine(t *testing.T) {
 		ID:     msgbus.DestID(msgbus.DEFAULT_DEST_ID),
 		NetUrl: msgbus.DestNetUrl(defaultpooladdr),
 	}
-	event, err := ps.PubWait(msgbus.DestMsg, msgbus.IDString(msgbus.DEFAULT_DEST_ID), defaultDest)
+	event, err := ps.PubWait(msgbus.DestMsg, msgbus.IDString(msgbus.DEFAULT_DEST_ID), &defaultDest)
 	if err != nil {
 		panic(fmt.Sprintf("Adding Default Dest Failed: %s", err))
 	}
@@ -84,7 +84,7 @@ func TestSellerRoutine(t *testing.T) {
 		IsBuyer:     false,
 		Contracts: make(map[msgbus.ContractID]msgbus.ContractState),
 	}
-	event, err = ps.PubWait(msgbus.NodeOperatorMsg, msgbus.IDString(NodeOperator.ID), NodeOperator)
+	event, err = ps.PubWait(msgbus.NodeOperatorMsg, msgbus.IDString(NodeOperator.ID), &NodeOperator)
 	if err != nil {
 		panic(fmt.Sprintf("Adding Node Operator Failed: %s", err))
 	}
@@ -180,8 +180,8 @@ loop2:
 		Dest:            defaultDest.ID,
 		Contracts:       make(map[msgbus.ContractID]float64),
 	}
-	ps.Pub(msgbus.MinerMsg, msgbus.IDString(miner1.ID), miner1)
-	ps.Pub(msgbus.MinerMsg, msgbus.IDString(miner2.ID), miner2)
+	ps.Pub(msgbus.MinerMsg, msgbus.IDString(miner1.ID), &miner1)
+	ps.Pub(msgbus.MinerMsg, msgbus.IDString(miner2.ID), &miner2)
 
 	err = cman.start()
 	if err != nil {
@@ -299,7 +299,7 @@ loop4:
 		Dest:            defaultDest.ID,
 		Contracts:       make(map[msgbus.ContractID]float64),
 	}
-	ps.Pub(msgbus.MinerMsg, msgbus.IDString(miner3.ID), miner3)
+	ps.Pub(msgbus.MinerMsg, msgbus.IDString(miner3.ID), &miner3)
 
 	// wait until created hashrate contract was found before continuing
 loop5:
@@ -371,7 +371,7 @@ loop6:
 		Dest:            defaultDest.ID,
 		Contracts:       make(map[msgbus.ContractID]float64),
 	}
-	ps.Pub(msgbus.MinerMsg, msgbus.IDString(miner4.ID), miner4)
+	ps.Pub(msgbus.MinerMsg, msgbus.IDString(miner4.ID), &miner4)
 
 	// wait until created hashrate contract was found before continuing
 loop7:
@@ -428,7 +428,7 @@ loop8:
 	if event.Err != nil {
 		panic(fmt.Sprintf("Getting Purchased Contract Failed: %s", event.Err))
 	}
-	contractMsg := event.Data.(msgbus.Contract)
+	contractMsg := event.Data.(*msgbus.Contract)
 	event, err = ps.GetWait(msgbus.DestMsg, msgbus.IDString(contractMsg.Dest))
 	if err != nil {
 		panic(fmt.Sprintf("Getting Dest Failed: %s", err))
@@ -436,7 +436,7 @@ loop8:
 	if event.Err != nil {
 		panic(fmt.Sprintf("Getting Dest Failed: %s", event.Err))
 	}
-	destMsg := event.Data.(msgbus.Dest)
+	destMsg := event.Data.(*msgbus.Dest)
 	if destMsg.NetUrl != "stratum+tcp://127.0.0.1:3333/updated" {
 		t.Errorf("Contract 4's target dest was not updated")
 	}

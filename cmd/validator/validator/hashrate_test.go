@@ -20,7 +20,7 @@ func TestHashrate(t *testing.T) {
 		ID:     msgbus.DestID(msgbus.DEFAULT_DEST_ID),
 		NetUrl: msgbus.DestNetUrl(defaultpooladdr),
 	}
-	ps.PubWait(msgbus.DestMsg, msgbus.IDString(defaultDest.ID), defaultDest)
+	ps.PubWait(msgbus.DestMsg, msgbus.IDString(defaultDest.ID), &defaultDest)
 
 	mainContext := context.Background()
 	cs := contextlib.NewContextStruct(nil, ps, nil, nil, nil)
@@ -56,9 +56,9 @@ func TestHashrate(t *testing.T) {
 		Dest:                 defaultDest.ID,
 		Contracts: 			  make(map[msgbus.ContractID]float64),	
 	}
-	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner1.ID), miner1)
-	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner2.ID), miner2)
-	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner3.ID), miner3)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner1.ID), &miner1)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner2.ID), &miner2)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner3.ID), &miner3)
 
 	/*
 	{"params": ["prod.s9x8", "d73b189a", "4900020000000000", "61e6f630", "70010699"], "id": 19809, "method": "mining.submit"}
@@ -246,9 +246,9 @@ func TestHashrate(t *testing.T) {
 		Dest:                 defaultDest.ID,
 		Contracts: 			  make(map[msgbus.ContractID]float64),	
 	}
-	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner4.ID), miner4)
-	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner5.ID), miner5)
-	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner6.ID), miner6)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner4.ID), &miner4)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner5.ID), &miner5)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner6.ID), &miner6)
 
 
 	time.Sleep(time.Second * 5)
