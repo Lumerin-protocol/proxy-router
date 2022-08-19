@@ -1,18 +1,20 @@
 package contractmanager
 
-func FindCombinations(list HashrateList, targetHashrate uint64) HashrateList {
+func FindCombinations(list HashrateList, targetHashrate int) HashrateList {
 	combination, delta := FindClosestMinerCombination(list, targetHashrate)
-	// last element should always be larger than delta
-	combination[combination.Len()-1].Hashrate = combination[combination.Len()-1].Hashrate - uint64(delta)
+
+	// partially allocate last miner
+	combination[combination.Len()-1].Hashrate = combination[combination.Len()-1].Hashrate - delta
+
 	return combination
 }
 
-func FindClosestMinerCombination(list HashrateList, target uint64) (lst HashrateList, delta int) {
-	hashrates := make([]uint64, list.Len())
+func FindClosestMinerCombination(list HashrateList, target int) (lst HashrateList, delta int) {
+	hashrates := make([]int, list.Len())
 	for i, v := range list {
 		hashrates[i] = v.Hashrate
 	}
-	indexes, delta := ClosestSubsetSum(hashrates, target)
+	indexes, delta := ClosestSubsetSumRGLI(hashrates, target)
 
 	res := make(HashrateList, len(indexes))
 	for i, v := range indexes {

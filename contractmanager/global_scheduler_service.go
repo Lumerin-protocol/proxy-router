@@ -15,13 +15,13 @@ type GlobalSchedulerService struct {
 	minerCollection *miner.MinerRepo
 }
 
-func (s *GlobalSchedulerService) Allocate(hashrate uint64, dest interop.Dest) error {
-	remainingHashrate, minerHashrates := s.GetUnallocatedHashrate()
-	if remainingHashrate < hashrate {
+func (s *GlobalSchedulerService) Allocate(hashrateGHS int, dest interop.Dest) error {
+	remainingHashrate, minerHashrates := s.GetUnallocatedHashrateGHS()
+	if remainingHashrate < hashrateGHS {
 		return ErrNotEnoughHashrate
 	}
 
-	combination := FindCombinations(minerHashrates, hashrate)
+	combination := FindCombinations(minerHashrates, hashrateGHS)
 	for _, item := range combination {
 		miner, ok := s.minerCollection.Load(item.MinerID)
 		if !ok {
@@ -36,19 +36,19 @@ func (s *GlobalSchedulerService) Allocate(hashrate uint64, dest interop.Dest) er
 	return nil
 }
 
-func (s *GlobalSchedulerService) GetUnallocatedHashrate() (uint64, HashrateList) {
-	var unallocatedHashrate uint64 = 0
+func (s *GlobalSchedulerService) GetUnallocatedHashrateGHS() (int, HashrateList) {
+	var unallocatedHashrate int = 0
 	var minerHashrates HashrateList
 
 	s.minerCollection.Range(func(miner miner.MinerScheduler) bool {
-		unallocatedHashrate = miner.GetUnallocatedHashrate()
+		unallocatedHashrate = miner.GetUnallocatedHashrateGHS()
 		if unallocatedHashrate > 0 {
 			unallocatedHashrate += unallocatedHashrate
 			// passing to struct to avoid potential race conditions due to hashrate not being constant
 			minerHashrates = append(minerHashrates, HashrateListItem{
 				Hashrate:      unallocatedHashrate,
 				MinerID:       miner.GetID(),
-				TotalHashrate: miner.GetHashRate(),
+				TotalHashrate: miner.GetHashRateGHS(),
 			})
 		}
 		return true

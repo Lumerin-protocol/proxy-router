@@ -103,9 +103,9 @@ func (m *OnDemandMinerScheduler) GetUnallocatedPercentage() uint8 {
 // GetUnallocatedHashrate returns the available miner hashrate
 // TODO: discuss with a team. As hashpower may fluctuate, define some kind of expected hashpower being
 // the average hashpower value excluding the periods potential drop during reconnection
-func (m *OnDemandMinerScheduler) GetUnallocatedHashrate() uint64 {
+func (m *OnDemandMinerScheduler) GetUnallocatedHashrateGHS() int {
 	// the remainder should be small enough to ignore
-	return uint64(m.destSplit.GetUnallocated()) * m.minerModel.GetHashRate() / 100
+	return int(m.destSplit.GetUnallocated()) * m.minerModel.GetHashRateGHS() / 100
 }
 
 // IsBusy returns true if miner is fulfilling at least one contract
@@ -127,8 +127,8 @@ func (m *OnDemandMinerScheduler) Deallocate(dest interop.Dest) (ok bool) {
 	return m.destSplit.Deallocate(dest)
 }
 
-func (m *OnDemandMinerScheduler) GetHashRate() uint64 {
-	return m.minerModel.GetHashRate()
+func (m *OnDemandMinerScheduler) GetHashRateGHS() int {
+	return m.minerModel.GetHashRateGHS()
 }
 
 // getDest adds default destination to remaining part of destination split

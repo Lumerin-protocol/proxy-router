@@ -98,6 +98,6 @@ func (s *stratumV1MinerModel) GetID() string {
 	return s.miner.GetID()
 }
 
-func (s *stratumV1MinerModel) GetHashRate() uint64 {
-	return s.validator.GetHashrate()
+func (s *stratumV1MinerModel) GetHashRateGHS() int {
+	return s.validator.GetHashrateGHS()
 }

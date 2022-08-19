@@ -1,8 +1,8 @@
 package contractmanager
 
 type HashrateListItem struct {
-	Hashrate      uint64
-	TotalHashrate uint64
+	Hashrate      int
+	TotalHashrate int
 	MinerID       string
 }
 
