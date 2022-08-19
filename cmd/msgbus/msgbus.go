@@ -209,6 +209,10 @@ func (ps *PubSub) Pub(msg MsgType, id IDString, data interface{}, ech ...EventCh
 		if msg != ContractManagerConfigMsg{
 			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
 		}
+	case lumerinlib.ContractManagerConfig:
+		if msg != ContractManagerConfigMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
 	case *Dest:
 		if msg != DestMsg{
 			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
@@ -281,6 +285,10 @@ func (ps *PubSub) PubWait(msg MsgType, id IDString, data interface{}) (e *Event,
 			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
 		}
 	case *lumerinlib.ContractManagerConfig:
+		if msg != ContractManagerConfigMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case lumerinlib.ContractManagerConfig:
 		if msg != ContractManagerConfigMsg{
 			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
 		}
