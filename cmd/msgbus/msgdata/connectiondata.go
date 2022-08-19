@@ -60,7 +60,7 @@ func (r *ConnectionRepo) AddConnection(conn ConnectionJSON) {
 }
 
 //Converts Connection struct from msgbus to JSON struct and adds it to Repo
-func (r *ConnectionRepo) AddConnectionFromMsgBus(connID msgbus.ConnectionID, conn msgbus.Connection) {
+func (r *ConnectionRepo) AddConnectionFromMsgBus(connID msgbus.ConnectionID, conn *msgbus.Connection) {
 	var connJSON ConnectionJSON
 
 	connJSON.ID = string(connID)
@@ -125,7 +125,7 @@ func (r *ConnectionRepo) SubscribeToConnectionMsgBus() {
 			if err != nil {
 				panic(fmt.Sprintf("Getting Connection Failed: %s", err))
 			}
-			connection := event.Data.(msgbus.Connection)
+			connection := event.Data.(*msgbus.Connection)
 			r.AddConnectionFromMsgBus(msgbus.ConnectionID(connections[i]), connection)
 		}
 	}
@@ -160,8 +160,8 @@ func (r *ConnectionRepo) SubscribeToConnectionMsgBus() {
 					break loop
 				}
 			}
-			connection := event.Data.(msgbus.Connection)
-			r.AddConnectionFromMsgBus(connectionID, connection)
+			connection := event.Data.(*msgbus.Connection)
+			r.AddConnectionFromMsgBus(connection.ID, connection)
 
 			//
 			// Delete/Unpublish Event

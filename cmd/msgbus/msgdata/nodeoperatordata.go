@@ -53,7 +53,7 @@ func (r *NodeOperatorRepo) AddNodeOperator(nodeOperator NodeOperatorJSON) {
 }
 
 //Converts NodeOperator struct from msgbus to JSON struct and adds it to Repo
-func (r *NodeOperatorRepo) AddNodeOperatorFromMsgBus(nodeOperatorID msgbus.NodeOperatorID, nodeOperator msgbus.NodeOperator) {
+func (r *NodeOperatorRepo) AddNodeOperatorFromMsgBus(nodeOperatorID msgbus.NodeOperatorID, nodeOperator *msgbus.NodeOperator) {
 	var nodeOperatorJSON NodeOperatorJSON
 
 	nodeOperatorJSON.ID = string(nodeOperatorID)
@@ -119,7 +119,7 @@ func (r *NodeOperatorRepo) SubscribeToNodeOperatorMsgBus() {
 			if err != nil {
 				panic(fmt.Sprintf("Getting NodeOperator Failed: %s", err))
 			}
-			nodeOperator := event.Data.(msgbus.NodeOperator)
+			nodeOperator := event.Data.(*msgbus.NodeOperator)
 			r.AddNodeOperatorFromMsgBus(msgbus.NodeOperatorID(nodeOperators[i]), nodeOperator)
 		}
 	}
@@ -154,7 +154,7 @@ func (r *NodeOperatorRepo) SubscribeToNodeOperatorMsgBus() {
 					break loop
 				}
 			}
-			nodeOperator := event.Data.(msgbus.NodeOperator)
+			nodeOperator := event.Data.(*msgbus.NodeOperator)
 			r.AddNodeOperatorFromMsgBus(nodeOperatorID, nodeOperator)
 
 			//
@@ -173,7 +173,7 @@ func (r *NodeOperatorRepo) SubscribeToNodeOperatorMsgBus() {
 		case msgbus.UpdateEvent:
 			fmt.Printf(lumerinlib.Funcname()+" Update Event: %v\n", event)
 			nodeOperatorID := msgbus.NodeOperatorID(event.ID)
-			nodeOperator := event.Data.(msgbus.NodeOperator)
+			nodeOperator := event.Data.(*msgbus.NodeOperator)
 			nodeOperatorJSON := ConvertNodeOperatorMSGtoNodeOperatorJSON(nodeOperator)
 			r.UpdateNodeOperator(string(nodeOperatorID), nodeOperatorJSON)
 
@@ -199,7 +199,7 @@ func ConvertNodeOperatorJSONtoNodeOperatorMSG(nodeOperator NodeOperatorJSON) msg
 	return msg
 }
 
-func ConvertNodeOperatorMSGtoNodeOperatorJSON(msg msgbus.NodeOperator) (nodeOperator NodeOperatorJSON) {
+func ConvertNodeOperatorMSGtoNodeOperatorJSON(msg *msgbus.NodeOperator) (nodeOperator NodeOperatorJSON) {
 	nodeOperator.ID = string(msg.ID)
 	nodeOperator.DefaultDest = string(msg.DefaultDest)
 	nodeOperator.EthereumAccount = msg.EthereumAccount

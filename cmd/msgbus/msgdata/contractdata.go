@@ -57,7 +57,7 @@ func (r *ContractRepo) AddContract(contract ContractJSON) {
 }
 
 //Converts Contract struct from msgbus to JSON struct and adds it to Repo
-func (r *ContractRepo) AddContractFromMsgBus(contractID msgbus.ContractID, contract msgbus.Contract) {
+func (r *ContractRepo) AddContractFromMsgBus(contractID msgbus.ContractID, contract *msgbus.Contract) {
 	var contractJSON ContractJSON
 
 	contractJSON.IsSeller = contract.IsSeller
@@ -138,7 +138,7 @@ func (r *ContractRepo) SubscribeToContractMsgBus() {
 			if err != nil {
 				panic(fmt.Sprintf("Getting Contract Failed: %s", err))
 			}
-			contract := event.Data.(msgbus.Contract)
+			contract := event.Data.(*msgbus.Contract)
 			r.AddContractFromMsgBus(msgbus.ContractID(contracts[i]), contract)
 		}
 	}
@@ -173,7 +173,7 @@ func (r *ContractRepo) SubscribeToContractMsgBus() {
 					break loop
 				}
 			}
-			contract := event.Data.(msgbus.Contract)
+			contract := event.Data.(*msgbus.Contract)
 			r.AddContractFromMsgBus(contractID, contract)
 
 			//
@@ -192,7 +192,7 @@ func (r *ContractRepo) SubscribeToContractMsgBus() {
 		case msgbus.UpdateEvent:
 			fmt.Printf(lumerinlib.Funcname()+" Update Event: %v\n", event)
 			contractID := msgbus.ContractID(event.ID)
-			contract := event.Data.(msgbus.Contract)
+			contract := event.Data.(*msgbus.Contract)
 			contractJSON := ConvertContractMSGtoContractJSON(contract)
 			r.UpdateContract(string(contractID), contractJSON)
 
@@ -222,7 +222,7 @@ func ConvertContractJSONtoContractMSG(contract ContractJSON) msgbus.Contract {
 	return msg
 }
 
-func ConvertContractMSGtoContractJSON(msg msgbus.Contract) (contract ContractJSON) {
+func ConvertContractMSGtoContractJSON(msg *msgbus.Contract) (contract ContractJSON) {
 	contract.IsSeller = msg.IsSeller
 	contract.ID = string(msg.ID)
 	contract.State = string(msg.State)

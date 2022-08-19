@@ -55,7 +55,7 @@ func (r *MinerRepo) AddMiner(miner MinerJSON) {
 }
 
 //Converts Miner struct from msgbus to JSON struct and adds it to Repo
-func (r *MinerRepo) AddMinerFromMsgBus(minerID msgbus.MinerID, miner msgbus.Miner) {
+func (r *MinerRepo) AddMinerFromMsgBus(minerID msgbus.MinerID, miner *msgbus.Miner) {
 	var minerJSON MinerJSON
 
 	minerJSON.ID = string(minerID)
@@ -117,7 +117,7 @@ func (r *MinerRepo) SubscribeToMinerMsgBus() {
 			if err != nil {
 				panic(fmt.Sprintf("Getting Miner Failed: %s", err))
 			}
-			r.AddMinerFromMsgBus(miners[i], *miner)
+			r.AddMinerFromMsgBus(miners[i], miner)
 		}
 	}
 
@@ -152,7 +152,7 @@ func (r *MinerRepo) SubscribeToMinerMsgBus() {
 				}
 			}
 			miner := event.Data.(*msgbus.Miner)
-			r.AddMinerFromMsgBus(minerID, *miner)
+			r.AddMinerFromMsgBus(minerID, miner)
 
 			//
 			// Delete/Unpublish Event
@@ -171,7 +171,7 @@ func (r *MinerRepo) SubscribeToMinerMsgBus() {
 			fmt.Printf(lumerinlib.Funcname()+" Update Event: %v\n", event)
 			minerID := msgbus.MinerID(event.ID)
 			miner := event.Data.(*msgbus.Miner)
-			minerJSON := ConvertMinerMSGtoMinerJSON(*miner)
+			minerJSON := ConvertMinerMSGtoMinerJSON(miner)
 			r.UpdateMiner(string(minerID), minerJSON)
 
 			//
@@ -195,7 +195,7 @@ func ConvertMinerJSONtoMinerMSG(miner MinerJSON) msgbus.Miner {
 	return msg
 }
 
-func ConvertMinerMSGtoMinerJSON(msg msgbus.Miner) (miner MinerJSON) {
+func ConvertMinerMSGtoMinerJSON(msg *msgbus.Miner) (miner MinerJSON) {
 	miner.ID = string(msg.ID)
 	miner.Name = msg.Name
 	miner.IP = msg.IP
