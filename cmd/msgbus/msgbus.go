@@ -225,6 +225,10 @@ func (ps *PubSub) Pub(msg MsgType, id IDString, data interface{}, ech ...EventCh
 		if msg != ContractMsg{
 			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
 		}
+	case Contract:
+		if msg != ContractMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
 	case *Miner:
 		if msg != MinerMsg{
 			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
@@ -301,6 +305,10 @@ func (ps *PubSub) PubWait(msg MsgType, id IDString, data interface{}) (e *Event,
 			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
 		}
 	case *Contract:
+		if msg != ContractMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case Contract:
 		if msg != ContractMsg{
 			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
 		}
