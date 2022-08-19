@@ -108,14 +108,14 @@ func (cs *ConnectionScheduler) Start() (err error) {
 			return err
 		}
 
-		dest, err := cs.Ps.DestGetWait(miner.Dest)
+		// dest, err := cs.Ps.DestGetWait(miner.Dest)
 
-		if err != nil {
-			contextlib.Logf(cs.Ctx, log.LevelError, "Failed to get miner destination, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
-		}
+		// if err != nil {
+		// 	contextlib.Logf(cs.Ctx, log.LevelError, "Failed to get miner destination, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+		// }
 
-		contextlib.Logf(cs.Ctx, log.LevelInfo, "Adding connection... Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
-		connection, err := cs.connectionController.AddConnection(string(miner.ID), miner.IP, string(dest.NetUrl), string(miner.State))
+		// contextlib.Logf(cs.Ctx, log.LevelInfo, "Adding connection... Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+		// connection, err := cs.connectionController.AddConnection(string(miner.ID), miner.IP, string(dest.NetUrl), string(miner.State))
 
 		if err != nil {
 			contextlib.Logf(cs.Ctx, log.LevelError, "Failed to add miner connection, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
@@ -124,10 +124,10 @@ func (cs *ConnectionScheduler) Start() (err error) {
 		if miner.State == msgbus.OnlineState {
 
 			if miner.Dest == cs.NodeOperator.DefaultDest {
-				connection.SetAvailable(true)
+				// connection.SetAvailable(true)
 				cs.ReadyMiners.Set(string(miners[i]), *miner)
 			} else {
-				connection.SetAvailable(false)
+				// connection.SetAvailable(false)
 				cs.BusyMiners.Set(string(miners[i]), *miner)
 			}
 		}
@@ -278,36 +278,36 @@ func (cs *ConnectionScheduler) WatchMinerEvents(ch msgbus.EventChan) {
 			case msgbus.PublishEvent:
 				contextlib.Logf(cs.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Got Miner Publish Event: %v", event)
 
-				dest, err := cs.Ps.DestGetWait(miner.Dest)
+				// dest, err := cs.Ps.DestGetWait(miner.Dest)
 
-				if err != nil {
-					if miner.Dest == "" {
-						dest = &msgbus.Dest{NetUrl: ""}
-					}
+				// if err != nil {
+				// 	if miner.Dest == "" {
+				// 		dest = &msgbus.Dest{NetUrl: ""}
+				// 	}
 
-					contextlib.Logf(cs.Ctx, log.LevelWarn, "Failed to get miner destination, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
-				}
+				// 	contextlib.Logf(cs.Ctx, log.LevelWarn, "Failed to get miner destination, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
+				// }
 
-				connection, err := cs.connectionController.AddConnection(string(miner.ID), miner.IP, string(dest.NetUrl), string(miner.State))
-				if err != nil {
-					contextlib.Logf(cs.Ctx, log.LevelError, "Cannot add connection: %v. Fileline: %s", err, lumerinlib.FileLine())
-				}
+				// connection, err := cs.connectionController.AddConnection(string(miner.ID), miner.IP, string(dest.NetUrl), string(miner.State))
+				// if err != nil {
+				// 	contextlib.Logf(cs.Ctx, log.LevelError, "Cannot add connection: %v. Fileline: %s", err, lumerinlib.FileLine())
+				// }
 
 				switch len(miner.Contracts) {
 				case 0: // no contract
 					if !cs.ReadyMiners.Exists(string(id)) {
-						connection.SetAvailable(true)
+						// connection.SetAvailable(true)
 						cs.ReadyMiners.Set(string(id), miner)
 					}
 				default:
 					if !cs.BusyMiners.Exists(string(id)) {
-						connection.SetAvailable(false)
+						// connection.SetAvailable(false)
 					}
 				}
 
 				// watch miner update events
 				minerEventChan := msgbus.NewEventChan()
-				_, err = cs.Ps.Sub(msgbus.MinerMsg, msgbus.IDString(id), minerEventChan)
+				_, err := cs.Ps.Sub(msgbus.MinerMsg, msgbus.IDString(id), minerEventChan)
 				if err != nil {
 					contextlib.Logf(cs.Ctx, log.LevelPanic, "Failed to subscribe to miner events, Fileline::%s, Error::%v", lumerinlib.FileLine(), err)
 				}
@@ -318,7 +318,7 @@ func (cs *ConnectionScheduler) WatchMinerEvents(ch msgbus.EventChan) {
 				//
 			case msgbus.UnpublishEvent:
 				contextlib.Logf(cs.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Got Miner Unpublish/Unsubscribe Event: %v", event)
-				cs.connectionController.RemoveConnection(string(id))
+				// cs.connectionController.RemoveConnection(string(id))
 				cs.ReadyMiners.Delete(string(id))
 				cs.BusyMiners.Delete(string(id))
 
@@ -357,19 +357,19 @@ func (cs *ConnectionScheduler) minerHandler(minerId msgbus.MinerID, ch msgbus.Ev
 					timeOfflineLimit := time.Second * time.Duration(cs.HashrateCalcLagTime - 15)
 					timeOffline := time.Since(miner.StateChange)
 					if timeOffline > timeOfflineLimit {
-						cs.connectionController.RemoveConnection(string(id))
+						// cs.connectionController.RemoveConnection(string(id))
 					}
 				} 
 
-				connection := cs.connectionController.GetConnection(string(id))
+				// connection := cs.connectionController.GetConnection(string(id))
 
 				switch len(miner.Contracts) {
 				case 0: // no contract
 					// Update the current miner data
-					connection.SetAvailable(true)
+					// connection.SetAvailable(true)
 					//cs.ReadyMiners.Set(string(id), miner)
 				default:
-					connection.SetAvailable(false)
+					// connection.SetAvailable(false)
 					//cs.BusyMiners.Set(string(id), miner)
 				}
 
