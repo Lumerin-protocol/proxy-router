@@ -397,7 +397,7 @@ func (seller *SellerContractManager) watchHashrateContract(addr msgbus.ContractI
 					contractMsg.Dest = destMsg.ID
 					contractMsg.State = msgbus.ContRunningState
 					contractMsg.Buyer = string(buyer.Hex())
-					seller.Ps.SetWait(msgbus.ContractMsg, msgbus.IDString(addr), contractMsg)
+					seller.Ps.SetWait(msgbus.ContractMsg, msgbus.IDString(addr), &contractMsg)
 
 					seller.NodeOperator.Contracts[addr] = msgbus.ContRunningState
 					seller.Ps.SetWait(msgbus.NodeOperatorMsg, msgbus.IDString(seller.NodeOperator.ID), &seller.NodeOperator)
@@ -427,7 +427,7 @@ func (seller *SellerContractManager) watchHashrateContract(addr msgbus.ContractI
 						contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading dest url failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
 					}
 					destMsg.NetUrl = msgbus.DestNetUrl(destUrl)
-					seller.Ps.SetWait(msgbus.DestMsg, msgbus.IDString(destMsg.ID), &destMsg)
+					seller.Ps.SetWait(msgbus.DestMsg, msgbus.IDString(destMsg.ID), destMsg)
 
 				case contractClosedSigHash.Hex():
 					contextlib.Logf(seller.Ctx, log.LevelInfo, "Hashrate Contract %s Closed \n\n", addr)

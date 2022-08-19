@@ -180,7 +180,7 @@ func (cs *ConnectionScheduler) ContractHandler(ch msgbus.EventChan) {
 				contract := event.Data.(*msgbus.Contract)
 
 				if !cs.Contracts.Exists(string(id)) {
-					cs.Contracts.Set(string(id), contract)
+					cs.Contracts.Set(string(id), *contract)
 				} else {
 					contextlib.Logf(cs.Ctx, log.LevelWarn, lumerinlib.Funcname()+"Got Publish Event, but already had the ID: %v", event)
 				}

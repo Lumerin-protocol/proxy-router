@@ -505,6 +505,6 @@ func (v *MainValidator) hashrateCalculator(instance *Validator, minerId msgbus.M
 		if timeSlice {
 			miner.TimeSlice = true
 		}
-		v.Ps.MinerSetWait(*miner)
+		v.Ps.MinerSetWait(miner)
 	}
 }

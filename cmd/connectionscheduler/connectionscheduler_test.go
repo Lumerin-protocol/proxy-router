@@ -540,7 +540,7 @@ func TestMultiTimeSlicing(t *testing.T) {
 		ID:     msgbus.DestID(msgbus.GetRandomIDString()),
 		NetUrl: "stratum+tcp://127.0.0.1:66666/",
 	}
-	ps.PubWait(msgbus.DestMsg, msgbus.IDString(targetDest2.ID), targetDest2)
+	ps.PubWait(msgbus.DestMsg, msgbus.IDString(targetDest2.ID), &targetDest2)
 
 	contract2.State = msgbus.ContRunningState
 	contract2.Buyer = "buyer2"
