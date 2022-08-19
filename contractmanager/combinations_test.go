@@ -2,6 +2,7 @@ package contractmanager
 
 import (
 	"fmt"
+	"math/rand"
 	"testing"
 )
 
@@ -30,9 +31,16 @@ func TestCombinationsv2(t *testing.T) {
 }
 
 func TestCombinationsv3(t *testing.T) {
-	// arr := []int{800, 150, 10000, 10000, 175}
-	arr := []int{400, 300, 300, 100, 100, 300, 500, 600, 700, 800, 400, 300, 300, 100, 100, 300, 500, 600, 700, 800, 400, 300, 300, 100, 100, 300, 500, 600, 700, 800, 400, 300, 300, 100, 100, 300, 500, 600, 700, 800, 400, 300, 300, 100, 100, 300, 500, 600, 700, 800, 400, 300, 300, 100, 100, 300, 500, 600, 700, 800, 400, 300, 300, 100, 100, 300, 500, 600, 700, 800, 400, 300, 300, 100, 100, 300, 500, 600, 700, 800}
+	size := 1000
+	randNums := make([]int, size)
+	total := 0
 
-	res, delta := ClosestSubsetSumRGLI(arr, 1000)
+	for i := 0; i < size; i++ {
+		r := rand.Intn(1000)
+		randNums[i] = r
+		total += r
+	}
+
+	res, delta := ClosestSubsetSumRGLI(randNums, total/2)
 	fmt.Printf("%+v === %d\n", res, delta)
 }
