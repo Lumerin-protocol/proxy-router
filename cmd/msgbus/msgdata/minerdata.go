@@ -170,8 +170,8 @@ func (r *MinerRepo) SubscribeToMinerMsgBus() {
 		case msgbus.UpdateEvent:
 			fmt.Printf(lumerinlib.Funcname()+" Update Event: %v\n", event)
 			minerID := msgbus.MinerID(event.ID)
-			miner := event.Data.(msgbus.Miner)
-			minerJSON := ConvertMinerMSGtoMinerJSON(miner)
+			miner := event.Data.(*msgbus.Miner)
+			minerJSON := ConvertMinerMSGtoMinerJSON(*miner)
 			r.UpdateMiner(string(minerID), minerJSON)
 
 			//
