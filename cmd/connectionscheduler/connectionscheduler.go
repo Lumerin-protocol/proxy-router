@@ -874,13 +874,14 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract, contract
 					contextlib.Logf(cs.Ctx, log.LevelError, lumerinlib.FileLine()+"Error:%v", err)
 					break loop2
 				}
-				contextlib.Logf(cs.Ctx, log.LevelInfo, "Sliced Miner In Contract %s Set Target Func while servicing contract: %v", contract.ID, miner)
+				contextlib.Logf(cs.Ctx, log.LevelInfo, "Sliced Miner In Contract %s Set Target Func while servicing default dest: %v", contract.ID, miner)
 
 				readyMiners := cs.ReadyMiners.GetAll()
 				busyMiners := cs.BusyMiners.GetAll()
 				contextlib.Logf(cs.Ctx, log.LevelInfo, "Ready Miners In Contract %s Set Target Func: %v", contract.ID, readyMiners)
 				contextlib.Logf(cs.Ctx, log.LevelInfo, "Busy Miners In Contract %s Set Target Func: %v", contract.ID, busyMiners)
 				time.Sleep(totalDuration - durationPassed)
+				durationPassed += totalDuration - durationPassed
 			}
 		}
 	}
