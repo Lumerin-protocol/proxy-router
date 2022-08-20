@@ -40,6 +40,7 @@ type MainValidator struct {
 	MinerDiffs lumerinlib.ConcurrentMap // current difficulty target for each miner
 	MinersVal  lumerinlib.ConcurrentMap // miners with a validation channel open for them
 	newDiff	   chan int
+	closeDiif  chan msgbus.MinerID
 }
 
 //creates a validator
@@ -184,6 +185,7 @@ func MakeNewValidator(Ctx *context.Context) *MainValidator {
 	validator.MinerDiffs.M = make(map[string]interface{})
 	validator.MinersVal.M = make(map[string]interface{})
 	validator.newDiff = make(chan int)
+	validator.closeDiif = make(chan msgbus.MinerID)
 	return &validator
 }
 
@@ -225,7 +227,7 @@ func (v *MainValidator) minersHandler(ch msgbus.EventChan) {
 			case msgbus.UnpublishEvent:
 				contextlib.Logf(v.Ctx, log.LevelTrace, lumerinlib.Funcname()+"Got Miner Unpublish Event: %v", event)
 		
-				contextlib.Logf(v.Ctx, log.LevelInfo, "Closing validator instance for Miner: %v", id)
+				contextlib.Logf(v.Ctx, log.LevelInfo, "Closing validator instance for Miner: %v because of being unpublished", id)
 				v.MinersVal.Delete(string(id))
 				var closeMessage = Message{}
 				closeMessage.Address = string(id)
@@ -373,6 +375,7 @@ func (v *MainValidator) validateHandler(ch msgbus.EventChan) {
 
 func (v *MainValidator) difficultyEMA(minerId msgbus.MinerID) {
 	contextlib.Logf(v.Ctx, log.LevelInfo, "Starting Difficulty EMA routine for Miner: %v", minerId)
+
 	// Monitor Miner Unpublish Events
 	minerEventChan := msgbus.NewEventChan()
 	_, err := v.Ps.Sub(msgbus.MinerMsg, msgbus.IDString(minerId), minerEventChan)
@@ -385,10 +388,11 @@ func (v *MainValidator) difficultyEMA(minerId msgbus.MinerID) {
 		case event := <- minerEventChan:
 			if event.EventType == msgbus.UnpublishEvent {
 				contextlib.Logf(v.Ctx, log.LevelInfo, lumerinlib.Funcname()+"Miner unpublished: cancelling hashrate calculator routines for Miner: %v", minerId)
-				contextlib.Logf(v.Ctx, log.LevelInfo, "Closing Difficulty EMA routine for Miner: %v", minerId)
+				contextlib.Logf(v.Ctx, log.LevelInfo, "Closing Difficulty EMA routine for Miner: %v because of being unpublished", minerId)
 				
 				id := msgbus.MinerID(event.ID)
 				v.MinerDiffs.Delete(string(id))
+				return
 			}
 		case diff := <- v.newDiff:
 			if !v.MinerDiffs.Exists(string(minerId)) {
@@ -405,6 +409,13 @@ func (v *MainValidator) difficultyEMA(minerId msgbus.MinerID) {
 			currDiff.lastCalc = time.Now()
 
 			v.MinerDiffs.Set(string(minerId), currDiff)
+		case id := <- v.closeDiif:
+			// if closeDiff msg is for this miner close difficultyEMA for miner being offline for more than 9:45 minutes
+			if id == minerId {
+				contextlib.Logf(v.Ctx, log.LevelInfo, "Closing Difficulty EMA routine for Miner: %v because of being offline for more than 9:45 minutes", id)
+				v.MinerDiffs.Delete(string(id))
+				return
+			}
 		}
 	}
 }
@@ -427,12 +438,16 @@ func (v *MainValidator) hashrateCalculator(instance *Validator, minerId msgbus.M
 			timeOfflineLimit := time.Second * time.Duration(EMA_INTERVAL - 15)
 			timeOffline := time.Since(miner.StateChange)
 			if timeOffline > timeOfflineLimit && v.MinersVal.Exists(string(minerId)) { // close validator instance for this miner if its been offline for more than 9:45 minutes
-				contextlib.Logf(v.Ctx, log.LevelInfo, "Closing validator instance for Miner: %v", minerId)
+				contextlib.Logf(v.Ctx, log.LevelInfo, "Closing validator instance for Miner: %v because of being offline for more than 9:45 minutes", minerId)
 				v.MinersVal.Delete(string(minerId))
 				var closeMessage = Message{}
 				closeMessage.Address = string(minerId)
 				closeMessage.MessageType = "closeValidator"
 				v.SendMessageToValidator(closeMessage)
+				
+				// close diff EMA routine for miner
+				v.closeDiif <- minerId
+				
 				return
 			}
 		}
