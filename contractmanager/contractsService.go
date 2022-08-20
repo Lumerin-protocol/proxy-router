@@ -120,7 +120,7 @@ func (service *ContractsService) HandleContractUpdated(contract interfaces.ICont
 	contract.Save()
 }
 
-func (service *ContractsService) HandleDestinationUpdated(contract interfaces.IContractModel) {
+func (service *ContractsService) HandleDestinationUpdated(price int, time int, hashrate int) {
 	contract.Save()
 }
 
