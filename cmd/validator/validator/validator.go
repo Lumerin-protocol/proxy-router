@@ -500,26 +500,26 @@ func (v *MainValidator) hashrateCalculator(instance *Validator, minerId msgbus.M
 			return
 		}
 		miner.CurrentHashRate = newHashrate
-		timeSlice := false
-		if len(miner.Contracts) > 0 && len(instance.Hashrates) > 1 {
-			hashrateUpdateFactor := float64(instance.Hashrates[len(instance.Hashrates) - 2])/float64(newHashrate)
-			for i, v := range miner.Contracts {
-				newSliceFactor := v*hashrateUpdateFactor
-				if v < 1 && newSliceFactor < 1 {
-					miner.Contracts[i] = newSliceFactor
-				} else if v < 1 && newSliceFactor >= 1 {
-					miner.Contracts[i] = 1
-				}
+		// timeSlice := false
+		// if len(miner.Contracts) > 0 && len(instance.Hashrates) > 1 {
+		// 	hashrateUpdateFactor := float64(instance.Hashrates[len(instance.Hashrates) - 2])/float64(newHashrate)
+		// 	for i, v := range miner.Contracts {
+		// 		newSliceFactor := v*hashrateUpdateFactor
+		// 		if v < 1 && newSliceFactor < 1 {
+		// 			miner.Contracts[i] = newSliceFactor
+		// 		} else if v < 1 && newSliceFactor >= 1 {
+		// 			miner.Contracts[i] = 1
+		// 		}
 
-				// check if miner still needs to be sliced after updates
-				if miner.Contracts[i] < 1 {
-					timeSlice = true
-				}
-			}
-		}
-		if timeSlice {
-			miner.TimeSlice = true
-		}
+		// 		// check if miner still needs to be sliced after updates
+		// 		if miner.Contracts[i] < 1 {
+		// 			timeSlice = true
+		// 		}
+		// 	}
+		// }
+		// if timeSlice {
+		// 	miner.TimeSlice = true
+		// }
 		v.Ps.MinerSetWait(miner)
 	}
 }
