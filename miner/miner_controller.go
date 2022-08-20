@@ -6,20 +6,19 @@ import (
 
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
-	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/protocol"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
 )
 
 type MinerController struct {
-	defaultDest *interop.Dest
+	defaultDest interfaces.IDestination
 
 	repo *MinerRepo
 
 	log interfaces.ILogger
 }
 
-func NewMinerController(defaultDest *interop.Dest, repo *MinerRepo, log interfaces.ILogger) *MinerController {
+func NewMinerController(defaultDest interfaces.IDestination, repo *MinerRepo, log interfaces.ILogger) *MinerController {
 	return &MinerController{
 		defaultDest: defaultDest,
 		log:         log,
@@ -29,7 +28,7 @@ func NewMinerController(defaultDest *interop.Dest, repo *MinerRepo, log interfac
 
 func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net.Conn) error {
 	poolPool := protocol.NewStratumV1PoolPool(p.log)
-	err := poolPool.SetDest(*p.defaultDest)
+	err := poolPool.SetDest(p.defaultDest)
 	if err != nil {
 		p.log.Error(err)
 		return err
@@ -44,7 +43,7 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	// destSplit.Allocate(30, "stratum.slushpool.com:3333", "shev8.local", "anything123")
 	// destSplit.AllocateRemaining("btc.f2pool.com:3333", "shev8.001", "21235365876986800")
 
-	minerScheduler := NewOnDemandMinerScheduler(minerModel, destSplit, p.log, interop.Dest{})
+	minerScheduler := NewOnDemandMinerScheduler(minerModel, destSplit, p.log, nil)
 	// try to connect to dest before running
 
 	p.repo.Store(minerScheduler)
@@ -54,9 +53,9 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	// return nil
 }
 
-func (p *MinerController) ChangeDestAll(dest interop.Dest) error {
+func (p *MinerController) ChangeDestAll(dest interfaces.IDestination) error {
 	p.repo.Range(func(miner MinerScheduler) bool {
-		p.log.Infof("changing pool to %s for minerID %s", dest.Host, miner.GetID())
+		p.log.Infof("changing pool to %s for minerID %s", dest.GetHost(), miner.GetID())
 
 		miner.Allocate(100, dest)
 

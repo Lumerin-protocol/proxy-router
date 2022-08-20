@@ -1,12 +1,8 @@
-package miner
-
-import (
-	"time"
-)
+package interfaces
 
 type IContractResourceService interface {
-	Allocate(hashrate uint, duration time.Duration, dest string, id string) (RunningContract, error)
-	GetOngoingContracts() ([]RunningContract, error) // for public API
+	Allocate(hashrate uint64, dest IDestination) error
+	GetUnallocatedHashrate() (uint64, IRoutablestreamFullfillmentCollection)
 }
 
 type RunningContract struct {

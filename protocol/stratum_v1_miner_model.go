@@ -5,7 +5,6 @@ import (
 
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
-	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
 )
 
@@ -89,7 +88,7 @@ func (s *stratumV1MinerModel) poolInterceptor(msg stratumv1_message.MiningMessag
 	}
 }
 
-func (s *stratumV1MinerModel) ChangeDest(dest interop.Dest) error {
+func (s *stratumV1MinerModel) ChangeDest(dest interfaces.IDestination) error {
 	err := s.pool.SetDest(dest)
 	return err
 }
