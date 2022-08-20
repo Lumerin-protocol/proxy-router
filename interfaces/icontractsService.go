@@ -10,15 +10,12 @@ type IContractsService interface {
 	ContractExists(id string) bool
 	CheckHashRate(contractId string) bool
 
-	//	Event listeners
-	OnContractCreated(func(newContract IContractModel))
-
 	//	Event handlers
 	HandleContractCreated(contract IContractModel)
-	HandleContractPurchased(IContractModel)
-	HandleContractUpdated(IContractModel)
-	HandleDestinationUpdated(IContractModel)
-	HandleContractClosed(IContractModel)
+	HandleContractPurchased(dest string, sellerAddress string, buyerAddress string)
+	HandleContractUpdated(price int, time int, hashrate int)
+	HandleDestinationUpdated(dest IDestination)
+	HandleContractClosed(model IContractModel)
 
 	// HandleBuyerContractPurchased(IContractModel)
 	// HandleBuyerContractUpdated(IContractModel)

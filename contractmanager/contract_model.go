@@ -3,6 +3,7 @@ package contractmanager
 import (
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/interop"
+	"gitlab.com/TitanInd/hashrouter/lib"
 )
 
 type Contract struct {
@@ -20,7 +21,7 @@ type Contract struct {
 	Speed                  int
 	Length                 int
 	StartingBlockTimestamp int
-	Dest                   interop.Dest
+	Dest                   interfaces.IDestination
 
 	fromAddress      interop.BlockchainAddress
 	privateKeyString string
@@ -44,7 +45,7 @@ func (c *Contract) SetBuyerAddress(buyer string) {
 
 func (c *Contract) Execute() (interfaces.IContractModel, error) {
 	c.Logger.Debugf("Executing contract %v", c.GetId())
-	c.RoutableStreamService.ChangeDestAll(c.Dest, "", "")
+	c.RoutableStreamService.ChangeDestAll(c.Dest)
 	c.Logger.Debugf("Changed destination to %v", c.Dest)
 	// panic("Contract.Execute not implemented")
 	return c, nil
@@ -66,8 +67,14 @@ func (c *Contract) GetCloseOutType() uint {
 	return c.closeOutType
 }
 
-func (c *Contract) SetDestination(dest interop.Dest) {
-	c.Dest = dest
+func (c *Contract) SetDestination(dest string) error {
+	c.Dest, err = lib.ParseDest(dest)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *Contract) IsAvailable() bool {

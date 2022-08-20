@@ -9,6 +9,7 @@ type Config struct {
 		Address string `env:"PROXY_ADDRESS" flag:"proxy-address" validate:"required,hostname_port"`
 	}
 	Pool struct {
+		Scheme   string `env:"POOL_SCHEME" flag:"pool-scheme"`
 		Address  string `env:"POOL_ADDRESS" flag:"pool-address" validate:"required,hostname_port"`
 		User     string `env:"POOL_USER" flag:"pool-user" validate:"required"`
 		Password string `env:"POOL_PASSWORD" flag:"pool-password"`

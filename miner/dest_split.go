@@ -5,7 +5,7 @@ import (
 	"math"
 	"sync"
 
-	"gitlab.com/TitanInd/hashrouter/interop"
+	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
 
 // TODO: consider storing percentage in float64 to simplify the code
@@ -18,14 +18,14 @@ type DestSplit struct {
 
 type Split struct {
 	Percentage uint8 // percentage of total miner power, value in range from 1 to 100
-	Dest       interop.Dest
+	Dest       interfaces.IDestination
 }
 
 func NewDestSplit() *DestSplit {
 	return &DestSplit{}
 }
 
-func (d *DestSplit) Allocate(percentage float64, dest interop.Dest) error {
+func (d *DestSplit) Allocate(percentage float64, dest interfaces.IDestination) error {
 	adjustedPercentage := d.adjustPercentage(percentage)
 	return d.allocate(adjustedPercentage, dest)
 }
@@ -37,7 +37,7 @@ func (d *DestSplit) adjustPercentage(percentage float64) uint8 {
 }
 
 // allocate is used adjustPercentage is called for percentage
-func (d *DestSplit) allocate(percentage uint8, dest interop.Dest) error {
+func (d *DestSplit) allocate(percentage uint8, dest interfaces.IDestination) error {
 	if percentage > 100 || percentage == 0 {
 		panic("percentage should be withing range 1..100")
 	}
@@ -57,9 +57,9 @@ func (d *DestSplit) allocate(percentage uint8, dest interop.Dest) error {
 	return nil
 }
 
-func (d *DestSplit) Deallocate(dest interop.Dest) (ok bool) {
+func (d *DestSplit) Deallocate(dest interfaces.IDestination) (ok bool) {
 	for i, spl := range d.split {
-		if spl.Dest.Host == dest.Host && spl.Dest.User.Username() == dest.User.Username() {
+		if spl.Dest.GetHost() == dest.GetHost() && spl.Dest.Username() == dest.Username() {
 			newLength := len(d.split) - 1
 			d.split[i] = d.split[newLength] // puts last element in place of the deleted one
 			d.split = d.split[:newLength]   // pops last element
@@ -69,7 +69,7 @@ func (d *DestSplit) Deallocate(dest interop.Dest) (ok bool) {
 	return false
 }
 
-func (d *DestSplit) AllocateRemaining(dest interop.Dest) {
+func (d *DestSplit) AllocateRemaining(dest interfaces.IDestination) {
 	remaining := d.GetUnallocated()
 	if remaining == 0 {
 		return
