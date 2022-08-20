@@ -367,10 +367,11 @@ func (cs *ConnectionScheduler) minerHandler(minerId msgbus.MinerID, ch msgbus.Ev
 				case 0: // no contract
 					// Update the current miner data
 					// connection.SetAvailable(true)
-					//cs.ReadyMiners.Set(string(id), miner)
+					cs.ReadyMiners.Set(string(id), miner)
+					cs.BusyMiners.Delete(string(id))
 				default:
 					// connection.SetAvailable(false)
-					//cs.BusyMiners.Set(string(id), miner)
+					cs.BusyMiners.Set(string(id), miner)
 				}
 
 			case msgbus.UnpublishEvent:
@@ -420,6 +421,7 @@ func (cs *ConnectionScheduler) RunningContractsManager() {
 
 			if len(miner.Contracts) == 0 {
 				cs.ReadyMiners.Set(string(miner.ID), *miner)
+				cs.BusyMiners.Delete(string(miner.ID))
 			} else {
 				cs.BusyMiners.Set(string(miner.ID), *miner)
 			}
@@ -819,8 +821,8 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract, contract
 		for i, m := range slicedMiners {
 			for i, v := range m.Contracts {
 				// check none of the miners were unpublished
-				for _, v := range slicedMiners {
-					if !cs.BusyMiners.Exists(string(v.ID)) {
+				for _, min := range slicedMiners {
+					if !cs.BusyMiners.Exists(string(min.ID)) {
 						break loop2
 					}
 				}
@@ -847,11 +849,13 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract, contract
 				if !cs.Ps.MinerExistsWait(m.ID) {
 					break loop2
 				}
-				_, err = cs.Ps.MinerSetDestWait(m.ID, contract.Dest)
+				miner, err := cs.Ps.MinerSetDestWait(m.ID, contract.Dest)
 				if err != nil {
 					contextlib.Logf(cs.Ctx, log.LevelError, lumerinlib.FileLine()+"Error:%v", err)
 					break loop2
 				}
+				contextlib.Logf(cs.Ctx, log.LevelInfo, "Sliced Miner In Contract %s Set Target Func while servicing contract: %v", contract.ID, miner)
+
 				slicedDuration := time.Second * time.Duration(int(float64(cs.HashrateCalcLagTime)*v))
 				readyMiners := cs.ReadyMiners.GetAll()
 				busyMiners := cs.BusyMiners.GetAll()
@@ -865,11 +869,13 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract, contract
 				if !cs.Ps.MinerExistsWait(m.ID) {
 					break loop2
 				}
-				_, err := cs.Ps.MinerSetDestWait(m.ID, cs.NodeOperator.DefaultDest)
+				miner, err := cs.Ps.MinerSetDestWait(m.ID, cs.NodeOperator.DefaultDest)
 				if err != nil {
 					contextlib.Logf(cs.Ctx, log.LevelError, lumerinlib.FileLine()+"Error:%v", err)
 					break loop2
 				}
+				contextlib.Logf(cs.Ctx, log.LevelInfo, "Sliced Miner In Contract %s Set Target Func while servicing contract: %v", contract.ID, miner)
+
 				readyMiners := cs.ReadyMiners.GetAll()
 				busyMiners := cs.BusyMiners.GetAll()
 				contextlib.Logf(cs.Ctx, log.LevelInfo, "Ready Miners In Contract %s Set Target Func: %v", contract.ID, readyMiners)
