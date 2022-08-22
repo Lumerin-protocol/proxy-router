@@ -139,47 +139,64 @@ func (seller *SellerContractManager) SetupExistingContracts() (err error) {
 
 	// get existing dests in msgbus to see if contract's dest already exists
 	// existingDests := seller.Ps.GetDestinations()
+
+	var waitGroup sync.WaitGroup
+
 	for _, sellerContract := range sellerContracts {
-		// id := string(sellerContract.Hex())
+		waitGroup.Add(1)
+		go func(sellerContract interop.BlockchainAddress, errResult *error) {
+			// id := string(sellerContract.Hex())
 
-		destUrl, err := readDestUrl(seller.EthClient, sellerContract, seller.PrivateKey)
+			err := *errResult
 
-		if err != nil {
-			return err
-		}
+			destUrl, err := readDestUrl(seller.EthClient, sellerContract, seller.PrivateKey)
 
-		// if !seller.Ps.ContractExists(id) {
+			if err != nil {
+				errResult = &err
+				return
+			}
 
-		contractMsg, err := readHashrateContract(seller.EthClient, sellerContract)
+			// if !seller.Ps.ContractExists(id) {
 
-		if err != nil {
-			return err
-		}
+			contractMsg, err := readHashrateContract(seller.EthClient, sellerContract)
 
-		contract, err := seller.ContractFactory.CreateContract(true, sellerContract.Hex(), ContractStateEnum[contractMsg.State], contractMsg.Buyer.Hex(), contractMsg.Price, contractMsg.Limit, contractMsg.Speed, contractMsg.Length, contractMsg.StartingBlockTimestamp, destUrl)
+			if err != nil {
+				errResult = &err
+				return
+			}
 
-		if err != nil {
-			return err
-		}
+			contract, err := seller.ContractFactory.CreateContract(true, sellerContract.Hex(), ContractStateEnum[contractMsg.State], contractMsg.Buyer.Hex(), contractMsg.Price, contractMsg.Limit, contractMsg.Speed, contractMsg.Length, contractMsg.StartingBlockTimestamp, destUrl)
 
-		contractModels = append(contractModels, contract)
+			if err != nil {
+				errResult = &err
+				return
+			}
 
-		contract.SetDestination(destUrl)
+			contractModels = append(contractModels, contract)
 
-		seller.logger.Debug("Executing contract %v", contract.GetId())
-		_, err = contract.Execute()
+			contract.SetDestination(destUrl)
 
-		if err != nil {
-			return err
-		}
-		// }
+			seller.logger.Debug("Executing contract %v", contract.GetId())
+			_, err = contract.Execute()
+
+			if err != nil {
+				errResult = &err
+				return
+			}
+
+			contract.Save()
+
+			waitGroup.Done()
+		}(sellerContract, &err)
 	}
 
-	seller.logger.Debug("Saving existing contracts")
-	_, err = seller.Ps.SaveContracts(contractModels)
-	seller.logger.Debug("Saved existing contracts; err: %v", err)
+	waitGroup.Wait()
 
 	return err
+	// seller.logger.Debug("Saving existing contracts;  service %v", seller.Ps)
+	// _, err = seller.Ps.SaveContracts(contractModels)
+	// seller.logger.Debugf("Saved existing contracts; err: %v", err.Error())
+
 }
 
 func (seller *SellerContractManager) ReadContracts() ([]interop.BlockchainAddress, error) {

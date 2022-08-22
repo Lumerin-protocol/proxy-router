@@ -8,17 +8,20 @@ import (
 )
 
 type Dest struct {
-	url.URL
+	*url.URL
 }
 
 func ParseDest(uri string) (*Dest, error) {
+	fmt.Printf("source uri: %v", uri)
 	res, err := url.Parse(uri)
 	if err != nil {
 		return nil, err
 	}
 
-	// res.Scheme = "" // drop stratum+tcp prefix to avoid comparison issues
-	return &Dest{*res}, nil
+	fmt.Printf("host: %v; hostname: %v", res.Host, res.Hostname())
+	fmt.Printf("dest host: %v; dest hostname: %v", Dest{res}.Host, Dest{res}.Hostname())
+	res.Scheme = "" // drop stratum+tcp prefix to avoid comparison issues
+	return &Dest{res}, nil
 }
 
 func BuildDestUri(scheme string, address string, user string, password string) string {

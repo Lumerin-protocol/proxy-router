@@ -49,10 +49,9 @@ func (c *Contract) Initialize() (interfaces.ISellerContractModel, error) {
 
 func (c *Contract) Execute() (interfaces.ISellerContractModel, error) {
 	c.Logger.Debugf("Executing contract %v", c.GetId())
-	c.Logger.Debugf("RoutableStreamService %v", c.RoutableStreamService)
 	c.RoutableStreamService.ChangeDestAll(c.Dest)
 	c.Logger.Debugf("Changed destination to %v", c.Dest.String())
-	// panic("Contract.Execute not implemented")
+
 	return c, nil
 }
 

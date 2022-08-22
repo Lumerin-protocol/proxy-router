@@ -148,6 +148,7 @@ func (service *ContractsService) GetHashrate() uint64 {
 
 func (service *ContractsService) SaveContracts(models []interfaces.ISellerContractModel) ([]interfaces.ISellerContractModel, error) {
 	for i, contract := range models {
+		service.logger.Debugf("Saving contract: %v", contract.GetAddress())
 		contract, err := contract.Save()
 
 		if err != nil {
