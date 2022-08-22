@@ -79,7 +79,7 @@ func (gateway *EthereumGateway) SubscribeToContractEvents(contract interfaces.IC
 					contract.SetDestination(destUrl)
 					contract.SetBuyerAddress(buyer.Hex())
 					contract.Execute()
-					contractService.Run(destUrl, buyer.Hex(), address)
+					// contractService.Run(destUrl, buyer.Hex(), address)
 					// case cipherTextUpdatedSigHash.Hex():
 
 					// 	destUrl, err := readDestUrl(seller.EthClient, common.HexToAddress(string(addr)), seller.PrivateKey)

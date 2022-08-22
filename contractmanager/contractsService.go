@@ -116,12 +116,12 @@ func (service *ContractsService) HandleContractClosed(contract interfaces.IContr
 	contract.MakeAvailable()
 }
 
-func (service *ContractsService) HandleContractUpdated(contract interfaces.IContractModel) {
-	contract.Save()
+func (service *ContractsService) HandleContractUpdated(price int, time int, hashrate int) {
+	// contract.Save()
 }
 
-func (service *ContractsService) HandleDestinationUpdated(price int, time int, hashrate int) {
-	contract.Save()
+func (service *ContractsService) HandleDestinationUpdated(dest interfaces.IDestination) {
+	// contract.Save()
 }
 
 func (service *ContractsService) HandleContractCreated(contract interfaces.IContractModel) {
@@ -151,8 +151,8 @@ func (service *ContractsService) SubscribeToContractEvents(contract interfaces.I
 	return nil
 }
 
-func (service *ContractsService) HandleContractPurchased(contract interfaces.IContractModel) {
-	contract.Execute()
+func (service *ContractsService) HandleContractPurchased(dest string, sellerAddress string, buyerAddress string) {
+	// contract.Execute()
 }
 
 var _ interfaces.IContractsService = (*ContractsService)(nil)

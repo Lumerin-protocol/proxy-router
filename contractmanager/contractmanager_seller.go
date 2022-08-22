@@ -14,6 +14,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/config"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/interop"
+	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/lumerinlib/clonefactory"
 	"gitlab.com/TitanInd/hashrouter/lumerinlib/implementation"
 )
@@ -115,10 +116,6 @@ func (seller *SellerContractManager) Run(ctx context.Context) (err error) {
 			go seller.WatchHashrateContract(addr, hrLogs, hrSub)
 		}
 
-		// monitor new contracts getting created and start hashrate conrtract monitor routine when they are created
-		seller.Ps.OnContractCreated(func(newContract interfaces.IContractModel) {
-
-		})
 	}()
 
 	if err != nil {
@@ -333,7 +330,7 @@ func (seller *SellerContractManager) WatchHashrateContract(addr string, hrLogs c
 					// hashrateContractMsg.Dest = destUrl
 					hashrateContractMsg.Buyer = string(buyer.Hex())
 
-					seller.Ps.HandleContractPurchased(hashrateContractMsg)
+					seller.Ps.HandleContractPurchased(destUrl, seller.Account.Hex(), hLog.Topics[1].Hex())
 
 				case cipherTextUpdatedSigHash.Hex():
 
@@ -346,7 +343,9 @@ func (seller *SellerContractManager) WatchHashrateContract(addr string, hrLogs c
 					fmt.Printf(destUrl)
 					// hashrateContractMsg.Dest = destUrl
 
-					seller.Ps.HandleDestinationUpdated(hashrateContractMsg)
+					destination, err := lib.ParseDest(destUrl)
+
+					seller.Ps.HandleDestinationUpdated(destination)
 
 				case contractClosedSigHash.Hex():
 					seller.Ps.HandleContractClosed(hashrateContractMsg)
@@ -360,7 +359,7 @@ func (seller *SellerContractManager) WatchHashrateContract(addr string, hrLogs c
 
 					updateContractMsg(hashrateContractMsg, updatedContractValues)
 
-					seller.Ps.HandleContractUpdated(hashrateContractMsg)
+					seller.Ps.HandleContractUpdated(hashrateContractMsg.Price, hashrateContractMsg.Length, hashrateContractMsg.Speed, hashrateContractMsg.Limit)
 
 				}
 			}
