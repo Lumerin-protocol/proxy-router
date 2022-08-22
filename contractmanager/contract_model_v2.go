@@ -70,7 +70,7 @@ func (c *ContractV2) GetBuyerAddress() string {
 	return c.Buyer
 }
 
-func (c *ContractV2) Execute() (interfaces.IContractModel, error) {
+func (c *ContractV2) Execute() (interfaces.ISellerContractModel, error) {
 	panic("Contract.Execute not implemented")
 	// return c, nil
 }
@@ -143,4 +143,4 @@ func (c *ContractV2) GetPrivateKey() string {
 // 	return c, nil
 // }
 
-var _ interfaces.IContractModel = (*Contract)(nil)
+var _ interfaces.ISellerContractModel = (*Contract)(nil)

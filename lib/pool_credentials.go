@@ -1,23 +1,39 @@
 package lib
 
 import (
+	"fmt"
 	"net/url"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
 
 type Dest struct {
-	url.URL
+	*url.URL
 }
 
 func ParseDest(uri string) (*Dest, error) {
+	fmt.Printf("source uri: %v", uri)
 	res, err := url.Parse(uri)
 	if err != nil {
 		return nil, err
 	}
 
+	fmt.Printf("host: %v; hostname: %v", res.Host, res.Hostname())
+	fmt.Printf("dest host: %v; dest hostname: %v", Dest{res}.Host, Dest{res}.Hostname())
 	res.Scheme = "" // drop stratum+tcp prefix to avoid comparison issues
-	return &Dest{*res}, nil
+	return &Dest{res}, nil
+}
+
+func BuildDestUri(scheme string, address string, user string, password string) string {
+	userInfo := url.UserPassword(user, password)
+
+	return fmt.Sprintf("%v://%v@%v", scheme, userInfo.String(), address)
+}
+
+func BuildDest(scheme string, address string, user string, password string) (*Dest, error) {
+	uri := BuildDestUri(scheme, address, user, password)
+
+	return ParseDest(uri)
 }
 
 func (v *Dest) GetHost() string {

@@ -43,14 +43,14 @@ func (a *App) Run() {
 
 	//Bootstrap protocol layer connection handlers
 	g.Go(func() error {
-		// a.TCPServer.SetConnectionHandler(a.MinerController)
+		a.TCPServer.SetConnectionHandler(a.MinerController)
 		return a.TCPServer.Run(subCtx)
 	})
 
 	//Bootstrap contracts layer
 	g.Go(func() error {
 		err := a.ContractManager.Run(subCtx)
-		a.Logger.Errorf("contract error: %v", err)
+		a.Logger.Debugf("contract error: %v", err)
 		return err
 	})
 
