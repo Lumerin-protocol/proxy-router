@@ -359,7 +359,7 @@ func (seller *SellerContractManager) WatchHashrateContract(addr string, hrLogs c
 
 					updateContractMsg(hashrateContractMsg, updatedContractValues)
 
-					seller.Ps.HandleContractUpdated(hashrateContractMsg.Price, hashrateContractMsg.Length, hashrateContractMsg.Speed)
+					seller.Ps.HandleContractUpdated(hashrateContractMsg.Price, hashrateContractMsg.Length, hashrateContractMsg.Speed, hashrateContractMsg.Limit)
 
 				}
 			}

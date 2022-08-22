@@ -1,12 +1,8 @@
 package contractmanager
 
 import (
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"gitlab.com/TitanInd/hashrouter/config"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
-	"gitlab.com/TitanInd/hashrouter/interop"
-	"gitlab.com/TitanInd/hashrouter/lumerinlib/clonefactory"
-	"gitlab.com/TitanInd/hashrouter/lumerinlib/implementation"
 )
 
 type ContractsService struct {
@@ -21,63 +17,63 @@ type ContractsService struct {
 	handlers      []func(contract interfaces.ISellerContractModel)
 }
 
-func (service *ContractsService) Run() error {
-	//reads contract data for the given seller from the blockchain
-	contracts, err := service.blockchainGateway.GetSellerContracts(service.configuration.Contract.Address)
+// func (service *ContractsService) Run() error {
+// 	//reads contract data for the given seller from the blockchain
+// 	contracts, err := service.blockchainGateway.GetSellerContracts(service.configuration.Contract.Address)
 
-	if err != nil {
-		return err
-	}
+// 	if err != nil {
+// 		return err
+// 	}
 
-	service.SyncContracts(contracts)
+// 	service.SyncContracts(contracts)
 
-}
+// }
 
-func (service *ContractsService) SyncContracts(contracts []interfaces.ISellerContractModel) error {
+// func (service *ContractsService) SyncContracts(contracts []interfaces.ISellerContractModel) error {
 
-	for _, contract := range contracts {
-		//ensures the contract is running if it's been purchased, and stores the state for quick application retrieval
-		service.contractsGateway.SyncContracts(contract.Run())
-	}
-}
+// 	for _, contract := range contracts {
+// 		//ensures the contract is running if it's been purchased, and stores the state for quick application retrieval
+// 		service.contractsGateway.SyncContracts(contract.Run())
+// 	}
+// }
 
-func (seller *ContractsService) ReadContracts() ([]interop.BlockchainAddress, error) {
-	var sellerContractAddresses []interop.BlockchainAddress
-	var hashrateContractInstance *implementation.Implementation
-	var hashrateContractSeller interop.BlockchainAddress
+// func (seller *ContractsService) ReadContracts() ([]interop.BlockchainAddress, error) {
+// 	var sellerContractAddresses []interop.BlockchainAddress
+// 	var hashrateContractInstance *implementation.Implementation
+// 	var hashrateContractSeller interop.BlockchainAddress
 
-	seller.logger.Infof("instantiating clonefactory %v", seller.CloneFactoryAddress)
-	instance, err := clonefactory.NewClonefactory(seller.CloneFactoryAddress, seller.EthClient)
-	if err != nil {
-		//contextlib.Logf(seller.Ctx, log.LevelError, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
-		return sellerContractAddresses, err
-	}
+// 	seller.logger.Infof("instantiating clonefactory %v", seller.CloneFactoryAddress)
+// 	instance, err := clonefactory.NewClonefactory(seller.CloneFactoryAddress, seller.EthClient)
+// 	if err != nil {
+// 		//contextlib.Logf(seller.Ctx, log.LevelError, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
+// 		return sellerContractAddresses, err
+// 	}
 
-	hashrateContractAddresses, err := instance.GetContractList(&bind.CallOpts{})
-	if err != nil {
-		//contextlib.Logf(seller.Ctx, log.LevelError, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
-		return sellerContractAddresses, err
-	}
+// 	hashrateContractAddresses, err := instance.GetContractList(&bind.CallOpts{})
+// 	if err != nil {
+// 		//contextlib.Logf(seller.Ctx, log.LevelError, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
+// 		return sellerContractAddresses, err
+// 	}
 
-	// parse existing hashrate contracts for ones that belong to seller
-	for i := range hashrateContractAddresses {
-		hashrateContractInstance, err = implementation.NewImplementation(hashrateContractAddresses[i], seller.EthClient)
-		if err != nil {
-			//contextlib.Logf(seller.Ctx, log.LevelError, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
-			return sellerContractAddresses, err
-		}
-		hashrateContractSeller, err = hashrateContractInstance.Seller(nil)
-		if err != nil {
-			//contextlib.Logf(seller.Ctx, log.LevelError, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
-			return sellerContractAddresses, err
-		}
-		if hashrateContractSeller == seller.Account {
-			sellerContractAddresses = append(sellerContractAddresses, hashrateContractAddresses[i])
-		}
-	}
+// 	// parse existing hashrate contracts for ones that belong to seller
+// 	for i := range hashrateContractAddresses {
+// 		hashrateContractInstance, err = implementation.NewImplementation(hashrateContractAddresses[i], seller.EthClient)
+// 		if err != nil {
+// 			//contextlib.Logf(seller.Ctx, log.LevelError, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
+// 			return sellerContractAddresses, err
+// 		}
+// 		hashrateContractSeller, err = hashrateContractInstance.Seller(nil)
+// 		if err != nil {
+// 			//contextlib.Logf(seller.Ctx, log.LevelError, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
+// 			return sellerContractAddresses, err
+// 		}
+// 		if hashrateContractSeller == seller.Account {
+// 			sellerContractAddresses = append(sellerContractAddresses, hashrateContractAddresses[i])
+// 		}
+// 	}
 
-	return sellerContractAddresses, err
-}
+// 	return sellerContractAddresses, err
+// }
 func (service *ContractsService) ContractExists(id string) bool {
 	contract, err := service.contractsGateway.GetContract(id)
 

@@ -43,6 +43,10 @@ func (c *Contract) SetBuyerAddress(buyer string) {
 	c.Buyer = buyer
 }
 
+func (c *Contract) Initialize() (interfaces.ISellerContractModel, error) {
+	panic("Unimplemented method: Contract.Initialize")
+}
+
 func (c *Contract) Execute() (interfaces.ISellerContractModel, error) {
 	c.Logger.Debugf("Executing contract %v", c.GetId())
 	c.Logger.Debugf("RoutableStreamService %v", c.RoutableStreamService)
