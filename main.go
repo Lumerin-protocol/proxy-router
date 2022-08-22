@@ -52,7 +52,7 @@ func InitApp() (*app.App, error) {
 }
 
 func provideContractsRepository(logger interfaces.ILogger, dataStore data.Store, transactionsChannel data.TransactionsChannel) contractmanager.IContractsRepository {
-	return data.NewInMemoryRepository[interfaces.IContractModel](logger, dataStore, transactionsChannel)
+	return data.NewInMemoryRepository[interfaces.ISellerContractModel](logger, dataStore, transactionsChannel)
 }
 
 func provideContractsGateway(repo contractmanager.IContractsRepository) interfaces.IContractsGateway {
@@ -131,7 +131,7 @@ func (*ContractFactory) CreateContract(
 	Length int,
 	StartingBlockTimestamp int,
 	Dest string,
-) (interfaces.IContractModel, error) {
+) (interfaces.ISellerContractModel, error) {
 	model, err := initContractModel()
 
 	if err != nil {
@@ -163,16 +163,18 @@ func initContractModel() (*contractmanager.Contract, error) {
 		provideLogger,
 		provideConfig,
 		dataSet,
+		protocolSet,
 		contractsSet,
 		provideContractModel,
 	)
 	return nil, nil
 }
 
-func provideContractModel(logger interfaces.ILogger, ethereumGateway interfaces.IBlockchainGateway, contractsGateway interfaces.IContractsGateway) *contractmanager.Contract {
+func provideContractModel(logger interfaces.ILogger, ethereumGateway interfaces.IBlockchainGateway, contractsGateway interfaces.IContractsGateway, miningService *miner.MinerController) *contractmanager.Contract {
 	return &contractmanager.Contract{
-		Logger:           logger,
-		EthereumGateway:  ethereumGateway,
-		ContractsGateway: contractsGateway,
+		Logger:                logger,
+		EthereumGateway:       ethereumGateway,
+		ContractsGateway:      contractsGateway,
+		RoutableStreamService: miningService,
 	}
 }

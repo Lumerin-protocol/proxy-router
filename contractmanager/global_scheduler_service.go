@@ -23,7 +23,7 @@ func (s *GlobalSchedulerService) Allocate(hashrate uint64, dest interfaces.IDest
 
 	combination := FindCombinations(minerHashrates, hashrate)
 	for _, item := range combination {
-		miner, ok := s.minerCollection.Load(item.MinerID)
+		miner, ok := s.minerCollection.Load(item.GetSourceID())
 		if !ok {
 			panic("miner not found")
 		}

@@ -43,7 +43,7 @@ func (a *App) Run() {
 
 	//Bootstrap protocol layer connection handlers
 	g.Go(func() error {
-		// a.TCPServer.SetConnectionHandler(a.MinerController)
+		a.TCPServer.SetConnectionHandler(a.MinerController)
 		return a.TCPServer.Run(subCtx)
 	})
 

@@ -128,7 +128,7 @@ func (seller *SellerContractManager) Run(ctx context.Context) (err error) {
 func (seller *SellerContractManager) SetupExistingContracts() (err error) {
 	seller.logger.Debug("Setting up existing contracts")
 	// var contractValues []hashrateContractValues
-	var contractModels []interfaces.IContractModel
+	var contractModels []interfaces.ISellerContractModel
 
 	sellerContracts, err := seller.ReadContracts()
 	if err != nil {

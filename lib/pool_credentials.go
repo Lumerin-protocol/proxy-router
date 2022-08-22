@@ -18,14 +18,14 @@ func ParseDest(uri string) (*Dest, error) {
 		return nil, err
 	}
 
-	res.Scheme = "" // drop stratum+tcp prefix to avoid comparison issues
+	// res.Scheme = "" // drop stratum+tcp prefix to avoid comparison issues
 	return &Dest{*res}, nil
 }
 
 func BuildDestUri(scheme string, address string, user string, password string) string {
 	userInfo := url.UserPassword(user, password)
 
-	return fmt.Sprintf("%v://%v%v", scheme, userInfo.String(), address)
+	return fmt.Sprintf("%v://%v@%v", scheme, userInfo.String(), address)
 }
 
 func BuildDest(scheme string, address string, user string, password string) (*Dest, error) {
@@ -53,4 +53,3 @@ func (v *Dest) IsEqual(target interfaces.IDestination) bool {
 
 //compile time interfaces compatibility check
 var _ interfaces.IDestination = (*Dest)(nil)
-

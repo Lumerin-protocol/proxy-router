@@ -12,7 +12,7 @@ func (m HashrateListItem) GetHashrate() uint64 {
 	return m.Hashrate
 }
 
-func (m HashrateListItem) SetHashrate(hashrate uint64) uint64 {
+func (m HashrateListItem) SetHashrate(hashrate uint64) {
 	m.Hashrate = hashrate
 }
 
