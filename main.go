@@ -1,5 +1,3 @@
-//go:build wireinject
-
 package main
 
 import (
@@ -70,8 +68,15 @@ func provideHashrateCalculator() interfaces.IValidatorsService {
 	return nil
 }
 
-func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo *miner.MinerRepo) *miner.MinerController {
-	return miner.NewMinerController(cfg.Pool.Address, cfg.Pool.User, cfg.Pool.Password, repo, l)
+func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo *miner.MinerRepo) (*miner.MinerController, error) {
+
+	destination, err := lib.BuildDest(cfg.Pool.Scheme, cfg.Pool.Address, cfg.Pool.User, cfg.Pool.Password)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return miner.NewMinerController(destination, repo, l), nil
 }
 
 func provideTCPServer(cfg *config.Config, l interfaces.ILogger) *tcpserver.TCPServer {
@@ -143,23 +148,12 @@ func (*ContractFactory) CreateContract(
 	model.Speed = Speed
 	model.Length = Length
 	model.StartingBlockTimestamp = StartingBlockTimestamp
-	model.Dest = Dest
-	// ID
-	// State
-	// Buyer
-	// Price
-	// Limit
-	// Speed
-	// Length
-	// StartingBlockTimestamp
-	// Dest
 
-	// fromAddress
-	// privateKeyString
-	// contractAddress
+	dest, err := lib.ParseDest(Dest)
+
+	model.Dest = dest
+
 	// CurrentNonce
-	// closeOutType
-	// NodeOperator
 
 	return model, err
 }

@@ -67,7 +67,7 @@ func (c *Contract) GetCloseOutType() uint {
 	return c.closeOutType
 }
 
-func (c *Contract) SetDestination(dest string) error {
+func (c *Contract) SetDestination(dest string) (err error) {
 	c.Dest, err = lib.ParseDest(dest)
 
 	if err != nil {
