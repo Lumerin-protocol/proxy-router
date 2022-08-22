@@ -23,7 +23,7 @@ type EthereumGateway struct {
 	logger interfaces.ILogger
 }
 
-func (gateway *EthereumGateway) SubscribeToContractEvents(contract interfaces.IContractModel) (chan interop.BlockchainEvent, interop.BlockchainEventSubscription, error) {
+func (gateway *EthereumGateway) SubscribeToContractEvents(contract interfaces.ISellerContractModel) (chan interop.BlockchainEvent, interop.BlockchainEventSubscription, error) {
 
 	ctx := context.TODO()
 
@@ -154,7 +154,7 @@ func (gateway *EthereumGateway) readDestUrl(contractAddress interop.BlockchainAd
 	return encryptedDestUrl, err
 }
 
-func (gateway *EthereumGateway) SetContractCloseOut(contract interfaces.IContractModel) error {
+func (gateway *EthereumGateway) SetContractCloseOut(contract interfaces.ISellerContractModel) error {
 	client := gateway.client
 	privateKeyString := contract.GetPrivateKey()
 	fromAddress := contract.GetBuyerAddress()

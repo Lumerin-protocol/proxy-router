@@ -100,7 +100,12 @@ func initContractModel() (*contractmanager.Contract, error) {
 	v2 := data.NewTransactionsChannel()
 	iContractsRepository := provideContractsRepository(iLogger, v, v2)
 	iContractsGateway := provideContractsGateway(iContractsRepository)
-	contract := provideContractModel(iLogger, iBlockchainGateway, iContractsGateway)
+	minerRepo := miner.NewMinerRepo()
+	minerController, err := provideMinerController(config, iLogger, minerRepo)
+	if err != nil {
+		return nil, err
+	}
+	contract := provideContractModel(iLogger, iBlockchainGateway, iContractsGateway, minerController)
 	return contract, nil
 }
 
@@ -128,7 +133,7 @@ var contractsSet = wire.NewSet(provideContractsRepository, blockchain.NewBlockch
 var hashrateCalculationSet = wire.NewSet(provideHashrateCalculator)
 
 func provideContractsRepository(logger interfaces.ILogger, dataStore data.Store, transactionsChannel data.TransactionsChannel) contractmanager.IContractsRepository {
-	return data.NewInMemoryRepository[interfaces.IContractModel](logger, dataStore, transactionsChannel)
+	return data.NewInMemoryRepository[interfaces.ISellerContractModel](logger, dataStore, transactionsChannel)
 }
 
 func provideContractsGateway(repo contractmanager.IContractsRepository) interfaces.IContractsGateway {
@@ -207,7 +212,7 @@ func (*ContractFactory) CreateContract(
 	Length int,
 	StartingBlockTimestamp int,
 	Dest string,
-) (interfaces.IContractModel, error) {
+) (interfaces.ISellerContractModel, error) {
 	model, err := initContractModel()
 
 	if err != nil {
@@ -232,10 +237,11 @@ func (*ContractFactory) CreateContract(
 	return model, err
 }
 
-func provideContractModel(logger interfaces.ILogger, ethereumGateway interfaces.IBlockchainGateway, contractsGateway interfaces.IContractsGateway) *contractmanager.Contract {
+func provideContractModel(logger interfaces.ILogger, ethereumGateway interfaces.IBlockchainGateway, contractsGateway interfaces.IContractsGateway, miningService *miner.MinerController) *contractmanager.Contract {
 	return &contractmanager.Contract{
-		Logger:           logger,
-		EthereumGateway:  ethereumGateway,
-		ContractsGateway: contractsGateway,
+		Logger:                logger,
+		EthereumGateway:       ethereumGateway,
+		ContractsGateway:      contractsGateway,
+		RoutableStreamService: miningService,
 	}
 }

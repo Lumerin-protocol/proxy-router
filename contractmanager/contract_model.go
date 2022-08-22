@@ -43,11 +43,15 @@ func (c *Contract) SetBuyerAddress(buyer string) {
 	c.Buyer = buyer
 }
 
-func (c *Contract) Execute() (interfaces.IContractModel, error) {
+func (c *Contract) Initialize() (interfaces.ISellerContractModel, error) {
+	panic("Unimplemented method: Contract.Initialize")
+}
+
+func (c *Contract) Execute() (interfaces.ISellerContractModel, error) {
 	c.Logger.Debugf("Executing contract %v", c.GetId())
 	c.RoutableStreamService.ChangeDestAll(c.Dest)
-	c.Logger.Debugf("Changed destination to %v", c.Dest)
-	// panic("Contract.Execute not implemented")
+	c.Logger.Debugf("Changed destination to %v", c.Dest.String())
+
 	return c, nil
 }
 
@@ -101,7 +105,7 @@ func (c *Contract) MakeAvailable() {
 	}
 }
 
-func (c *Contract) Save() (interfaces.IContractModel, error) {
+func (c *Contract) Save() (interfaces.ISellerContractModel, error) {
 	return c.ContractsGateway.SaveContract(c)
 }
 
@@ -109,7 +113,7 @@ func (c *Contract) GetPrivateKey() string {
 	return c.privateKeyString
 }
 
-func (c *Contract) TryRunningAt(dest string) (interfaces.IContractModel, error) {
+func (c *Contract) TryRunningAt(dest string) (interfaces.ISellerContractModel, error) {
 	if c.State == ContRunningState {
 		return c.Execute()
 	}
@@ -117,4 +121,4 @@ func (c *Contract) TryRunningAt(dest string) (interfaces.IContractModel, error) 
 	return c, nil
 }
 
-var _ interfaces.IContractModel = (*Contract)(nil)
+var _ interfaces.ISellerContractModel = (*Contract)(nil)

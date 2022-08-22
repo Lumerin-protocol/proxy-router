@@ -11,14 +11,71 @@ type ContractsService struct {
 	connectionsService interfaces.IConnectionsService
 	blockchainGateway  interfaces.IBlockchainGateway
 	factory            interfaces.IContractFactory
-	contractGateway    interfaces.IContractsGateway
+	contractsGateway   interfaces.IContractsGateway
 
 	configuration *config.Config
-	handlers      []func(contract interfaces.IContractModel)
+	handlers      []func(contract interfaces.ISellerContractModel)
 }
 
+// func (service *ContractsService) Run() error {
+// 	//reads contract data for the given seller from the blockchain
+// 	contracts, err := service.blockchainGateway.GetSellerContracts(service.configuration.Contract.Address)
+
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	service.SyncContracts(contracts)
+
+// }
+
+// func (service *ContractsService) SyncContracts(contracts []interfaces.ISellerContractModel) error {
+
+// 	for _, contract := range contracts {
+// 		//ensures the contract is running if it's been purchased, and stores the state for quick application retrieval
+// 		service.contractsGateway.SyncContracts(contract.Run())
+// 	}
+// }
+
+// func (seller *ContractsService) ReadContracts() ([]interop.BlockchainAddress, error) {
+// 	var sellerContractAddresses []interop.BlockchainAddress
+// 	var hashrateContractInstance *implementation.Implementation
+// 	var hashrateContractSeller interop.BlockchainAddress
+
+// 	seller.logger.Infof("instantiating clonefactory %v", seller.CloneFactoryAddress)
+// 	instance, err := clonefactory.NewClonefactory(seller.CloneFactoryAddress, seller.EthClient)
+// 	if err != nil {
+// 		//contextlib.Logf(seller.Ctx, log.LevelError, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
+// 		return sellerContractAddresses, err
+// 	}
+
+// 	hashrateContractAddresses, err := instance.GetContractList(&bind.CallOpts{})
+// 	if err != nil {
+// 		//contextlib.Logf(seller.Ctx, log.LevelError, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
+// 		return sellerContractAddresses, err
+// 	}
+
+// 	// parse existing hashrate contracts for ones that belong to seller
+// 	for i := range hashrateContractAddresses {
+// 		hashrateContractInstance, err = implementation.NewImplementation(hashrateContractAddresses[i], seller.EthClient)
+// 		if err != nil {
+// 			//contextlib.Logf(seller.Ctx, log.LevelError, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
+// 			return sellerContractAddresses, err
+// 		}
+// 		hashrateContractSeller, err = hashrateContractInstance.Seller(nil)
+// 		if err != nil {
+// 			//contextlib.Logf(seller.Ctx, log.LevelError, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
+// 			return sellerContractAddresses, err
+// 		}
+// 		if hashrateContractSeller == seller.Account {
+// 			sellerContractAddresses = append(sellerContractAddresses, hashrateContractAddresses[i])
+// 		}
+// 	}
+
+// 	return sellerContractAddresses, err
+// }
 func (service *ContractsService) ContractExists(id string) bool {
-	contract, err := service.contractGateway.GetContract(id)
+	contract, err := service.contractsGateway.GetContract(id)
 
 	if err != nil {
 		return false
@@ -73,8 +130,8 @@ func (service *ContractsService) CheckHashRate(contractId string) bool {
 	return false
 }
 
-func (service *ContractsService) GetContract(contractId string) (interfaces.IContractModel, error) {
-	return service.contractGateway.GetContract(contractId)
+func (service *ContractsService) GetContract(contractId string) (interfaces.ISellerContractModel, error) {
+	return service.contractsGateway.GetContract(contractId)
 }
 
 func (service *ContractsService) CreateDestination(destinationUrl string) {
@@ -89,8 +146,9 @@ func (service *ContractsService) GetHashrate() uint64 {
 	panic("ContractsService.GetHashrate not implemented")
 }
 
-func (service *ContractsService) SaveContracts(models []interfaces.IContractModel) ([]interfaces.IContractModel, error) {
+func (service *ContractsService) SaveContracts(models []interfaces.ISellerContractModel) ([]interfaces.ISellerContractModel, error) {
 	for i, contract := range models {
+		service.logger.Debugf("Saving contract: %v", contract.GetAddress())
 		contract, err := contract.Save()
 
 		if err != nil {
@@ -107,16 +165,16 @@ var _ interfaces.IContractsService = (*ContractsService)(nil)
 
 // Event Listeners
 
-func (service *ContractsService) OnContractCreated(handler func(newContract interfaces.IContractModel)) {
+func (service *ContractsService) OnContractCreated(handler func(newContract interfaces.ISellerContractModel)) {
 	service.handlers = append(service.handlers, handler)
 }
 
 //	Event handlers
-func (service *ContractsService) HandleContractClosed(contract interfaces.IContractModel) {
+func (service *ContractsService) HandleContractClosed(contract interfaces.ISellerContractModel) {
 	contract.MakeAvailable()
 }
 
-func (service *ContractsService) HandleContractUpdated(price int, time int, hashrate int) {
+func (service *ContractsService) HandleContractUpdated(price int, time int, hashrate int, lossLimit int) {
 	// contract.Save()
 }
 
@@ -124,7 +182,7 @@ func (service *ContractsService) HandleDestinationUpdated(dest interfaces.IDesti
 	// contract.Save()
 }
 
-func (service *ContractsService) HandleContractCreated(contract interfaces.IContractModel) {
+func (service *ContractsService) HandleContractCreated(contract interfaces.ISellerContractModel) {
 	service.logger.Infof("created a contract %v", contract.GetId())
 
 	contract.Save()
@@ -140,7 +198,7 @@ func (service *ContractsService) HandleContractCreated(contract interfaces.ICont
 	}
 }
 
-func (service *ContractsService) SubscribeToContractEvents(contract interfaces.IContractModel) error {
+func (service *ContractsService) SubscribeToContractEvents(contract interfaces.ISellerContractModel) error {
 	service.logger.Debugf("Subscribing to blockchain gateway events for %v", contract.GetId())
 	_, _, err := service.blockchainGateway.SubscribeToContractEvents(contract)
 
@@ -172,7 +230,7 @@ func NewContractsService(
 		connectionsService: connectionsService,
 		blockchainGateway:  blockchainGateway,
 		factory:            factory,
-		contractGateway:    contractGateway,
+		contractsGateway:   contractGateway,
 		configuration:      configuration,
 	}
 }

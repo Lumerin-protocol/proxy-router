@@ -76,7 +76,7 @@ func (buyer *BuyerContractManager) Run(ctx context.Context) (err error) {
 
 func (buyer *BuyerContractManager) SetupExistingContracts() (err error) {
 	var contractValues []hashrateContractValues
-	var contractMsgs []interfaces.IContractModel
+	var contractMsgs []interfaces.ISellerContractModel
 	var nodeOperatorUpdated bool
 
 	buyerContracts, err := buyer.ReadContracts()

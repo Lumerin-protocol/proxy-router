@@ -6,12 +6,12 @@ type ContractsGateway struct {
 	repository IContractsRepository
 }
 
-func (gateway *ContractsGateway) GetContract(id string) (interfaces.IContractModel, error) {
+func (gateway *ContractsGateway) GetContract(id string) (interfaces.ISellerContractModel, error) {
 	return gateway.repository.Get(id)
 
 }
 
-func (gateway *ContractsGateway) SaveContract(model interfaces.IContractModel) (interfaces.IContractModel, error) {
+func (gateway *ContractsGateway) SaveContract(model interfaces.ISellerContractModel) (interfaces.ISellerContractModel, error) {
 	return gateway.repository.Save(model)
 }
 
@@ -24,5 +24,5 @@ func NewContractsGateway(repo IContractsRepository) interfaces.IContractsGateway
 }
 
 type IContractsRepository interface {
-	interfaces.IRepository[interfaces.IContractModel]
+	interfaces.IRepository[interfaces.ISellerContractModel]
 }
