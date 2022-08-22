@@ -38,7 +38,10 @@ func InitApp() (*app.App, error) {
 	}
 	tcpServer := provideTCPServer(config, iLogger)
 	minerRepo := miner.NewMinerRepo()
-	minerController := provideMinerController(config, iLogger, minerRepo)
+	minerController, err := provideMinerController(config, iLogger, minerRepo)
+	if err != nil {
+		return nil, err
+	}
 	server := provideServer(config, iLogger, minerController)
 	iValidatorsService := provideHashrateCalculator()
 	iConnectionsService := provideConnectionsService()
@@ -141,8 +144,15 @@ func provideHashrateCalculator() interfaces.IValidatorsService {
 	return nil
 }
 
-func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo *miner.MinerRepo) *miner.MinerController {
-	return miner.NewMinerController(cfg.Pool.Address, cfg.Pool.User, cfg.Pool.Password, repo, l)
+func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo *miner.MinerRepo) (*miner.MinerController, error) {
+
+	destination, err := lib.ParseDest(cfg.Pool.Address)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return miner.NewMinerController(destination, repo, l), nil
 }
 
 func provideTCPServer(cfg *config.Config, l interfaces.ILogger) *tcpserver.TCPServer {
@@ -214,7 +224,10 @@ func (*ContractFactory) CreateContract(
 	model.Speed = Speed
 	model.Length = Length
 	model.StartingBlockTimestamp = StartingBlockTimestamp
-	model.Dest = Dest
+
+	dest, err := lib.ParseDest(Dest)
+
+	model.Dest = dest
 
 	return model, err
 }

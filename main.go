@@ -1,3 +1,6 @@
+//go:build wireinject
+// +build wireinject
+
 package main
 
 import (
@@ -70,7 +73,7 @@ func provideHashrateCalculator() interfaces.IValidatorsService {
 
 func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo *miner.MinerRepo) (*miner.MinerController, error) {
 
-	destination, err := lib.BuildDest(cfg.Pool.Scheme, cfg.Pool.Address, cfg.Pool.User, cfg.Pool.Password)
+	destination, err := lib.ParseDest(cfg.Pool.Address)
 
 	if err != nil {
 		return nil, err

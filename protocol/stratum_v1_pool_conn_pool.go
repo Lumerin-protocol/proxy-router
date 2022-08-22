@@ -49,7 +49,6 @@ func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination) error {
 
 		return nil
 	}
-
 	c, err := net.Dial("tcp", dest.GetHost())
 	if err != nil {
 		return err

@@ -12,7 +12,6 @@ type Dest struct {
 }
 
 func ParseDest(uri string) (*Dest, error) {
-
 	res, err := url.Parse(uri)
 	if err != nil {
 		return nil, err
