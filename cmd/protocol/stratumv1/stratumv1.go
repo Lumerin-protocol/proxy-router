@@ -407,7 +407,11 @@ func (s *StratumV1Struct) openDefaultConnection() (e error) {
 		return errors.New("default Dest not defined")
 	}
 
-	s.switchToDestID = dest.ID
+	// Open the default, but only switch to it if there is not another dest already queued up.
+	if s.switchToDestID == "" {
+		s.switchToDestID = dest.ID
+	}
+
 	s.protocol.Get(simple.DestMsg, simple.IDString(dest.ID))
 
 	return nil
@@ -697,7 +701,7 @@ func (s *StratumV1Struct) pubMinerRecord() {
 		switch t := event.Data.(type) {
 		case msgbus.Miner:
 
-		contextlib.Logf(s.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Should we be getting this?")
+			contextlib.Logf(s.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Should we be getting this? Should be a pointer")
 
 			if t.State == msgbus.OnlineState {
 				contextlib.Logf(s.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" record already online:%s", t.ID)
@@ -731,10 +735,15 @@ func (s *StratumV1Struct) pubMinerRecord() {
 
 			s.minerRec = t
 
+			s.switchToDestID = t.Dest
+
 			rid, e := s.protocol.Set(simple.MinerMsg, simple.IDString(s.minerRec.ID), s.minerRec)
 			if e != nil {
 				contextlib.Logf(s.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Miner Pub() error:%s RID:%d", e, rid)
 			}
+
+			// Get the Destination to switch to it.
+			s.protocol.Get(simple.DestMsg, simple.IDString(t.Dest))
 
 		default:
 			contextlib.Logf(s.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" default reached on type:%t", t)
