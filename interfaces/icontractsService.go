@@ -12,7 +12,7 @@ type IContractsService interface {
 
 	//	Event handlers
 	HandleContractCreated(contract ISellerContractModel)
-	HandleContractPurchased(dest IDestination, sellerAddress string, buyerAddress string, hashrateGHS int) error
+	HandleContractPurchased(dest IDestination, sellerAddress string, buyerAddress string, contractAddr string) error
 	HandleContractUpdated(price int, time int, hashrate int, lossLimit int)
 	HandleDestinationUpdated(dest IDestination)
 	HandleContractClosed(model ISellerContractModel)
