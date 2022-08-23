@@ -784,7 +784,7 @@ func (s *StratumV1Struct) switchDest() {
 	currentUID, _ := s.protocol.GetDefaultRouteUID()
 	newUID := s.GetDstUIDDestID(s.switchToDestID)
 
-	// UID no found, something is wrong, so close out this session
+	// UID not found, something is wrong, so close out this session
 	if newUID < 0 {
 		contextlib.Logf(s.Ctx(), contextlib.LevelError, fmt.Sprintf(lumerinlib.FileLineFunc()+" switchToDestID:%s has no UID ", s.switchToDestID))
 		s.Close()
@@ -847,7 +847,7 @@ func (s *StratumV1Struct) switchDest() {
 	switch state {
 	case DstStateStandBy:
 
-		contextlib.Logf(s.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" Switch from UID:%d to UID:%d ", currentUID, newUID)
+		contextlib.Logf(s.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" Switch from UID:%d to UID:%d (%s) ", currentUID, newUID, s.switchToDestID)
 
 		s.minerRec.Dest = s.switchToDestID
 
