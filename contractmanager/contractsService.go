@@ -2,7 +2,6 @@ package contractmanager
 
 import (
 	"gitlab.com/TitanInd/hashrouter/config"
-	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
 
@@ -212,20 +211,24 @@ func (service *ContractsService) SubscribeToContractEvents(contract interfaces.I
 	return nil
 }
 
-func (service *ContractsService) HandleContractPurchased(dest interfaces.IDestination, sellerAddress string, buyerAddress string, hashrateGHS int) error {
-	combination, err := service.globalScheduler.Allocate(hashrateGHS, dest)
+func (service *ContractsService) HandleContractPurchased(dest interfaces.IDestination, sellerAddress string, buyerAddress string, contractAddr string) error {
+	contract, err := service.contractsGateway.GetContract(contractAddr)
 	if err != nil {
 		return err
 	}
-	calculator := hashrate.NewHashrate(service.logger, hashrate.EMA_INTERVAL)
-	runningContract := NewContract(combination, calculator)
-
-	_, err = service.contractsGateway.SaveContract(runningContract)
+	_, err = service.globalScheduler.Allocate(contract.GetHashrateGHS(), dest)
 	if err != nil {
 		return err
 	}
+	// calculator := hashrate.NewHashrate(service.logger, hashrate.EMA_INTERVAL)
+	// runningContract := NewContract(combination, calculator)
 
-	runningContract.Run()
+	// _, err = service.contractsGateway.SaveContract(runningContract)
+	// if err != nil {
+	// 	return err
+	// }
+
+	// runningContract.Run()
 	return nil
 }
 

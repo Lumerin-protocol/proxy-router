@@ -112,6 +112,10 @@ func (c *Contract) GetAddress() string {
 	return c.ID
 }
 
+func (c *Contract) GetHashrateGHS() int {
+	return c.Speed / 1000
+}
+
 func (c *Contract) GetPromisedHashrateMin() uint64 {
 	panic("Contract.GetPromisedHashrateMin unimplemented")
 	return 0
