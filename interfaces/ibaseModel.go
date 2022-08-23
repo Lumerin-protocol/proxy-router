@@ -1,6 +1,6 @@
 package interfaces
 
 type IBaseModel interface {
-	GetId() string
-	SetId(string) IBaseModel
+	GetID() string
+	SetID(string) IBaseModel
 }

@@ -1,6 +1,9 @@
 package contractmanager
 
 import (
+	"time"
+
+	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/lib"
@@ -29,6 +32,26 @@ type Contract struct {
 	CurrentNonce     *nonce
 	closeOutType     uint
 	NodeOperator     *NodeOperator
+
+	hashrate    *hashrate.Hashrate // the counter of single contract
+	combination HashrateList       // combination of full/partially allocated miners fulfilling the contract
+}
+
+func NewContract(combination HashrateList, hashrate *hashrate.Hashrate) *Contract {
+	return &Contract{
+		combination: combination,
+		hashrate:    hashrate,
+	}
+}
+
+func (c *Contract) Run() {
+	for {
+		// TODO: routine that checks whether the hashrate is fulfilled
+		// if not it replaces miner
+		//
+		// check if contract duration is finished
+		time.Sleep(time.Minute)
+	}
 }
 
 func (c *Contract) GetCurrentNonce() uint64 {
@@ -48,18 +71,18 @@ func (c *Contract) Initialize() (interfaces.ISellerContractModel, error) {
 }
 
 func (c *Contract) Execute() (interfaces.ISellerContractModel, error) {
-	c.Logger.Debugf("Executing contract %v", c.GetId())
+	c.Logger.Debugf("Executing contract %v", c.GetID())
 	c.RoutableStreamService.ChangeDestAll(c.Dest)
 	c.Logger.Debugf("Changed destination to %v", c.Dest.String())
 
 	return c, nil
 }
 
-func (c *Contract) GetId() string {
+func (c *Contract) GetID() string {
 	return c.ID
 }
 
-func (c *Contract) SetId(id string) interfaces.IBaseModel {
+func (c *Contract) SetID(id string) interfaces.IBaseModel {
 	newContract := *c
 
 	newContract.ID = id

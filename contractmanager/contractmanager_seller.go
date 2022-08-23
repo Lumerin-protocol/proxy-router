@@ -176,7 +176,7 @@ func (seller *SellerContractManager) SetupExistingContracts() (err error) {
 
 			contract.SetDestination(destUrl)
 
-			seller.logger.Debug("Executing contract %v", contract.GetId())
+			seller.logger.Debug("Executing contract %v", contract.GetID())
 			_, err = contract.Execute()
 
 			if err != nil {
@@ -347,7 +347,7 @@ func (seller *SellerContractManager) WatchHashrateContract(addr string, hrLogs c
 					// hashrateContractMsg.Dest = destUrl
 					hashrateContractMsg.Buyer = string(buyer.Hex())
 
-					seller.Ps.HandleContractPurchased(destUrl, seller.Account.Hex(), hLog.Topics[1].Hex())
+					// seller.Ps.HandleContractPurchased(destUrl, seller.Account.Hex(), hLog.Topics[1].Hex(), 0)
 
 				case cipherTextUpdatedSigHash.Hex():
 

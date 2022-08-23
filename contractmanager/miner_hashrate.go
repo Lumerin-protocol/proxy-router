@@ -1,20 +1,20 @@
 package contractmanager
 
 type HashrateListItem struct {
-	Hashrate      uint64
-	TotalHashrate uint64
+	Hashrate      int
+	TotalHashrate int
 	MinerID       string
 }
 
-func (m HashrateListItem) GetHashrate() uint64 {
+func (m HashrateListItem) GetHashrateGHS() int {
 	return m.Hashrate
 }
 
-func (m HashrateListItem) SetHashrate(hashrate uint64) {
+func (m HashrateListItem) SetHashrateGHS(hashrate int) {
 	m.Hashrate = hashrate
 }
 
-func (m HashrateListItem) GetTotalHashrate() uint64 {
+func (m HashrateListItem) GetTotalHashrateGHS() int {
 	return m.TotalHashrate
 
 }
