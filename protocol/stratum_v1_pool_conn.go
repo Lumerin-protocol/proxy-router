@@ -217,8 +217,8 @@ func (m *StratumV1PoolConn) GetExtranonce() (string, int) {
 	return m.extraNonceMsg.GetExtranonce()
 }
 
-func (m *StratumV1PoolConn) GetDest() *interop.Dest {
-	return m.dest
+func (m *StratumV1PoolConn) GetDest() interop.Dest {
+	return *m.dest
 }
 
 func (s *StratumV1PoolConn) RemoteAddr() string {

@@ -7,9 +7,10 @@ import (
 )
 
 // RGLI_TRIALS is number of attempts to pick the best combination, recommended value from 10 to 50
-const RGLI_TRIALS = 10
+const RGLI_TRIALS = 50
 
 // ClosestSubsetSumRGLI implements approgimate RGLI algo to solve closest subset sum problem
+// 	Added changes so the algo always returns value larger or equal to target
 //  Sources:
 // https://rpubs.com/aviadt/subset-sum
 // https://web.stevens.edu/algebraic/Files/SubsetSum/przydatek99fast.pdf
@@ -25,7 +26,7 @@ func ClosestSubsetSumRGLI(arr []int, sum int) (numIndexes []int, dlt int) {
 		resMask := trial(arr, sum)
 
 		resDelta := delta(resMask, arr, sum)
-		if resDelta < resBestDelta {
+		if absInt(resDelta) < absInt(resBestDelta) {
 			resBestMask = resMask
 			resBestDelta = resDelta
 		}
@@ -45,7 +46,7 @@ func trial(a []int, B int) bitMask {
 	x := NewBitMask(n)
 	for _, v := range shuffle(incRange(n)) {
 		// go over elements in random order
-		if a[v] <= delta(x, a, B) {
+		if delta(x, a, B) > 0 {
 			x.Set(v, true)
 		}
 	}
@@ -58,13 +59,11 @@ func trial(a []int, B int) bitMask {
 		}
 
 		// find potential elements to improve current solution
-		replacementNum := 0  // max number that can be put instead of the current one
 		replacementInd := -1 // -1 means not found yet
 
 		for j := 0; j < n; j++ {
 			delta := a[j] - a[existingInd]
-			if x.Get(j) && delta > 0 && delta <= delta_x && a[j] > replacementNum {
-				replacementNum = a[j]
+			if (!x.Get(j)) && absInt(delta+delta_x) < absInt(delta_x) {
 				replacementInd = j
 			}
 		}
@@ -104,6 +103,13 @@ func shuffle(a []int) []int {
 	copy(dest, a)
 	rand.Shuffle(len(dest), func(i, j int) { dest[i], dest[j] = dest[j], dest[i] })
 	return dest
+}
+
+func absInt(a int) int {
+	if a < 0 {
+		return -a
+	}
+	return a
 }
 
 var SEED_CALLED bool = false // helper to ensure seed called only once

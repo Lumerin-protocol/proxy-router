@@ -6,6 +6,7 @@ import (
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/interop"
+	"gitlab.com/TitanInd/hashrouter/protocol"
 )
 
 // OnDemandMinerScheduler is responsible for distributing the resources of a single miner across multiple destinations
@@ -136,4 +137,8 @@ func (m *OnDemandMinerScheduler) getDest() *DestSplit {
 	dest := m.destSplit.Copy()
 	dest.AllocateRemaining(m.defaultDest)
 	return dest
+}
+
+func (m *OnDemandMinerScheduler) OnSubmit(cb protocol.OnSubmitHandler) protocol.ListenerHandle {
+	return m.minerModel.OnSubmit(cb)
 }

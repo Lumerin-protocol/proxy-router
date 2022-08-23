@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"gitlab.com/TitanInd/hashrouter/interop"
+	"gitlab.com/TitanInd/hashrouter/protocol"
 )
 
 type MinerModel interface {
@@ -11,6 +12,7 @@ type MinerModel interface {
 	ChangeDest(dest interop.Dest) error
 	GetID() string // get miner unique id (host:port for example)
 	GetHashRateGHS() int
+	OnSubmit(cb protocol.OnSubmitHandler) protocol.ListenerHandle
 }
 
 type MinerScheduler interface {

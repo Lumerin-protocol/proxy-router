@@ -23,3 +23,9 @@ func (b bitMask) Which(val bool) []int {
 	}
 	return res
 }
+
+func (b bitMask) Clone() bitMask {
+	n := NewBitMask(len(b))
+	copy(n, b)
+	return b
+}

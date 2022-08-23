@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"context"
+	"sync"
 
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
@@ -15,6 +16,8 @@ type stratumV1MinerModel struct {
 	validator *hashrate.Hashrate
 
 	difficulty int64
+	onSubmit   []OnSubmitHandler
+	mutex      sync.RWMutex // guards onSubmit
 
 	log interfaces.ILogger
 }
@@ -78,6 +81,13 @@ func (s *stratumV1MinerModel) minerInterceptor(msg stratumv1_message.MiningMessa
 	switch msg.(type) {
 	case *stratumv1_message.MiningSubmit:
 		s.validator.OnSubmit(s.difficulty)
+
+		s.mutex.RLock()
+		defer s.mutex.RUnlock()
+
+		for _, handler := range s.onSubmit {
+			handler(uint64(s.difficulty), s.pool.GetDest())
+		}
 	}
 }
 
@@ -100,4 +110,19 @@ func (s *stratumV1MinerModel) GetID() string {
 
 func (s *stratumV1MinerModel) GetHashRateGHS() int {
 	return s.validator.GetHashrateGHS()
+}
+
+func (s *stratumV1MinerModel) OnSubmit(cb OnSubmitHandler) ListenerHandle {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	s.onSubmit = append(s.onSubmit, cb)
+	return ListenerHandle(len(s.onSubmit))
+}
+
+func (s *stratumV1MinerModel) RemoveListener(h ListenerHandle) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	s.onSubmit = append(s.onSubmit[:h], s.onSubmit[h+1:]...)
 }

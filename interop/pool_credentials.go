@@ -17,15 +17,15 @@ func ParseDest(uri string) (*Dest, error) {
 	return &Dest{*res}, nil
 }
 
-func (v *Dest) Username() string {
+func (v Dest) Username() string {
 	return v.User.Username()
 }
 
-func (v *Dest) Password() string {
+func (v Dest) Password() string {
 	pwd, _ := v.User.Password()
 	return pwd
 }
 
-func (v *Dest) IsEqual(target Dest) bool {
+func (v Dest) IsEqual(target Dest) bool {
 	return v.String() == target.String()
 }

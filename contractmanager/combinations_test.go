@@ -25,13 +25,14 @@ import (
 
 func TestCombinationsv2(t *testing.T) {
 	t.Skip()
-	arr := []int{400, 300, 300, 100, 100, 300, 500, 600, 700, 800, 400, 300, 300, 100, 100, 300, 500, 600, 700, 800, 400, 300, 300, 100, 100, 300, 500, 600, 700, 800, 400, 300, 300, 100, 100, 300, 500, 600, 700, 800, 400, 300, 300, 100, 100, 300, 500, 600, 700, 800, 400, 300, 300, 100, 100, 300, 500, 600, 700, 800, 400, 300, 300, 100, 100, 300, 500, 600, 700, 800, 400, 300, 300, 100, 100, 300, 500, 600, 700, 800}
+	arr := []int{400, 300, 300, 100, 100, 300, 500, 600, 700, 800, 400, 300, 300, 100, 100, 300, 500, 600, 700, 800, 400}
 	res, delta := ClosestSubsetSum(arr, 2000)
 	fmt.Printf("%+v === %d\n", res, delta)
 }
 
 func TestCombinationsv3(t *testing.T) {
-	size := 1000
+	// t.Skip()
+	size := 10
 	randNums := make([]int, size)
 	total := 0
 
@@ -42,5 +43,15 @@ func TestCombinationsv3(t *testing.T) {
 	}
 
 	res, delta := ClosestSubsetSumRGLI(randNums, total/2)
+	fmt.Printf("%+v\n", randNums)
+	fmt.Printf("%+v === %d total %d\n", res, delta, total)
+}
+
+func TestCombinationsv3Larger(t *testing.T) {
+	t.Skip()
+
+	randNums := []int{400, 200, 100, 50, 400, 200, 250}
+
+	res, delta := ClosestSubsetSumRGLI(randNums, 300)
 	fmt.Printf("%+v === %d\n", res, delta)
 }
