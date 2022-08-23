@@ -46,8 +46,8 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 		}
 
 		// if only one destination
-		if len(m.destSplit.Iter()) == 1 {
-			splitItem := m.destSplit.Iter()[0]
+		if len(m.getDest().Iter()) == 1 {
+			splitItem := m.getDest().Iter()[0]
 			err := m.minerModel.ChangeDest(splitItem.Dest)
 			if err != nil {
 				return err

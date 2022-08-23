@@ -43,7 +43,7 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	// destSplit.Allocate(30, "stratum.slushpool.com:3333", "shev8.local", "anything123")
 	// destSplit.AllocateRemaining("btc.f2pool.com:3333", "shev8.001", "21235365876986800")
 
-	minerScheduler := NewOnDemandMinerScheduler(minerModel, destSplit, p.log, nil)
+	minerScheduler := NewOnDemandMinerScheduler(minerModel, destSplit, p.log, p.defaultDest)
 	// try to connect to dest before running
 
 	p.repo.Store(minerScheduler)
