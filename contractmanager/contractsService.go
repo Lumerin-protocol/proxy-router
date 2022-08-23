@@ -2,6 +2,7 @@ package contractmanager
 
 import (
 	"gitlab.com/TitanInd/hashrouter/config"
+	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
 
@@ -12,6 +13,8 @@ type ContractsService struct {
 	blockchainGateway  interfaces.IBlockchainGateway
 	factory            interfaces.IContractFactory
 	contractsGateway   interfaces.IContractsGateway
+
+	globalScheduler *GlobalSchedulerService
 
 	configuration *config.Config
 	handlers      []func(contract interfaces.ISellerContractModel)
@@ -183,7 +186,7 @@ func (service *ContractsService) HandleDestinationUpdated(dest interfaces.IDesti
 }
 
 func (service *ContractsService) HandleContractCreated(contract interfaces.ISellerContractModel) {
-	service.logger.Infof("created a contract %v", contract.GetId())
+	service.logger.Infof("created a contract %v", contract.GetID())
 
 	contract.Save()
 	service.logger.Debugf("Contract is available: %v", contract.IsAvailable())
@@ -199,7 +202,7 @@ func (service *ContractsService) HandleContractCreated(contract interfaces.ISell
 }
 
 func (service *ContractsService) SubscribeToContractEvents(contract interfaces.ISellerContractModel) error {
-	service.logger.Debugf("Subscribing to blockchain gateway events for %v", contract.GetId())
+	service.logger.Debugf("Subscribing to blockchain gateway events for %v", contract.GetID())
 	_, _, err := service.blockchainGateway.SubscribeToContractEvents(contract)
 
 	if err != nil {
@@ -209,11 +212,24 @@ func (service *ContractsService) SubscribeToContractEvents(contract interfaces.I
 	return nil
 }
 
-func (service *ContractsService) HandleContractPurchased(dest string, sellerAddress string, buyerAddress string) {
-	// contract.Execute()
+func (service *ContractsService) HandleContractPurchased(dest interfaces.IDestination, sellerAddress string, buyerAddress string, hashrateGHS int) error {
+	combination, err := service.globalScheduler.Allocate(hashrateGHS, dest)
+	if err != nil {
+		return err
+	}
+	calculator := hashrate.NewHashrate(service.logger, hashrate.EMA_INTERVAL)
+	runningContract := NewContract(combination, calculator)
+
+	_, err = service.contractsGateway.SaveContract(runningContract)
+	if err != nil {
+		return err
+	}
+
+	runningContract.Run()
+	return nil
 }
 
-var _ interfaces.IContractsService = (*ContractsService)(nil)
+// var _ interfaces.IContractsService = (*ContractsService)(nil)
 
 func NewContractsService(
 	logger interfaces.ILogger,

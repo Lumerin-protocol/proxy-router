@@ -26,6 +26,12 @@ func NewStratumV1PoolPool(log interfaces.ILogger) *StratumV1PoolConnPool {
 	}
 }
 
+func (p *StratumV1PoolConnPool) GetDest() interfaces.IDestination {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.conn.GetDest()
+}
+
 func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination) error {
 	p.mu.Lock()
 	if p.conn != nil {

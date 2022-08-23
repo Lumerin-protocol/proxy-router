@@ -28,13 +28,17 @@ func NewHashrate(log interfaces.ILogger, emaInterval time.Duration) *Hashrate {
 func (h *Hashrate) OnSubmit(diff int64) {
 	h.ema.Add(float64(diff))
 	h.totalHashes.Add(uint64(diff))
-	h.log.Debugf("new submit: diff %d hashrate %.3f TH/s", diff, float64(h.GetHashrate())/float64(math.Pow10(12)))
-}
-
-func (h *Hashrate) GetHashrate() uint64 {
-	return uint64(h.ema.ValuePer(time.Second)) * uint64(math.Pow(2, 32))
+	h.log.Debugf("new submit: diff %d hashrate %d GH/s", diff, h.GetHashrateGHS())
 }
 
 func (h *Hashrate) GetTotalHashes() uint64 {
 	return h.totalHashes.Load()
+}
+
+func (h *Hashrate) GetHashrateGHS() int {
+	return int(h.getHashrateHS() / uint64(math.Pow10(9)))
+}
+
+func (h *Hashrate) getHashrateHS() uint64 {
+	return uint64(h.ema.ValuePer(time.Second)) * uint64(math.Pow(2, 32))
 }
