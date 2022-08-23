@@ -346,8 +346,13 @@ func (seller *SellerContractManager) WatchHashrateContract(addr string, hrLogs c
 					buyer := common.HexToAddress(hLog.Topics[1].Hex())
 					// hashrateContractMsg.Dest = destUrl
 					hashrateContractMsg.Buyer = string(buyer.Hex())
+					dest, err := lib.ParseDest(destUrl)
+					if err != nil {
+						fmt.Printf("%w", err)
+					}
 
-					// seller.Ps.HandleContractPurchased(destUrl, seller.Account.Hex(), hLog.Topics[1].Hex(), 0)
+					//TODO: pass the contract limit value
+					seller.Ps.HandleContractPurchased(dest, seller.Account.Hex(), hLog.Topics[1].Hex(), addr)
 
 				case cipherTextUpdatedSigHash.Hex():
 

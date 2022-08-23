@@ -6,6 +6,7 @@ type ISellerContractModel interface {
 	IsAvailable() bool
 	MakeAvailable()
 	GetAddress() string
+	GetHashrateGHS() int
 	GetPromisedHashrateMin() uint64
 	GetPrivateKey() string
 	GetBuyerAddress() string
