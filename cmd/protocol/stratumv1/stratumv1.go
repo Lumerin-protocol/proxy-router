@@ -699,27 +699,27 @@ func (s *StratumV1Struct) pubMinerRecord() {
 	// Is the record published already?
 	if event.Data != nil {
 		switch t := event.Data.(type) {
-		case msgbus.Miner:
-
-			contextlib.Logf(s.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Should we be getting this? Should be a pointer")
-
-			if t.State == msgbus.OnlineState {
-				contextlib.Logf(s.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" record already online:%s", t.ID)
-				s.Close()
-				return
-			}
-
-			t.State = msgbus.OnlineState
-			t.IP = s.minerRec.IP
-			t.Port = s.minerRec.Port
-			t.Reconnect++
-
-			s.minerRec = &t
-
-			rid, e := s.protocol.Set(simple.MinerMsg, simple.IDString(s.minerRec.ID), s.minerRec)
-			if e != nil {
-				contextlib.Logf(s.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Miner Pub() error:%s RID:%d", e, rid)
-			}
+//		case msgbus.Miner:
+//
+//			contextlib.Logf(s.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Should we be getting this? Should be a pointer")
+//
+//			if t.State == msgbus.OnlineState {
+//				contextlib.Logf(s.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" record already online:%s", t.ID)
+//				s.Close()
+//				return
+//			}
+//
+//			t.State = msgbus.OnlineState
+//			t.IP = s.minerRec.IP
+//			t.Port = s.minerRec.Port
+//			t.Reconnect++
+//
+//			s.minerRec = &t
+//
+//			rid, e := s.protocol.Set(simple.MinerMsg, simple.IDString(s.minerRec.ID), s.minerRec)
+//			if e != nil {
+//				contextlib.Logf(s.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Miner Pub() error:%s RID:%d", e, rid)
+//			}
 
 		case *msgbus.Miner:
 			if t.State == msgbus.OnlineState {
@@ -740,6 +740,11 @@ func (s *StratumV1Struct) pubMinerRecord() {
 			rid, e := s.protocol.Set(simple.MinerMsg, simple.IDString(s.minerRec.ID), s.minerRec)
 			if e != nil {
 				contextlib.Logf(s.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Miner Pub() error:%s RID:%d", e, rid)
+			}
+
+			rid, e = s.protocol.Sub(simple.MinerMsg, simple.IDString(s.minerRec.ID))
+			if e != nil {
+				contextlib.Logf(s.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Miner Sub() error:%s RID:%d", e, rid)
 			}
 
 			// Get the Destination to switch to it.
