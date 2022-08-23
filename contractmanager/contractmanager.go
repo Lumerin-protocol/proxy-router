@@ -353,7 +353,7 @@ func setContractCloseOut(client *ethclient.Client, fromAddress interop.Blockchai
 	return err
 }
 
-func createContractMsg(contractAddress interop.BlockchainAddress, contractValues hashrateContractValues, isSeller bool) interfaces.IContractModel {
+func createContractMsg(contractAddress interop.BlockchainAddress, contractValues hashrateContractValues, isSeller bool) interfaces.ISellerContractModel {
 
 	var contractMsg *Contract
 	contractMsg.IsSeller = isSeller

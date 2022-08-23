@@ -72,20 +72,22 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener *net.TCPListene
 			p.log.Errorf("incoming connection accept error: %w", err)
 		}
 
-		go func(conn net.Conn) {
-			err := p.handler.HandleConnection(ctx, conn)
-			if err != nil {
-				p.log.Warn("connection handler error: %w", err)
-			}
+		if p.handler != nil {
+			go func(conn net.Conn) {
+				err := p.handler.HandleConnection(ctx, conn)
+				if err != nil {
+					p.log.Warn("connection handler error: %w", err)
+				}
 
-			err = conn.Close()
-			if err != nil {
-				p.log.Warn("error during closing connection", err)
-				return
-			}
+				err = conn.Close()
+				if err != nil {
+					p.log.Warn("error during closing connection", err)
+					return
+				}
 
-			p.log.Info("connection closed: %s", conn.RemoteAddr())
+				p.log.Info("connection closed: %s", conn.RemoteAddr())
 
-		}(conn)
+			}(conn)
+		}
 	}
 }

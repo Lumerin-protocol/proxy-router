@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
-	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/protocol"
 )
 
@@ -16,13 +15,13 @@ type OnDemandMinerScheduler struct {
 	destSplit   *DestSplit    // may be not allocated fully, the remaining will be directed to defaultDest
 	reset       chan struct{} // used to start over the destination cycle after update has been made
 	log         interfaces.ILogger
-	defaultDest interop.Dest // the default destination that is used for unallocated part of destSplit
+	defaultDest interfaces.IDestination // the default destination that is used for unallocated part of destSplit
 }
 
 // const ON_DEMAND_SWITCH_TIMEOUT = 10 * time.Minute
 const ON_DEMAND_SWITCH_TIMEOUT = 1 * time.Minute
 
-func NewOnDemandMinerScheduler(minerModel MinerModel, destSplit *DestSplit, log interfaces.ILogger, defaultDest interop.Dest) *OnDemandMinerScheduler {
+func NewOnDemandMinerScheduler(minerModel MinerModel, destSplit *DestSplit, log interfaces.ILogger, defaultDest interfaces.IDestination) *OnDemandMinerScheduler {
 	return &OnDemandMinerScheduler{
 		minerModel,
 		destSplit,
@@ -48,8 +47,8 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 		}
 
 		// if only one destination
-		if len(m.destSplit.Iter()) == 1 {
-			splitItem := m.destSplit.Iter()[0]
+		if len(m.getDest().Iter()) == 1 {
+			splitItem := m.getDest().Iter()[0]
 			err := m.minerModel.ChangeDest(splitItem.Dest)
 			if err != nil {
 				return err
@@ -68,7 +67,7 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 		// if multiple destinations
 	cycle:
 		for _, splitItem := range m.getDest().Iter() {
-			m.log.Infof("changing destination to %s ", splitItem.Dest.Host)
+			m.log.Infof("changing destination to %s ", splitItem.Dest.GetHost())
 
 			err := m.minerModel.ChangeDest(splitItem.Dest)
 			if err != nil {
@@ -76,7 +75,7 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 			}
 
 			splitDuration := time.Duration(int64(ON_DEMAND_SWITCH_TIMEOUT/100) * int64(splitItem.Percentage))
-			m.log.Infof("destination was changed to %s for %.2f seconds", splitItem.Dest.Host, splitDuration.Seconds())
+			m.log.Infof("destination was changed to %s for %.2f seconds", splitItem.Dest.GetHost(), splitDuration.Seconds())
 
 			select {
 			case <-ctx.Done():
@@ -119,12 +118,12 @@ func (m *OnDemandMinerScheduler) SetDestSplit(destSplit *DestSplit) {
 }
 
 // Allocate directs miner resources to the destination
-func (m *OnDemandMinerScheduler) Allocate(percentage float64, dest interop.Dest) error {
+func (m *OnDemandMinerScheduler) Allocate(percentage float64, dest interfaces.IDestination) error {
 	return m.destSplit.Allocate(percentage, dest)
 }
 
 // Deallocate removes destination from miner's resource allocation
-func (m *OnDemandMinerScheduler) Deallocate(dest interop.Dest) (ok bool) {
+func (m *OnDemandMinerScheduler) Deallocate(dest interfaces.IDestination) (ok bool) {
 	return m.destSplit.Deallocate(dest)
 }
 

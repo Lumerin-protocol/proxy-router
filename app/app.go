@@ -49,7 +49,9 @@ func (a *App) Run() {
 
 	//Bootstrap contracts layer
 	g.Go(func() error {
-		return a.ContractManager.Run(subCtx)
+		err := a.ContractManager.Run(subCtx)
+		a.Logger.Debugf("contract error: %v", err)
+		return err
 	})
 
 	//Bootstrap API

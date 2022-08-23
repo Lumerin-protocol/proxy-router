@@ -14,6 +14,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/config"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/interop"
+	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/lumerinlib/clonefactory"
 	"gitlab.com/TitanInd/hashrouter/lumerinlib/implementation"
 )
@@ -115,10 +116,6 @@ func (seller *SellerContractManager) Run(ctx context.Context) (err error) {
 			go seller.WatchHashrateContract(addr, hrLogs, hrSub)
 		}
 
-		// monitor new contracts getting created and start hashrate conrtract monitor routine when they are created
-		seller.Ps.OnContractCreated(func(newContract interfaces.IContractModel) {
-
-		})
 	}()
 
 	if err != nil {
@@ -129,52 +126,77 @@ func (seller *SellerContractManager) Run(ctx context.Context) (err error) {
 }
 
 func (seller *SellerContractManager) SetupExistingContracts() (err error) {
+	seller.logger.Debug("Setting up existing contracts")
 	// var contractValues []hashrateContractValues
-	var contractModels []interfaces.IContractModel
+	var contractModels []interfaces.ISellerContractModel
 
 	sellerContracts, err := seller.ReadContracts()
 	if err != nil {
 		return err
 	}
+	seller.logger.Infof("Existing Seller Contracts: %v", sellerContracts)
 	//contextlib.Logf(seller.Ctx, log.LevelInfo, "Existing Seller Contracts: %v", sellerContracts)
 
 	// get existing dests in msgbus to see if contract's dest already exists
 	// existingDests := seller.Ps.GetDestinations()
+
+	var waitGroup sync.WaitGroup
+
 	for _, sellerContract := range sellerContracts {
-		id := string(sellerContract.Hex())
-		if !seller.Ps.ContractExists(id) {
+		waitGroup.Add(1)
+		go func(sellerContract interop.BlockchainAddress, errResult *error) {
+			// id := string(sellerContract.Hex())
 
-			contractMsg, err := readHashrateContract(seller.EthClient, sellerContract)
-
-			if err != nil {
-				return err
-			}
+			err := *errResult
 
 			destUrl, err := readDestUrl(seller.EthClient, sellerContract, seller.PrivateKey)
 
 			if err != nil {
-				return err
+				errResult = &err
+				return
+			}
+
+			// if !seller.Ps.ContractExists(id) {
+
+			contractMsg, err := readHashrateContract(seller.EthClient, sellerContract)
+
+			if err != nil {
+				errResult = &err
+				return
 			}
 
 			contract, err := seller.ContractFactory.CreateContract(true, sellerContract.Hex(), ContractStateEnum[contractMsg.State], contractMsg.Buyer.Hex(), contractMsg.Price, contractMsg.Limit, contractMsg.Speed, contractMsg.Length, contractMsg.StartingBlockTimestamp, destUrl)
 
 			if err != nil {
-				return err
+				errResult = &err
+				return
 			}
 
 			contractModels = append(contractModels, contract)
 
-			contract, err = contract.TryRunningAt(destUrl)
+			contract.SetDestination(destUrl)
+
+			seller.logger.Debug("Executing contract %v", contract.GetId())
+			_, err = contract.Execute()
 
 			if err != nil {
-				return err
+				errResult = &err
+				return
 			}
-		}
+
+			contract.Save()
+
+			waitGroup.Done()
+		}(sellerContract, &err)
 	}
 
-	_, err = seller.Ps.SaveContracts(contractModels)
+	waitGroup.Wait()
 
 	return err
+	// seller.logger.Debug("Saving existing contracts;  service %v", seller.Ps)
+	// _, err = seller.Ps.SaveContracts(contractModels)
+	// seller.logger.Debugf("Saved existing contracts; err: %v", err.Error())
+
 }
 
 func (seller *SellerContractManager) ReadContracts() ([]interop.BlockchainAddress, error) {
@@ -245,6 +267,8 @@ func (seller *SellerContractManager) watchContractCreation(cfLogs chan types.Log
 				if err != nil {
 					//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Funcname::%s, Fileline::%s, Error::", lumerinlib.Funcname(), lumerinlib.FileLine()), err)
 				}
+
+				seller.logger.Debugf("contract created... comparing hashrateContractSeller (%v) with seller.Account (%v)", hashrateContractSeller, seller.Account)
 				if hashrateContractSeller == seller.Account {
 					// TODO: Handle logs, errors and data
 					//contextlib.Logf(seller.Ctx, log.LevelInfo, "Address of created Hashrate Contract: %s\n\n", address.Hex())
@@ -323,7 +347,7 @@ func (seller *SellerContractManager) WatchHashrateContract(addr string, hrLogs c
 					// hashrateContractMsg.Dest = destUrl
 					hashrateContractMsg.Buyer = string(buyer.Hex())
 
-					seller.Ps.HandleContractPurchased(hashrateContractMsg)
+					seller.Ps.HandleContractPurchased(destUrl, seller.Account.Hex(), hLog.Topics[1].Hex())
 
 				case cipherTextUpdatedSigHash.Hex():
 
@@ -336,7 +360,9 @@ func (seller *SellerContractManager) WatchHashrateContract(addr string, hrLogs c
 					fmt.Printf(destUrl)
 					// hashrateContractMsg.Dest = destUrl
 
-					seller.Ps.HandleDestinationUpdated(hashrateContractMsg)
+					destination, err := lib.ParseDest(destUrl)
+
+					seller.Ps.HandleDestinationUpdated(destination)
 
 				case contractClosedSigHash.Hex():
 					seller.Ps.HandleContractClosed(hashrateContractMsg)
@@ -350,7 +376,7 @@ func (seller *SellerContractManager) WatchHashrateContract(addr string, hrLogs c
 
 					updateContractMsg(hashrateContractMsg, updatedContractValues)
 
-					seller.Ps.HandleContractUpdated(hashrateContractMsg)
+					seller.Ps.HandleContractUpdated(hashrateContractMsg.Price, hashrateContractMsg.Length, hashrateContractMsg.Speed, hashrateContractMsg.Limit)
 
 				}
 			}

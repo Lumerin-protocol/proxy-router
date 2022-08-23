@@ -3,7 +3,7 @@ package contractmanager
 import (
 	"errors"
 
-	"gitlab.com/TitanInd/hashrouter/interop"
+	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/miner"
 )
 
@@ -15,7 +15,7 @@ type GlobalSchedulerService struct {
 	minerCollection *miner.MinerRepo
 }
 
-func (s *GlobalSchedulerService) Allocate(hashrateGHS int, dest interop.Dest) error {
+func (s *GlobalSchedulerService) Allocate(hashrateGHS int, dest interfaces.IDestination) error {
 	remainingHashrate, minerHashrates := s.GetUnallocatedHashrateGHS()
 	if remainingHashrate < hashrateGHS {
 		return ErrNotEnoughHashrate
@@ -23,7 +23,7 @@ func (s *GlobalSchedulerService) Allocate(hashrateGHS int, dest interop.Dest) er
 
 	combination := FindCombinations(minerHashrates, hashrateGHS)
 	for _, item := range combination {
-		miner, ok := s.minerCollection.Load(item.MinerID)
+		miner, ok := s.minerCollection.Load(item.GetSourceID())
 		if !ok {
 			panic("miner not found")
 		}

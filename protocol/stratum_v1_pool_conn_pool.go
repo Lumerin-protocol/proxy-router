@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
-	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
 )
 
@@ -27,13 +26,13 @@ func NewStratumV1PoolPool(log interfaces.ILogger) *StratumV1PoolConnPool {
 	}
 }
 
-func (p *StratumV1PoolConnPool) GetDest() interop.Dest {
+func (p *StratumV1PoolConnPool) GetDest() interfaces.IDestination {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.conn.GetDest()
 }
 
-func (p *StratumV1PoolConnPool) SetDest(dest interop.Dest) error {
+func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination) error {
 	p.mu.Lock()
 	if p.conn != nil {
 		if p.conn.GetDest().IsEqual(dest) {
@@ -56,14 +55,14 @@ func (p *StratumV1PoolConnPool) SetDest(dest interop.Dest) error {
 
 		return nil
 	}
-
-	c, err := net.Dial("tcp", dest.Host)
+	p.log.Debugf("destination obj: %v; host: %v", dest, dest.GetHost())
+	c, err := net.Dial("tcp", dest.GetHost())
 	if err != nil {
 		return err
 	}
-	p.log.Infof("Dialed dest %s", dest.Host)
+	p.log.Infof("Dialed dest %s", dest.GetHost())
 
-	conn = NewStratumV1Pool(c, p.log, &dest)
+	conn = NewStratumV1Pool(c, p.log, dest)
 
 	err = conn.Connect()
 	if err != nil {
@@ -75,7 +74,7 @@ func (p *StratumV1PoolConnPool) SetDest(dest interop.Dest) error {
 	p.mu.Unlock()
 
 	p.store(dest.String(), conn)
-	p.log.Infof("=========> dest was set %s", dest.Host)
+	p.log.Infof("=========> dest was set %s", dest.GetHost())
 	return nil
 }
 

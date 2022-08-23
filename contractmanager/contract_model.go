@@ -3,6 +3,7 @@ package contractmanager
 import (
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/interop"
+	"gitlab.com/TitanInd/hashrouter/lib"
 )
 
 type Contract struct {
@@ -20,7 +21,7 @@ type Contract struct {
 	Speed                  int
 	Length                 int
 	StartingBlockTimestamp int
-	Dest                   interop.Dest
+	Dest                   interfaces.IDestination
 
 	fromAddress      interop.BlockchainAddress
 	privateKeyString string
@@ -42,10 +43,15 @@ func (c *Contract) SetBuyerAddress(buyer string) {
 	c.Buyer = buyer
 }
 
-func (c *Contract) Execute() (interfaces.IContractModel, error) {
+func (c *Contract) Initialize() (interfaces.ISellerContractModel, error) {
+	panic("Unimplemented method: Contract.Initialize")
+}
+
+func (c *Contract) Execute() (interfaces.ISellerContractModel, error) {
+	c.Logger.Debugf("Executing contract %v", c.GetId())
 	c.RoutableStreamService.ChangeDestAll(c.Dest)
-	c.Logger.Debugf("Changed destination to %v", c.Dest)
-	// panic("Contract.Execute not implemented")
+	c.Logger.Debugf("Changed destination to %v", c.Dest.String())
+
 	return c, nil
 }
 
@@ -65,8 +71,14 @@ func (c *Contract) GetCloseOutType() uint {
 	return c.closeOutType
 }
 
-func (c *Contract) SetDestination(dest interop.Dest) {
-	c.Dest = dest
+func (c *Contract) SetDestination(dest string) (err error) {
+	c.Dest, err = lib.ParseDest(dest)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *Contract) IsAvailable() bool {
@@ -93,7 +105,7 @@ func (c *Contract) MakeAvailable() {
 	}
 }
 
-func (c *Contract) Save() (interfaces.IContractModel, error) {
+func (c *Contract) Save() (interfaces.ISellerContractModel, error) {
 	return c.ContractsGateway.SaveContract(c)
 }
 
@@ -101,7 +113,7 @@ func (c *Contract) GetPrivateKey() string {
 	return c.privateKeyString
 }
 
-func (c *Contract) TryRunningAt(dest string) (interfaces.IContractModel, error) {
+func (c *Contract) TryRunningAt(dest string) (interfaces.ISellerContractModel, error) {
 	if c.State == ContRunningState {
 		return c.Execute()
 	}
@@ -109,4 +121,4 @@ func (c *Contract) TryRunningAt(dest string) (interfaces.IContractModel, error) 
 	return c, nil
 }
 
-var _ interfaces.IContractModel = (*Contract)(nil)
+var _ interfaces.ISellerContractModel = (*Contract)(nil)

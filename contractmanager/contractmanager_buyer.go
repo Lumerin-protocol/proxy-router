@@ -59,24 +59,24 @@ func (buyer *BuyerContractManager) Run(ctx context.Context) (err error) {
 		}
 
 		// monitor new contracts getting purchased and start watch hashrate conrtract routine when they are purchased
-		buyer.Ps.OnContractCreated(func(newContract interfaces.IContractModel) {
-			buyer.Logger.Infof("created a contract %v", newContract.GetId())
-			addr := common.HexToAddress(string(newContract.GetAddress()))
-			hrLogs, hrSub, err := SubscribeToContractEvents(buyer.EthClient, addr)
-			if err != nil {
-				//contextlib.Logf(buyer.Ctx, log.LevelPanic, fmt.Sprintf("Failed to subscribe to events on hashrate contract %s, Fileline::%s, Error::", addr, lumerinlib.FileLine()), err)
-			}
-			go buyer.WatchHashrateContract(string(addr.Hex()), hrLogs, hrSub)
+		// buyer.Ps.OnContractCreated(func(newContract interfaces.IContractModel) {
+		// 	buyer.Logger.Infof("created a contract %v", newContract.GetId())
+		// 	addr := common.HexToAddress(string(newContract.GetAddress()))
+		// 	hrLogs, hrSub, err := SubscribeToContractEvents(buyer.EthClient, addr)
+		// 	if err != nil {
+		// 		//contextlib.Logf(buyer.Ctx, log.LevelPanic, fmt.Sprintf("Failed to subscribe to events on hashrate contract %s, Fileline::%s, Error::", addr, lumerinlib.FileLine()), err)
+		// 	}
+		// 	go buyer.WatchHashrateContract(string(addr.Hex()), hrLogs, hrSub)
 
-			go buyer.closeOutMonitor(newContract.GetAddress())
-		})
+		// 	go buyer.closeOutMonitor(newContract.GetAddress())
+		// })
 	}()
 	return nil
 }
 
 func (buyer *BuyerContractManager) SetupExistingContracts() (err error) {
 	var contractValues []hashrateContractValues
-	var contractMsgs []interfaces.IContractModel
+	var contractMsgs []interfaces.ISellerContractModel
 	var nodeOperatorUpdated bool
 
 	buyerContracts, err := buyer.ReadContracts()
@@ -193,7 +193,7 @@ func (buyer *BuyerContractManager) watchContractPurchase(cfLogs chan types.Log, 
 					fmt.Printf(destUrl)
 					// contractMsg.SetDestination(destUrl)
 
-					buyer.Ps.HandleContractPurchased(contractMsg)
+					buyer.Ps.HandleContractPurchased(destUrl, contractMsg.GetId(), address.Hex())
 
 				}
 			}
@@ -235,10 +235,10 @@ func (buyer *BuyerContractManager) WatchHashrateContract(addr string, hrLogs cha
 				buyer.Ps.HandleContractClosed(contract)
 
 			case purchaseInfoUpdatedSigHash.Hex():
-				buyer.Ps.HandleContractUpdated(contract)
+				// buyer.Ps.HandleContractUpdated(contract.GetPriceRequirement(), contract.GetTimeRequirement(), contract.GetHashrateRequirement())
 
 			case cipherTextUpdatedSigHash.Hex():
-				buyer.Ps.HandleContractUpdated(contract)
+				// buyer.Ps.HandleDestinationUpdated(contract.GetDestination())
 			}
 		}
 	}

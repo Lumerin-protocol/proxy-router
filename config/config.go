@@ -9,9 +9,10 @@ type Config struct {
 		Address string `env:"PROXY_ADDRESS" flag:"proxy-address" validate:"required,hostname_port"`
 	}
 	Pool struct {
-		Address  string `env:"POOL_ADDRESS" flag:"pool-address" validate:"required,hostname_port"`
-		User     string `env:"POOL_USER" flag:"pool-user" validate:"required"`
-		Password string `env:"POOL_PASSWORD" flag:"pool-password"`
+		Address string `env:"POOL_ADDRESS" flag:"pool-address" validate:"required,uri"`
+		// Scheme   string `env:"POOL_SCHEME" flag:"pool-scheme"`
+		// User     string `env:"POOL_USER" flag:"pool-user" `
+		// Password string `env:"POOL_PASSWORD" flag:"pool-password"`
 	}
 	Contract struct {
 		Address             string `env:"CONTRACT_ADDRESS" flag:"contract-address" validate:"required,eth_addr"`
@@ -24,6 +25,7 @@ type Config struct {
 		LumerinTokenAddress string
 		ValidatorAddress    string
 		ProxyAddress        string
+		WalletAddress       string `env:"SELLER_ADDRESS"`
 	}
 	EthNode struct {
 		Address string `env:"ETH_NODE_ADDRESS" flag:"eth-node-address" validate:"required,url"`

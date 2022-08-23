@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
-	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
 	"go.uber.org/atomic"
@@ -17,7 +16,7 @@ import (
 
 // StratumV1PoolConn represents connection to the pool on the protocol level
 type StratumV1PoolConn struct {
-	dest *interop.Dest // destination TODO: replace it with value type, instead of pointer
+	dest interfaces.IDestination // destination TODO: replace it with value type, instead of pointer
 
 	conn net.Conn // tcp connection
 
@@ -38,7 +37,7 @@ type StratumV1PoolConn struct {
 	log interfaces.ILogger
 }
 
-func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest *interop.Dest) *StratumV1PoolConn {
+func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDestination) *StratumV1PoolConn {
 	return &StratumV1PoolConn{
 
 		dest: dest,
@@ -80,7 +79,7 @@ func (s *StratumV1PoolConn) run(ctx context.Context) error {
 			return err
 		}
 
-		lib.LogMsg(false, true, s.dest.Host, line, s.log)
+		lib.LogMsg(false, true, s.dest.GetHost(), line, s.log)
 
 		m, err := stratumv1_message.ParseMessageFromPool(line)
 		if err != nil {
@@ -205,7 +204,7 @@ func (s *StratumV1PoolConn) Read() (stratumv1_message.MiningMessageGeneric, erro
 func (m *StratumV1PoolConn) Write(ctx context.Context, msg stratumv1_message.MiningMessageGeneric) error {
 	msg = m.writeInterceptor(msg)
 
-	lib.LogMsg(false, false, m.dest.Host, msg.Serialize(), m.log)
+	lib.LogMsg(false, false, m.dest.GetHost(), msg.Serialize(), m.log)
 
 	b := fmt.Sprintf("%s\n", msg.Serialize())
 	_, err := m.conn.Write([]byte(b))
@@ -217,8 +216,8 @@ func (m *StratumV1PoolConn) GetExtranonce() (string, int) {
 	return m.extraNonceMsg.GetExtranonce()
 }
 
-func (m *StratumV1PoolConn) GetDest() interop.Dest {
-	return *m.dest
+func (m *StratumV1PoolConn) GetDest() interfaces.IDestination {
+	return m.dest
 }
 
 func (s *StratumV1PoolConn) RemoteAddr() string {

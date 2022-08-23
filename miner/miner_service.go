@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-type ContractResourceService interface {
+type IContractResourceService interface {
 	Allocate(hashrate uint, duration time.Duration, dest string, id string) (RunningContract, error)
 	GetOngoingContracts() ([]RunningContract, error) // for public API
 }

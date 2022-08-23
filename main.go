@@ -55,7 +55,7 @@ func InitApp() (*app.App, error) {
 }
 
 func provideContractsRepository(logger interfaces.ILogger, dataStore data.Store, transactionsChannel data.TransactionsChannel) contractmanager.IContractsRepository {
-	return data.NewInMemoryRepository[interfaces.IContractModel](logger, dataStore, transactionsChannel)
+	return data.NewInMemoryRepository[interfaces.ISellerContractModel](logger, dataStore, transactionsChannel)
 }
 
 func provideContractsGateway(repo contractmanager.IContractsRepository) interfaces.IContractsGateway {
@@ -71,8 +71,15 @@ func provideHashrateCalculator() interfaces.IValidatorsService {
 	return nil
 }
 
-func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo *miner.MinerRepo) *miner.MinerController {
-	return miner.NewMinerController(cfg.Pool.Address, cfg.Pool.User, cfg.Pool.Password, repo, l)
+func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo *miner.MinerRepo) (*miner.MinerController, error) {
+
+	destination, err := lib.ParseDest(cfg.Pool.Address)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return miner.NewMinerController(destination, repo, l), nil
 }
 
 func provideTCPServer(cfg *config.Config, l interfaces.ILogger) *tcpserver.TCPServer {
@@ -127,45 +134,50 @@ func (*ContractFactory) CreateContract(
 	Length int,
 	StartingBlockTimestamp int,
 	Dest string,
-) (interfaces.IContractModel, error) {
+) (interfaces.ISellerContractModel, error) {
 	model, err := initContractModel()
 
-	// IsSeller               bool
-	// ID                     string
-	// State                  string
-	// Buyer                  string
-	// Price                  int
-	// Limit                  int
-	// Speed                  int
-	// Length                 int
-	// StartingBlockTimestamp int
-	// Dest                   string
+	if err != nil {
+		return model, err
+	}
 
-	// fromAddress      interop.BlockchainAddress
-	// privateKeyString string
-	// contractAddress  interop.BlockchainAddress
-	// CurrentNonce     *nonce
-	// closeOutType     uint
-	// NodeOperator     *NodeOperator
+	model.IsSeller = IsSeller
+	model.ID = ID
+	model.State = State
+	model.State = State
+	model.Buyer = Buyer
+	model.Price = Price
+	model.Limit = Limit
+	model.Speed = Speed
+	model.Length = Length
+	model.StartingBlockTimestamp = StartingBlockTimestamp
+
+	dest, err := lib.ParseDest(Dest)
+
+	model.Dest = dest
+
+	// CurrentNonce
 
 	return model, err
 }
 
-func initContractModel() (interfaces.IContractModel, error) {
+func initContractModel() (*contractmanager.Contract, error) {
 	wire.Build(
 		provideLogger,
 		provideConfig,
 		dataSet,
+		protocolSet,
 		contractsSet,
 		provideContractModel,
 	)
 	return nil, nil
 }
 
-func provideContractModel(logger interfaces.ILogger, ethereumGateway interfaces.IBlockchainGateway, contractsGateway interfaces.IContractsGateway) interfaces.IContractModel {
+func provideContractModel(logger interfaces.ILogger, ethereumGateway interfaces.IBlockchainGateway, contractsGateway interfaces.IContractsGateway, miningService *miner.MinerController) *contractmanager.Contract {
 	return &contractmanager.Contract{
-		Logger:           logger,
-		EthereumGateway:  ethereumGateway,
-		ContractsGateway: contractsGateway,
+		Logger:                logger,
+		EthereumGateway:       ethereumGateway,
+		ContractsGateway:      contractsGateway,
+		RoutableStreamService: miningService,
 	}
 }
