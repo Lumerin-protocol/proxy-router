@@ -32,7 +32,7 @@ func (gateway *EthereumGateway) SubscribeToContractEvents(contract interfaces.IS
 	}
 
 	logs := make(chan interop.BlockchainEvent)
-	gateway.logger.Debugf("subscribing to blockchain client log events: %v", contract.GetId())
+	gateway.logger.Debugf("subscribing to blockchain client log events: %v", contract.GetID())
 	sub, err := gateway.client.SubscribeFilterLogs(ctx, query, logs)
 	if err != nil {
 		gateway.logger.Debugf("error subscribing to contract events: %v", err)

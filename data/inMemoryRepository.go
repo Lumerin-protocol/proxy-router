@@ -62,7 +62,7 @@ func (repo *InMemoryRepository[T]) Get(id string) (T, error) {
 
 func (repo *InMemoryRepository[T]) Save(payload T) (T, error) {
 
-	if payload.GetId() != "" {
+	if payload.GetID() != "" {
 		return repo.Update(payload)
 	}
 
@@ -72,7 +72,7 @@ func (repo *InMemoryRepository[T]) Save(payload T) (T, error) {
 func (repo *InMemoryRepository[T]) Create(payload T) (T, error) {
 	id := interop.NewUniqueIdString()
 
-	result := payload.SetId(id)
+	result := payload.SetID(id)
 
 	repo.transactionsChannel <- func() {
 		repo.store[repo.storageKey][id] = result
@@ -82,7 +82,7 @@ func (repo *InMemoryRepository[T]) Create(payload T) (T, error) {
 }
 
 func (repo *InMemoryRepository[T]) Update(payload T) (T, error) {
-	id := payload.GetId()
+	id := payload.GetID()
 
 	repo.transactionsChannel <- func() {
 		repo.store[repo.storageKey][id] = payload
@@ -92,7 +92,7 @@ func (repo *InMemoryRepository[T]) Update(payload T) (T, error) {
 }
 
 func (repo *InMemoryRepository[T]) FindOne(payload T) (T, error) {
-	return repo.Get(payload.GetId())
+	return repo.Get(payload.GetID())
 }
 
 func (repo *InMemoryRepository[T]) Query(query T) []T {

@@ -15,10 +15,10 @@ type GlobalSchedulerService struct {
 	minerCollection *miner.MinerRepo
 }
 
-func (s *GlobalSchedulerService) Allocate(hashrateGHS int, dest interfaces.IDestination) error {
+func (s *GlobalSchedulerService) Allocate(hashrateGHS int, dest interfaces.IDestination) (HashrateList, error) {
 	remainingHashrate, minerHashrates := s.GetUnallocatedHashrateGHS()
 	if remainingHashrate < hashrateGHS {
-		return ErrNotEnoughHashrate
+		return nil, ErrNotEnoughHashrate
 	}
 
 	combination := FindCombinations(minerHashrates, hashrateGHS)
@@ -33,7 +33,7 @@ func (s *GlobalSchedulerService) Allocate(hashrateGHS int, dest interfaces.IDest
 		}
 	}
 
-	return nil
+	return combination, nil
 }
 
 func (s *GlobalSchedulerService) GetUnallocatedHashrateGHS() (int, HashrateList) {

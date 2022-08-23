@@ -9,11 +9,11 @@ import (
 type TestModel struct {
 }
 
-func (*TestModel) GetId() string {
+func (*TestModel) GetID() string {
 	return "testid"
 }
 
-func (t *TestModel) SetId(id string) interfaces.IBaseModel {
+func (t *TestModel) SetID(id string) interfaces.IBaseModel {
 	return t
 }
 
