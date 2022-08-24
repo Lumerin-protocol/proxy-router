@@ -10,9 +10,6 @@ type Config struct {
 	}
 	Pool struct {
 		Address string `env:"POOL_ADDRESS" flag:"pool-address" validate:"required,uri"`
-		// Scheme   string `env:"POOL_SCHEME" flag:"pool-scheme"`
-		// User     string `env:"POOL_USER" flag:"pool-user" `
-		// Password string `env:"POOL_PASSWORD" flag:"pool-password"`
 	}
 	Contract struct {
 		Address             string `env:"CONTRACT_ADDRESS" flag:"contract-address" validate:"required,eth_addr"`

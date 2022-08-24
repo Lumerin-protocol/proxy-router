@@ -36,7 +36,7 @@ func main() {
 var dataSet = wire.NewSet(data.NewTransactionsChannel, data.NewInMemoryDataStore)
 var networkSet = wire.NewSet(provideTCPServer, provideServer)
 var protocolSet = wire.NewSet(miner.NewMinerRepo, provideMinerController, eventbus.NewEventBus, provideConnectionsService)
-var contractsSet = wire.NewSet(provideContractsRepository, blockchain.NewBlockchainWallet, provideEthClient, blockchain.NewBlockchainGateway, provideContractFactory, provideContractsGateway, contractmanager.NewNodeOperator, contractmanager.NewContractsService, provideSellerContractManager)
+var contractsSet = wire.NewSet(provideContractsRepository, provideEthClient, provideEthWallet, provideContractFactory, provideContractsGateway, contractmanager.NewNodeOperator, contractmanager.NewContractsService, provideSellerContractManager)
 var hashrateCalculationSet = wire.NewSet(provideHashrateCalculator)
 
 //TODO: make sure all providers initialized
@@ -91,7 +91,11 @@ func provideServer(cfg *config.Config, l interfaces.ILogger, ph *miner.MinerCont
 }
 
 func provideEthClient(cfg *config.Config) (*ethclient.Client, error) {
-	return contractmanager.NewEthClient(cfg.EthNode.Address)
+	return blockchain.NewEthClient(cfg.EthNode.Address)
+}
+
+func provideEthWallet(cfg *config.Config) (*blockchain.EthereumWallet, error) {
+	return blockchain.NewEthereumWallet(cfg.Contract.Mnemonic, cfg.Contract.AccountIndex)
 }
 
 func provideSellerContractManager(

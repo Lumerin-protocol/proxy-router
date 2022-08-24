@@ -3,9 +3,9 @@ package contractmanager
 import (
 	"time"
 
+	"gitlab.com/TitanInd/hashrouter/contractmanager/blockchain"
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
-	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/lib"
 )
 
@@ -26,9 +26,9 @@ type Contract struct {
 	StartingBlockTimestamp int
 	Dest                   interfaces.IDestination
 
-	fromAddress      interop.BlockchainAddress
+	fromAddress      blockchain.BlockchainAddress
+	contractAddress  blockchain.BlockchainAddress
 	privateKeyString string
-	contractAddress  interop.BlockchainAddress
 	CurrentNonce     *nonce
 	closeOutType     uint
 	NodeOperator     *NodeOperator
