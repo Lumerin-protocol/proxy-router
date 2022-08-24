@@ -492,11 +492,12 @@ func (l *LumerinSocketStruct) GetRemoteAddr() (addr net.Addr, e error) {
 //
 func (l *LumerinSocketStruct) Close() (e error) {
 
-	contextlib.Logf(l.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
 
 	if l == nil {
 		return errors.New(lumerinlib.FileLineFunc() + " nil pointer ")
 	}
+
+	contextlib.Logf(l.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
 
 	switch l.socket.(type) {
 	case *sockettcp.SocketTCPStruct:
