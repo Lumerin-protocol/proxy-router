@@ -857,6 +857,9 @@ func (cs *ConnectionScheduler) SetMinerTarget(contract msgbus.Contract, contract
 				contextlib.Logf(cs.Ctx, log.LevelInfo, "Sliced Miner In Contract %s Set Target Func while servicing contract: %v", contract.ID, miner)
 
 				slicedDuration := time.Second * time.Duration(int(float64(cs.HashrateCalcLagTime)*v))
+				if (durationPassed + slicedDuration) > time.Duration(cs.HashrateCalcLagTime) {
+					slicedDuration = time.Duration(cs.HashrateCalcLagTime) - durationPassed
+				}
 				readyMiners := cs.ReadyMiners.GetAll()
 				busyMiners := cs.BusyMiners.GetAll()
 				contextlib.Logf(cs.Ctx, log.LevelInfo, "Ready Miners In Contract %s Set Target Func: %v", contract.ID, readyMiners)
