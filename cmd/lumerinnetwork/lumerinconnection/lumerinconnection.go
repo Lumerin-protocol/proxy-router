@@ -492,11 +492,19 @@ func (l *LumerinSocketStruct) GetRemoteAddr() (addr net.Addr, e error) {
 //
 func (l *LumerinSocketStruct) Close() (e error) {
 
+
 	if l == nil {
 		return errors.New(lumerinlib.FileLineFunc() + " nil pointer ")
 	}
 
-	//	contextlib.Logf(l.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
+	contextlib.Logf(l.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
+
+	switch l.socket.(type) {
+	case *sockettcp.SocketTCPStruct:
+		l.socket.(*sockettcp.SocketTCPStruct).Close()
+	default:
+		contextlib.Logf(l.ctx, contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Default reached, type: %T", l.socket)
+	}
 
 	if l.Done() {
 		return ErrLumConSocketClosed

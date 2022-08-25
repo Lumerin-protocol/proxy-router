@@ -225,13 +225,9 @@ func (l *ListenTCPStruct) GetAcceptChan() <-chan interface{} {
 // Closes down a listening Socket
 //
 func (l *ListenTCPStruct) Close() {
-
 	contextlib.Logf(l.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
 
-	e := l.listener.Close()
-	if e != nil {
-		contextlib.Logf(l.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" listener.Close() returned an error:%s", e)
-	}
+	l.Cancel()
 }
 
 //
@@ -244,6 +240,11 @@ func (l *ListenTCPStruct) Cancel() {
 	if l.cancel == nil {
 		contextlib.Logf(l.ctx, contextlib.LevelError, lumerinlib.FileLineFunc()+" cancel function is nil, struct:%v", l)
 		return
+	}
+
+	e := l.listener.Close()
+	if e != nil {
+		contextlib.Logf(l.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" listener.Close() returned an error:%s", e)
 	}
 
 	l.cancel()
@@ -482,6 +483,7 @@ func (s *SocketTCPStruct) Status() (ss *SocketStatusStruct, e error) {
 //
 //
 func (s *SocketTCPStruct) Close() {
+	contextlib.Logf(s.ctx, contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
 	s.Cancel()
 }
 

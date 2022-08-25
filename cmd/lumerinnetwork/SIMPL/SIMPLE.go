@@ -480,6 +480,9 @@ FORLOOP:
 		}
 	}
 
+	// Close the next layer down
+	s.ConnectionStruct.Cancel()
+
 	close(s.eventChan)
 	contextlib.Logf(s.ctx, contextlib.LevelWarn, lumerinlib.FileLineFunc()+" exit")
 }

@@ -682,6 +682,8 @@ func (s *StratumV1Struct) GetSrcState() (state SrcState) {
 //
 func (s *StratumV1Struct) pubMinerRecord() {
 
+	contextlib.Logf(s.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
+
 	id, e := s.srcAuthRequest.getAuthName()
 	if e != nil {
 		contextlib.Logf(s.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" getAuthName() error:%s", e)
@@ -699,28 +701,6 @@ func (s *StratumV1Struct) pubMinerRecord() {
 	// Is the record published already?
 	if event.Data != nil {
 		switch t := event.Data.(type) {
-//		case msgbus.Miner:
-//
-//			contextlib.Logf(s.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Should we be getting this? Should be a pointer")
-//
-//			if t.State == msgbus.OnlineState {
-//				contextlib.Logf(s.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" record already online:%s", t.ID)
-//				s.Close()
-//				return
-//			}
-//
-//			t.State = msgbus.OnlineState
-//			t.IP = s.minerRec.IP
-//			t.Port = s.minerRec.Port
-//			t.Reconnect++
-//
-//			s.minerRec = &t
-//
-//			rid, e := s.protocol.Set(simple.MinerMsg, simple.IDString(s.minerRec.ID), s.minerRec)
-//			if e != nil {
-//				contextlib.Logf(s.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Miner Pub() error:%s RID:%d", e, rid)
-//			}
-
 		case *msgbus.Miner:
 			if t.State == msgbus.OnlineState {
 				contextlib.Logf(s.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" record already online:%s", t.ID)
@@ -748,7 +728,12 @@ func (s *StratumV1Struct) pubMinerRecord() {
 			}
 
 			// Get the Destination to switch to it.
-			s.protocol.Get(simple.DestMsg, simple.IDString(t.Dest))
+			rid, e = s.protocol.Get(simple.DestMsg, simple.IDString(t.Dest))
+			if e != nil {
+				contextlib.Logf(s.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Dest Get() error:%s RID:%d", e, rid)
+			}
+
+			contextlib.Logf(s.Ctx(), contextlib.LevelInfo, lumerinlib.FileLineFunc()+" Reused Miner record:%s, dest:%s", t.ID, t.Dest)
 
 		default:
 			contextlib.Logf(s.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" default reached on type:%t", t)
