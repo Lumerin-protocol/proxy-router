@@ -70,9 +70,9 @@ func (v *Validator) closeOutContract() {
 //revise this to return a boolean of true/false for if the hash is deemed to fall below the difficulty target or not
 func (v *Validator) IncomingHash(credential string, nonce string, time string) (HashResult, string) {
 	var result = HashResult{} //initialize result here to use in error response
-	if credential != v.PoolCredentials {
-		return result, fmt.Sprintf("Hashrate Hijacking Detected. Check pool user %s", credential)
-	}
+	// if credential != v.PoolCredentials {
+	// 	return result, fmt.Sprintf("Hashrate Hijacking Detected. Check pool user %s", credential)
+	// }
 	//calcHash := v.BH.HashInput(nonce, time)                             //calcHash is returned as little endian
 	var hashingResult bool                                              //temp until revised logic put in place
 	// hashAsBigInt, hashingErr := BlockHashToBigInt(calcHash) //designed to intake as little endian
