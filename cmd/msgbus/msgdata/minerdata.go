@@ -13,8 +13,10 @@ type MinerJSON struct {
 	ID                      string `json:"id"`
 	Name                    string `json:"name"`
 	IP                      string `json:"ip"`
+	Port                    int    `json:"port"`
 	MAC                     string `json:"mac"`
 	State                   string `json:"state"`
+	StateChange             string `json:"statechange"`
 	Dest                    string `json:"dest"`
 	InitialMeasuredHashRate int    `json:"initialMeasuredHashRate"`
 	CurrentHashRate         int    `json:"currentHashRate"`
@@ -60,7 +62,10 @@ func (r *MinerRepo) AddMinerFromMsgBus(minerID msgbus.MinerID, miner *msgbus.Min
 
 	minerJSON.ID = string(minerID)
 	minerJSON.State = string(miner.State)
+	minerJSON.StateChange = fmt.Sprintf("%s", miner.StateChange)
 	minerJSON.Dest = string(miner.Dest)
+	minerJSON.IP = string(miner.IP)
+	minerJSON.Port = miner.Port
 	minerJSON.InitialMeasuredHashRate = miner.InitialMeasuredHashRate
 	minerJSON.CurrentHashRate = miner.CurrentHashRate
 
@@ -71,12 +76,11 @@ func (r *MinerRepo) AddMinerFromMsgBus(minerID msgbus.MinerID, miner *msgbus.Min
 func (r *MinerRepo) UpdateMiner(id string, newMiner MinerJSON) error {
 	for i, m := range r.MinerJSONs {
 		if m.ID == id {
-			if newMiner.State != "" {
-				r.MinerJSONs[i].State = newMiner.State
-			}
-			if newMiner.Dest != "" {
-				r.MinerJSONs[i].Dest = newMiner.Dest
-			}
+			r.MinerJSONs[i].IP = newMiner.IP
+			r.MinerJSONs[i].State = newMiner.State
+			r.MinerJSONs[i].StateChange = newMiner.StateChange
+			r.MinerJSONs[i].IP = newMiner.IP
+			r.MinerJSONs[i].Dest = newMiner.Dest
 			if newMiner.InitialMeasuredHashRate != 0 {
 				r.MinerJSONs[i].InitialMeasuredHashRate = newMiner.InitialMeasuredHashRate
 			}

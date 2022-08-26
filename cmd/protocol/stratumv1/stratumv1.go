@@ -709,6 +709,7 @@ func (s *StratumV1Struct) pubMinerRecord() {
 			}
 
 			t.State = msgbus.OnlineState
+			t.StateChange = time.Now()
 			t.IP = s.minerRec.IP
 			t.Port = s.minerRec.Port
 			t.Reconnect++
@@ -733,7 +734,7 @@ func (s *StratumV1Struct) pubMinerRecord() {
 				contextlib.Logf(s.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Dest Get() error:%s RID:%d", e, rid)
 			}
 
-			contextlib.Logf(s.Ctx(), contextlib.LevelInfo, lumerinlib.FileLineFunc()+" Reused Miner record:%s, dest:%s", t.ID, t.Dest)
+			contextlib.Logf(s.Ctx(), contextlib.LevelInfo, lumerinlib.FileLineFunc()+" Reused Miner record:%v", t)
 
 		default:
 			contextlib.Logf(s.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" default reached on type:%t", t)
@@ -745,6 +746,7 @@ func (s *StratumV1Struct) pubMinerRecord() {
 
 		s.minerRec.ID = msgbus.MinerID(id)
 		s.minerRec.Reconnect++
+		s.minerRec.StateChange = time.Now()
 		miner := *s.minerRec
 		rid, e := s.protocol.Pub(simple.MinerMsg, simple.IDString(miner.ID), &miner)
 		if e != nil {
