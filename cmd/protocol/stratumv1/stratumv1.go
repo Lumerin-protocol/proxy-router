@@ -465,6 +465,9 @@ func (s *StratumV1Struct) Ctx() context.Context {
 //
 func (s *StratumV1Struct) Close() {
 	// Orderly shutdown of the system here
+
+	s.protocol.UnsubWait(simple.MinerMsg, simple.IDString(s.minerRec.ID))
+
 	s.Cancel()
 }
 
