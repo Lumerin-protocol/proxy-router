@@ -18,6 +18,7 @@ type MinerJSON struct {
 	State                   string `json:"state"`
 	StateChange             string `json:"statechange"`
 	Dest                    string `json:"dest"`
+	Reconnect               int    `json:"reconnect"`
 	InitialMeasuredHashRate int    `json:"initialMeasuredHashRate"`
 	CurrentHashRate         int    `json:"currentHashRate"`
 }
@@ -66,6 +67,7 @@ func (r *MinerRepo) AddMinerFromMsgBus(minerID msgbus.MinerID, miner *msgbus.Min
 	minerJSON.Dest = string(miner.Dest)
 	minerJSON.IP = string(miner.IP)
 	minerJSON.Port = miner.Port
+	minerJSON.Reconnect = miner.Reconnect
 	minerJSON.InitialMeasuredHashRate = miner.InitialMeasuredHashRate
 	minerJSON.CurrentHashRate = miner.CurrentHashRate
 
@@ -81,6 +83,7 @@ func (r *MinerRepo) UpdateMiner(id string, newMiner MinerJSON) error {
 			r.MinerJSONs[i].StateChange = newMiner.StateChange
 			r.MinerJSONs[i].IP = newMiner.IP
 			r.MinerJSONs[i].Dest = newMiner.Dest
+			r.MinerJSONs[i].Reconnect = newMiner.Reconnect
 			if newMiner.InitialMeasuredHashRate != 0 {
 				r.MinerJSONs[i].InitialMeasuredHashRate = newMiner.InitialMeasuredHashRate
 			}
