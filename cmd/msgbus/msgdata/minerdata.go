@@ -209,6 +209,8 @@ func ConvertMinerMSGtoMinerJSON(msg *msgbus.Miner) (miner MinerJSON) {
 	miner.MAC = msg.MAC
 	miner.State = string(msg.State)
 	miner.Dest = string(msg.Dest)
+	miner.Reconnect = msg.Reconnect
+	miner.StateChange = fmt.Sprintf("%s", msg.StateChange)
 	miner.InitialMeasuredHashRate = msg.InitialMeasuredHashRate
 	miner.CurrentHashRate = msg.CurrentHashRate
 
