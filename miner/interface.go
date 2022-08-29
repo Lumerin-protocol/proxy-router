@@ -9,6 +9,7 @@ import (
 
 type MinerModel interface {
 	Run() error // shouldn't be available as public method, should be called when new miner announced
+	GetDest() interfaces.IDestination
 	ChangeDest(dest interfaces.IDestination) error
 	GetID() string // get miner unique id (host:port for example)
 	GetHashRateGHS() int
@@ -17,9 +18,13 @@ type MinerModel interface {
 
 type MinerScheduler interface {
 	Run(context.Context) error
+	GetID() string // get miner unique id (host:port for example)
+
+	GetDestSplit() *DestSplit
 	SetDestSplit(*DestSplit)
-	GetID() string                                                             // get miner unique id (host:port for example)
-	GetHashRateGHS() int                                                       // get miner hashrate in GH/s
+	GetCurrentDest() interfaces.IDestination // get miner total hashrate in GH/s
+
+	GetHashRateGHS() int
 	GetUnallocatedHashrateGHS() int                                            // get hashrate which is directed to default pool in GH/s
 	Allocate(percentage float64, dest interfaces.IDestination) (*Split, error) // allocates available miner resources
 }

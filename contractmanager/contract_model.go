@@ -141,6 +141,8 @@ func (c *Contract) listenContractEvents(ctx context.Context, errGroup *errgroup.
 }
 
 func (c *Contract) fulfillContract(ctx context.Context) error {
+	c.state = ContractStateRunning
+
 	c.log.Info("fulfilling contract %s", c.GetID())
 	if time.Now().After(c.data.GetContractEndTimeV2()) {
 		c.log.Info("contract time ended, closing...", c.GetID())
@@ -158,7 +160,6 @@ func (c *Contract) fulfillContract(ctx context.Context) error {
 	}
 
 	c.combination = minerList
-	c.state = ContractStateRunning
 
 	for {
 		if time.Now().Unix() > c.data.GetContractEndTime() {
@@ -197,6 +198,10 @@ func (c *Contract) GetBuyerAddress() string {
 	return c.data.Buyer.String()
 }
 
+func (c *Contract) GetSellerAddress() string {
+	return c.data.Seller.String()
+}
+
 func (c *Contract) GetID() string {
 	return c.GetAddress()
 }
@@ -207,6 +212,18 @@ func (c *Contract) GetAddress() string {
 
 func (c *Contract) GetHashrateGHS() int {
 	return int(c.data.Speed / int64(math.Pow10(9)))
+}
+
+func (c *Contract) GetStartTime() time.Time {
+	return time.Unix(c.data.StartingBlockTimestamp, 0)
+}
+
+func (c *Contract) GetEndTime() time.Time {
+	return c.data.GetContractEndTimeV2()
+}
+
+func (c *Contract) GetState() uint8 {
+	return c.state
 }
 
 // var _ interfaces.ISellerContractModel = (*Contract)(nil)

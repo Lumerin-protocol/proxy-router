@@ -117,6 +117,10 @@ func (m *OnDemandMinerScheduler) SetDestSplit(destSplit *DestSplit) {
 	m.destSplit = destSplit
 }
 
+func (m *OnDemandMinerScheduler) GetDestSplit() *DestSplit {
+	return m.destSplit
+}
+
 // Allocate directs miner resources to the destination
 func (m *OnDemandMinerScheduler) Allocate(percentage float64, dest interfaces.IDestination) (*Split, error) {
 	return m.destSplit.Allocate(percentage, dest)
@@ -135,4 +139,8 @@ func (m *OnDemandMinerScheduler) getDest() *DestSplit {
 
 func (m *OnDemandMinerScheduler) OnSubmit(cb protocol.OnSubmitHandler) protocol.ListenerHandle {
 	return m.minerModel.OnSubmit(cb)
+}
+
+func (m *OnDemandMinerScheduler) GetCurrentDest() interfaces.IDestination {
+	return m.minerModel.GetDest()
 }

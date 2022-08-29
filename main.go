@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
 	"gitlab.com/TitanInd/hashrouter/api"
 	"gitlab.com/TitanInd/hashrouter/app"
@@ -40,6 +41,7 @@ func InitApp() (*app.App, error) {
 	wire.Build(
 		provideConfig,
 		provideLogger,
+		provideApiController,
 		networkSet,
 		protocolSet,
 		contractsSet,
@@ -57,12 +59,16 @@ func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo *mine
 	return miner.NewMinerController(destination, repo, l), nil
 }
 
+func provideApiController(miners *miner.MinerRepo, contracts *contractmanager.ContractCollection) *gin.Engine {
+	return api.NewApiController(miners, contracts)
+}
+
 func provideTCPServer(cfg *config.Config, l interfaces.ILogger) *tcpserver.TCPServer {
 	return tcpserver.NewTCPServer(cfg.Proxy.Address, l)
 }
 
-func provideApiServer(cfg *config.Config, l interfaces.ILogger, ph *miner.MinerController) *api.Server {
-	return api.NewServer(cfg.Web.Address, l, ph)
+func provideApiServer(cfg *config.Config, l interfaces.ILogger, controller *gin.Engine) *api.Server {
+	return api.NewServer(cfg.Web.Address, l, controller)
 }
 
 func provideEthClient(cfg *config.Config) (*ethclient.Client, error) {

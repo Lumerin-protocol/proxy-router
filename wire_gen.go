@@ -8,6 +8,7 @@ package main
 
 import (
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
 	"gitlab.com/TitanInd/hashrouter/api"
 	"gitlab.com/TitanInd/hashrouter/app"
@@ -40,7 +41,9 @@ func InitApp() (*app.App, error) {
 	if err != nil {
 		return nil, err
 	}
-	server := provideApiServer(config, iLogger, minerController)
+	contractCollection := contractmanager.NewContractCollection()
+	engine := provideApiController(minerRepo, contractCollection)
+	server := provideApiServer(config, iLogger, engine)
 	client, err := provideEthClient(config)
 	if err != nil {
 		return nil, err
@@ -53,7 +56,6 @@ func InitApp() (*app.App, error) {
 	if err != nil {
 		return nil, err
 	}
-	contractCollection := contractmanager.NewContractCollection()
 	contractManager := provideSellerContractManager(config, ethereumGateway, ethereumWallet, contractCollection, iLogger)
 	appApp := &app.App{
 		TCPServer:       tcpServer,
@@ -93,12 +95,16 @@ func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo *mine
 	return miner.NewMinerController(destination, repo, l), nil
 }
 
+func provideApiController(miners *miner.MinerRepo, contracts *contractmanager.ContractCollection) *gin.Engine {
+	return api.NewApiController(miners, contracts)
+}
+
 func provideTCPServer(cfg *config.Config, l interfaces.ILogger) *tcpserver.TCPServer {
 	return tcpserver.NewTCPServer(cfg.Proxy.Address, l)
 }
 
-func provideApiServer(cfg *config.Config, l interfaces.ILogger, ph *miner.MinerController) *api.Server {
-	return api.NewServer(cfg.Web.Address, l, ph)
+func provideApiServer(cfg *config.Config, l interfaces.ILogger, controller *gin.Engine) *api.Server {
+	return api.NewServer(cfg.Web.Address, l, controller)
 }
 
 func provideEthClient(cfg *config.Config) (*ethclient.Client, error) {

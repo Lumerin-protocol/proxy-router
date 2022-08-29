@@ -103,6 +103,10 @@ func (s *stratumV1MinerModel) ChangeDest(dest interfaces.IDestination) error {
 	return err
 }
 
+func (s *stratumV1MinerModel) GetDest() interfaces.IDestination {
+	return s.pool.GetDest()
+}
+
 func (s *stratumV1MinerModel) GetID() string {
 	return s.miner.GetID()
 }
