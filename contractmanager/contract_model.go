@@ -169,6 +169,7 @@ func (c *Contract) fulfillContract(ctx context.Context) error {
 			if err != nil {
 				c.log.Error("cannot close contract", err)
 			}
+			return nil
 		}
 		// TODO hashrate monitoring
 		c.log.Info("contract running...", c.GetID())

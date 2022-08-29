@@ -21,7 +21,6 @@ import (
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/miner"
 	"gitlab.com/TitanInd/hashrouter/tcpserver"
-	"math/big"
 	"os"
 )
 
@@ -123,11 +122,11 @@ func provideEthGateway(cfg *config.Config, ethClient *ethclient.Client, ethWalle
 		return nil, err
 	}
 
-	balance, err := g.GetBalanceWei(context.Background(), ethWallet.GetAccountAddress())
+	balanceWei, err := g.GetBalanceWei(context.Background(), ethWallet.GetAccountAddress())
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("account %s balance %.4f ETH", ethWallet.GetAccountAddress(), new(big.Float).Quo(new(big.Float).SetInt(balance), new(big.Float).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil))))
+	log.Infof("account %s balance %.4f ETH", ethWallet.GetAccountAddress(), lib.WeiToEth(balanceWei))
 
 	return g, nil
 }
