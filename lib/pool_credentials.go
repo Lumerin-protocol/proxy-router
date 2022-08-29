@@ -7,7 +7,7 @@ import (
 )
 
 type Dest struct {
-	url.URL
+	url url.URL
 }
 
 func ParseDest(uri string) (Dest, error) {
@@ -20,16 +20,16 @@ func ParseDest(uri string) (Dest, error) {
 }
 
 func (v Dest) Username() string {
-	return v.User.Username()
+	return v.url.User.Username()
 }
 
 func (v Dest) Password() string {
-	pwd, _ := v.User.Password()
+	pwd, _ := v.url.User.Password()
 	return pwd
 }
 
 func (v Dest) GetHost() string {
-	return v.Host
+	return v.url.Host
 }
 
 func (v Dest) IsEqual(target interfaces.IDestination) bool {
@@ -37,5 +37,5 @@ func (v Dest) IsEqual(target interfaces.IDestination) bool {
 }
 
 func (v Dest) String() string {
-	return v.String()
+	return v.url.String()
 }

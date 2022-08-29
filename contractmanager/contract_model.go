@@ -1,151 +1,212 @@
 package contractmanager
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"math"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"gitlab.com/TitanInd/hashrouter/contractmanager/blockchain"
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
-	"gitlab.com/TitanInd/hashrouter/lib"
+	"golang.org/x/sync/errgroup"
 )
 
+// ContractState defines the state of the subset of contracts that system is interested in.
+// It does not maps directly to blockchain ContractState
+// TODO: consider renaming to ContractInternalState to avoid collision with the state which is in blockchain
+type ContractState = uint8
+
+const (
+	ContractStateCreated   ContractState = iota // contract was created and the system is following its updates
+	ContractStatePurchased                      // contract was purchased but not yet picked up by miners
+	ContractStateRunning                        // contract is fulfilling
+	ContractStateClosed                         // contract is closed
+)
+
+// Contract represents the collection of mining resources (collection of miners / parts of the miners) that work to fulfill single contract and monotoring tools of their performance
 type Contract struct {
-	Logger                interfaces.ILogger
-	EthereumGateway       interfaces.IBlockchainGateway
-	ContractsGateway      interfaces.IContractsGateway
-	RoutableStreamService interfaces.IRoutableStreamsService
+	// dependencies
+	blockchain      *blockchain.EthereumGateway
+	globalScheduler *GlobalSchedulerService
 
-	IsSeller               bool
-	ID                     string
-	State                  string
-	Buyer                  string
-	Price                  int
-	Limit                  int
-	Speed                  int
-	Length                 int
-	StartingBlockTimestamp int
-	Dest                   interfaces.IDestination
+	data            blockchain.ContractData
+	contractAddress blockchain.BlockchainAddress
+	closeoutType    blockchain.CloseoutType
 
-	fromAddress      blockchain.BlockchainAddress
-	contractAddress  blockchain.BlockchainAddress
-	privateKeyString string
-	CurrentNonce     *nonce
-	closeOutType     uint
-	NodeOperator     *NodeOperator
+	state            ContractState
+	contractClosedCh chan struct{}
+
+	eventsCh chan blockchain.BlockchainEvent
+	eventSub blockchain.BlockchainEventSubscription
 
 	hashrate    *hashrate.Hashrate // the counter of single contract
 	combination HashrateList       // combination of full/partially allocated miners fulfilling the contract
+
+	log interfaces.ILogger
 }
 
-func NewContract(combination HashrateList, hashrate *hashrate.Hashrate) *Contract {
+func NewContract(data blockchain.ContractData, blockchain *blockchain.EthereumGateway, log interfaces.ILogger, hr *hashrate.Hashrate) *Contract {
+	if hr == nil {
+		hr = hashrate.NewHashrate(log, hashrate.EMA_INTERVAL)
+	}
 	return &Contract{
-		combination: combination,
-		hashrate:    hashrate,
+		blockchain:       blockchain,
+		data:             data,
+		hashrate:         hr,
+		log:              log,
+		contractClosedCh: make(chan struct{}),
 	}
 }
 
-func (c *Contract) Run() {
-	for {
-		// TODO: routine that checks whether the hashrate is fulfilled
-		// if not it replaces miner
-		//
-		// check if contract duration is finished
-		time.Sleep(time.Minute)
+// Runs goroutine that monitors the contract events and replace the miners which are out
+func (c *Contract) Run(ctx context.Context) error {
+	g, subCtx := errgroup.WithContext(ctx)
+
+	// if proxy started after the contract was purchased and wasn't able to pick up event
+	c.log.Infof("CONTRACT IS RUNNING %s %v", c.GetID(), c.data.State)
+	if c.data.State == blockchain.ContractBlockchainStateRunning {
+		g.Go(func() error {
+			return c.fulfillContract(subCtx)
+		})
 	}
+
+	g.Go(func() error {
+		return c.listenContractEvents(subCtx, g)
+	})
+
+	g.Go(func() error {
+		<-c.contractClosedCh
+		return errors.New("contract closed")
+	})
+
+	return g.Wait()
 }
 
-func (c *Contract) GetCurrentNonce() uint64 {
-	return c.CurrentNonce.nonce
-}
-
-func (c *Contract) GetBuyerAddress() string {
-	return c.Buyer
-}
-
-func (c *Contract) SetBuyerAddress(buyer string) {
-	c.Buyer = buyer
-}
-
-func (c *Contract) Initialize() (interfaces.ISellerContractModel, error) {
-	panic("Unimplemented method: Contract.Initialize")
-}
-
-func (c *Contract) Execute() (interfaces.ISellerContractModel, error) {
-	c.Logger.Debugf("Executing contract %v", c.GetID())
-	c.RoutableStreamService.ChangeDestAll(c.Dest)
-	c.Logger.Debugf("Changed destination to %v", c.Dest.String())
-
-	return c, nil
-}
-
-func (c *Contract) GetID() string {
-	return c.ID
-}
-
-func (c *Contract) SetID(id string) interfaces.IBaseModel {
-	newContract := *c
-
-	newContract.ID = id
-
-	return &newContract
-}
-
-func (c *Contract) GetCloseOutType() uint {
-	return c.closeOutType
-}
-
-func (c *Contract) SetDestination(dest string) (err error) {
-	c.Dest, err = lib.ParseDest(dest)
-
+func (c *Contract) listenContractEvents(ctx context.Context, errGroup *errgroup.Group) error {
+	eventsCh, sub, err := c.blockchain.SubscribeToContractEvents(ctx, common.HexToAddress(c.GetAddress()))
 	if err != nil {
+		return fmt.Errorf("cannot subscribe for contract events %w", err)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			sub.Unsubscribe()
+			return ctx.Err()
+		case err := <-sub.Err():
+			return err
+		case e := <-eventsCh:
+			eventHex, _ /* payloadHex*/ := e.Topics[0].Hex(), e.Topics[1].Hex()
+
+			switch eventHex {
+			case blockchain.ContractPurchasedHex:
+				c.state = ContractStatePurchased
+				// buyerAddr := common.HexToAddress(payloadHex)
+				// get updated contract information fields: buyer and dest
+				data, err := c.blockchain.ReadContract(c.contractAddress)
+				if err != nil {
+					c.log.Error("cannot read contract", err)
+					continue
+				}
+				// TODO guard it
+				c.data = data
+
+				// use the same group to fail together with main goroutine
+				errGroup.Go(func() error {
+					return c.fulfillContract(ctx)
+				})
+
+			case blockchain.ContractCipherTextUpdatedHex:
+			case blockchain.ContractPurchaseInfoUpdatedHex:
+				data, err := c.blockchain.ReadContract(c.contractAddress)
+				if err != nil {
+					c.log.Error("cannot read contract", err)
+					continue
+				}
+				// TODO guard it
+				c.data = data
+
+			case blockchain.ContractClosedSigHex:
+				c.log.Info("received contract closed event", c.contractAddress)
+				c.Stop()
+				sub.Unsubscribe()
+				return nil
+			}
+
+		}
+	}
+}
+
+func (c *Contract) fulfillContract(ctx context.Context) error {
+	c.log.Info("fulfilling contract %s", c.GetID())
+	if time.Now().After(c.data.GetContractEndTimeV2()) {
+		c.log.Info("contract time ended, closing...", c.GetID())
+		err := c.blockchain.SetContractCloseOut(c.data.Seller.Hex(), c.GetAddress(), c.closeoutType)
+		if err != nil {
+			c.log.Error("cannot close contract: ", err)
+		}
+		return nil
+	}
+
+	minerList, err := c.globalScheduler.Allocate(int(c.data.Speed/int64(math.Pow10(9))), c.data.Dest)
+	if err != nil {
+		c.log.Error("cannot allocate hashrate", err)
 		return err
+	}
+
+	c.combination = minerList
+	c.state = ContractStateRunning
+
+	for {
+		if time.Now().Unix() > c.data.GetContractEndTime() {
+			c.log.Info("contract time ended, closing...", c.GetID())
+			c.Stop()
+			err := c.blockchain.SetContractCloseOut(c.data.Seller.Hex(), c.GetAddress(), c.closeoutType)
+			if err != nil {
+				c.log.Error("cannot close contract", err)
+			}
+		}
+		// TODO hashrate monitoring
+		c.log.Info("contract running...", c.GetID())
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(10 * time.Second):
+		}
 	}
 
 	return nil
 }
 
-func (c *Contract) IsAvailable() bool {
-	return c.State == ContAvailableState
+// Stops fulfilling the contract by miners
+func (c *Contract) Stop() {
+	for _, miner := range c.combination {
+		ok := miner.SplitPtr.Deallocate()
+		if !ok {
+			c.log.Error("miner split not found during STOP . minerID: %s, contractID: %s", miner.GetSourceID(), c.GetID())
+		}
+	}
+	close(c.contractClosedCh)
+}
+
+func (c *Contract) GetBuyerAddress() string {
+	return c.data.Buyer.String()
+}
+
+func (c *Contract) GetID() string {
+	return c.GetAddress()
 }
 
 func (c *Contract) GetAddress() string {
-	return c.ID
+	return c.data.Addr.String()
 }
 
 func (c *Contract) GetHashrateGHS() int {
-	return c.Speed / 1000
+	return int(c.data.Speed / int64(math.Pow10(9)))
 }
 
-func (c *Contract) GetPromisedHashrateMin() uint64 {
-	panic("Contract.GetPromisedHashrateMin unimplemented")
-	return 0
-}
-
-func (c *Contract) MakeAvailable() {
-
-	if c.State == ContRunningState {
-
-		c.State = ContAvailableState
-		c.Buyer = ""
-
-		c.Save()
-	}
-}
-
-func (c *Contract) Save() (interfaces.ISellerContractModel, error) {
-	return c.ContractsGateway.SaveContract(c)
-}
-
-func (c *Contract) GetPrivateKey() string {
-	return c.privateKeyString
-}
-
-func (c *Contract) TryRunningAt(dest string) (interfaces.ISellerContractModel, error) {
-	if c.State == ContRunningState {
-		return c.Execute()
-	}
-
-	return c, nil
-}
-
-var _ interfaces.ISellerContractModel = (*Contract)(nil)
+// var _ interfaces.ISellerContractModel = (*Contract)(nil)

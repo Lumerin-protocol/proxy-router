@@ -18,8 +18,8 @@ type MinerModel interface {
 type MinerScheduler interface {
 	Run(context.Context) error
 	SetDestSplit(*DestSplit)
-	GetID() string                                                   // get miner unique id (host:port for example)
-	GetHashRateGHS() int                                             // get miner hashrate in GH/s
-	GetUnallocatedHashrateGHS() int                                  // get hashrate which is directed to default pool in GH/s
-	Allocate(percentage float64, dest interfaces.IDestination) error // allocates available miner resources
+	GetID() string                                                             // get miner unique id (host:port for example)
+	GetHashRateGHS() int                                                       // get miner hashrate in GH/s
+	GetUnallocatedHashrateGHS() int                                            // get hashrate which is directed to default pool in GH/s
+	Allocate(percentage float64, dest interfaces.IDestination) (*Split, error) // allocates available miner resources
 }

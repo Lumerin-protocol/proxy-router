@@ -118,13 +118,8 @@ func (m *OnDemandMinerScheduler) SetDestSplit(destSplit *DestSplit) {
 }
 
 // Allocate directs miner resources to the destination
-func (m *OnDemandMinerScheduler) Allocate(percentage float64, dest interfaces.IDestination) error {
+func (m *OnDemandMinerScheduler) Allocate(percentage float64, dest interfaces.IDestination) (*Split, error) {
 	return m.destSplit.Allocate(percentage, dest)
-}
-
-// Deallocate removes destination from miner's resource allocation
-func (m *OnDemandMinerScheduler) Deallocate(dest interfaces.IDestination) (ok bool) {
-	return m.destSplit.Deallocate(dest)
 }
 
 func (m *OnDemandMinerScheduler) GetHashRateGHS() int {

@@ -8,8 +8,9 @@ import (
 )
 
 type EthereumWallet struct {
-	ethWallet  *hdwallet.Wallet
+	wallet     *hdwallet.Wallet
 	account    accounts.Account
+	address    BlockchainAddress
 	privateKey string
 }
 
@@ -20,7 +21,13 @@ func NewEthereumWallet(mnemonic string, accountIndex int) (*EthereumWallet, erro
 	}
 
 	path := hdwallet.MustParseDerivationPath(fmt.Sprintf("m/44'/60'/0'/0/%d", accountIndex))
+
 	account, err := wallet.Derive(path, false)
+	if err != nil {
+		return nil, err
+	}
+
+	address, err := wallet.Address(account)
 	if err != nil {
 		return nil, err
 	}
@@ -30,11 +37,11 @@ func NewEthereumWallet(mnemonic string, accountIndex int) (*EthereumWallet, erro
 		return nil, err
 	}
 
-	return &EthereumWallet{account: account, privateKey: privateKey, ethWallet: wallet}, nil
+	return &EthereumWallet{wallet: wallet, account: account, address: address, privateKey: privateKey}, nil
 }
 
-func (wallet *EthereumWallet) GetAddress() (BlockchainAddress, error) {
-	return wallet.ethWallet.Address(wallet.account)
+func (wallet *EthereumWallet) GetAccountAddress() BlockchainAddress {
+	return wallet.account.Address
 }
 
 func (wallet *EthereumWallet) GetPrivateKey() string {
