@@ -7,31 +7,35 @@ import (
 )
 
 type Dest struct {
-	url.URL
+	url url.URL
 }
 
-func ParseDest(uri string) (*Dest, error) {
+func ParseDest(uri string) (Dest, error) {
 	res, err := url.Parse(uri)
 	if err != nil {
-		return nil, err
+		return Dest{}, err
 	}
 	res.Scheme = "" // drop stratum+tcp prefix to avoid comparison issues
-	return &Dest{*res}, nil
+	return Dest{*res}, nil
 }
 
 func (v Dest) Username() string {
-	return v.User.Username()
+	return v.url.User.Username()
 }
 
 func (v Dest) Password() string {
-	pwd, _ := v.User.Password()
+	pwd, _ := v.url.User.Password()
 	return pwd
 }
 
 func (v Dest) GetHost() string {
-	return v.Host
+	return v.url.Host
 }
 
 func (v Dest) IsEqual(target interfaces.IDestination) bool {
 	return v.String() == target.String()
+}
+
+func (v Dest) String() string {
+	return v.url.String()
 }

@@ -103,6 +103,10 @@ func (s *stratumV1MinerModel) ChangeDest(dest interfaces.IDestination) error {
 	return err
 }
 
+func (s *stratumV1MinerModel) GetDest() interfaces.IDestination {
+	return s.pool.GetDest()
+}
+
 func (s *stratumV1MinerModel) GetID() string {
 	return s.miner.GetID()
 }
@@ -123,5 +127,5 @@ func (s *stratumV1MinerModel) RemoveListener(h ListenerHandle) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	s.onSubmit = append(s.onSubmit[:h], s.onSubmit[h+1:]...)
+	s.onSubmit[h] = nil
 }

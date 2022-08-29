@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
-	"gitlab.com/TitanInd/hashrouter/miner"
 )
 
 type Server struct {
@@ -18,9 +18,7 @@ type Server struct {
 	log interfaces.ILogger
 }
 
-func NewServer(address string, log interfaces.ILogger, minerController *miner.MinerController) *Server {
-	mux := http.NewServeMux()
-
+func NewServer(address string, log interfaces.ILogger, router *gin.Engine) *Server {
 	// mux.HandleFunc("/connections", connectionsController.ServeHTTP)
 	// mux.HandleFunc("/change-dest", func(w http.ResponseWriter, r *http.Request) {
 	// host := r.URL.Query().Get("host")
@@ -30,7 +28,7 @@ func NewServer(address string, log interfaces.ILogger, minerController *miner.Mi
 	// 	w.Write([]byte("success"))
 	// })
 
-	server := http.Server{Addr: address, Handler: mux}
+	server := http.Server{Addr: address, Handler: router}
 
 	return &Server{
 		address:         address,

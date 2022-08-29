@@ -7,6 +7,7 @@ import (
 	"syscall"
 
 	"gitlab.com/TitanInd/hashrouter/api"
+	"gitlab.com/TitanInd/hashrouter/contractmanager"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/miner"
 	"gitlab.com/TitanInd/hashrouter/tcpserver"
@@ -17,7 +18,7 @@ type App struct {
 	TCPServer       *tcpserver.TCPServer
 	MinerController *miner.MinerController
 	Server          *api.Server
-	ContractManager interfaces.ContractManager
+	ContractManager *contractmanager.ContractManager
 	Logger          interfaces.ILogger
 	// EventsRouter    interfaces.IEventsRouter
 }
