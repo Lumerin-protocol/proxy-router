@@ -89,43 +89,45 @@ func (svs *StratumV1Struct) handleMsgUpdateEvent(event *simple.SimpleMsgBusEvent
 			contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" event.Data records do not match up")
 		}
 
+		// Just try always switching.
+
 		// Did the Dest ID change?
-		if svs.minerRec.Dest != minerrec.Dest {
-			contextlib.Logf(svs.Ctx(), contextlib.LevelInfo, lumerinlib.FileLineFunc()+" Miner:%s Dest changed to: %s from %s", minerrec.ID, minerrec.Dest, svs.minerRec.Dest)
-			//
-			// Destination has changed...
-			//
-			// If the destination has a connection open the uid will be greater then -1
-			//
-			switch_to_uid := svs.GetDstUIDDestID(minerrec.Dest)
-			svs.switchToDestID = minerrec.Dest
+		// if svs.minerRec.Dest != minerrec.Dest {
+		contextlib.Logf(svs.Ctx(), contextlib.LevelInfo, lumerinlib.FileLineFunc()+" Miner:%s Dest changed to: %s from %s", minerrec.ID, minerrec.Dest, svs.minerRec.Dest)
+		//
+		// Destination has changed...
+		//
+		// If the destination has a connection open the uid will be greater then -1
+		//
+		switch_to_uid := svs.GetDstUIDDestID(minerrec.Dest)
+		svs.switchToDestID = minerrec.Dest
 
-			// Is Dest already open and running?
-			// No, open it
-			if switch_to_uid < 0 {
-				// Start the process of transitioning to a new Dest
-				_, e := svs.protocol.Get(simple.DestMsg, simple.IDString(minerrec.Dest))
-				if e != nil {
-					contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Get() error:%s", e)
-				}
-
-				// Yes it is open
-			} else {
-				// Are we set to on demand, if so then switch now
-				if svs.scheduler == OnDemand {
-					svs.switchDest()
-				}
-
-				// if we are not set to on demand, then the next submit will trigger the change
+		// Is Dest already open and running?
+		// No, open it
+		if switch_to_uid < 0 {
+			// Start the process of transitioning to a new Dest
+			_, e := svs.protocol.Get(simple.DestMsg, simple.IDString(minerrec.Dest))
+			if e != nil {
+				contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Get() error:%s", e)
 			}
 
-			// Update the minerRec
-			// I think this needs to happen in switchDest(), not here...
-			// svs.minerRec.Dest = minerrec.Dest
-
+			// Yes it is open
 		} else {
-			contextlib.Logf(svs.Ctx(), contextlib.LevelInfo, lumerinlib.FileLineFunc()+" Recieved Miner update, but Dest[%s] did not change:'%s':'%s'", minerrec.Dest, event.EventType, event.ID)
+			// Are we set to on demand, if so then switch now
+			if svs.scheduler == OnDemand {
+				svs.switchDest()
+			}
+
+			// if we are not set to on demand, then the next submit will trigger the change
 		}
+
+		// Update the minerRec
+		// I think this needs to happen in switchDest(), not here...
+		// svs.minerRec.Dest = minerrec.Dest
+
+		// } else {
+		// 	contextlib.Logf(svs.Ctx(), contextlib.LevelInfo, lumerinlib.FileLineFunc()+" Recieved Miner update, but Dest[%s] did not change:'%s':'%s'", minerrec.Dest, event.EventType, event.ID)
+		// }
 
 	// Ignore all others
 	default:
