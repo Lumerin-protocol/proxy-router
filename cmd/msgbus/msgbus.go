@@ -211,7 +211,7 @@ dataMatchCheck(msg, data)
 		requestID: requestID,
 		data:      data,
 		eventch:   eventchan,
-		logger:		ps.logger,
+		logger:	   ps.logger,
 	}
 
 	_, err = ps.dispatch(&c)
@@ -243,7 +243,7 @@ dataMatchCheck(msg, data)
 		ID:      id,
 		data:    data,
 		eventch: nil,
-		logger:		ps.logger,
+		logger:	 ps.logger,
 	}
 
 	e, err = ps.dispatch(&c)
@@ -349,6 +349,7 @@ func (ps *PubSub) GetWait(msg MsgType, id IDString) (e *Event, err error) {
 		ID:      id,
 		data:    nil,
 		eventch: nil,
+		logger:		ps.logger,
 	}
 
 	return ps.dispatch(&c)
@@ -410,6 +411,7 @@ func (ps *PubSub) SearchIPWait(msg MsgType, ip string) (e *Event, err error) {
 		IP:      ip,
 		data:    nil,
 		eventch: nil,
+		logger:		ps.logger,
 	}
 
 	return ps.dispatch(&c)
@@ -962,8 +964,10 @@ loop:
 //-----------------------------------------
 func (event *Event) send(e EventChan, logger *log.Logger) {
 
+	logger.Logf(log.LevelTrace, "MSGBUS Send Event Chan:%v %+v", e, event)
+
 	go func(e EventChan, event *Event, l *log.Logger) {
-		l.Logf(log.LevelTrace, "MSGBUS Send Event Chan:%v %+v", e, event)
+		l.Logf(log.LevelTrace, "(go)MSGBUS Send Event Chan:%v %+v", e, event)
 		e <- event
 	}(e, event, logger)
 
