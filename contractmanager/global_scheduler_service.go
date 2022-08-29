@@ -27,10 +27,11 @@ func (s *GlobalSchedulerService) Allocate(hashrateGHS int, dest interfaces.IDest
 		if !ok {
 			panic("miner not found")
 		}
-		err := miner.Allocate(item.GetPercentage(), dest)
+		splitPtr, err := miner.Allocate(item.GetPercentage(), dest)
 		if err != nil {
 			panic(err)
 		}
+		item.SplitPtr = splitPtr
 	}
 
 	return combination, nil

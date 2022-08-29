@@ -9,13 +9,13 @@ package main
 import (
 	"context"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
 	"gitlab.com/TitanInd/hashrouter/api"
 	"gitlab.com/TitanInd/hashrouter/app"
 	"gitlab.com/TitanInd/hashrouter/config"
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
 	"gitlab.com/TitanInd/hashrouter/contractmanager/blockchain"
-	"gitlab.com/TitanInd/hashrouter/data"
 	"gitlab.com/TitanInd/hashrouter/eventbus"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
@@ -42,33 +42,22 @@ func InitApp() (*app.App, error) {
 	if err != nil {
 		return nil, err
 	}
-	server := provideServer(config, iLogger, minerController)
-	iValidatorsService := provideHashrateCalculator()
-	iConnectionsService := provideConnectionsService()
-	client, err := provideEthClient(config)
+	contractCollection := contractmanager.NewContractCollection()
+	engine := provideApiController(minerRepo, contractCollection)
+	server := provideApiServer(config, iLogger, engine)
+	client, err := provideEthClient(config, iLogger)
 	if err != nil {
 		return nil, err
 	}
-	iBlockchainGateway, err := blockchain.NewBlockchainGateway(client)
+	ethereumWallet, err := provideEthWallet(config)
 	if err != nil {
 		return nil, err
 	}
-	iContractFactory := provideContractFactory()
-	v := data.NewInMemoryDataStore()
-	v2 := data.NewTransactionsChannel()
-	iContractsRepository := provideContractsRepository(iLogger, v, v2)
-	iContractsGateway := provideContractsGateway(iContractsRepository)
-	iContractsService := contractmanager.NewContractsService(iLogger, iValidatorsService, iConnectionsService, iBlockchainGateway, iContractFactory, iContractsGateway, config)
-	iEventManager := eventbus.NewEventBus()
-	iBlockchainWallet := blockchain.NewBlockchainWallet(config)
-	nodeOperator, err := contractmanager.NewNodeOperator(config, iBlockchainWallet)
+	ethereumGateway, err := provideEthGateway(config, client, ethereumWallet, iLogger)
 	if err != nil {
 		return nil, err
 	}
-	contractManager, err := provideSellerContractManager(iContractsService, config, iEventManager, iContractFactory, client, iLogger, nodeOperator, iBlockchainWallet)
-	if err != nil {
-		return nil, err
-	}
+	contractManager := provideSellerContractManager(config, ethereumGateway, ethereumWallet, contractCollection, iLogger)
 	appApp := &app.App{
 		TCPServer:       tcpServer,
 		MinerController: minerController,
@@ -77,36 +66,6 @@ func InitApp() (*app.App, error) {
 		Logger:          iLogger,
 	}
 	return appApp, nil
-}
-
-func initContractModel() (*contractmanager.Contract, error) {
-	config, err := provideConfig()
-	if err != nil {
-		return nil, err
-	}
-	iLogger, err := provideLogger(config)
-	if err != nil {
-		return nil, err
-	}
-	client, err := provideEthClient(config)
-	if err != nil {
-		return nil, err
-	}
-	iBlockchainGateway, err := blockchain.NewBlockchainGateway(client)
-	if err != nil {
-		return nil, err
-	}
-	v := data.NewInMemoryDataStore()
-	v2 := data.NewTransactionsChannel()
-	iContractsRepository := provideContractsRepository(iLogger, v, v2)
-	iContractsGateway := provideContractsGateway(iContractsRepository)
-	minerRepo := miner.NewMinerRepo()
-	minerController, err := provideMinerController(config, iLogger, minerRepo)
-	if err != nil {
-		return nil, err
-	}
-	contract := provideContractModel(iLogger, iBlockchainGateway, iContractsGateway, minerController)
-	return contract, nil
 }
 
 // main.go:
@@ -122,37 +81,14 @@ func main() {
 	appInstance.Run()
 }
 
-var dataSet = wire.NewSet(data.NewTransactionsChannel, data.NewInMemoryDataStore)
+var networkSet = wire.NewSet(provideTCPServer, provideApiServer)
 
-var networkSet = wire.NewSet(provideTCPServer, provideServer)
+var protocolSet = wire.NewSet(miner.NewMinerRepo, provideMinerController, eventbus.NewEventBus)
 
-var protocolSet = wire.NewSet(miner.NewMinerRepo, provideMinerController, eventbus.NewEventBus, provideConnectionsService)
-
-var contractsSet = wire.NewSet(provideContractsRepository, blockchain.NewBlockchainWallet, provideEthClient, blockchain.NewBlockchainGateway, provideContractFactory, provideContractsGateway, contractmanager.NewNodeOperator, contractmanager.NewContractsService, provideSellerContractManager)
-
-var hashrateCalculationSet = wire.NewSet(provideHashrateCalculator)
-
-func provideContractsRepository(logger interfaces.ILogger, dataStore data.Store, transactionsChannel data.TransactionsChannel) contractmanager.IContractsRepository {
-	return data.NewInMemoryRepository[interfaces.ISellerContractModel](logger, dataStore, transactionsChannel)
-}
-
-func provideContractsGateway(repo contractmanager.IContractsRepository) interfaces.IContractsGateway {
-	return contractmanager.NewContractsGateway(repo)
-}
-
-func provideConnectionsService() interfaces.IConnectionsService {
-	return nil
-}
-
-func provideHashrateCalculator() interfaces.IValidatorsService {
-
-	return nil
-}
+var contractsSet = wire.NewSet(contractmanager.NewContractCollection, provideEthClient, provideEthWallet, provideEthGateway, provideSellerContractManager)
 
 func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo *miner.MinerRepo) (*miner.MinerController, error) {
-
 	destination, err := lib.ParseDest(cfg.Pool.Address)
-
 	if err != nil {
 		return nil, err
 	}
@@ -160,29 +96,49 @@ func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo *mine
 	return miner.NewMinerController(destination, repo, l), nil
 }
 
+func provideApiController(miners *miner.MinerRepo, contracts *contractmanager.ContractCollection) *gin.Engine {
+	return api.NewApiController(miners, contracts)
+}
+
 func provideTCPServer(cfg *config.Config, l interfaces.ILogger) *tcpserver.TCPServer {
 	return tcpserver.NewTCPServer(cfg.Proxy.Address, l)
 }
 
-func provideServer(cfg *config.Config, l interfaces.ILogger, ph *miner.MinerController) *api.Server {
-	return api.NewServer(cfg.Web.Address, l, ph)
+func provideApiServer(cfg *config.Config, l interfaces.ILogger, controller *gin.Engine) *api.Server {
+	return api.NewServer(cfg.Web.Address, l, controller)
 }
 
-func provideEthClient(cfg *config.Config) (*ethclient.Client, error) {
-	return contractmanager.NewEthClient(cfg.EthNode.Address)
+func provideEthClient(cfg *config.Config, log interfaces.ILogger) (*ethclient.Client, error) {
+	return blockchain.NewEthClient(cfg.EthNode.Address, log)
+}
+
+func provideEthWallet(cfg *config.Config) (*blockchain.EthereumWallet, error) {
+	return blockchain.NewEthereumWallet(cfg.Contract.Mnemonic, cfg.Contract.AccountIndex)
+}
+
+func provideEthGateway(cfg *config.Config, ethClient *ethclient.Client, ethWallet *blockchain.EthereumWallet, log interfaces.ILogger) (*blockchain.EthereumGateway, error) {
+	g, err := blockchain.NewEthereumGateway(ethClient, ethWallet.GetPrivateKey(), cfg.Contract.Address, log)
+	if err != nil {
+		return nil, err
+	}
+
+	balanceWei, err := g.GetBalanceWei(context.Background(), ethWallet.GetAccountAddress())
+	if err != nil {
+		return nil, err
+	}
+	log.Infof("account %s balance %.4f ETH", ethWallet.GetAccountAddress(), lib.WeiToEth(balanceWei))
+
+	return g, nil
 }
 
 func provideSellerContractManager(
-	contractsService interfaces.IContractsService,
 	cfg *config.Config,
-	em interfaces.IEventManager,
-	factory interfaces.IContractFactory,
-	ethClient *ethclient.Client,
-	logger interfaces.ILogger,
-	nodeOperator *contractmanager.NodeOperator,
-	wallet interfaces.IBlockchainWallet,
-) (interfaces.ContractManager, error) {
-	return contractmanager.NewContractManager(context.TODO(), contractsService, logger, cfg, em, factory, ethClient, nodeOperator, wallet)
+	ethGateway *blockchain.EthereumGateway,
+	ethWallet *blockchain.EthereumWallet,
+	contracts *contractmanager.ContractCollection,
+	log interfaces.ILogger,
+) *contractmanager.ContractManager {
+	return contractmanager.NewContractManager(ethGateway, log, contracts, ethWallet.GetAccountAddress(), ethWallet.GetPrivateKey())
 }
 
 func provideLogger(cfg *config.Config) (interfaces.ILogger, error) {
@@ -192,56 +148,4 @@ func provideLogger(cfg *config.Config) (interfaces.ILogger, error) {
 func provideConfig() (*config.Config, error) {
 	var cfg config.Config
 	return &cfg, config.LoadConfig(&cfg, &os.Args)
-}
-
-func provideContractFactory() interfaces.IContractFactory {
-	return &ContractFactory{}
-}
-
-type ContractFactory struct {
-}
-
-func (*ContractFactory) CreateContract(
-	IsSeller bool,
-	ID string,
-	State string,
-	Buyer string,
-	Price int,
-	Limit int,
-	Speed int,
-	Length int,
-	StartingBlockTimestamp int,
-	Dest string,
-) (interfaces.ISellerContractModel, error) {
-	model, err := initContractModel()
-
-	if err != nil {
-		return model, err
-	}
-
-	model.IsSeller = IsSeller
-	model.ID = ID
-	model.State = State
-	model.State = State
-	model.Buyer = Buyer
-	model.Price = Price
-	model.Limit = Limit
-	model.Speed = Speed
-	model.Length = Length
-	model.StartingBlockTimestamp = StartingBlockTimestamp
-
-	dest, err := lib.ParseDest(Dest)
-
-	model.Dest = dest
-
-	return model, err
-}
-
-func provideContractModel(logger interfaces.ILogger, ethereumGateway interfaces.IBlockchainGateway, contractsGateway interfaces.IContractsGateway, miningService *miner.MinerController) *contractmanager.Contract {
-	return &contractmanager.Contract{
-		Logger:                logger,
-		EthereumGateway:       ethereumGateway,
-		ContractsGateway:      contractsGateway,
-		RoutableStreamService: miningService,
-	}
 }

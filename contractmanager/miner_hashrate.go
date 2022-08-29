@@ -1,9 +1,12 @@
 package contractmanager
 
+import "gitlab.com/TitanInd/hashrouter/miner"
+
 type HashrateListItem struct {
 	Hashrate      int
 	TotalHashrate int
 	MinerID       string
+	SplitPtr      *miner.Split
 }
 
 func (m HashrateListItem) GetHashrateGHS() int {
