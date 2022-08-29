@@ -181,6 +181,10 @@ func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddres
 	return nil
 }
 
+func (g *EthereumGateway) GetBalanceWei(ctx context.Context, addr common.Address) (*big.Int, error) {
+	return g.client.BalanceAt(ctx, addr, nil)
+}
+
 // decryptDest decrypts destination uri which is encrypted with private key of the contract creator
 func (g *EthereumGateway) decryptDest(encryptedDestUrl string) (string, error) {
 	privateKey, err := crypto.HexToECDSA(g.sellerPrivateKeyString)

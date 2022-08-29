@@ -7,6 +7,7 @@
 package main
 
 import (
+	"context"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
@@ -20,6 +21,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/miner"
 	"gitlab.com/TitanInd/hashrouter/tcpserver"
+	"math/big"
 	"os"
 )
 
@@ -44,7 +46,7 @@ func InitApp() (*app.App, error) {
 	contractCollection := contractmanager.NewContractCollection()
 	engine := provideApiController(minerRepo, contractCollection)
 	server := provideApiServer(config, iLogger, engine)
-	client, err := provideEthClient(config)
+	client, err := provideEthClient(config, iLogger)
 	if err != nil {
 		return nil, err
 	}
@@ -107,8 +109,8 @@ func provideApiServer(cfg *config.Config, l interfaces.ILogger, controller *gin.
 	return api.NewServer(cfg.Web.Address, l, controller)
 }
 
-func provideEthClient(cfg *config.Config) (*ethclient.Client, error) {
-	return blockchain.NewEthClient(cfg.EthNode.Address)
+func provideEthClient(cfg *config.Config, log interfaces.ILogger) (*ethclient.Client, error) {
+	return blockchain.NewEthClient(cfg.EthNode.Address, log)
 }
 
 func provideEthWallet(cfg *config.Config) (*blockchain.EthereumWallet, error) {
@@ -116,7 +118,18 @@ func provideEthWallet(cfg *config.Config) (*blockchain.EthereumWallet, error) {
 }
 
 func provideEthGateway(cfg *config.Config, ethClient *ethclient.Client, ethWallet *blockchain.EthereumWallet, log interfaces.ILogger) (*blockchain.EthereumGateway, error) {
-	return blockchain.NewEthereumGateway(ethClient, ethWallet.GetPrivateKey(), cfg.Contract.Address, log)
+	g, err := blockchain.NewEthereumGateway(ethClient, ethWallet.GetPrivateKey(), cfg.Contract.Address, log)
+	if err != nil {
+		return nil, err
+	}
+
+	balance, err := g.GetBalanceWei(context.Background(), ethWallet.GetAccountAddress())
+	if err != nil {
+		return nil, err
+	}
+	log.Infof("account %s balance %.4f ETH", ethWallet.GetAccountAddress(), new(big.Float).Quo(new(big.Float).SetInt(balance), new(big.Float).SetInt(new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil))))
+
+	return g, nil
 }
 
 func provideSellerContractManager(

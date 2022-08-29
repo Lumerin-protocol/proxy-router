@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"os"
 
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -71,8 +72,8 @@ func provideApiServer(cfg *config.Config, l interfaces.ILogger, controller *gin.
 	return api.NewServer(cfg.Web.Address, l, controller)
 }
 
-func provideEthClient(cfg *config.Config) (*ethclient.Client, error) {
-	return blockchain.NewEthClient(cfg.EthNode.Address)
+func provideEthClient(cfg *config.Config, log interfaces.ILogger) (*ethclient.Client, error) {
+	return blockchain.NewEthClient(cfg.EthNode.Address, log)
 }
 
 func provideEthWallet(cfg *config.Config) (*blockchain.EthereumWallet, error) {
@@ -80,7 +81,18 @@ func provideEthWallet(cfg *config.Config) (*blockchain.EthereumWallet, error) {
 }
 
 func provideEthGateway(cfg *config.Config, ethClient *ethclient.Client, ethWallet *blockchain.EthereumWallet, log interfaces.ILogger) (*blockchain.EthereumGateway, error) {
-	return blockchain.NewEthereumGateway(ethClient, ethWallet.GetPrivateKey(), cfg.Contract.Address, log)
+	g, err := blockchain.NewEthereumGateway(ethClient, ethWallet.GetPrivateKey(), cfg.Contract.Address, log)
+	if err != nil {
+		return nil, err
+	}
+
+	balanceWei, err := g.GetBalanceWei(context.Background(), ethWallet.GetAccountAddress())
+	if err != nil {
+		return nil, err
+	}
+	log.Infof("account %s balance %.4f ETH", ethWallet.GetAccountAddress(), lib.WeiToEth(balanceWei))
+
+	return g, nil
 }
 
 func provideSellerContractManager(
