@@ -465,9 +465,6 @@ func (s *StratumV1Struct) Ctx() context.Context {
 //
 func (s *StratumV1Struct) Close() {
 	// Orderly shutdown of the system here
-
-	s.protocol.UnsubWait(simple.MinerMsg, simple.IDString(s.minerRec.ID))
-
 	s.Cancel()
 }
 
@@ -477,10 +474,7 @@ func (s *StratumV1Struct) Close() {
 func (s *StratumV1Struct) Cancel() {
 
 	contextlib.Logf(s.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
-
-	// s.protocol.Unpub(simple.MinerMsg, simple.IDString(s.minerRec.ID))
-	// contextlib.Logf(s.Ctx(), contextlib.LevelInfo, lumerinlib.FileLineFunc()+" Unpublish Miner record:%s", s.minerRec.ID)
-
+	
 	s.setMinerOffline()
 
 	s.protocol.Cancel()
@@ -515,13 +509,6 @@ func (s *StratumV1Struct) setMinerOffline() {
 	}
 
 	switch m := event.Data.(type) {
-	case msgbus.Miner:
-		m.IP = ""
-		m.Port = 0
-		m.State = msgbus.OfflineState
-		m.StateChange = time.Now()
-		s.minerRec = &m
-		_, e = s.protocol.SetWait(simple.MinerMsg, simple.IDString(s.minerRec.ID), s.minerRec)
 	case *msgbus.Miner:
 		m.IP = ""
 		m.Port = 0
