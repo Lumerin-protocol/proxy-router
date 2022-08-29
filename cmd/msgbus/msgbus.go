@@ -964,10 +964,8 @@ loop:
 //-----------------------------------------
 func (event *Event) send(e EventChan, logger *log.Logger) {
 
-	logger.Logf(log.LevelTrace, "MSGBUS Send Event Chan:%v %+v", e, event)
-
 	go func(e EventChan, event *Event, l *log.Logger) {
-		l.Logf(log.LevelTrace, "(go)MSGBUS Send Event Chan:%v %+v", e, event)
+		l.Logf(log.LevelTrace, "MSGBUS Send Event Chan:%v %+v", e, event)
 		e <- event
 	}(e, event, logger)
 
