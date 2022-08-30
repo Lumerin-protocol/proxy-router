@@ -29,7 +29,7 @@ func (r *ConcurrentMap) GetAll() (vals []interface{}) {
 	return vals
 }
 
-func (r *ConcurrentMap) GetMap() map[string]interface{} {
+func (r *ConcurrentMap) GetMap() (map[string]interface{}) {
 	r.RLock()
 	defer r.RUnlock()
 	return r.M
@@ -192,6 +192,7 @@ func getGID() uint64 {
 //
 func RunGoCounter(c chan int) {
 	go func() {
+		
 		counter := 10000
 		for {
 			c <- counter
