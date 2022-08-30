@@ -12,7 +12,7 @@ import (
 
 type ApiController struct {
 	miners    interfaces.ICollection[miner.MinerScheduler]
-	contracts interfaces.ICollection[*contractmanager.Contract]
+	contracts interfaces.ICollection[contractmanager.IContractModel]
 }
 
 type Miner struct {
@@ -38,7 +38,7 @@ type Contract struct {
 	// Miners         []string
 }
 
-func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[*contractmanager.Contract]) *gin.Engine {
+func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel]) *gin.Engine {
 	r := gin.Default()
 	controller := ApiController{
 		miners:    miners,
@@ -83,8 +83,7 @@ func (c *ApiController) GetMiners() []Miner {
 
 func (c *ApiController) GetContracts() []Contract {
 	data := []Contract{}
-	c.contracts.Range(func(item *contractmanager.Contract) bool {
-
+	c.contracts.Range(func(item contractmanager.IContractModel) bool {
 		data = append(data, Contract{
 			ID:             item.GetID(),
 			BuyerAddr:      item.GetBuyerAddress(),

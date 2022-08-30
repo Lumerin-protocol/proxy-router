@@ -4,6 +4,6 @@ import (
 	"gitlab.com/TitanInd/hashrouter/data"
 )
 
-func NewContractCollection() *data.Collection[*Contract] {
-	return data.NewCollection[*Contract]()
+func NewContractCollection() *data.Collection[IContractModel] {
+	return data.NewCollection[IContractModel]()
 }

@@ -20,10 +20,10 @@ type ContractManager struct {
 	sellerPrivateKey string
 
 	// internal state
-	contracts interfaces.ICollection[*Contract]
+	contracts interfaces.ICollection[IContractModel]
 }
 
-func NewContractManager(blockchain *blockchain.EthereumGateway, log interfaces.ILogger, contracts interfaces.ICollection[*Contract], sellerAddr blockchain.BlockchainAddress, sellerPrivateKey string) *ContractManager {
+func NewContractManager(blockchain *blockchain.EthereumGateway, log interfaces.ILogger, contracts interfaces.ICollection[IContractModel], sellerAddr blockchain.BlockchainAddress, sellerPrivateKey string) *ContractManager {
 	return &ContractManager{
 		blockchain: blockchain,
 		contracts:  contracts,

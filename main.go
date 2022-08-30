@@ -55,7 +55,7 @@ func provideMinerCollection() interfaces.ICollection[miner.MinerScheduler] {
 	return miner.NewMinerCollection()
 }
 
-func provideContractCollection() interfaces.ICollection[*contractmanager.Contract] {
+func provideContractCollection() interfaces.ICollection[contractmanager.IContractModel] {
 	return contractmanager.NewContractCollection()
 }
 
@@ -68,7 +68,7 @@ func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo inter
 	return miner.NewMinerController(destination, repo, l), nil
 }
 
-func provideApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[*contractmanager.Contract]) *gin.Engine {
+func provideApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel]) *gin.Engine {
 	return api.NewApiController(miners, contracts)
 }
 
@@ -107,7 +107,7 @@ func provideSellerContractManager(
 	cfg *config.Config,
 	ethGateway *blockchain.EthereumGateway,
 	ethWallet *blockchain.EthereumWallet,
-	contracts interfaces.ICollection[*contractmanager.Contract],
+	contracts interfaces.ICollection[contractmanager.IContractModel],
 	log interfaces.ILogger,
 ) *contractmanager.ContractManager {
 	return contractmanager.NewContractManager(ethGateway, log, contracts, ethWallet.GetAccountAddress(), ethWallet.GetPrivateKey())
