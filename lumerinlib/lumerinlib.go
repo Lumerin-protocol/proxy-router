@@ -199,4 +199,3 @@ func RunGoCounter(c chan int) {
 		}
 	}()
 }
-
