@@ -1278,8 +1278,7 @@ func (reg *registry) unsub(c *cmd) {
 
 	if c.sync {
 		event.send(c.returnch, c.logger)
-	}
-	if c.eventch != nil {
+	} else if c.eventch != nil {
 		event.send(c.eventch, c.logger)
 	}
 
