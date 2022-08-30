@@ -2,15 +2,17 @@ package api
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
+	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/miner"
 )
 
 type ApiController struct {
-	miners    *miner.MinerRepo
-	contracts *contractmanager.ContractCollection
+	miners    interfaces.ICollection[miner.MinerScheduler]
+	contracts interfaces.ICollection[*contractmanager.Contract]
 }
 
 type Miner struct {
@@ -36,7 +38,7 @@ type Contract struct {
 	// Miners         []string
 }
 
-func NewApiController(miners *miner.MinerRepo, contracts *contractmanager.ContractCollection) *gin.Engine {
+func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[*contractmanager.Contract]) *gin.Engine {
 	r := gin.Default()
 	controller := ApiController{
 		miners:    miners,
@@ -88,8 +90,8 @@ func (c *ApiController) GetContracts() []Contract {
 			BuyerAddr:      item.GetBuyerAddress(),
 			SellerAddr:     item.GetSellerAddress(),
 			HashrateGHS:    item.GetHashrateGHS(),
-			StartTimestamp: item.GetStartTime().String(),
-			EndTimestamp:   item.GetEndTime().String(),
+			StartTimestamp: item.GetStartTime().Format(time.RFC3339),
+			EndTimestamp:   item.GetEndTime().Format(time.RFC3339),
 			State:          MapContractState(item.GetState()),
 		})
 		return true
