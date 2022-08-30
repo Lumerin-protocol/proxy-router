@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"gitlab.com/TitanInd/hashrouter/contractmanager/blockchain"
+	"gitlab.com/TitanInd/hashrouter/blockchain"
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"golang.org/x/sync/errgroup"
@@ -223,8 +223,8 @@ func (c *Contract) GetEndTime() time.Time {
 	return c.data.GetContractEndTimeV2()
 }
 
-func (c *Contract) GetState() uint8 {
+func (c *Contract) GetState() ContractState {
 	return c.state
 }
 
-// var _ interfaces.ISellerContractModel = (*Contract)(nil)
+var _ interfaces.IModel = (*Contract)(nil)
