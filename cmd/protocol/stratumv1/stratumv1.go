@@ -407,7 +407,11 @@ func (s *StratumV1Struct) openDefaultConnection() (e error) {
 		return errors.New("default Dest not defined")
 	}
 
-	s.switchToDestID = dest.ID
+	// Open the default, but only switch to it if there is not another dest already queued up.
+	if s.switchToDestID == "" {
+		s.switchToDestID = dest.ID
+	}
+
 	s.protocol.Get(simple.DestMsg, simple.IDString(dest.ID))
 
 	return nil
@@ -470,10 +474,7 @@ func (s *StratumV1Struct) Close() {
 func (s *StratumV1Struct) Cancel() {
 
 	contextlib.Logf(s.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
-
-	// s.protocol.Unpub(simple.MinerMsg, simple.IDString(s.minerRec.ID))
-	// contextlib.Logf(s.Ctx(), contextlib.LevelInfo, lumerinlib.FileLineFunc()+" Unpublish Miner record:%s", s.minerRec.ID)
-
+	
 	s.setMinerOffline()
 
 	s.protocol.Cancel()
@@ -495,6 +496,8 @@ func (s *StratumV1Struct) setMinerOffline() {
 		return
 	}
 
+	contextlib.Logf(s.ctx, contextlib.LevelTrace, fmt.Sprint(lumerinlib.FileLineFunc()+" %v", s))
+
 	event, e := s.protocol.GetWait(simple.MinerMsg, simple.IDString(s.minerRec.ID))
 	if e != nil {
 		contextlib.Logf(s.ctx, contextlib.LevelPanic, fmt.Sprint(lumerinlib.FileLineFunc()+" GetWait() on minerRec:%s error:%s", s.minerRec.ID, e))
@@ -506,18 +509,13 @@ func (s *StratumV1Struct) setMinerOffline() {
 	}
 
 	switch m := event.Data.(type) {
-	case msgbus.Miner:
-		m.IP = ""
-		m.Port = 0
-		m.State = msgbus.OfflineState
-		m.StateChange = time.Now()
-		_, e = s.protocol.SetWait(simple.MinerMsg, simple.IDString(s.minerRec.ID), &m)
 	case *msgbus.Miner:
 		m.IP = ""
 		m.Port = 0
 		m.State = msgbus.OfflineState
 		m.StateChange = time.Now()
-		_, e = s.protocol.SetWait(simple.MinerMsg, simple.IDString(s.minerRec.ID), m)
+		s.minerRec = m
+		_, e = s.protocol.SetWait(simple.MinerMsg, simple.IDString(s.minerRec.ID), s.minerRec)
 	default:
 		contextlib.Logf(s.ctx, contextlib.LevelPanic, fmt.Sprint(lumerinlib.FileLineFunc()+" default reached type:%t", m))
 	}
@@ -674,6 +672,8 @@ func (s *StratumV1Struct) GetSrcState() (state SrcState) {
 //
 func (s *StratumV1Struct) pubMinerRecord() {
 
+	contextlib.Logf(s.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" called")
+
 	id, e := s.srcAuthRequest.getAuthName()
 	if e != nil {
 		contextlib.Logf(s.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" getAuthName() error:%s", e)
@@ -691,25 +691,6 @@ func (s *StratumV1Struct) pubMinerRecord() {
 	// Is the record published already?
 	if event.Data != nil {
 		switch t := event.Data.(type) {
-		case msgbus.Miner:
-			if t.State == msgbus.OnlineState {
-				contextlib.Logf(s.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" record already online:%s", t.ID)
-				s.Close()
-				return
-			}
-
-			t.State = msgbus.OnlineState
-			t.IP = s.minerRec.IP
-			t.Port = s.minerRec.Port
-			t.Reconnect++
-
-			s.minerRec = &t
-
-			rid, e := s.protocol.Set(simple.MinerMsg, simple.IDString(s.minerRec.ID), s.minerRec)
-			if e != nil {
-				contextlib.Logf(s.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Miner Pub() error:%s RID:%d", e, rid)
-			}
-
 		case *msgbus.Miner:
 			if t.State == msgbus.OnlineState {
 				contextlib.Logf(s.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" record already online:%s", t.ID)
@@ -718,16 +699,32 @@ func (s *StratumV1Struct) pubMinerRecord() {
 			}
 
 			t.State = msgbus.OnlineState
+			t.StateChange = time.Now()
 			t.IP = s.minerRec.IP
 			t.Port = s.minerRec.Port
 			t.Reconnect++
 
 			s.minerRec = t
 
+			s.switchToDestID = t.Dest
+
 			rid, e := s.protocol.Set(simple.MinerMsg, simple.IDString(s.minerRec.ID), s.minerRec)
 			if e != nil {
 				contextlib.Logf(s.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Miner Pub() error:%s RID:%d", e, rid)
 			}
+
+			rid, e = s.protocol.Sub(simple.MinerMsg, simple.IDString(s.minerRec.ID))
+			if e != nil {
+				contextlib.Logf(s.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Miner Sub() error:%s RID:%d", e, rid)
+			}
+
+			// Get the Destination to switch to it.
+			rid, e = s.protocol.Get(simple.DestMsg, simple.IDString(t.Dest))
+			if e != nil {
+				contextlib.Logf(s.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Dest Get() error:%s RID:%d", e, rid)
+			}
+
+			contextlib.Logf(s.Ctx(), contextlib.LevelInfo, lumerinlib.FileLineFunc()+" Reused Miner record:%v", t)
 
 		default:
 			contextlib.Logf(s.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" default reached on type:%t", t)
@@ -739,6 +736,7 @@ func (s *StratumV1Struct) pubMinerRecord() {
 
 		s.minerRec.ID = msgbus.MinerID(id)
 		s.minerRec.Reconnect++
+		s.minerRec.StateChange = time.Now()
 		miner := *s.minerRec
 		rid, e := s.protocol.Pub(simple.MinerMsg, simple.IDString(miner.ID), &miner)
 		if e != nil {
@@ -768,7 +766,7 @@ func (s *StratumV1Struct) switchDest() {
 	currentUID, _ := s.protocol.GetDefaultRouteUID()
 	newUID := s.GetDstUIDDestID(s.switchToDestID)
 
-	// UID no found, something is wrong, so close out this session
+	// UID not found, something is wrong, so close out this session
 	if newUID < 0 {
 		contextlib.Logf(s.Ctx(), contextlib.LevelError, fmt.Sprintf(lumerinlib.FileLineFunc()+" switchToDestID:%s has no UID ", s.switchToDestID))
 		s.Close()
@@ -831,7 +829,7 @@ func (s *StratumV1Struct) switchDest() {
 	switch state {
 	case DstStateStandBy:
 
-		contextlib.Logf(s.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" Switch from UID:%d to UID:%d ", currentUID, newUID)
+		contextlib.Logf(s.Ctx(), contextlib.LevelTrace, lumerinlib.FileLineFunc()+" Switch from UID:%d to UID:%d (%s) ", currentUID, newUID, s.switchToDestID)
 
 		s.minerRec.Dest = s.switchToDestID
 

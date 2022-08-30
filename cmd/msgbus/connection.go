@@ -43,7 +43,7 @@ type Connection struct {
 //---------------------------------------------------------------
 //
 //---------------------------------------------------------------
-func (ps *PubSub) ConnPubWait(conn Connection) (c Connection, err error) {
+func (ps *PubSub) ConnPubWait(conn *Connection) (c Connection, err error) {
 
 	if conn.ID == "" {
 		conn.ID = ConnectionID(GetRandomIDString())

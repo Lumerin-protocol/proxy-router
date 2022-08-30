@@ -25,7 +25,7 @@ func TestPassthroughConnectionScheduler(t *testing.T) {
 		ID:     msgbus.DestID(msgbus.DEFAULT_DEST_ID),
 		NetUrl: msgbus.DestNetUrl(defaultpooladdr),
 	}
-	event, err := ps.PubWait(msgbus.DestMsg, msgbus.IDString(msgbus.DEFAULT_DEST_ID), defaultDest)
+	event, err := ps.PubWait(msgbus.DestMsg, msgbus.IDString(msgbus.DEFAULT_DEST_ID), &defaultDest)
 	if err != nil {
 		panic(fmt.Sprintf("Adding Default Dest Failed: %s", err))
 	}
@@ -74,9 +74,9 @@ func TestPassthroughConnectionScheduler(t *testing.T) {
 		Dest:            defaultDest.ID,
 		Contracts:       make(map[msgbus.ContractID]float64),
 	}
-	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner1.ID), miner1)
-	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner2.ID), miner2)
-	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner3.ID), miner3)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner1.ID), &miner1)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner2.ID), &miner2)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner3.ID), &miner3)
 
 	time.Sleep(time.Second * 2)
 
@@ -90,7 +90,7 @@ func TestPassthroughConnectionScheduler(t *testing.T) {
 		Limit:    10,
 		Speed:    100,
 	}
-	ps.PubWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), contract1)
+	ps.PubWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), &contract1)
 
 	time.Sleep(time.Second * 2)
 
@@ -100,12 +100,12 @@ func TestPassthroughConnectionScheduler(t *testing.T) {
 		ID:     msgbus.DestID(msgbus.GetRandomIDString()),
 		NetUrl: "stratum+tcp://127.0.0.1:55555/",
 	}
-	ps.PubWait(msgbus.DestMsg, msgbus.IDString(targetDest.ID), targetDest)
+	ps.PubWait(msgbus.DestMsg, msgbus.IDString(targetDest.ID), &targetDest)
 
 	contract1.State = msgbus.ContRunningState
 	contract1.Buyer = "buyer"
 	contract1.Dest = targetDest.ID
-	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), contract1)
+	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), &contract1)
 	time.Sleep(time.Second * 2)
 
 	miners, _ := ps.MinerGetAllWait()
@@ -129,7 +129,7 @@ func TestPassthroughConnectionScheduler(t *testing.T) {
 		Dest:            defaultDest.ID,
 		Contracts:       make(map[msgbus.ContractID]float64),
 	}
-	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner4.ID), miner4)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner4.ID), &miner4)
 	time.Sleep(time.Second * 5)
 
 	miner, _ := ps.MinerGetWait(miner4.ID)
@@ -142,7 +142,7 @@ func TestPassthroughConnectionScheduler(t *testing.T) {
 	fmt.Print("\n\n/// Contract closes out ///\n\n\n")
 
 	contract1.State = msgbus.ContAvailableState
-	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), contract1)
+	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), &contract1)
 	time.Sleep(time.Second * 5)
 
 	miners, _ = ps.MinerGetAllWait()
@@ -173,7 +173,7 @@ func TestTimeSlicing(t *testing.T) {
 		ID:     msgbus.DestID(msgbus.DEFAULT_DEST_ID),
 		NetUrl: msgbus.DestNetUrl(defaultpooladdr),
 	}
-	event, err := ps.PubWait(msgbus.DestMsg, msgbus.IDString(msgbus.DEFAULT_DEST_ID), defaultDest)
+	event, err := ps.PubWait(msgbus.DestMsg, msgbus.IDString(msgbus.DEFAULT_DEST_ID), &defaultDest)
 	if err != nil {
 		panic(fmt.Sprintf("Adding Default Dest Failed: %s", err))
 	}
@@ -225,9 +225,9 @@ func TestTimeSlicing(t *testing.T) {
 		Dest:            defaultDest.ID,
 		Contracts:       make(map[msgbus.ContractID]float64),
 	}
-	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner1.ID), miner1)
-	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner2.ID), miner2)
-	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner3.ID), miner3)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner1.ID), &miner1)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner2.ID), &miner2)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner3.ID), &miner3)
 
 	time.Sleep(time.Second * hashrateCalcLagTime)
 
@@ -236,9 +236,9 @@ func TestTimeSlicing(t *testing.T) {
 	miner1.CurrentHashRate = 100
 	miner2.CurrentHashRate = 100
 	miner3.CurrentHashRate = 100
-	ps.SetWait(msgbus.MinerMsg, msgbus.IDString(miner1.ID), miner1)
-	ps.SetWait(msgbus.MinerMsg, msgbus.IDString(miner2.ID), miner2)
-	ps.SetWait(msgbus.MinerMsg, msgbus.IDString(miner3.ID), miner3)
+	ps.SetWait(msgbus.MinerMsg, msgbus.IDString(miner1.ID), &miner1)
+	ps.SetWait(msgbus.MinerMsg, msgbus.IDString(miner2.ID), &miner2)
+	ps.SetWait(msgbus.MinerMsg, msgbus.IDString(miner3.ID), &miner3)
 	time.Sleep(time.Second * 1)
 
 	fmt.Print("\n\n/// 2 New available contracts found ///\n\n\n")
@@ -259,8 +259,8 @@ func TestTimeSlicing(t *testing.T) {
 		Limit:    10,
 		Speed:    150,
 	}
-	ps.PubWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), contract1)
-	ps.PubWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), contract2)
+	ps.PubWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), &contract1)
+	ps.PubWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), &contract2)
 
 	fmt.Print("\n\n/// Contract 1 purchased and now running ///\n\n\n")
 
@@ -268,12 +268,12 @@ func TestTimeSlicing(t *testing.T) {
 		ID:     msgbus.DestID(msgbus.GetRandomIDString()),
 		NetUrl: "stratum+tcp://127.0.0.1:55555/",
 	}
-	ps.PubWait(msgbus.DestMsg, msgbus.IDString(targetDest.ID), targetDest)
+	ps.PubWait(msgbus.DestMsg, msgbus.IDString(targetDest.ID), &targetDest)
 
 	contract1.State = msgbus.ContRunningState
 	contract1.Buyer = "buyer1"
 	contract1.Dest = targetDest.ID
-	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), contract1)
+	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), &contract1)
 	time.Sleep(reAdjustmentTime * time.Second)
 
 	fmt.Print("\n--Time Slice 1--\n")
@@ -304,12 +304,12 @@ func TestTimeSlicing(t *testing.T) {
 		ID:     msgbus.DestID(msgbus.GetRandomIDString()),
 		NetUrl: "stratum+tcp://127.0.0.1:66666/",
 	}
-	ps.PubWait(msgbus.DestMsg, msgbus.IDString(targetDest2.ID), targetDest2)
+	ps.PubWait(msgbus.DestMsg, msgbus.IDString(targetDest2.ID), &targetDest2)
 
 	contract2.State = msgbus.ContRunningState
 	contract2.Buyer = "buyer2"
 	contract2.Dest = targetDest2.ID
-	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), contract2)
+	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), &contract2)
 	time.Sleep(hashrateCalcLagTime * time.Second)
 	time.Sleep(reAdjustmentTime * time.Second)
 
@@ -338,7 +338,7 @@ func TestTimeSlicing(t *testing.T) {
 	fmt.Print("\n\n/// Contract 1 closes out ///\n\n\n")
 
 	contract1.State = msgbus.ContAvailableState
-	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), contract1)
+	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), &contract1)
 	time.Sleep(hashrateCalcLagTime * time.Second)
 	time.Sleep(reAdjustmentTime * time.Second)
 
@@ -355,7 +355,7 @@ func TestTimeSlicing(t *testing.T) {
 	fmt.Print("\n\n/// Contract 2 closes out ///\n\n\n")
 
 	contract2.State = msgbus.ContAvailableState
-	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), contract2)
+	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), &contract2)
 	time.Sleep(hashrateCalcLagTime * time.Second)
 	time.Sleep(reAdjustmentTime * time.Second)
 
@@ -381,7 +381,7 @@ func TestMultiTimeSlicing(t *testing.T) {
 		ID:     msgbus.DestID(msgbus.DEFAULT_DEST_ID),
 		NetUrl: msgbus.DestNetUrl(defaultpooladdr),
 	}
-	event, err := ps.PubWait(msgbus.DestMsg, msgbus.IDString(msgbus.DEFAULT_DEST_ID), defaultDest)
+	event, err := ps.PubWait(msgbus.DestMsg, msgbus.IDString(msgbus.DEFAULT_DEST_ID), &defaultDest)
 	if err != nil {
 		panic(fmt.Sprintf("Adding Default Dest Failed: %s", err))
 	}
@@ -433,9 +433,9 @@ func TestMultiTimeSlicing(t *testing.T) {
 		Dest:            defaultDest.ID,
 		Contracts:       make(map[msgbus.ContractID]float64),
 	}
-	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner1.ID), miner1)
-	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner2.ID), miner2)
-	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner3.ID), miner3)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner1.ID), &miner1)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner2.ID), &miner2)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner3.ID), &miner3)
 
 	minerTemp := msgbus.Miner{
 		CurrentHashRate: 0,
@@ -453,7 +453,7 @@ func TestMultiTimeSlicing(t *testing.T) {
 		} else {
 			minerTemp.CurrentHashRate = 100
 		}
-		ps.PubWait(msgbus.MinerMsg, msgbus.IDString(minerTemp.ID), minerTemp)
+		ps.PubWait(msgbus.MinerMsg, msgbus.IDString(minerTemp.ID), &minerTemp)
 	}
 
 	fmt.Print("\n\n/// Validator updated miner hashrates ///\n\n\n")
@@ -461,9 +461,9 @@ func TestMultiTimeSlicing(t *testing.T) {
 	miner1.CurrentHashRate = 100
 	miner2.CurrentHashRate = 100
 	miner3.CurrentHashRate = 100
-	ps.SetWait(msgbus.MinerMsg, msgbus.IDString(miner1.ID), miner1)
-	ps.SetWait(msgbus.MinerMsg, msgbus.IDString(miner2.ID), miner2)
-	ps.SetWait(msgbus.MinerMsg, msgbus.IDString(miner3.ID), miner3)
+	ps.SetWait(msgbus.MinerMsg, msgbus.IDString(miner1.ID), &miner1)
+	ps.SetWait(msgbus.MinerMsg, msgbus.IDString(miner2.ID), &miner2)
+	ps.SetWait(msgbus.MinerMsg, msgbus.IDString(miner3.ID), &miner3)
 	time.Sleep(time.Second * 1)
 
 	fmt.Print("\n\n/// 2 New available contracts found ///\n\n\n")
@@ -492,9 +492,9 @@ func TestMultiTimeSlicing(t *testing.T) {
 		Limit:    10,
 		Speed:    830,
 	}
-	ps.PubWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), contract1)
-	ps.PubWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), contract2)
-	ps.PubWait(msgbus.ContractMsg, msgbus.IDString(contract3.ID), contract3)
+	ps.PubWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), &contract1)
+	ps.PubWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), &contract2)
+	ps.PubWait(msgbus.ContractMsg, msgbus.IDString(contract3.ID), &contract3)
 
 	fmt.Print("\n\n/// Contract 1 purchased and now running ///\n\n\n")
 
@@ -502,12 +502,12 @@ func TestMultiTimeSlicing(t *testing.T) {
 		ID:     msgbus.DestID(msgbus.GetRandomIDString()),
 		NetUrl: "stratum+tcp://127.0.0.1:55555/",
 	}
-	ps.PubWait(msgbus.DestMsg, msgbus.IDString(targetDest.ID), targetDest)
+	ps.PubWait(msgbus.DestMsg, msgbus.IDString(targetDest.ID), &targetDest)
 
 	contract1.State = msgbus.ContRunningState
 	contract1.Buyer = "buyer1"
 	contract1.Dest = targetDest.ID
-	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), contract1)
+	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), &contract1)
 	time.Sleep(time.Second * hashrateCalcLagTime)
 	time.Sleep(reAdjustmentTime*time.Second)
 
@@ -540,12 +540,12 @@ func TestMultiTimeSlicing(t *testing.T) {
 		ID:     msgbus.DestID(msgbus.GetRandomIDString()),
 		NetUrl: "stratum+tcp://127.0.0.1:66666/",
 	}
-	ps.PubWait(msgbus.DestMsg, msgbus.IDString(targetDest2.ID), targetDest2)
+	ps.PubWait(msgbus.DestMsg, msgbus.IDString(targetDest2.ID), &targetDest2)
 
 	contract2.State = msgbus.ContRunningState
 	contract2.Buyer = "buyer2"
 	contract2.Dest = targetDest2.ID
-	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), contract2)
+	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), &contract2)
 	time.Sleep(hashrateCalcLagTime * time.Second)
 	time.Sleep(reAdjustmentTime * time.Second)
 
@@ -574,7 +574,7 @@ func TestMultiTimeSlicing(t *testing.T) {
 	fmt.Print("\n\n/// Contract 1 closes out ///\n\n\n")
 
 	contract1.State = msgbus.ContAvailableState
-	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), contract1)
+	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), &contract1)
 	time.Sleep(hashrateCalcLagTime * time.Second)
 	time.Sleep(reAdjustmentTime * time.Second)
 
@@ -594,12 +594,12 @@ func TestMultiTimeSlicing(t *testing.T) {
 		ID:     msgbus.DestID(msgbus.GetRandomIDString()),
 		NetUrl: "stratum+tcp://127.0.0.1:77777/",
 	}
-	ps.PubWait(msgbus.DestMsg, msgbus.IDString(targetDest3.ID), targetDest3)
+	ps.PubWait(msgbus.DestMsg, msgbus.IDString(targetDest3.ID), &targetDest3)
 
 	contract3.State = msgbus.ContRunningState
 	contract3.Buyer = "buyer3"
 	contract3.Dest = targetDest3.ID
-	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract3.ID), contract3)
+	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract3.ID), &contract3)
 	time.Sleep(hashrateCalcLagTime*time.Second)
 	time.Sleep(reAdjustmentTime*time.Second)
 
@@ -628,9 +628,9 @@ func TestMultiTimeSlicing(t *testing.T) {
 	fmt.Print("\n\n/// Contract 2 and 3 closes out ///\n\n\n")
 
 	contract2.State = msgbus.ContAvailableState
-	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), contract2)
+	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), &contract2)
 	contract3.State = msgbus.ContAvailableState
-	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract3.ID), contract3)
+	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract3.ID), &contract3)
 	time.Sleep(hashrateCalcLagTime*time.Second)
 	time.Sleep(reAdjustmentTime*time.Second)
 
@@ -655,7 +655,7 @@ func TestEdgeCases(t *testing.T) {
 		ID:     msgbus.DestID(msgbus.DEFAULT_DEST_ID),
 		NetUrl: msgbus.DestNetUrl(defaultpooladdr),
 	}
-	event, err := ps.PubWait(msgbus.DestMsg, msgbus.IDString(msgbus.DEFAULT_DEST_ID), defaultDest)
+	event, err := ps.PubWait(msgbus.DestMsg, msgbus.IDString(msgbus.DEFAULT_DEST_ID), &defaultDest)
 	if err != nil {
 		panic(fmt.Sprintf("Adding Default Dest Failed: %s", err))
 	}
@@ -707,9 +707,9 @@ func TestEdgeCases(t *testing.T) {
 		Dest:            defaultDest.ID,
 		Contracts:       make(map[msgbus.ContractID]float64),
 	}
-	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner1.ID), miner1)
-	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner2.ID), miner2)
-	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner3.ID), miner3)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner1.ID), &miner1)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner2.ID), &miner2)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner3.ID), &miner3)
 
 	time.Sleep(time.Second * hashrateCalcLagTime)
 
@@ -718,9 +718,9 @@ func TestEdgeCases(t *testing.T) {
 	miner1.CurrentHashRate = 200
 	miner2.CurrentHashRate = 140
 	miner3.CurrentHashRate = 140
-	ps.SetWait(msgbus.MinerMsg, msgbus.IDString(miner1.ID), miner1)
-	ps.SetWait(msgbus.MinerMsg, msgbus.IDString(miner2.ID), miner2)
-	ps.SetWait(msgbus.MinerMsg, msgbus.IDString(miner3.ID), miner3)
+	ps.SetWait(msgbus.MinerMsg, msgbus.IDString(miner1.ID), &miner1)
+	ps.SetWait(msgbus.MinerMsg, msgbus.IDString(miner2.ID), &miner2)
+	ps.SetWait(msgbus.MinerMsg, msgbus.IDString(miner3.ID), &miner3)
 	
 	time.Sleep(time.Second * 1)
 
@@ -742,8 +742,8 @@ func TestEdgeCases(t *testing.T) {
 		Limit:    10,
 		Speed:    110,
 	}
-	ps.PubWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), contract1)
-	ps.PubWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), contract2)
+	ps.PubWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), &contract1)
+	ps.PubWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), &contract2)
 
 	fmt.Print("\n\n/// Contract 1 purchased and now running ///\n\n\n")
 
@@ -751,12 +751,12 @@ func TestEdgeCases(t *testing.T) {
 		ID:     msgbus.DestID(msgbus.GetRandomIDString()),
 		NetUrl: "stratum+tcp://127.0.0.1:55555/",
 	}
-	ps.PubWait(msgbus.DestMsg, msgbus.IDString(targetDest.ID), targetDest)
+	ps.PubWait(msgbus.DestMsg, msgbus.IDString(targetDest.ID), &targetDest)
 
 	contract1.State = msgbus.ContRunningState
 	contract1.Buyer = "buyer1"
 	contract1.Dest = targetDest.ID
-	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), contract1)
+	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), &contract1)
 	time.Sleep(reAdjustmentTime * time.Second)
 
 	fmt.Print("\n--Time Slice 1--\n")
@@ -819,12 +819,12 @@ func TestEdgeCases(t *testing.T) {
 		ID:     msgbus.DestID(msgbus.GetRandomIDString()),
 		NetUrl: "stratum+tcp://127.0.0.1:66666/",
 	}
-	ps.PubWait(msgbus.DestMsg, msgbus.IDString(targetDest2.ID), targetDest2)
+	ps.PubWait(msgbus.DestMsg, msgbus.IDString(targetDest2.ID), &targetDest2)
 
 	contract2.State = msgbus.ContRunningState
 	contract2.Buyer = "buyer2"
 	contract2.Dest = targetDest2.ID
-	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), contract2)
+	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), &contract2)
 	time.Sleep(hashrateCalcLagTime * time.Second)
 	time.Sleep(reAdjustmentTime * time.Second)
 
@@ -854,7 +854,7 @@ func TestEdgeCases(t *testing.T) {
 
 	time.Sleep(reAdjustmentTime * time.Second)
 	contract1.State = msgbus.ContAvailableState
-	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), contract1)
+	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract1.ID), &contract1)
 	time.Sleep(hashrateCalcLagTime * time.Second)
 	time.Sleep(reAdjustmentTime * time.Second)
 
@@ -871,7 +871,7 @@ func TestEdgeCases(t *testing.T) {
 	fmt.Print("\n\n/// Contract 2 closes out ///\n\n\n")
 
 	contract2.State = msgbus.ContAvailableState
-	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), contract2)
+	ps.SetWait(msgbus.ContractMsg, msgbus.IDString(contract2.ID), &contract2)
 	time.Sleep(hashrateCalcLagTime * time.Second)
 	time.Sleep(reAdjustmentTime * time.Second)
 

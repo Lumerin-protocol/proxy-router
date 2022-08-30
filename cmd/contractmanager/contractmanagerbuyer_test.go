@@ -44,7 +44,7 @@ func TestBuyerRoutine(t *testing.T) {
 		ID:     msgbus.DestID(msgbus.DEFAULT_DEST_ID),
 		NetUrl: msgbus.DestNetUrl(defaultpooladdr),
 	}
-	event, err := ps.PubWait(msgbus.DestMsg, msgbus.IDString(msgbus.DEFAULT_DEST_ID), defaultDest)
+	event, err := ps.PubWait(msgbus.DestMsg, msgbus.IDString(msgbus.DEFAULT_DEST_ID), &defaultDest)
 	if err != nil {
 		panic(fmt.Sprintf("Adding Default Dest Failed: %s", err))
 	}
@@ -69,8 +69,8 @@ func TestBuyerRoutine(t *testing.T) {
 		Dest:            defaultDest.ID,
 		Contracts:       make(map[msgbus.ContractID]float64),
 	}
-	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner1.ID), miner1)
-	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner2.ID), miner2)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner1.ID), &miner1)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner2.ID), &miner2)
 
 	contractManagerConfigFile, err := LoadTestConfiguration("contract", configPath)
 	if err != nil {
@@ -98,7 +98,7 @@ func TestBuyerRoutine(t *testing.T) {
 		IsBuyer:     true,
 		Contracts: make(map[msgbus.ContractID]msgbus.ContractState),
 	}
-	event, err = ps.PubWait(msgbus.NodeOperatorMsg, msgbus.IDString(NodeOperator.ID), NodeOperator)
+	event, err = ps.PubWait(msgbus.NodeOperatorMsg, msgbus.IDString(NodeOperator.ID), &NodeOperator)
 	if err != nil {
 		panic(fmt.Sprintf("Adding Node Operator Failed: %s", err))
 	}
@@ -230,7 +230,7 @@ loop4:
 		Dest:            defaultDest.ID,
 		Contracts:       make(map[msgbus.ContractID]float64),
 	}
-	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner3.ID), miner3)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner3.ID), &miner3)
 	time.Sleep(time.Millisecond * time.Duration(sleepTime))
 
 	if cman.NodeOperator.Contracts[msgbus.ContractID(hashrateContractAddress[1].Hex())] != msgbus.ContRunningState {
@@ -311,7 +311,7 @@ loop6:
 		Dest:            defaultDest.ID,
 		Contracts:       make(map[msgbus.ContractID]float64),
 	}
-	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner4.ID), miner4)
+	ps.PubWait(msgbus.MinerMsg, msgbus.IDString(miner4.ID), &miner4)
 	time.Sleep(time.Millisecond * time.Duration(sleepTime/5))
 
 	if cman.NodeOperator.Contracts[msgbus.ContractID(hashrateContractAddress[2].Hex())] != msgbus.ContRunningState {
@@ -347,7 +347,7 @@ loop6:
 	// if event.Err != nil {
 	// 	panic(fmt.Sprintf("Getting Purchased Contract Failed: %s", event.Err))
 	// }
-	// contractMsg := event.Data.(msgbus.Contract)
+	// contractMsg := event.Data.(*msgbus.Contract)
 	// event, err = ps.GetWait(msgbus.DestMsg, msgbus.IDString(contractMsg.Dest))
 	// if err != nil {
 	// 	panic(fmt.Sprintf("Getting Dest Failed: %s", err))
@@ -355,7 +355,7 @@ loop6:
 	// if event.Err != nil {
 	// 	panic(fmt.Sprintf("Getting Dest Failed: %s", event.Err))
 	// }
-	// destMsg := event.Data.(msgbus.Dest)
+	// destMsg := event.Data.(*msgbus.Dest)
 	// if destMsg.NetUrl != "stratum+tcp://127.0.0.1:3333/updated" {
 	// 	t.Errorf("Contract 3's target dest was not updated")
 	// }
@@ -365,7 +365,7 @@ loop6:
 	//
 	// miner 4's hashrate is updated to below min
 	miner4.CurrentHashRate = 5
-	ps.Set(msgbus.MinerMsg, msgbus.IDString(miner1.ID), miner1)
+	ps.Set(msgbus.MinerMsg, msgbus.IDString(miner1.ID), &miner1)
 	time.Sleep(time.Millisecond * time.Duration(sleepTime*3))
 
 	// miner 2 deleted
@@ -376,11 +376,11 @@ loop6:
 	// Test miners are set to offline state so running contracts should close out
 	//
 	miner1.State = msgbus.OfflineState
-	ps.Set(msgbus.MinerMsg, msgbus.IDString(miner1.ID), miner1)
+	ps.Set(msgbus.MinerMsg, msgbus.IDString(miner1.ID), &miner1)
 	miner3.State = msgbus.OfflineState
-	ps.Set(msgbus.MinerMsg, msgbus.IDString(miner3.ID), miner3)
+	ps.Set(msgbus.MinerMsg, msgbus.IDString(miner3.ID), &miner3)
 	miner4.State = msgbus.OfflineState
-	ps.Set(msgbus.MinerMsg, msgbus.IDString(miner4.ID), miner4)
+	ps.Set(msgbus.MinerMsg, msgbus.IDString(miner4.ID), &miner4)
 	time.Sleep(time.Millisecond * time.Duration(sleepTime*10))
 
 	// check contracts map is empty now

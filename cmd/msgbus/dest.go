@@ -22,7 +22,7 @@ type Dest struct {
 //---------------------------------------------------------------
 //
 //---------------------------------------------------------------
-func (ps *PubSub) DestPubWait(dest Dest) (d Dest, err error) {
+func (ps *PubSub) DestPubWait(dest *Dest) (d Dest, err error) {
 
 	if dest.ID == "" {
 		dest.ID = DestID(GetRandomIDString())

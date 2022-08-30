@@ -123,6 +123,7 @@ type cmd struct {
 	data      interface{}
 	eventch   EventChan
 	returnch  EventChan
+	logger *log.Logger
 }
 
 var SubmitCountChan chan int
@@ -200,6 +201,8 @@ func (ps *PubSub) Pub(msg MsgType, id IDString, data interface{}, ech ...EventCh
 		}
 	}
 
+dataMatchCheck(msg, data)
+
 	c := cmd{
 		op:        opPub,
 		sync:      false,
@@ -208,6 +211,7 @@ func (ps *PubSub) Pub(msg MsgType, id IDString, data interface{}, ech ...EventCh
 		requestID: requestID,
 		data:      data,
 		eventch:   eventchan,
+		logger:	   ps.logger,
 	}
 
 	_, err = ps.dispatch(&c)
@@ -230,6 +234,8 @@ func (ps *PubSub) PubWait(msg MsgType, id IDString, data interface{}) (e *Event,
 		return e, getCommandError(MsgBusErrNoData)
 	}
 
+dataMatchCheck(msg, data)
+
 	c := cmd{
 		op:      opPub,
 		sync:    true,
@@ -237,6 +243,7 @@ func (ps *PubSub) PubWait(msg MsgType, id IDString, data interface{}) (e *Event,
 		ID:      id,
 		data:    data,
 		eventch: nil,
+		logger:	 ps.logger,
 	}
 
 	e, err = ps.dispatch(&c)
@@ -264,6 +271,7 @@ func (ps *PubSub) Sub(msg MsgType, id IDString, ech EventChan) (requestID int, e
 		requestID: requestID,
 		data:      nil,
 		eventch:   ech,
+		logger:		ps.logger,
 	}
 
 	_, err = ps.dispatch(&c)
@@ -289,6 +297,7 @@ func (ps *PubSub) SubWait(msg MsgType, id IDString, ech EventChan) (e *Event, er
 		ID:      id,
 		data:    nil,
 		eventch: ech,
+		logger:		ps.logger,
 	}
 
 	return ps.dispatch(&c)
@@ -316,6 +325,7 @@ func (ps *PubSub) Get(msg MsgType, id IDString, ech EventChan) (requestID int, e
 		requestID: requestID,
 		data:      nil,
 		eventch:   ech,
+		logger:		ps.logger,
 	}
 
 	_, err = ps.dispatch(&c)
@@ -339,6 +349,7 @@ func (ps *PubSub) GetWait(msg MsgType, id IDString) (e *Event, err error) {
 		ID:      id,
 		data:    nil,
 		eventch: nil,
+		logger:		ps.logger,
 	}
 
 	return ps.dispatch(&c)
@@ -371,6 +382,7 @@ func (ps *PubSub) SearchIP(msg MsgType, ip string, ech EventChan) (requestID int
 		requestID: requestID,
 		data:      nil,
 		eventch:   ech,
+		logger:		ps.logger,
 	}
 
 	_, err = ps.dispatch(&c)
@@ -399,6 +411,7 @@ func (ps *PubSub) SearchIPWait(msg MsgType, ip string) (e *Event, err error) {
 		IP:      ip,
 		data:    nil,
 		eventch: nil,
+		logger:		ps.logger,
 	}
 
 	return ps.dispatch(&c)
@@ -431,6 +444,7 @@ func (ps *PubSub) SearchMAC(msg MsgType, mac string, ech EventChan) (requestID i
 		data:      nil,
 		eventch:   ech,
 		requestID: requestID,
+		logger:		ps.logger,
 	}
 
 	_, err = ps.dispatch(&c)
@@ -459,6 +473,7 @@ func (ps *PubSub) SearchMACWait(msg MsgType, mac string) (e *Event, err error) {
 		MAC:     mac,
 		data:    nil,
 		eventch: nil,
+		logger:		ps.logger,
 	}
 
 	return ps.dispatch(&c)
@@ -491,6 +506,7 @@ func (ps *PubSub) SearchName(msg MsgType, name string, ech EventChan) (requestID
 		data:      nil,
 		eventch:   ech,
 		requestID: requestID,
+		logger:		ps.logger,
 	}
 
 	_, err = ps.dispatch(&c)
@@ -519,6 +535,7 @@ func (ps *PubSub) SearchNameWait(msg MsgType, name string) (e *Event, err error)
 		Name:    name,
 		data:    nil,
 		eventch: nil,
+		logger:		ps.logger,
 	}
 
 	return ps.dispatch(&c)
@@ -543,6 +560,8 @@ func (ps *PubSub) Set(msg MsgType, id IDString, data interface{}) (requestID int
 		return requestID, getCommandError(MsgBusErrNoData)
 	}
 
+dataMatchCheck(msg, data)
+
 	c := cmd{
 		op:        opSet,
 		sync:      false,
@@ -551,6 +570,7 @@ func (ps *PubSub) Set(msg MsgType, id IDString, data interface{}) (requestID int
 		requestID: requestID,
 		data:      data,
 		eventch:   nil,
+		logger:		ps.logger,
 	}
 
 	_, err = ps.dispatch(&c)
@@ -575,6 +595,8 @@ func (ps *PubSub) SetWait(msg MsgType, id IDString, data interface{}) (e *Event,
 		return e, getCommandError(MsgBusErrNoData)
 	}
 
+	dataMatchCheck(msg, data)
+
 	c := cmd{
 		op:      opSet,
 		sync:    true,
@@ -582,6 +604,7 @@ func (ps *PubSub) SetWait(msg MsgType, id IDString, data interface{}) (e *Event,
 		ID:      id,
 		data:    data,
 		eventch: nil,
+		logger:		ps.logger,
 	}
 
 	return ps.dispatch(&c)
@@ -614,6 +637,7 @@ func (ps *PubSub) Unsub(msg MsgType, id IDString, ech EventChan) (requestID int,
 		requestID: requestID,
 		data:      nil,
 		eventch:   ech,
+		logger:		ps.logger,
 	}
 
 	_, err = ps.dispatch(&c)
@@ -645,6 +669,7 @@ func (ps *PubSub) UnsubWait(msg MsgType, id IDString, ech EventChan) (e *Event, 
 		ID:      id,
 		data:    nil,
 		eventch: ech,
+		logger:		ps.logger,
 	}
 
 	return ps.dispatch(&c)
@@ -682,6 +707,7 @@ func (ps *PubSub) Unpub(msg MsgType, id IDString, ech ...EventChan) (requestID i
 		requestID: requestID,
 		data:      nil,
 		eventch:   eventchan,
+		logger:		ps.logger,
 	}
 
 	_, err = ps.dispatch(&c)
@@ -709,6 +735,7 @@ func (ps *PubSub) UnpubWait(msg MsgType, id IDString) (e *Event, err error) {
 		ID:      id,
 		data:    nil,
 		eventch: nil,
+		logger:		ps.logger,
 	}
 
 	return ps.dispatch(&c)
@@ -733,6 +760,7 @@ func (ps *PubSub) RemoveAndCloseEventChan(ech EventChan) (requestID int, err err
 		requestID: requestID,
 		data:      nil,
 		eventch:   ech,
+		logger:		ps.logger,
 	}
 
 	_, err = ps.dispatch(&c)
@@ -756,6 +784,7 @@ func (ps *PubSub) RemoveAndCloseEventChanWait(ech EventChan) (e *Event, err erro
 		ID:      "",
 		data:    nil,
 		eventch: ech,
+		logger:		ps.logger,
 	}
 
 	return ps.dispatch(&c)
@@ -778,6 +807,7 @@ func (ps *PubSub) Shutdown() (requestID int, err error) {
 		requestID: requestID,
 		data:      nil,
 		eventch:   nil,
+		logger:		ps.logger,
 	}
 
 	_, err = ps.dispatch(&c)
@@ -799,6 +829,7 @@ func (ps *PubSub) ShutdownWait() (e *Event, err error) {
 		ID:      "",
 		data:    nil,
 		eventch: nil,
+		logger:		ps.logger,
 	}
 
 	return ps.dispatch(&c)
@@ -931,11 +962,12 @@ loop:
 //-----------------------------------------
 //
 //-----------------------------------------
-func (event *Event) send(e EventChan) {
+func (event *Event) send(e EventChan, logger *log.Logger) {
 
-	go func(e EventChan, event *Event) {
+	go func(e EventChan, event *Event, l *log.Logger) {
+		l.Logf(log.LevelTrace, "MSGBUS Send Event Chan:%v %+v", e, event)
 		e <- event
-	}(e, event)
+	}(e, event, logger)
 
 }
 
@@ -972,19 +1004,19 @@ func (reg *registry) pub(c *cmd) {
 	// If sync, return the event
 	if c.sync {
 		// sendEvent(c.returnch, event)
-		event.send(c.returnch)
+		event.send(c.returnch, c.logger)
 	}
 
 	if c.eventch != nil {
 		// sendEvent(c.eventch, event)
-		event.send(c.eventch)
+		event.send(c.eventch, c.logger)
 	}
 
 	// If no error, copy the event to everyone interested
 	if event.Err == nil {
 		for ech := range reg.notify[c.msg] {
 			//sendEvent(ech, event)
-			event.send(ech)
+			event.send(ech, c.logger)
 		}
 	}
 
@@ -1028,11 +1060,11 @@ func (reg *registry) sub(c *cmd) {
 	}
 
 	if c.sync {
-		event.send(c.returnch)
+		event.send(c.returnch, c.logger)
 	}
 
 	if c.eventch != nil {
-		event.send(c.eventch)
+		event.send(c.eventch, c.logger)
 	}
 }
 
@@ -1080,21 +1112,21 @@ func (reg *registry) set(c *cmd) {
 	}
 
 	if c.sync {
-		event.send(c.returnch)
+		event.send(c.returnch, c.logger)
 	}
 
 	if c.eventch != nil {
-		event.send(c.eventch)
+		event.send(c.eventch, c.logger)
 	}
 
 	// Notify anyone listening for the message class
 	for nch := range reg.notify[c.msg] {
-		event.send(nch)
+		event.send(nch, c.logger)
 	}
 	// Notify anyone listening for the specific ID
 	for ech := range reg.data[c.msg][c.ID].sub.eventchan {
 		if _, ok := reg.data[c.msg][c.ID].sub.eventchan[ech]; ok {
-			event.send(ech)
+			event.send(ech, c.logger)
 		} else {
 			panic(fmt.Sprintf(lumerinlib.FileLine() + "Error eventchannel not ok"))
 		}
@@ -1135,10 +1167,10 @@ func (reg *registry) get(c *cmd) {
 	}
 
 	if c.sync {
-		event.send(c.returnch)
+		event.send(c.returnch, c.logger)
 	}
 	if c.eventch != nil {
-		event.send(c.eventch)
+		event.send(c.eventch, c.logger)
 	}
 
 }
@@ -1200,10 +1232,10 @@ func (reg *registry) search(c *cmd) {
 	event.Data = index
 
 	if c.sync {
-		event.send(c.returnch)
+		event.send(c.returnch, c.logger)
 	}
 	if c.eventch != nil {
-		event.send(c.eventch)
+		event.send(c.eventch, c.logger)
 	}
 
 }
@@ -1245,10 +1277,10 @@ func (reg *registry) unsub(c *cmd) {
 	}
 
 	if c.sync {
-		event.send(c.returnch)
+		event.send(c.returnch, c.logger)
 	}
 	if c.eventch != nil {
-		event.send(c.eventch)
+		event.send(c.eventch, c.logger)
 	}
 
 }
@@ -1278,19 +1310,19 @@ func (reg *registry) unpub(c *cmd) {
 	}
 
 	if c.sync {
-		event.send(c.returnch)
+		event.send(c.returnch, c.logger)
 	}
 
 	if c.eventch != nil {
-		event.send(c.eventch)
+		event.send(c.eventch, c.logger)
 	}
 
 	for ech := range reg.data[c.msg][c.ID].sub.eventchan {
-		event.send(ech)
+		event.send(ech, c.logger)
 	}
 
 	for ech := range reg.notify[c.msg] {
-		event.send(ech)
+		event.send(ech, c.logger)
 	}
 
 	delete(reg.data[c.msg], c.ID)
@@ -1333,7 +1365,59 @@ func (reg *registry) removeAndClose(c *cmd) {
 	close(c.eventch)
 
 	if c.sync {
-		event.send(c.returnch)
+		event.send(c.returnch, c.logger)
 	}
 
+}
+
+func dataMatchCheck(msg MsgType, data interface{}) {
+
+	switch t := data.(type) {
+	case *ConfigInfo:
+		if msg != ConfigMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *lumerinlib.ContractManagerConfig:
+		if msg != ContractManagerConfigMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case lumerinlib.ContractManagerConfig:
+		if msg != ContractManagerConfigMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *Dest:
+		if msg != DestMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *NodeOperator:
+		if msg != NodeOperatorMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *Contract:
+		if msg != ContractMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *Miner:
+		if msg != MinerMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *Connection:
+		if msg != ConnectionMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *Validate:
+		if msg != ValidateMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *Submit:
+		if msg != ValidateMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	case *Notify:
+		if msg != ValidateMsg{
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+" Bad Type:%t",t))
+		}
+	default:
+			panic(fmt.Sprintf( lumerinlib.FileLineFunc()+"Default reached - Bad Type:%t",t))
+	}
 }
