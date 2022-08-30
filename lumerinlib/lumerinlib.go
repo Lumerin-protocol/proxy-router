@@ -192,7 +192,7 @@ func getGID() uint64 {
 //
 func RunGoCounter(c chan int) {
 	go func() {
-		
+
 		counter := 10000
 		for {
 			c <- counter
