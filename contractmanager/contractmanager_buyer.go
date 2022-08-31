@@ -212,7 +212,7 @@ func (buyer *BuyerContractManager) WatchHashrateContract(addr string, hrLogs cha
 	purchaseInfoUpdatedSigHash := crypto.Keccak256Hash(purchaseInfoUpdatedSig)
 	cipherTextUpdatedSigHash := crypto.Keccak256Hash(cipherTextUpdatedSig)
 
-	// monitor events emmited by hashrate contract
+	// monitor events emitted by hashrate contract
 	for {
 		select {
 		case <-buyer.Ctx.Done():

@@ -320,7 +320,7 @@ func (seller *SellerContractManager) WatchHashrateContract(addr string, hrLogs c
 	purchaseInfoUpdatedSigHash := crypto.Keccak256Hash(purchaseInfoUpdatedSig)
 	cipherTextUpdatedSigHash := crypto.Keccak256Hash(cipherTextUpdatedSig)
 
-	// routine monitoring and acting upon events emmited by hashrate contract
+	// routine monitoring and acting upon events emitted by hashrate contract
 	go func() {
 		defer close(hrLogs)
 		defer hrSub.Unsubscribe()

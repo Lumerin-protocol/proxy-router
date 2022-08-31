@@ -39,7 +39,7 @@ func (d *DestSplit) adjustPercentage(percentage float64) uint8 {
 // allocate is used adjustPercentage is called for percentage
 func (d *DestSplit) allocate(percentage uint8, dest interfaces.IDestination) error {
 	if percentage > 100 || percentage == 0 {
-		panic("percentage should be withing range 1..100")
+		panic("percentage should be within range 1..100")
 	}
 
 	if percentage > d.GetUnallocated() {

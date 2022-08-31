@@ -26,9 +26,9 @@ type StratumV1PoolConn struct {
 
 	// TODO: handle pool setExtranonce message
 
-	msgCh              chan stratumv1_message.MiningMessageGeneric // auxillary channel to relay messages
+	msgCh              chan stratumv1_message.MiningMessageGeneric // auxiliary channel to relay messages
 	customPriorityMsgs chan stratumv1_message.MiningMessageGeneric
-	isReading          bool       // if false messages will not be availabe to read from outside, used for authentication handshake
+	isReading          bool       // if false messages will not be available to read from outside, used for authentication handshake
 	mu                 sync.Mutex // guards isReading
 
 	lastRequestId *atomic.Uint32                 // stratum request id counter

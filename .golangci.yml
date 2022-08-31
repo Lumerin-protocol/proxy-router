@@ -8,8 +8,8 @@ linters:
     #- golint
     #- ineffassign
     #- unconvert
-    # - misspell
-    - govet
+    - misspell
+    #- govet
 run:
   deadline: 5m
   timeout: 5m

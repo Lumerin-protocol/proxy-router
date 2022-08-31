@@ -39,7 +39,7 @@ func ConvertMerkleBranchesToRoot(merkle_branches []string) (*chainhash.Hash, err
 			merkle_branch_hashes[offset] = newHash
 
 		// The normal case sets the parent node to the double sha256
-		// of the concatentation of the left and right children.
+		// of the concatenation of the left and right children.
 		default:
 			newHash := blockchain.HashMerkleBranches(merkle_branch_hashes[i], merkle_branch_hashes[i+1])
 			merkle_branch_hashes[offset] = newHash

@@ -49,7 +49,7 @@ func (gateway *EthereumGateway) SubscribeToContractEvents(contract interfaces.IS
 	// purchaseInfoUpdatedSigHash := crypto.Keccak256Hash(purchaseInfoUpdatedSig)
 	// cipherTextUpdatedSigHash := crypto.Keccak256Hash(cipherTextUpdatedSig)
 
-	// routine monitoring and acting upon events emmited by hashrate contract
+	// routine monitoring and acting upon events emitted by hashrate contract
 	go func() {
 		defer close(logs)
 		defer sub.Unsubscribe()
