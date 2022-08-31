@@ -147,12 +147,12 @@ func (seller *SellerContractManager) SetupExistingContracts() (err error) {
 		go func(sellerContract interop.BlockchainAddress, errResult *error) {
 			// id := string(sellerContract.Hex())
 
-			err := *errResult
+			//err := *errResult
 
 			destUrl, err := readDestUrl(seller.EthClient, sellerContract, seller.PrivateKey)
 
 			if err != nil {
-				errResult = &err
+				//errResult = &err
 				return
 			}
 
@@ -161,14 +161,14 @@ func (seller *SellerContractManager) SetupExistingContracts() (err error) {
 			contractMsg, err := readHashrateContract(seller.EthClient, sellerContract)
 
 			if err != nil {
-				errResult = &err
+				//errResult = &err
 				return
 			}
 
 			contract, err := seller.ContractFactory.CreateContract(true, sellerContract.Hex(), ContractStateEnum[contractMsg.State], contractMsg.Buyer.Hex(), contractMsg.Price, contractMsg.Limit, contractMsg.Speed, contractMsg.Length, contractMsg.StartingBlockTimestamp, destUrl)
 
 			if err != nil {
-				errResult = &err
+				//errResult = &err
 				return
 			}
 
@@ -183,7 +183,7 @@ func (seller *SellerContractManager) SetupExistingContracts() (err error) {
 			_, err = contract.Execute()
 
 			if err != nil {
-				errResult = &err
+				//errResult = &err
 				return
 			}
 
@@ -354,7 +354,7 @@ func (seller *SellerContractManager) WatchHashrateContract(addr string, hrLogs c
 					hashrateContractMsg.Buyer = buyer.Hex()
 					dest, err := lib.ParseDest(destUrl)
 					if err != nil {
-						fmt.Printf("%w", err)
+						fmt.Printf("%s", err)
 					}
 
 					//TODO: pass the contract limit value
@@ -368,6 +368,7 @@ func (seller *SellerContractManager) WatchHashrateContract(addr string, hrLogs c
 					destUrl, err := readDestUrl(seller.EthClient, common.HexToAddress(addr), seller.PrivateKey)
 
 					if err != nil {
+						fmt.Printf("%s", err)
 						//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading dest url failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
 					}
 
@@ -375,7 +376,10 @@ func (seller *SellerContractManager) WatchHashrateContract(addr string, hrLogs c
 					// hashrateContractMsg.Dest = destUrl
 
 					destination, err := lib.ParseDest(destUrl)
-
+					if err != nil {
+						fmt.Printf("%s", err)
+						//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading dest url failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
+					}
 					seller.Ps.HandleDestinationUpdated(destination)
 
 				case contractClosedSigHash.Hex():

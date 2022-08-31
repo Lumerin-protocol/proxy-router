@@ -165,7 +165,7 @@ func (gateway *EthereumGateway) SetContractCloseOut(contract interfaces.ISellerC
 	privateKeyString := contract.GetPrivateKey()
 	fromAddress := contract.GetBuyerAddress()
 	contractAddress := contract.GetAddress() //, wg *sync.WaitGroup, CurrentNonce *nonce, closeOutType uint, NodeOperator *NodeOperator
-	currentNonce := contract.GetCurrentNonce()
+	//currentNonce := contract.GetCurrentNonce()
 	var wg sync.WaitGroup
 	defer wg.Done()
 	wg.Add(1)
@@ -207,7 +207,7 @@ func (gateway *EthereumGateway) SetContractCloseOut(contract interfaces.ISellerC
 	auth.GasLimit = uint64(3000000) // in units
 	auth.Value = big.NewInt(0)      // in wei
 
-	currentNonce, err = client.PendingNonceAt(context.Background(), gateway.wallet.HexToAddress(fromAddress))
+	currentNonce, err := client.PendingNonceAt(context.Background(), gateway.wallet.HexToAddress(fromAddress))
 	if err != nil {
 		fmt.Printf("Funcname::%s, Fileline::%s, Error::%v\n", lumerinlib.Funcname(), lumerinlib.FileLine(), err)
 		return err

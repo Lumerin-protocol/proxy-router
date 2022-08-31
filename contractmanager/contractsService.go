@@ -97,6 +97,9 @@ func (service *ContractsService) CheckHashRate(contractId string) bool {
 	// contract := contractResult
 
 	totalHashrate, err = service.validatorService.GetHashrate()
+	if err != nil {
+		service.logger.Errorf("Failed to get all miners, %v", err)
+	}
 	// TODO: create source/contract relationship
 	// miners, err := buyer.Ps.GetMiners()
 

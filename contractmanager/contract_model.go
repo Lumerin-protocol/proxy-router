@@ -121,7 +121,7 @@ func (c *Contract) GetHashrateGHS() int {
 
 func (c *Contract) GetPromisedHashrateMin() uint64 {
 	panic("Contract.GetPromisedHashrateMin unimplemented")
-	return 0
+	//return 0
 }
 
 func (c *Contract) MakeAvailable() {

@@ -7,9 +7,9 @@ linters:
     #- errcheck
     #- golint
     #- ineffassign
-    - unconvert
+    #- unconvert
     # - misspell
-    # - govet
+    - govet
 run:
   deadline: 5m
   timeout: 5m

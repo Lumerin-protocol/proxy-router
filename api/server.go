@@ -10,7 +10,7 @@ import (
 )
 
 type Server struct {
-	server http.Server
+	server *http.Server
 
 	address         string
 	shutdownTimeout time.Duration
@@ -30,7 +30,7 @@ func NewServer(address string, log interfaces.ILogger, minerController *miner.Mi
 	// 	w.Write([]byte("success"))
 	// })
 
-	server := http.Server{Addr: address, Handler: mux}
+	server := &http.Server{Addr: address, Handler: mux}
 
 	return &Server{
 		address:         address,
