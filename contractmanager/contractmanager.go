@@ -357,9 +357,9 @@ func createContractMsg(contractAddress interop.BlockchainAddress, contractValues
 
 	var contractMsg *Contract
 	contractMsg.IsSeller = isSeller
-	contractMsg.ID = string(contractAddress.Hex())
+	contractMsg.ID = contractAddress.Hex()
 	contractMsg.State = ContractStateEnum[contractValues.State]
-	contractMsg.Buyer = string(contractValues.Buyer.Hex())
+	contractMsg.Buyer = contractValues.Buyer.Hex()
 	contractMsg.Price = contractValues.Price
 	contractMsg.Limit = contractValues.Limit
 	contractMsg.Speed = contractValues.Speed

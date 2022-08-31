@@ -287,7 +287,7 @@ func (seller *SellerContractManager) watchContractCreation(cfLogs chan types.Log
 					createdContractMsg := createContractMsg(address, createdContractValues, true)
 					// seller.Ps.PubWait(ContractMsg, string(address.Hex()), createdContractMsg)
 
-					seller.NodeOperator.Contracts[string(address.Hex())] = ContAvailableState
+					seller.NodeOperator.Contracts[address.Hex()] = ContAvailableState
 
 					// seller.Ps.SetWait(NodeOperatorMsg, string(seller.NodeOperator.ID), seller.NodeOperator)
 					seller.Ps.HandleContractCreated(createdContractMsg)
@@ -334,7 +334,7 @@ func (seller *SellerContractManager) WatchHashrateContract(addr string, hrLogs c
 				return
 			case hLog := <-hrLogs:
 
-				destUrl, err := readDestUrl(seller.EthClient, common.HexToAddress(string(addr)), seller.PrivateKey)
+				destUrl, err := readDestUrl(seller.EthClient, common.HexToAddress(addr), seller.PrivateKey)
 				fmt.Printf(destUrl)
 				if err != nil {
 					//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading dest url failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
@@ -344,14 +344,14 @@ func (seller *SellerContractManager) WatchHashrateContract(addr string, hrLogs c
 
 				switch hLog.Topics[0].Hex() {
 				case contractPurchasedSigHash.Hex():
-					destUrl, err := readDestUrl(seller.EthClient, common.HexToAddress(string(addr)), seller.PrivateKey)
+					destUrl, err := readDestUrl(seller.EthClient, common.HexToAddress(addr), seller.PrivateKey)
 					fmt.Printf(destUrl)
 					if err != nil {
 						//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading dest url failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
 					}
 					buyer := common.HexToAddress(hLog.Topics[1].Hex())
 					// hashrateContractMsg.Dest = destUrl
-					hashrateContractMsg.Buyer = string(buyer.Hex())
+					hashrateContractMsg.Buyer = buyer.Hex()
 					dest, err := lib.ParseDest(destUrl)
 					if err != nil {
 						fmt.Printf("%w", err)
@@ -365,7 +365,7 @@ func (seller *SellerContractManager) WatchHashrateContract(addr string, hrLogs c
 
 				case cipherTextUpdatedSigHash.Hex():
 
-					destUrl, err := readDestUrl(seller.EthClient, common.HexToAddress(string(addr)), seller.PrivateKey)
+					destUrl, err := readDestUrl(seller.EthClient, common.HexToAddress(addr), seller.PrivateKey)
 
 					if err != nil {
 						//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading dest url failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
@@ -382,8 +382,7 @@ func (seller *SellerContractManager) WatchHashrateContract(addr string, hrLogs c
 					seller.Ps.HandleContractClosed(hashrateContractMsg)
 
 				case purchaseInfoUpdatedSigHash.Hex():
-					updatedContractValues, err := readHashrateContract(seller.EthClient, common.HexToAddress(string(addr)))
-
+					updatedContractValues, err := readHashrateContract(seller.EthClient, common.HexToAddress(addr))
 					if err != nil {
 						//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading hashrate contract failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
 					}
@@ -459,14 +458,14 @@ loop:
 					}
 
 					// if contract was not already closed early, close out here
-					contractValues, err := readHashrateContract(seller.EthClient, common.HexToAddress(string(contractMsg.ID)))
+					contractValues, err := readHashrateContract(seller.EthClient, common.HexToAddress(contractMsg.ID))
 					if err != nil {
 						//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading hashrate contract failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
 					}
 					if contractValues.State == RunningState {
 						var wg sync.WaitGroup
 						wg.Add(1)
-						err = setContractCloseOut(seller.EthClient, seller.Account, seller.PrivateKey, common.HexToAddress(string(contractMsg.ID)), &wg, &seller.CurrentNonce, closeOutType, seller.NodeOperator)
+						err = setContractCloseOut(seller.EthClient, seller.Account, seller.PrivateKey, common.HexToAddress(contractMsg.ID), &wg, &seller.CurrentNonce, closeOutType, seller.NodeOperator)
 						if err != nil {
 							//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Contract Close Out failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
 						}

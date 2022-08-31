@@ -48,7 +48,7 @@ func (buyer *BuyerContractManager) Run(ctx context.Context) (err error) {
 	go func() {
 		// start watch hashrate contract for existing running contracts
 		for addr := range buyer.NodeOperator.Contracts {
-			hrLogs, hrSub, err := SubscribeToContractEvents(buyer.EthClient, common.HexToAddress(string(addr)))
+			hrLogs, hrSub, err := SubscribeToContractEvents(buyer.EthClient, common.HexToAddress(addr))
 			if err != nil {
 				//contextlib.Logf(buyer.Ctx, log.LevelPanic, fmt.Sprintf("Failed to subscribe to events on hashrate contract %s, Fileline::%s, Error::", addr, lumerinlib.FileLine()), err)
 			}
@@ -85,7 +85,7 @@ func (buyer *BuyerContractManager) SetupExistingContracts() (err error) {
 	//contextlib.Logf(buyer.Ctx, log.LevelInfo, "Existing Buyer Contracts: %v", buyerContracts)
 
 	for i := range buyerContracts {
-		id := string(buyerContracts[i].Hex())
+		id := buyerContracts[i].Hex()
 		if _, ok := buyer.NodeOperator.Contracts[id]; !ok {
 			contract, err := readHashrateContract(buyer.EthClient, buyerContracts[i])
 			if err != nil {
@@ -96,7 +96,7 @@ func (buyer *BuyerContractManager) SetupExistingContracts() (err error) {
 			//TODO: publish contract
 			// buyer.Ps.PubWait(msgbus.ContractMsg, string(contractMsgs[i].ID), contractMsgs[i])
 
-			buyer.NodeOperator.Contracts[string(buyerContracts[i].Hex())] = ContRunningState
+			buyer.NodeOperator.Contracts[buyerContracts[i].Hex()] = ContRunningState
 			nodeOperatorUpdated = true
 		}
 	}
@@ -178,7 +178,7 @@ func (buyer *BuyerContractManager) watchContractPurchase(cfLogs chan types.Log, 
 				if hashrateContractBuyer == buyer.Account {
 					//contextlib.Logf(buyer.Ctx, log.LevelInfo, "Address of purchased Hashrate Contract : %s\n\n", address.Hex())
 
-					destUrl, err := readDestUrl(buyer.EthClient, common.HexToAddress(string(address.Hex())), buyer.PrivateKey)
+					destUrl, err := readDestUrl(buyer.EthClient, common.HexToAddress(address.Hex()), buyer.PrivateKey)
 					if err != nil {
 						//contextlib.Logf(buyer.Ctx, log.LevelPanic, fmt.Sprintf("Reading dest url failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
 					}
