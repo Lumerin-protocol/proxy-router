@@ -12,17 +12,15 @@ import (
 
 type MinerController struct {
 	defaultDest interfaces.IDestination
-
-	repo *MinerRepo
-
-	log interfaces.ILogger
+	collection  interfaces.ICollection[MinerScheduler]
+	log         interfaces.ILogger
 }
 
-func NewMinerController(defaultDest interfaces.IDestination, repo *MinerRepo, log interfaces.ILogger) *MinerController {
+func NewMinerController(defaultDest interfaces.IDestination, collection interfaces.ICollection[MinerScheduler], log interfaces.ILogger) *MinerController {
 	return &MinerController{
 		defaultDest: defaultDest,
 		log:         log,
-		repo:        repo,
+		collection:  collection,
 	}
 }
 
@@ -46,7 +44,7 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	minerScheduler := NewOnDemandMinerScheduler(minerModel, destSplit, p.log, p.defaultDest)
 	// try to connect to dest before running
 
-	p.repo.Store(minerScheduler)
+	p.collection.Store(minerScheduler)
 
 	return minerScheduler.Run(ctx)
 
@@ -54,7 +52,7 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 }
 
 func (p *MinerController) ChangeDestAll(dest interfaces.IDestination) error {
-	p.repo.Range(func(miner MinerScheduler) bool {
+	p.collection.Range(func(miner MinerScheduler) bool {
 		p.log.Infof("changing pool to %s for minerID %s", dest.GetHost(), miner.GetID())
 
 		miner.Allocate(100, dest)

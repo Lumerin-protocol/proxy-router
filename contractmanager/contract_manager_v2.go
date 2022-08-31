@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
-	"gitlab.com/TitanInd/hashrouter/contractmanager/blockchain"
+	"gitlab.com/TitanInd/hashrouter/blockchain"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
 
@@ -20,10 +20,10 @@ type ContractManager struct {
 	sellerPrivateKey string
 
 	// internal state
-	contracts *ContractCollection
+	contracts interfaces.ICollection[IContractModel]
 }
 
-func NewContractManager(blockchain *blockchain.EthereumGateway, log interfaces.ILogger, contracts *ContractCollection, sellerAddr blockchain.BlockchainAddress, sellerPrivateKey string) *ContractManager {
+func NewContractManager(blockchain *blockchain.EthereumGateway, log interfaces.ILogger, contracts interfaces.ICollection[IContractModel], sellerAddr blockchain.BlockchainAddress, sellerPrivateKey string) *ContractManager {
 	return &ContractManager{
 		blockchain: blockchain,
 		contracts:  contracts,

@@ -12,9 +12,9 @@ import (
 	"github.com/google/wire"
 	"gitlab.com/TitanInd/hashrouter/api"
 	"gitlab.com/TitanInd/hashrouter/app"
+	"gitlab.com/TitanInd/hashrouter/blockchain"
 	"gitlab.com/TitanInd/hashrouter/config"
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
-	"gitlab.com/TitanInd/hashrouter/contractmanager/blockchain"
 	"gitlab.com/TitanInd/hashrouter/eventbus"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
@@ -34,8 +34,8 @@ func main() {
 }
 
 var networkSet = wire.NewSet(provideTCPServer, provideApiServer)
-var protocolSet = wire.NewSet(miner.NewMinerRepo, provideMinerController, eventbus.NewEventBus)
-var contractsSet = wire.NewSet(contractmanager.NewContractCollection, provideEthClient, provideEthWallet, provideEthGateway, provideSellerContractManager)
+var protocolSet = wire.NewSet(provideMinerCollection, provideMinerController, eventbus.NewEventBus)
+var contractsSet = wire.NewSet(provideContractCollection, provideEthClient, provideEthWallet, provideEthGateway, provideSellerContractManager)
 
 //TODO: make sure all providers initialized
 func InitApp() (*app.App, error) {
@@ -51,7 +51,15 @@ func InitApp() (*app.App, error) {
 	return nil, nil
 }
 
-func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo *miner.MinerRepo) (*miner.MinerController, error) {
+func provideMinerCollection() interfaces.ICollection[miner.MinerScheduler] {
+	return miner.NewMinerCollection()
+}
+
+func provideContractCollection() interfaces.ICollection[contractmanager.IContractModel] {
+	return contractmanager.NewContractCollection()
+}
+
+func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo interfaces.ICollection[miner.MinerScheduler]) (*miner.MinerController, error) {
 	destination, err := lib.ParseDest(cfg.Pool.Address)
 	if err != nil {
 		return nil, err
@@ -60,7 +68,7 @@ func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo *mine
 	return miner.NewMinerController(destination, repo, l), nil
 }
 
-func provideApiController(miners *miner.MinerRepo, contracts *contractmanager.ContractCollection) *gin.Engine {
+func provideApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel]) *gin.Engine {
 	return api.NewApiController(miners, contracts)
 }
 
@@ -99,7 +107,7 @@ func provideSellerContractManager(
 	cfg *config.Config,
 	ethGateway *blockchain.EthereumGateway,
 	ethWallet *blockchain.EthereumWallet,
-	contracts *contractmanager.ContractCollection,
+	contracts interfaces.ICollection[contractmanager.IContractModel],
 	log interfaces.ILogger,
 ) *contractmanager.ContractManager {
 	return contractmanager.NewContractManager(ethGateway, log, contracts, ethWallet.GetAccountAddress(), ethWallet.GetPrivateKey())

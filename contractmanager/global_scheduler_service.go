@@ -12,7 +12,7 @@ var (
 )
 
 type GlobalSchedulerService struct {
-	minerCollection *miner.MinerRepo
+	minerCollection interfaces.ICollection[miner.MinerScheduler]
 }
 
 func (s *GlobalSchedulerService) Allocate(hashrateGHS int, dest interfaces.IDestination) (HashrateList, error) {
