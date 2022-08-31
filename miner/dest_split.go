@@ -8,7 +8,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
 
-// TODO: consider storing percentage in float64 to simplify the code
+// AllocationPrecision TODO: consider storing percentage in float64 to simplify the code
 var AllocationPrecision uint8 = 10 // the precision for percentages, should be a divisor of 100
 
 type DestSplit struct {
@@ -74,7 +74,10 @@ func (d *DestSplit) AllocateRemaining(dest interfaces.IDestination) {
 	if remaining == 0 {
 		return
 	}
-	d.allocate(remaining, dest)
+	err := d.allocate(remaining, dest)
+	if err != nil {
+		return
+	}
 }
 
 func (d *DestSplit) GetAllocated() uint8 {

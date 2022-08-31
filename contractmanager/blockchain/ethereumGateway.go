@@ -69,16 +69,22 @@ func (gateway *EthereumGateway) SubscribeToContractEvents(contract interfaces.IS
 				case contractPurchasedSigHash.Hex():
 
 					gateway.logger.Debugf("contract purchased event")
-					destUrl, err := gateway.readDestUrl(common.HexToAddress(contract.GetAddress()), contract.GetPrivateKey())
+					destUrl, err := gateway.readDestUrl(common.HexToAddress(contract.GetAddress()))
 
 					if err != nil {
 						//contextlib.Logf(seller.Ctx, log.LevelPanic, fmt.Sprintf("Reading dest url failed, Fileline::%s, Error::", lumerinlib.FileLine()), err)
 					}
 
 					buyer := common.HexToAddress(hLog.Topics[1].Hex())
-					contract.SetDestination(destUrl)
+					err = contract.SetDestination(destUrl)
+					if err != nil {
+						return
+					}
 					contract.SetBuyerAddress(buyer.Hex())
-					contract.Execute()
+					_, err = contract.Execute()
+					if err != nil {
+						return
+					}
 					// contractService.Run(destUrl, buyer.Hex(), address)
 					// case cipherTextUpdatedSigHash.Hex():
 
@@ -115,7 +121,7 @@ func (gateway *EthereumGateway) SubscribeToContractEvents(contract interfaces.IS
 	return logs, sub, err
 }
 
-func (gateway *EthereumGateway) readDestUrl(contractAddress interop.BlockchainAddress, privateKeyString string) (string, error) {
+func (gateway *EthereumGateway) readDestUrl(contractAddress interop.BlockchainAddress) (string, error) {
 
 	client := gateway.client
 	instance, err := implementation.NewImplementation(contractAddress, client)

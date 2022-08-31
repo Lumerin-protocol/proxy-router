@@ -37,12 +37,12 @@ type Contract struct {
 	combination HashrateList       // combination of full/partially allocated miners fulfilling the contract
 }
 
-func NewContract(combination HashrateList, hashrate *hashrate.Hashrate) *Contract {
-	return &Contract{
-		combination: combination,
-		hashrate:    hashrate,
-	}
-}
+//func NewContract(combination HashrateList, hashrate *hashrate.Hashrate) *Contract {
+//	return &Contract{
+//		combination: combination,
+//		hashrate:    hashrate,
+//	}
+//}
 
 func (c *Contract) Run() {
 	for {
@@ -72,7 +72,10 @@ func (c *Contract) Initialize() (interfaces.ISellerContractModel, error) {
 
 func (c *Contract) Execute() (interfaces.ISellerContractModel, error) {
 	c.Logger.Debugf("Executing contract %v", c.GetID())
-	c.RoutableStreamService.ChangeDestAll(c.Dest)
+	err := c.RoutableStreamService.ChangeDestAll(c.Dest)
+	if err != nil {
+		return nil, err
+	}
 	c.Logger.Debugf("Changed destination to %v", c.Dest.String())
 
 	return c, nil
@@ -128,7 +131,10 @@ func (c *Contract) MakeAvailable() {
 		c.State = ContAvailableState
 		c.Buyer = ""
 
-		c.Save()
+		_, err := c.Save()
+		if err != nil {
+			return
+		}
 	}
 }
 
@@ -140,7 +146,7 @@ func (c *Contract) GetPrivateKey() string {
 	return c.privateKeyString
 }
 
-func (c *Contract) TryRunningAt(dest string) (interfaces.ISellerContractModel, error) {
+func (c *Contract) TryRunningAt(string) (interfaces.ISellerContractModel, error) {
 	if c.State == ContRunningState {
 		return c.Execute()
 	}

@@ -14,6 +14,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
 )
 
+///TODO Fix this
 func TestContractInteraction(t *testing.T) {
 	sigInt := make(chan os.Signal, 1)
 	signal.Notify(sigInt, os.Interrupt)

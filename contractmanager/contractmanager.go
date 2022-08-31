@@ -173,7 +173,7 @@ func HdWalletKeys(mnemonic string, accountIndex int) (interop.BlockchainAccount,
 	return Account, PrivateKey
 }
 
-func setUpClient(clientAddress string, contractManagerAccount interop.BlockchainAddress) (client *ethclient.Client, err error) {
+func SetUpClient(clientAddress string, contractManagerAccount interop.BlockchainAddress) (client *ethclient.Client, err error) {
 	client, err = ethclient.Dial(clientAddress)
 	if err != nil {
 		fmt.Printf("Funcname::%s, Fileline::%s, Error::%v\n", lumerinlib.Funcname(), lumerinlib.FileLine(), err)

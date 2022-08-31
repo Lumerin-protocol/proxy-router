@@ -39,7 +39,7 @@ func NewContractManager(
 	contractsService interfaces.IContractsService,
 	logger interfaces.ILogger,
 	configuration *config.Config,
-	eventManager interfaces.IEventManager,
+	//eventManager interfaces.IEventManager,
 	contractFactory interfaces.IContractFactory,
 	client *ethclient.Client,
 	nodeOperator *NodeOperator,
@@ -91,7 +91,7 @@ func NewContractManager(
 	return seller, nil
 }
 
-func (seller *SellerContractManager) Run(ctx context.Context) (err error) {
+func (seller *SellerContractManager) Run(context.Context) (err error) {
 
 	err = seller.SetupExistingContracts()
 	if err != nil {
@@ -174,7 +174,10 @@ func (seller *SellerContractManager) SetupExistingContracts() (err error) {
 
 			contractModels = append(contractModels, contract)
 
-			contract.SetDestination(destUrl)
+			err = contract.SetDestination(destUrl)
+			if err != nil {
+				return
+			}
 
 			seller.logger.Debug("Executing contract %v", contract.GetID())
 			_, err = contract.Execute()
@@ -184,7 +187,10 @@ func (seller *SellerContractManager) SetupExistingContracts() (err error) {
 				return
 			}
 
-			contract.Save()
+			_, err = contract.Save()
+			if err != nil {
+				return
+			}
 
 			waitGroup.Done()
 		}(sellerContract, &err)
@@ -352,7 +358,10 @@ func (seller *SellerContractManager) WatchHashrateContract(addr string, hrLogs c
 					}
 
 					//TODO: pass the contract limit value
-					seller.Ps.HandleContractPurchased(dest, seller.Account.Hex(), hLog.Topics[1].Hex(), addr)
+					err = seller.Ps.HandleContractPurchased(dest, seller.Account.Hex(), hLog.Topics[1].Hex(), addr)
+					if err != nil {
+						return
+					}
 
 				case cipherTextUpdatedSigHash.Hex():
 

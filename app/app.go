@@ -37,7 +37,12 @@ func (a *App) Run() {
 		os.Exit(1)
 	}()
 
-	defer a.Logger.Sync()
+	defer func(Logger interfaces.ILogger) {
+		err := Logger.Sync()
+		if err != nil {
+
+		}
+	}(a.Logger)
 
 	g, subCtx := errgroup.WithContext(ctx)
 

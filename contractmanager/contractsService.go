@@ -136,7 +136,7 @@ func (service *ContractsService) GetContract(contractId string) (interfaces.ISel
 	return service.contractsGateway.GetContract(contractId)
 }
 
-func (service *ContractsService) CreateDestination(destinationUrl string) {
+func (service *ContractsService) CreateDestination(string) {
 	panic("ContractsService.CreateDestination not implemented")
 }
 
@@ -176,21 +176,27 @@ func (service *ContractsService) HandleContractClosed(contract interfaces.ISelle
 	contract.MakeAvailable()
 }
 
-func (service *ContractsService) HandleContractUpdated(price int, time int, hashrate int, lossLimit int) {
+func (service *ContractsService) HandleContractUpdated(int, int, int, int) {
 	// contract.Save()
 }
 
-func (service *ContractsService) HandleDestinationUpdated(dest interfaces.IDestination) {
+func (service *ContractsService) HandleDestinationUpdated(interfaces.IDestination) {
 	// contract.Save()
 }
 
 func (service *ContractsService) HandleContractCreated(contract interfaces.ISellerContractModel) {
 	service.logger.Infof("created a contract %v", contract.GetID())
 
-	contract.Save()
+	_, err := contract.Save()
+	if err != nil {
+		return
+	}
 	service.logger.Debugf("Contract is available: %v", contract.IsAvailable())
 	if contract.IsAvailable() {
-		service.SubscribeToContractEvents(contract)
+		err := service.SubscribeToContractEvents(contract)
+		if err != nil {
+			return
+		}
 		// addr := service.blockchainGateway.HexToAddress(newContract.GetAddress())
 		// hrLogs, hrSub, err := SubscribeToContractEvents(seller.EthClient, addr)
 		// if err != nil {
@@ -211,7 +217,7 @@ func (service *ContractsService) SubscribeToContractEvents(contract interfaces.I
 	return nil
 }
 
-func (service *ContractsService) HandleContractPurchased(dest interfaces.IDestination, sellerAddress string, buyerAddress string, contractAddr string) error {
+func (service *ContractsService) HandleContractPurchased(dest interfaces.IDestination, _ string, _ string, contractAddr string) error {
 	contract, err := service.contractsGateway.GetContract(contractAddr)
 	if err != nil {
 		return err
