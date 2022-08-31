@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -44,7 +45,7 @@ func NewEthereumGateway(ethClient *ethclient.Client, privateKeyString string, cl
 }
 
 // SubscribeToContractCreatedEvent returns channel with events like new contract creation
-func (g *EthereumGateway) SubscribeToContractCreatedEvent(ctx context.Context) (chan types.Log, ethereum.Subscription, error) {
+func (g *EthereumGateway) SubscribeToContractCreatedEvent(ctx context.Context) (chan types.Log, BlockchainEventSubscription, error) {
 	return g.SubscribeToContractEvents(ctx, g.cloneFactoryAddr)
 }
 
@@ -54,12 +55,21 @@ func (g *EthereumGateway) SubscribeToContractEvents(ctx context.Context, contrac
 		Addresses: []common.Address{contractAddress},
 	}
 
+	timeoutContext, cancelFunc := context.WithTimeout(ctx, 15*time.Second)
+
 	logs := make(chan types.Log)
-	sub, err := g.client.SubscribeFilterLogs(ctx, query, logs)
+	sub, err := g.client.SubscribeFilterLogs(timeoutContext, query, logs)
 	if err != nil {
+		cancelFunc()
 		g.log.Error(err)
 		return logs, sub, err
 	}
+
+	go func() {
+		<-timeoutContext.Done()
+
+		cancelFunc()
+	}()
 
 	return logs, sub, nil
 }
