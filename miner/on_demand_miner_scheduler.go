@@ -19,7 +19,7 @@ type OnDemandMinerScheduler struct {
 }
 
 // const ON_DEMAND_SWITCH_TIMEOUT = 10 * time.Minute
-const ON_DEMAND_SWITCH_TIMEOUT = 1 * time.Minute
+const ON_DEMAND_SWITCH_TIMEOUT = 5 * time.Minute
 
 func NewOnDemandMinerScheduler(minerModel MinerModel, destSplit *DestSplit, log interfaces.ILogger, defaultDest interfaces.IDestination) *OnDemandMinerScheduler {
 	return &OnDemandMinerScheduler{
@@ -46,6 +46,8 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 		default:
 		}
 
+		m.log.Info(m.getDest())
+		m.log.Info("=========", len(m.getDest().Iter()))
 		// if only one destination
 		if len(m.getDest().Iter()) == 1 {
 			splitItem := m.getDest().Iter()[0]
@@ -65,9 +67,10 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 		}
 
 		// if multiple destinations
+		// TODO: generalize cycle function to be used by both single and multiple destinations
 	cycle:
 		for _, splitItem := range m.getDest().Iter() {
-			m.log.Infof("changing destination to %s ", splitItem.Dest.GetHost())
+			m.log.Infof("changing destination to %s", splitItem.Dest)
 
 			err := m.minerModel.ChangeDest(splitItem.Dest)
 			if err != nil {
@@ -75,7 +78,7 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 			}
 
 			splitDuration := time.Duration(int64(ON_DEMAND_SWITCH_TIMEOUT/100) * int64(splitItem.Percentage))
-			m.log.Infof("destination was changed to %s for %.2f seconds", splitItem.Dest.GetHost(), splitDuration.Seconds())
+			m.log.Infof("destination was changed to %s for %.2f seconds", splitItem.Dest, splitDuration.Seconds())
 
 			select {
 			case <-ctx.Done():
@@ -123,6 +126,7 @@ func (m *OnDemandMinerScheduler) GetDestSplit() *DestSplit {
 
 // Allocate directs miner resources to the destination
 func (m *OnDemandMinerScheduler) Allocate(percentage float64, dest interfaces.IDestination) (*Split, error) {
+	defer m.resetDestCycle()
 	return m.destSplit.Allocate(percentage, dest)
 }
 
@@ -143,4 +147,9 @@ func (m *OnDemandMinerScheduler) OnSubmit(cb protocol.OnSubmitHandler) protocol.
 
 func (m *OnDemandMinerScheduler) GetCurrentDest() interfaces.IDestination {
 	return m.minerModel.GetDest()
+}
+
+// resetDestCycle signals that destSplit has been changed, and starts new destination cycle
+func (m *OnDemandMinerScheduler) resetDestCycle() {
+	m.reset <- struct{}{}
 }
