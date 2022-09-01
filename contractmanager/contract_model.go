@@ -58,6 +58,7 @@ func NewContract(data blockchain.ContractData, blockchain *blockchain.EthereumGa
 		hashrate:         hr,
 		log:              log,
 		contractClosedCh: make(chan struct{}),
+		closeoutType:     2,
 	}
 }
 
