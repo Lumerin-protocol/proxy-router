@@ -58,6 +58,7 @@ func NewContract(data blockchain.ContractData, blockchain *blockchain.EthereumGa
 		hashrate:         hr,
 		log:              log,
 		contractClosedCh: make(chan struct{}),
+		closeoutType:     2,
 	}
 }
 
@@ -99,7 +100,9 @@ func (c *Contract) listenContractEvents(ctx context.Context, errGroup *errgroup.
 		case err := <-sub.Err():
 			return err
 		case e := <-eventsCh:
-			eventHex, _ /* payloadHex*/ := e.Topics[0].Hex(), e.Topics[1].Hex()
+			eventHex := e.Topics[0].Hex()
+
+			// _ /* payloadHex*/ := e.Topics[1].Hex()
 
 			switch eventHex {
 			case blockchain.ContractPurchasedHex:
@@ -162,7 +165,7 @@ func (c *Contract) fulfillContract(ctx context.Context) error {
 	c.combination = minerList
 
 	for {
-		if time.Now().Unix() > c.data.GetContractEndTime() {
+		if c.ContractIsExpired() {
 			c.log.Info("contract time ended, closing...", c.GetID())
 			c.Stop()
 			err := c.blockchain.SetContractCloseOut(c.data.Seller.Hex(), c.GetAddress(), c.closeoutType)
@@ -180,8 +183,10 @@ func (c *Contract) fulfillContract(ctx context.Context) error {
 		case <-time.After(10 * time.Second):
 		}
 	}
+}
 
-	return nil
+func (c *Contract) ContractIsExpired() bool {
+	return time.Now().Unix() > c.data.GetContractEndTime()
 }
 
 // Stops fulfilling the contract by miners

@@ -6,5 +6,7 @@ import (
 )
 
 func NewEthClient(clientAddress string, log interfaces.ILogger) (client *ethclient.Client, err error) {
-	return ethclient.Dial(clientAddress)
+	client, err = ethclient.Dial(clientAddress)
+
+	return client, err
 }
