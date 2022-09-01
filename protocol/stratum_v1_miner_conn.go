@@ -94,7 +94,7 @@ func (s *StratumV1Miner) Read(ctx context.Context) (stratumv1_message.MiningMess
 			}
 			s.mu.Lock()
 			s.isWriting = true
-			s.log.Debug("Writing is released")
+			s.log.Debug("writing to miner is released")
 			s.cond.Broadcast()
 			s.mu.Unlock()
 

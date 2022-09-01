@@ -201,11 +201,11 @@ func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddres
 		return err
 	}
 
-	gasPrice, err := g.client.SuggestGasPrice(ctx)
-	if err != nil {
-		g.log.Error(err)
-		return err
-	}
+	// gasPrice, err := g.client.SuggestGasPrice(ctx)
+	// if err != nil {
+	// 	g.log.Error(err)
+	// 	return err
+	// }
 
 	// g.pendingNonce.Lock()
 	nonce, err := g.client.PendingNonceAt(ctx, common.HexToAddress(fromAddress))

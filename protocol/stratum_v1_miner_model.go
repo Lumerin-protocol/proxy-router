@@ -31,7 +31,6 @@ func NewStratumV1MinerModel(poolPool StratumV1DestConn, miner StratumV1SourceCon
 }
 
 func (s *stratumV1MinerModel) Run() error {
-	s.log.Info("proxying started")
 	errCh := make(chan error)
 	go func() {
 		for {
