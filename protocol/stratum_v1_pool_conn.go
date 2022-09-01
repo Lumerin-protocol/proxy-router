@@ -90,7 +90,6 @@ func (s *StratumV1PoolConn) run(ctx context.Context) error {
 
 		if s.getIsReading() {
 			s.msgCh <- m
-			s.log.Debugf("pool message was emitted")
 		} else {
 			s.log.Debugf("pool message was cached but not emitted")
 		}
@@ -263,6 +262,11 @@ func (s *StratumV1PoolConn) writeInterceptor(m stratumv1_message.MiningMessageGe
 func (s *StratumV1PoolConn) setIsReading(b bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if b {
+		s.log.Debugf("reading from pool released (%s)", s.dest)
+	} else {
+		s.log.Debugf("reading from pool in on hold (%s)", s.dest)
+	}
 	s.isReading = b
 }
 

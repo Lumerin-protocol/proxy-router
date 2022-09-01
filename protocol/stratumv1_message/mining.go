@@ -33,6 +33,9 @@ func ParseMessageToPool(raw []byte) (MiningMessageToPool, error) {
 	case MethodMiningMultiVersion:
 		return ParseMiningMultiVersion(raw)
 
+	case MethodMiningConfigure:
+		return ParseMiningConfigure(raw)
+
 	default:
 		return nil, lib.WrapError(fmt.Errorf("unknown message to pool: %s", raw), ErrStratumV1Unknown)
 	}
@@ -51,6 +54,9 @@ func ParseMessageFromPool(raw []byte) (MiningMessageGeneric, error) {
 	}
 	if msg.Method == MethodMiningSetDifficulty {
 		return ParseMiningSetDifficulty(raw)
+	}
+	if msg.Method == MethodMiningSetVersionMask {
+		return ParseMiningSetVersionMask(raw)
 	}
 	if msg.Result != nil {
 		return ParseMiningResult(raw)

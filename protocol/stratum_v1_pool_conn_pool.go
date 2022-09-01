@@ -74,7 +74,7 @@ func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination) error {
 	p.mu.Unlock()
 
 	p.store(dest.String(), conn)
-	p.log.Infof("=========> dest was set %s", dest.GetHost())
+	p.log.Infof("dest was set %s", dest.GetHost())
 	return nil
 }
 
