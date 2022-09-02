@@ -11,8 +11,9 @@ import (
 
 type ContractManager struct {
 	// dependencies
-	blockchain *blockchain.EthereumGateway
-	log        interfaces.ILogger
+	blockchain      *blockchain.EthereumGateway
+	log             interfaces.ILogger
+	globalScheduler *GlobalSchedulerService
 
 	// configuration parameters
 	claimFunds       bool
@@ -23,11 +24,12 @@ type ContractManager struct {
 	contracts interfaces.ICollection[IContractModel]
 }
 
-func NewContractManager(blockchain *blockchain.EthereumGateway, log interfaces.ILogger, contracts interfaces.ICollection[IContractModel], sellerAddr blockchain.BlockchainAddress, sellerPrivateKey string) *ContractManager {
+func NewContractManager(blockchain *blockchain.EthereumGateway, globalScheduler *GlobalSchedulerService, log interfaces.ILogger, contracts interfaces.ICollection[IContractModel], sellerAddr blockchain.BlockchainAddress, sellerPrivateKey string) *ContractManager {
 	return &ContractManager{
-		blockchain: blockchain,
-		contracts:  contracts,
-		log:        log,
+		blockchain:      blockchain,
+		globalScheduler: globalScheduler,
+		contracts:       contracts,
+		log:             log,
 
 		claimFunds:       false,
 		sellerAddr:       sellerAddr,
@@ -55,7 +57,7 @@ func (m *ContractManager) Run(ctx context.Context) error {
 					m.log.Error("cannot handle created contract, skipping...", err)
 				}
 			default:
-				m.log.Error("unknown clonefactory event", eventHex, payloadHex)
+				m.log.Debugf("ignored clonefactory event %s %s", eventHex, payloadHex)
 			}
 
 		case <-ctx.Done():
@@ -92,11 +94,11 @@ func (m *ContractManager) handleContract(ctx context.Context, address blockchain
 	}
 
 	m.log.Infof("handling contract \n%+v \nexpires %s", data, data.GetContractEndTimeV2())
-	contract := NewContract(data, m.blockchain, m.log, nil)
+	contract := NewContract(data, m.blockchain, m.globalScheduler, m.log, nil)
 
 	go func() {
 		err := contract.Run(ctx)
-		m.log.Error("contract error: ", err)
+		m.log.Warn("contract error: ", err)
 	}()
 	m.contracts.Store(contract)
 

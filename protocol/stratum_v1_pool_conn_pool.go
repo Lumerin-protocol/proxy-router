@@ -55,12 +55,12 @@ func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination) error {
 
 		return nil
 	}
-	p.log.Debugf("destination obj: %v; host: %v", dest, dest.GetHost())
+	p.log.Debugf("destination %s", dest)
 	c, err := net.Dial("tcp", dest.GetHost())
 	if err != nil {
 		return err
 	}
-	p.log.Infof("Dialed dest %s", dest.GetHost())
+	p.log.Infof("Dialed dest %s", dest)
 
 	conn = NewStratumV1Pool(c, p.log, dest)
 
@@ -74,7 +74,7 @@ func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination) error {
 	p.mu.Unlock()
 
 	p.store(dest.String(), conn)
-	p.log.Infof("dest was set %s", dest.GetHost())
+	p.log.Infof("dest was set %s", dest)
 	return nil
 }
 
