@@ -1,4 +1,4 @@
-package contractmanager
+package main
 
 import (
 	"context"
@@ -18,16 +18,17 @@ import (
 	"gitlab.com/TitanInd/hashrouter/lumerinlib/clonefactory"
 )
 
-var sellerAddress = common.HexToAddress("0xC3AcdAE18291bFEB0671d1caAb1d13Fe04164f75")
-var sellerPrivateKey = "24c1613e07ac889f90c08f728f281e61f5e6b95d3d69c307513599f463c7d237"
-var buyerAddress = common.HexToAddress("0x0FDcC9fF7D6F5f79c4e80e797916713a2d05A9cA")
-var buyerPrivateKey = "5a25d76802639b7df2f8b9c0339e67662db8a5e81368288dde5bcef0bf606de9"
+var sellerAddress = common.HexToAddress("0xa7af817696d307495ee9efa2ED40fa3Fb9279748")
+var sellerPrivateKey = "b9d76e399dec6f9ba620270a1434236ffdfb37cce2acb32258b1337d3b224a1e"
+var buyerAddress = common.HexToAddress("0xd525F2D9762708f997062b2d283eBd57d54B1156")
+var buyerPrivateKey = "6de6530124edca0dcc48cf99f9a88a14bf5041d2bfb8ac103eb14b80078618b7"
 var gethNodeAddress = "wss://ropsten.infura.io/ws/v3/4b68229d56fe496e899f07c3d41cb08a"
-var clonefactoryAddress common.Address = common.HexToAddress("0xe91be01493f4ae28297790277303926aaec604dc")
-var hashrateContractAddress common.Address = common.HexToAddress("0x3b6fE2c6AcD5B52a703a9653f4af44B1176978f4")
+var clonefactoryAddress common.Address = common.HexToAddress("0x6372689Fd4A94AE550da5Db7B13B9289F4855dDc")
+var poolUrl = "stratum+tcp://shev8.contract:@stratum.slushpool.com:3333"
+
+var hashrateContractAddress common.Address = common.HexToAddress("0x6F433cfeD67D776F17a6bf51F0d305F5504B69Dd")
 
 // 0x4b6cc541CB35F21323077a84EDE6A662155a0A83 0x4b5C5b20B19B301A6c28cD5060114176Cfc191D5 0x9f8a67886345fd46D3163634b57BEC47D8BB2875 0xaA1A80580B5a9586Cd6dfc24D8e94c1E57308d4c 0x3b6fE2c6AcD5B52a703a9653f4af44B1176978f4
-var poolUrl = "stratum+tcp://rbajollari.contract5:@stratum.slushpool.com:3333"
 
 func TestHashrateContractCreation(t *testing.T) {
 	// hashrate contract params
