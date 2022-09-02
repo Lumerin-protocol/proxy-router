@@ -23,7 +23,7 @@ func TestNewMiningAuthorize(t *testing.T) {
 	if authMsg.GetID() != id {
 		t.Fatalf("GetID")
 	}
-	if authMsg.GetMinerID() != minerId {
+	if authMsg.GetWorkerName() != minerId {
 		t.Fatalf("GetMinerID")
 	}
 	if authMsg.GetPassword() != password {
@@ -52,8 +52,8 @@ func TestMiningAuthorizeSetters(t *testing.T) {
 	}
 
 	minerId = "new-miner-id"
-	authMsg.SetMinerID(minerId)
-	if authMsg.GetMinerID() != minerId {
+	authMsg.SetWorkerName(minerId)
+	if authMsg.GetWorkerName() != minerId {
 		t.Fatalf("SetMinerID")
 	}
 

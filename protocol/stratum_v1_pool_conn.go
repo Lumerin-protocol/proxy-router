@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
@@ -89,9 +90,9 @@ func (s *StratumV1PoolConn) run(ctx context.Context) error {
 		m = s.readInterceptor(m)
 
 		if s.getIsReading() {
-			s.msgCh <- m
+			s.sendToReadCh(m)
 		} else {
-			s.log.Debugf("pool message was cached but not emitted")
+			s.log.Debugf("pool message was cached but not emitted (%s)", s.GetDest().String())
 		}
 
 	}
@@ -181,16 +182,27 @@ func (m *StratumV1PoolConn) ResendRelevantNotifications(ctx context.Context) {
 // resendRelevantNotifications sends cached extranonce, set_difficulty and notify messages
 // useful after changing miner's destinations
 func (m *StratumV1PoolConn) resendRelevantNotifications(ctx context.Context) {
-	m.msgCh <- m.extraNonceMsg
+	m.sendToReadCh(m.extraNonceMsg)
 	m.log.Infof("extranonce was resent")
 
-	m.msgCh <- m.setDiffMsg
+	m.sendToReadCh(m.setDiffMsg)
 	m.log.Infof("set-difficulty was resent")
 
 	for _, msg := range m.notifyMsgs {
-		m.msgCh <- &msg
+		m.sendToReadCh(&msg)
 	}
 	m.log.Infof("notify messages (%d) were resent", len(m.notifyMsgs))
+}
+
+func (s *StratumV1PoolConn) sendToReadCh(msg stratumv1_message.MiningMessageGeneric) {
+	for n := 0; true; n++ {
+		select {
+		case s.msgCh <- msg:
+			return
+		case <-time.After(30 * time.Second):
+			s.log.Warnf("sendToReadCh is blocked for %d seconds", n*10)
+		}
+	}
 }
 
 // Read reads message from pool
