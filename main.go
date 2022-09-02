@@ -1,127 +1,123 @@
-/*
-Stratum-proxy with external manage.
-*/
+//go:build wireinject
+// +build wireinject
 
 package main
 
 import (
 	"context"
-	"flag"
-	"log"
-	"net/http"
 	"os"
-	"regexp"
-	"sync"
 
-	"github.com/joho/godotenv"
-	"gitlab.com/TitanInd/hashrouter/connections"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/gin-gonic/gin"
+	"github.com/google/wire"
+	"gitlab.com/TitanInd/hashrouter/api"
+	"gitlab.com/TitanInd/hashrouter/app"
+	"gitlab.com/TitanInd/hashrouter/blockchain"
+	"gitlab.com/TitanInd/hashrouter/config"
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
-	"gitlab.com/TitanInd/hashrouter/events"
+	"gitlab.com/TitanInd/hashrouter/eventbus"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
-	"gitlab.com/TitanInd/hashrouter/mining"
+	"gitlab.com/TitanInd/hashrouter/lib"
+	"gitlab.com/TitanInd/hashrouter/miner"
+	"gitlab.com/TitanInd/hashrouter/tcpserver"
 )
 
-/*
-VERSION - proxy version.
-*/
 const VERSION = "0.01"
 
-var (
-
-	// Db of users credentials.
-	// db Db
-	// Stratum endpoint.
-	stratumAddr = "127.0.0.1:9332"
-	// API endpoint.
-	webAddr = "127.0.0.1:8081"
-	// Pool target
-	poolAddr = ""
-	// Out to syslog.
-	syslog = false
-	// GitCommit - Git commit for build
-	GitCommit string
-	// Compiled regexp for hexademical checks.
-	rHexStr = regexp.MustCompile(`^[\da-fA-F]+$`)
-	// Extensions that supported by the proxy.
-	sExtensions = []string{
-		// "subscribe-extranonce",
-		"version-rolling",
-	}
-	// SQLite db path.
-	dbPath = "proxy.db"
-	// Metrics proxy tag.
-	tag = ""
-	// HashrateContract Address
-	hashrateContract string
-	// Eth node Address
-	ethNodeAddr string
-	// minerReader *bufio.Reader
-	// poolReader  *bufio.Reader
-)
-
-func init() {
-	godotenv.Load(".env")
-	flag.StringVar(&stratumAddr, "stratum.addr", "0.0.0.0:3333", "Address and port for stratum")
-	flag.StringVar(&webAddr, "web.addr", "127.0.0.1:8080", "Address and port for web server and metrics")
-	flag.StringVar(&poolAddr, "pool.addr", "mining.staging.pool.titan.io:4242", "Address and port for mining pool")
-	// flag.StringVar(&poolAddr, "pool.addr", "mining.staging.pool.titan.io:4242", "Address and port for mining pool")
-	flag.BoolVar(&syslog, "syslog", false, "On true adapt log to out in syslog, hide date and colors")
-	flag.StringVar(&dbPath, "db.path", "proxy.db", "Filepath for SQLite database")
-	// flag.StringVar(&tag, "metrics.tag", stratumAddr, "Prometheus metrics proxy tag")
-	flag.StringVar(&hashrateContract, "contract.addr", os.Getenv("DEFAULT_CONTRACT_ADDRESS"), "Address of smart contract that node is servicing")
-	flag.StringVar(&ethNodeAddr, "ethNode.addr", os.Getenv("DEFAULT_EHTHEREUM_NODE_ADDRESS"), "Address of Ethereum RPC node to connect to via websocket")
-
-	// fmt.Println("listening on  socket...", "")
-}
-
-/*
-Main function.
-*/
 func main() {
-	flag.Parse()
-
-	if syslog {
-		log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
+	appInstance, err := InitApp()
+	if err != nil {
+		panic(err)
 	}
 
-	eventManager := events.NewEventManager()
-
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-
-	go InitControllers(eventManager)
-	go InitContractManager(eventManager)
-
-	wg.Wait()
+	appInstance.Run()
 }
 
-func InitControllers(eventManager interfaces.IEventManager) {
-	miningController := &mining.MiningController{}
-	connectionsController := connections.NewConnectionsController(os.Getenv("DEFAULT_POOL_ADDRESS"), miningController)
+var networkSet = wire.NewSet(provideTCPServer, provideApiServer)
+var protocolSet = wire.NewSet(provideMinerCollection, provideMinerController, eventbus.NewEventBus)
+var contractsSet = wire.NewSet(provideContractCollection, provideEthClient, provideEthWallet, provideEthGateway, provideSellerContractManager)
 
-	miningController.SetAuth(os.Getenv("DEFAULT_POOL_USER"), os.Getenv("DEFAULT_POOL_PASSWORD"))
-	eventManager.Attach(contractmanager.DestMsg, connectionsController)
-	eventManager.Attach(contractmanager.DestMsg, miningController)
-
-	go connectionsController.Run()
-
-	http.Handle("/connections", connectionsController)
-
-	go func() {
-		log.Printf("Listening for api requests at %v", webAddr)
-		if err := http.ListenAndServe(webAddr, nil); err != nil {
-			log.Fatalf("Web address listening at %v has suffered a fatal error: %v", webAddr, err)
-		}
-	}()
+//TODO: make sure all providers initialized
+func InitApp() (*app.App, error) {
+	wire.Build(
+		provideConfig,
+		provideLogger,
+		provideApiController,
+		networkSet,
+		protocolSet,
+		contractsSet,
+		wire.Struct(new(app.App), "*"),
+	)
+	return nil, nil
 }
 
-func InitContractManager(eventManager interfaces.IEventManager) {
+func provideMinerCollection() interfaces.ICollection[miner.MinerScheduler] {
+	return miner.NewMinerCollection()
+}
 
-	log.Println("initalizing contract manager...")
-	ctx := context.Background()
+func provideContractCollection() interfaces.ICollection[contractmanager.IContractModel] {
+	return contractmanager.NewContractCollection()
+}
 
-	sellerManager := &contractmanager.SellerContractManager{}
-	sellerManager.SetLogger(log.Default())
+func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo interfaces.ICollection[miner.MinerScheduler]) (*miner.MinerController, error) {
+	destination, err := lib.ParseDest(cfg.Pool.Address)
+	if err != nil {
+		return nil, err
+	}
 
-	contractmanager.Run(&ctx, sellerManager, eventManager, hashrateContract, ethNodeAddr)
+	return miner.NewMinerController(destination, repo, l), nil
+}
+
+func provideApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel]) *gin.Engine {
+	return api.NewApiController(miners, contracts)
+}
+
+func provideTCPServer(cfg *config.Config, l interfaces.ILogger) *tcpserver.TCPServer {
+	return tcpserver.NewTCPServer(cfg.Proxy.Address, l)
+}
+
+func provideApiServer(cfg *config.Config, l interfaces.ILogger, controller *gin.Engine) *api.Server {
+	return api.NewServer(cfg.Web.Address, l, controller)
+}
+
+func provideEthClient(cfg *config.Config, log interfaces.ILogger) (*ethclient.Client, error) {
+	return blockchain.NewEthClient(cfg.EthNode.Address, log)
+}
+
+func provideEthWallet(cfg *config.Config) (*blockchain.EthereumWallet, error) {
+	return blockchain.NewEthereumWallet(cfg.Contract.Mnemonic, cfg.Contract.AccountIndex)
+}
+
+func provideEthGateway(cfg *config.Config, ethClient *ethclient.Client, ethWallet *blockchain.EthereumWallet, log interfaces.ILogger) (*blockchain.EthereumGateway, error) {
+	g, err := blockchain.NewEthereumGateway(ethClient, ethWallet.GetPrivateKey(), cfg.Contract.Address, log)
+	if err != nil {
+		return nil, err
+	}
+
+	balanceWei, err := g.GetBalanceWei(context.Background(), ethWallet.GetAccountAddress())
+	if err != nil {
+		return nil, err
+	}
+	log.Infof("account %s balance %.4f ETH", ethWallet.GetAccountAddress(), lib.WeiToEth(balanceWei))
+
+	return g, nil
+}
+
+func provideSellerContractManager(
+	cfg *config.Config,
+	ethGateway *blockchain.EthereumGateway,
+	ethWallet *blockchain.EthereumWallet,
+	contracts interfaces.ICollection[contractmanager.IContractModel],
+	log interfaces.ILogger,
+) *contractmanager.ContractManager {
+	return contractmanager.NewContractManager(ethGateway, log, contracts, ethWallet.GetAccountAddress(), ethWallet.GetPrivateKey())
+}
+
+func provideLogger(cfg *config.Config) (interfaces.ILogger, error) {
+	return lib.NewLogger(cfg.Log.Syslog)
+}
+
+func provideConfig() (*config.Config, error) {
+	var cfg config.Config
+	return &cfg, config.LoadConfig(&cfg, &os.Args)
 }
