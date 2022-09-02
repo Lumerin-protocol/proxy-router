@@ -2,8 +2,10 @@ package contractmanager
 
 import (
 	"errors"
+	"fmt"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/miner"
 )
 
@@ -15,14 +17,20 @@ type GlobalSchedulerService struct {
 	minerCollection interfaces.ICollection[miner.MinerScheduler]
 }
 
+func NewGlobalScheduler(minerCollection interfaces.ICollection[miner.MinerScheduler]) *GlobalSchedulerService {
+	return &GlobalSchedulerService{
+		minerCollection,
+	}
+}
+
 func (s *GlobalSchedulerService) Allocate(hashrateGHS int, dest interfaces.IDestination) (HashrateList, error) {
 	remainingHashrate, minerHashrates := s.GetUnallocatedHashrateGHS()
 	if remainingHashrate < hashrateGHS {
-		return nil, ErrNotEnoughHashrate
+		return nil, lib.WrapError(ErrNotEnoughHashrate, fmt.Errorf("required %d available %d", hashrateGHS, remainingHashrate))
 	}
 
 	combination := FindCombinations(minerHashrates, hashrateGHS)
-	for _, item := range combination {
+	for i, item := range combination {
 		miner, ok := s.minerCollection.Load(item.GetSourceID())
 		if !ok {
 			panic("miner not found")
@@ -31,8 +39,11 @@ func (s *GlobalSchedulerService) Allocate(hashrateGHS int, dest interfaces.IDest
 		if err != nil {
 			panic(err)
 		}
-		item.SplitPtr = splitPtr
+		fmt.Printf("%+#v", splitPtr)
+		combination[i].SplitPtr = splitPtr
 	}
+
+	fmt.Printf("%+#v", combination)
 
 	return combination, nil
 }

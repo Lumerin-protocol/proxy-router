@@ -37,7 +37,8 @@ func ParseMessageToPool(raw []byte) (MiningMessageToPool, error) {
 		return ParseMiningConfigure(raw)
 
 	default:
-		return nil, lib.WrapError(fmt.Errorf("unknown message to pool: %s", raw), ErrStratumV1Unknown)
+		fmt.Printf("unknown message to pool: %s", raw)
+		return ParseMiningUnknown(raw)
 	}
 }
 
