@@ -149,6 +149,14 @@ func (m *OnDemandMinerScheduler) GetCurrentDest() interfaces.IDestination {
 	return m.minerModel.GetDest()
 }
 
+func (m *OnDemandMinerScheduler) GetCurrentDifficulty() int {
+	return m.minerModel.GetCurrentDifficulty()
+}
+
+func (m *OnDemandMinerScheduler) GetWorkerName() string {
+	return m.minerModel.GetWorkerName()
+}
+
 // resetDestCycle signals that destSplit has been changed, and starts new destination cycle
 func (m *OnDemandMinerScheduler) resetDestCycle() {
 	m.reset <- struct{}{}

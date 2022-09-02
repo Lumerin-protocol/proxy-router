@@ -11,6 +11,7 @@ type StratumV1SourceConn interface {
 	GetID() string
 	Read(ctx context.Context) (stratumv1_message.MiningMessageGeneric, error)
 	Write(ctx context.Context, msg stratumv1_message.MiningMessageGeneric) error
+	GetWorkerName() string
 }
 
 type StratumV1DestConn interface {
