@@ -41,7 +41,7 @@ func main() {
 	configs := config.ReadConfigFile()
 	l.SetLevel(log.Level(configs.LogLevel))
 
-	logFile, err := os.OpenFile(configs.LogFilePath, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0666)
+	logFile, err := os.OpenFile(configs.LogFilePath, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0600)
 	if err != nil {
 		l.Logf(log.LevelError, "error opening log file: %v", err)
 		return
