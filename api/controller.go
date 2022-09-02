@@ -20,6 +20,8 @@ type Miner struct {
 	TotalHashrateGHS   int
 	Destinations       []DestItem
 	CurrentDestination string
+	CurrentDifficulty  int
+	WorkerName         string
 }
 
 type DestItem struct {
@@ -72,8 +74,10 @@ func (c *ApiController) GetMiners() []Miner {
 		data = append(data, Miner{
 			ID:                 miner.GetID(),
 			TotalHashrateGHS:   miner.GetHashRateGHS(),
+			CurrentDifficulty:  miner.GetCurrentDifficulty(),
 			Destinations:       destItems,
 			CurrentDestination: miner.GetCurrentDest().String(),
+			WorkerName:         miner.GetWorkerName(),
 		})
 		return true
 	})

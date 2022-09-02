@@ -36,11 +36,11 @@ func (m *MiningSubscribe) SetID(ID int) {
 	m.ID = ID
 }
 
-func (m *MiningSubscribe) GetWorkerName() string {
+func (m *MiningSubscribe) GetUseragent() string {
 	return m.Params[0]
 }
 
-func (m *MiningSubscribe) SetWorkerName(name string) {
+func (m *MiningSubscribe) SetUseragent(name string) {
 	m.Params[0] = name
 }
 

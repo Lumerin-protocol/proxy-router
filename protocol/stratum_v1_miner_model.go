@@ -114,12 +114,20 @@ func (s *stratumV1MinerModel) GetHashRateGHS() int {
 	return s.validator.GetHashrateGHS()
 }
 
+func (s *stratumV1MinerModel) GetCurrentDifficulty() int {
+	return int(s.difficulty)
+}
+
 func (s *stratumV1MinerModel) OnSubmit(cb OnSubmitHandler) ListenerHandle {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	s.onSubmit = append(s.onSubmit, cb)
 	return ListenerHandle(len(s.onSubmit))
+}
+
+func (s *stratumV1MinerModel) GetWorkerName() string {
+	return s.miner.GetWorkerName()
 }
 
 func (s *stratumV1MinerModel) RemoveListener(h ListenerHandle) {
