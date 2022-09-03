@@ -22,13 +22,16 @@ type OnDemandMinerScheduler struct {
 const ON_DEMAND_SWITCH_TIMEOUT = 5 * time.Minute
 
 func NewOnDemandMinerScheduler(minerModel MinerModel, destSplit *DestSplit, log interfaces.ILogger, defaultDest interfaces.IDestination) *OnDemandMinerScheduler {
-	return &OnDemandMinerScheduler{
+
+	minerScheduler := &OnDemandMinerScheduler{
 		minerModel,
 		destSplit,
 		make(chan struct{}),
 		log,
 		defaultDest,
 	}
+
+	return minerScheduler
 }
 
 func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
@@ -143,6 +146,9 @@ func (m *OnDemandMinerScheduler) getDest() *DestSplit {
 
 func (m *OnDemandMinerScheduler) OnSubmit(cb protocol.OnSubmitHandler) protocol.ListenerHandle {
 	return m.minerModel.OnSubmit(cb)
+}
+func (m *OnDemandMinerScheduler) OnAuthorize(cb protocol.OnAuthorizeHandler) protocol.ListenerHandle {
+	return m.minerModel.OnAuthorize(cb)
 }
 
 func (m *OnDemandMinerScheduler) GetCurrentDest() interfaces.IDestination {

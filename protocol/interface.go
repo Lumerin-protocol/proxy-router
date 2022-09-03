@@ -25,4 +25,7 @@ type StratumV1DestConn interface {
 type StratumV1ResultHandler = func(a stratumv1_message.MiningResult) stratumv1_message.MiningMessageGeneric
 
 type OnSubmitHandler = func(diff uint64, dest interfaces.IDestination)
+
+type OnAuthorizeHandler = func(workername string, password string) error
+
 type ListenerHandle int

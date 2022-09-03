@@ -44,11 +44,29 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	minerScheduler := NewOnDemandMinerScheduler(minerModel, destSplit, p.log, p.defaultDest)
 	// try to connect to dest before running
 
-	p.collection.Store(minerScheduler)
+	minerScheduler.OnAuthorize(func(workerName string, password string) error {
+		p.log.Debugf("Authorized worker: %v", workerName)
+		scheduler, ok := p.collection.Load(workerName)
+
+		if !ok {
+			p.log.Debugf("Storing new worker: %v", workerName)
+			p.collection.Store(minerScheduler)
+
+			p.log.Debugf("Running new worker: %v", workerName)
+			return minerScheduler.Run(ctx)
+		}
+
+		p.log.Debugf("Running new worker: %v", workerName)
+		return scheduler.Run(ctx)
+	})
 
 	return minerScheduler.Run(ctx)
 
 	// return nil
+}
+
+func WaitForWorkerName() {
+
 }
 
 func (p *MinerController) ChangeDestAll(dest interfaces.IDestination) error {
