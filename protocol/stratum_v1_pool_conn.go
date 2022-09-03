@@ -118,9 +118,8 @@ func (m *StratumV1PoolConn) Connect() error {
 	if err != nil {
 		return err
 	}
-	msg := stratumv1_message.NewMiningSetExtranonce()
-	msg.SetExtranonce(extranonce, extranonceSize)
-	m.extraNonceMsg = msg
+
+	m.extraNonceMsg = stratumv1_message.NewMiningSetExtranonceV2(extranonce, extranonceSize)
 
 	authMsg := stratumv1_message.NewMiningAuthorize(1, m.dest.Username(), m.dest.Password())
 	_, err = m.sendPoolRequestWait(authMsg)
@@ -185,8 +184,10 @@ func (m *StratumV1PoolConn) resendRelevantNotifications(ctx context.Context) {
 	m.sendToReadCh(m.extraNonceMsg)
 	m.log.Infof("extranonce was resent")
 
-	m.sendToReadCh(m.setDiffMsg)
-	m.log.Infof("set-difficulty was resent")
+	if m.setDiffMsg != nil {
+		m.sendToReadCh(m.setDiffMsg)
+		m.log.Infof("set-difficulty was resent", m.setDiffMsg)
+	}
 
 	for _, msg := range m.notifyMsgs {
 		if msg != nil {
@@ -194,7 +195,6 @@ func (m *StratumV1PoolConn) resendRelevantNotifications(ctx context.Context) {
 			m.log.Infof("notify was resent %s", msg.Serialize())
 		}
 	}
-	m.log.Infof("notify messages (%d) were resent", len(m.notifyMsgs))
 }
 
 func (s *StratumV1PoolConn) sendToReadCh(msg stratumv1_message.MiningMessageGeneric) {
@@ -246,16 +246,16 @@ func (s *StratumV1PoolConn) readInterceptor(m stratumv1_message.MiningMessageGen
 		if typedMessage.GetCleanJobs() {
 			s.notifyMsgs = s.notifyMsgs[:0]
 		}
-		s.notifyMsgs = append(s.notifyMsgs, typedMessage)
+		s.notifyMsgs = append(s.notifyMsgs, typedMessage.Copy())
 
 	case *stratumv1_message.MiningSetDifficulty:
-		s.setDiffMsg = typedMessage
+		s.setDiffMsg = typedMessage.Copy()
 
 	case *stratumv1_message.MiningResult:
 		id := typedMessage.GetID()
 		handler, ok := s.resHandlers[id]
 		if ok {
-			handledMsg := handler(*typedMessage)
+			handledMsg := handler(*typedMessage.Copy())
 			if handledMsg != nil {
 				m = handledMsg.(*stratumv1_message.MiningResult)
 			}
