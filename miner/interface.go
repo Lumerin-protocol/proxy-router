@@ -18,8 +18,6 @@ type MinerModel interface {
 
 	GetHashRateGHS() int
 	OnSubmit(cb protocol.OnSubmitHandler) protocol.ListenerHandle
-
-	OnAuthorize(cb protocol.OnAuthorizeHandler) protocol.ListenerHandle
 }
 
 type MinerScheduler interface {
