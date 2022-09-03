@@ -73,7 +73,7 @@ func LogMsg(isMiner bool, isRead bool, addr string, payload []byte, l interfaces
 	var (
 		source string
 		op     string
-		cut    int = 100
+		// cut    int = 100
 	)
 	if isMiner {
 		source = "MINER"
