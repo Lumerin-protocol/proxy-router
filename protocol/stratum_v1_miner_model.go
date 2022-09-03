@@ -14,9 +14,10 @@ type stratumV1MinerModel struct {
 	miner     StratumV1SourceConn
 	validator *hashrate.Hashrate
 
-	difficulty int64
-	onSubmit   []OnSubmitHandler
-	mutex      sync.RWMutex // guards onSubmit
+	difficulty  int64
+	onSubmit    []OnSubmitHandler
+	onAuthorize []OnAuthorizeHandler
+	mutex       sync.RWMutex // guards onSubmit
 
 	log interfaces.ILogger
 }
@@ -123,6 +124,14 @@ func (s *stratumV1MinerModel) OnSubmit(cb OnSubmitHandler) ListenerHandle {
 	defer s.mutex.Unlock()
 
 	s.onSubmit = append(s.onSubmit, cb)
+	return ListenerHandle(len(s.onSubmit))
+}
+
+func (s *stratumV1MinerModel) OnAuthorize(cb OnAuthorizeHandler) ListenerHandle {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	s.onAuthorize = append(s.onAuthorize, cb)
 	return ListenerHandle(len(s.onSubmit))
 }
 
