@@ -86,9 +86,9 @@ func LogMsg(isMiner bool, isRead bool, addr string, payload []byte, l interfaces
 		op = "->"
 	}
 	msg := string(payload)
-	if len(msg) > cut {
-		msg = msg[:cut] + "...}"
-	}
+	// if len(msg) > cut {
+	// 	msg = msg[:cut] + "...}"
+	// }
 	// TODO: move this to logger implementation
 	if zapLogger, ok := l.(*zap.SugaredLogger); ok {
 		zapLogger.Desugar().WithOptions(zap.AddCallerSkip(1)).Sugar().Debugf("%s %s(%s): %s", source, op, addr, msg)
