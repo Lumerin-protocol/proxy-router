@@ -44,6 +44,7 @@ func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination) error {
 	}
 	p.mu.Unlock()
 
+	// try to reuse connection from cache
 	conn, ok := p.load(dest.String())
 	if ok {
 		p.mu.Lock()
@@ -55,15 +56,15 @@ func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination) error {
 
 		return nil
 	}
-	p.log.Debugf("destination %s", dest)
+
+	// dial if not cached
 	c, err := net.Dial("tcp", dest.GetHost())
 	if err != nil {
 		return err
 	}
-	p.log.Infof("Dialed dest %s", dest)
+	p.log.Infof("dialed dest %s", dest)
 
 	conn = NewStratumV1Pool(c, p.log, dest)
-
 	err = conn.Connect()
 	if err != nil {
 		return err
