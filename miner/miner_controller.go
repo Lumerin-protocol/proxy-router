@@ -25,7 +25,8 @@ func NewMinerController(defaultDest interfaces.IDestination, collection interfac
 }
 
 func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net.Conn) error {
-	poolPool := protocol.NewStratumV1PoolPool(p.log)
+	p.log.Infof("incoming miner connection: %s", incomingConn.RemoteAddr().String())
+	poolPool := protocol.NewStratumV1PoolPool(p.log.Named(incomingConn.RemoteAddr().String()))
 	err := poolPool.SetDest(p.defaultDest)
 	if err != nil {
 		p.log.Error(err)
@@ -38,8 +39,6 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	minerModel := protocol.NewStratumV1MinerModel(poolPool, miner, validator, p.log)
 
 	destSplit := NewDestSplit()
-	// destSplit.Allocate(30, "stratum.slushpool.com:3333", "shev8.local", "anything123")
-	// destSplit.AllocateRemaining("btc.f2pool.com:3333", "shev8.001", "21235365876986800")
 
 	minerScheduler := NewOnDemandMinerScheduler(minerModel, destSplit, p.log, p.defaultDest)
 	// try to connect to dest before running

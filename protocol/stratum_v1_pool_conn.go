@@ -21,7 +21,7 @@ type StratumV1PoolConn struct {
 
 	conn net.Conn // tcp connection
 
-	notifyMsgs    []stratumv1_message.MiningNotify       // recent relevant notify messages, (respects stratum clean_jobs flag)
+	notifyMsgs    []*stratumv1_message.MiningNotify      // recent relevant notify messages, (respects stratum clean_jobs flag)
 	setDiffMsg    *stratumv1_message.MiningSetDifficulty // recent difficulty message
 	extraNonceMsg *stratumv1_message.MiningSetExtranonce // keeps relevant extranonce (picked from mining.subscribe response)
 
@@ -44,7 +44,7 @@ func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDe
 		dest: dest,
 
 		conn:       conn,
-		notifyMsgs: make([]stratumv1_message.MiningNotify, 100),
+		notifyMsgs: make([]*stratumv1_message.MiningNotify, 100),
 
 		msgCh:     make(chan stratumv1_message.MiningMessageGeneric, 100),
 		isReading: false, // hold on emitting messages to destination, until handshake
@@ -189,18 +189,22 @@ func (m *StratumV1PoolConn) resendRelevantNotifications(ctx context.Context) {
 	m.log.Infof("set-difficulty was resent")
 
 	for _, msg := range m.notifyMsgs {
-		m.sendToReadCh(&msg)
+		if msg != nil {
+			m.sendToReadCh(msg)
+			m.log.Infof("notify was resent %s", msg.Serialize())
+		}
 	}
 	m.log.Infof("notify messages (%d) were resent", len(m.notifyMsgs))
 }
 
 func (s *StratumV1PoolConn) sendToReadCh(msg stratumv1_message.MiningMessageGeneric) {
+	timeoutAlert := 30 * time.Second
 	for n := 0; true; n++ {
 		select {
 		case s.msgCh <- msg:
 			return
-		case <-time.After(30 * time.Second):
-			s.log.Warnf("sendToReadCh is blocked for %d seconds", n*10)
+		case <-time.After(timeoutAlert):
+			s.log.Errorf("sendToReadCh is blocked for %.1f seconds, pending message %+#v", timeoutAlert.Seconds()*float64(n), msg)
 		}
 	}
 }
@@ -242,7 +246,7 @@ func (s *StratumV1PoolConn) readInterceptor(m stratumv1_message.MiningMessageGen
 		if typedMessage.GetCleanJobs() {
 			s.notifyMsgs = s.notifyMsgs[:0]
 		}
-		s.notifyMsgs = append(s.notifyMsgs, *typedMessage)
+		s.notifyMsgs = append(s.notifyMsgs, typedMessage)
 
 	case *stratumv1_message.MiningSetDifficulty:
 		s.setDiffMsg = typedMessage
