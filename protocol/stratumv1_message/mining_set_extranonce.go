@@ -19,6 +19,13 @@ func NewMiningSetExtranonce() *MiningSetExtranonce {
 	}
 }
 
+func NewMiningSetExtranonceV2(extranonce string, size int) *MiningSetExtranonce {
+	return &MiningSetExtranonce{
+		Method: MethodMiningSetExtranonce,
+		Params: &miningSetExtranonceParams{extranonce, size},
+	}
+}
+
 func ParseMiningSetExtranonce(b []byte) (*MiningSetExtranonce, error) {
 	m := &MiningSetExtranonce{}
 	return m, json.Unmarshal(b, m)

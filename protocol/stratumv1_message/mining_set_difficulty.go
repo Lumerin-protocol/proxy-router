@@ -37,4 +37,11 @@ func (m *MiningSetDifficulty) Serialize() []byte {
 	return b
 }
 
+func (m *MiningSetDifficulty) Copy() *MiningSetDifficulty {
+	return &MiningSetDifficulty{
+		Method: MethodMiningSetDifficulty,
+		Params: &miningSetDifficultyParams{m.GetDifficulty()},
+	}
+}
+
 var _ MiningMessageGeneric = new(MiningSetDifficulty)
