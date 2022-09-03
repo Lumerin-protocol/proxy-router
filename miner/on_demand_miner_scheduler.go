@@ -46,8 +46,6 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 		default:
 		}
 
-		m.log.Info(m.getDest())
-		m.log.Info("=========", len(m.getDest().Iter()))
 		// if only one destination
 		if len(m.getDest().Iter()) == 1 {
 			splitItem := m.getDest().Iter()[0]

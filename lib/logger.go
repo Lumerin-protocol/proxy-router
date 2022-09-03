@@ -70,7 +70,6 @@ func newProductionLogger() (*zap.Logger, error) {
 }
 
 func LogMsg(isMiner bool, isRead bool, addr string, payload []byte, l interfaces.ILogger) {
-	return
 	var (
 		source string
 		op     string
