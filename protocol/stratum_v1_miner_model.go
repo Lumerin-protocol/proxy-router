@@ -18,6 +18,9 @@ type stratumV1MinerModel struct {
 	onSubmit   []OnSubmitHandler
 	mutex      sync.RWMutex // guards onSubmit
 
+	extraNonceMsg *stratumv1_message.MiningSubscribeResult
+	workerName    string
+
 	log interfaces.ILogger
 }
 
@@ -30,7 +33,59 @@ func NewStratumV1MinerModel(poolPool StratumV1DestConn, miner StratumV1SourceCon
 	}
 }
 
+func (s *stratumV1MinerModel) Connect() error {
+	for {
+		m, err := s.miner.Read(context.TODO())
+		if err != nil {
+			s.log.Error(err)
+			panic(err)
+			break
+		}
+
+		switch typedMessage := m.(type) {
+		case *stratumv1_message.MiningSubscribe:
+			extranonce, size := s.pool.GetExtranonce()
+			msg := stratumv1_message.NewMiningSubscribeResult(extranonce, size)
+
+			msg.SetID(typedMessage.GetID())
+			err := s.miner.Write(context.TODO(), msg)
+			if err != nil {
+				panic(err)
+			}
+			continue
+
+		case *stratumv1_message.MiningAuthorize:
+			s.setWorkerName(typedMessage.GetWorkerName())
+
+			msg, _ := stratumv1_message.ParseMiningResult([]byte(`{"id":47,"result":true,"error":null}`))
+			msg.SetID(typedMessage.GetID())
+			err := s.miner.Write(context.TODO(), msg)
+			if err != nil {
+				panic(err)
+			}
+			return nil
+
+		case *stratumv1_message.MiningConfigure:
+			msg, err := s.pool.SendPoolRequestWait(typedMessage)
+			if err != nil {
+				panic(err)
+			}
+			err = s.miner.Write(context.TODO(), msg)
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
+	return nil
+}
+
 func (s *stratumV1MinerModel) Run() error {
+	err := s.Connect()
+	if err != nil {
+		panic(err)
+	}
+	s.pool.ResendRelevantNotifications(context.TODO())
+
 	errCh := make(chan error)
 	go func() {
 		for {
@@ -40,7 +95,6 @@ func (s *stratumV1MinerModel) Run() error {
 				errCh <- err
 				return
 			}
-
 			s.poolInterceptor(msg)
 
 			err = s.miner.Write(context.TODO(), msg)
@@ -127,7 +181,7 @@ func (s *stratumV1MinerModel) OnSubmit(cb OnSubmitHandler) ListenerHandle {
 }
 
 func (s *stratumV1MinerModel) GetWorkerName() string {
-	return s.miner.GetWorkerName()
+	return s.workerName
 }
 
 func (s *stratumV1MinerModel) RemoveListener(h ListenerHandle) {
@@ -135,4 +189,8 @@ func (s *stratumV1MinerModel) RemoveListener(h ListenerHandle) {
 	defer s.mutex.Unlock()
 
 	s.onSubmit[h] = nil
+}
+
+func (s *stratumV1MinerModel) setWorkerName(name string) {
+	s.workerName = name
 }

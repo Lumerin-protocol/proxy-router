@@ -115,4 +115,12 @@ func (p *StratumV1PoolConnPool) setConn(conn *StratumV1PoolConn) {
 	p.conn = conn
 }
 
+func (p *StratumV1PoolConnPool) ResendRelevantNotifications(ctx context.Context) {
+	p.getConn().resendRelevantNotifications(ctx)
+}
+
+func (p *StratumV1PoolConnPool) SendPoolRequestWait(msg stratumv1_message.MiningMessageToPool) (*stratumv1_message.MiningResult, error) {
+	return p.getConn().SendPoolRequestWait(msg)
+}
+
 var _ StratumV1DestConn = new(StratumV1PoolConnPool)
