@@ -38,8 +38,7 @@ func (s *stratumV1MinerModel) Connect() error {
 		m, err := s.miner.Read(context.TODO())
 		if err != nil {
 			s.log.Error(err)
-			panic(err)
-			break
+			return err
 		}
 
 		switch typedMessage := m.(type) {
@@ -50,9 +49,8 @@ func (s *stratumV1MinerModel) Connect() error {
 			msg.SetID(typedMessage.GetID())
 			err := s.miner.Write(context.TODO(), msg)
 			if err != nil {
-				panic(err)
+				return err
 			}
-			continue
 
 		case *stratumv1_message.MiningAuthorize:
 			s.setWorkerName(typedMessage.GetWorkerName())
@@ -61,22 +59,22 @@ func (s *stratumV1MinerModel) Connect() error {
 			msg.SetID(typedMessage.GetID())
 			err := s.miner.Write(context.TODO(), msg)
 			if err != nil {
-				panic(err)
+				return err
 			}
+			// auth successful
 			return nil
 
 		case *stratumv1_message.MiningConfigure:
 			msg, err := s.pool.SendPoolRequestWait(typedMessage)
 			if err != nil {
-				panic(err)
+				return err
 			}
 			err = s.miner.Write(context.TODO(), msg)
 			if err != nil {
-				panic(err)
+				return err
 			}
 		}
 	}
-	return nil
 }
 
 func (s *stratumV1MinerModel) Run() error {
