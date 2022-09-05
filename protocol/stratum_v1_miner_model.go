@@ -80,7 +80,8 @@ func (s *stratumV1MinerModel) Connect() error {
 func (s *stratumV1MinerModel) Run() error {
 	err := s.Connect()
 	if err != nil {
-		panic(err)
+		s.log.Error(err)
+		return err
 	}
 	s.pool.ResendRelevantNotifications(context.TODO())
 
