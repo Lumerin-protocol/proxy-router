@@ -141,7 +141,7 @@ func (m *StratumV1PoolConn) Connect() error {
 // sendPoolRequestWait sends a message and awaits for the response
 func (m *StratumV1PoolConn) sendPoolRequestWait(msg stratumv1_message.MiningMessageToPool) (*stratumv1_message.MiningResult, error) {
 	id := int(m.lastRequestId.Inc())
-	msg.SetID(int(id))
+	msg.SetID(id)
 
 	err := m.Write(context.TODO(), msg)
 	if err != nil {
