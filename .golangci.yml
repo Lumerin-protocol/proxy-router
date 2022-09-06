@@ -9,7 +9,7 @@ linters:
     - ineffassign
     - unconvert
     # - misspell
-    - govet
+    # - govet
 run:
   deadline: 5m
   timeout: 5m
