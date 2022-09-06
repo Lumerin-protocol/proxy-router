@@ -27,7 +27,7 @@ func NewMinerController(defaultDest interfaces.IDestination, collection interfac
 func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net.Conn) error {
 	p.log.Infof("incoming miner connection: %s", incomingConn.RemoteAddr().String())
 	poolPool := protocol.NewStratumV1PoolPool(p.log.Named(incomingConn.RemoteAddr().String()))
-	err := poolPool.SetDest(p.defaultDest)
+	err := poolPool.SetDest(p.defaultDest, nil)
 	if err != nil {
 		p.log.Error(err)
 		return err

@@ -32,7 +32,7 @@ func (p *StratumV1PoolConnPool) GetDest() interfaces.IDestination {
 	return p.conn.GetDest()
 }
 
-func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination) error {
+func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination, configure *stratumv1_message.MiningConfigure) error {
 	p.mu.Lock()
 	if p.conn != nil {
 		if p.conn.GetDest().IsEqual(dest) {
@@ -64,7 +64,7 @@ func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination) error {
 	}
 	p.log.Infof("dialed dest %s", dest)
 
-	conn = NewStratumV1Pool(c, p.log, dest)
+	conn = NewStratumV1Pool(c, p.log, dest, configure)
 	err = conn.Connect()
 	if err != nil {
 		return err

@@ -52,7 +52,7 @@ func (d *DestSplit) Deallocate(split *Split) bool {
 // adjustPercentage reduces precision of percentage according to AllocationPrecision
 // to avoid changing destination for short periods of time. it always rounds up
 func (d *DestSplit) adjustPercentage(percentage float64) uint8 {
-	return uint8(math.Ceil(percentage/float64(AllocationPrecision))) * AllocationPrecision
+	return uint8(math.Ceil(percentage*100/float64(AllocationPrecision))) * AllocationPrecision
 }
 
 // allocate is used adjustPercentage is called for percentage

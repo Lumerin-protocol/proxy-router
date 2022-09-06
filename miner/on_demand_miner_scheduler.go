@@ -19,7 +19,7 @@ type OnDemandMinerScheduler struct {
 }
 
 // const ON_DEMAND_SWITCH_TIMEOUT = 10 * time.Minute
-const ON_DEMAND_SWITCH_TIMEOUT = 5 * time.Minute
+const ON_DEMAND_SWITCH_TIMEOUT = 30 * time.Minute
 
 func NewOnDemandMinerScheduler(minerModel MinerModel, destSplit *DestSplit, log interfaces.ILogger, defaultDest interfaces.IDestination) *OnDemandMinerScheduler {
 	return &OnDemandMinerScheduler{

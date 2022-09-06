@@ -24,7 +24,7 @@ type StratumV1PoolConn struct {
 	notifyMsgs    []*stratumv1_message.MiningNotify      // recent relevant notify messages, (respects stratum clean_jobs flag)
 	setDiffMsg    *stratumv1_message.MiningSetDifficulty // recent difficulty message
 	extraNonceMsg *stratumv1_message.MiningSetExtranonce // keeps relevant extranonce (picked from mining.subscribe response)
-
+	configureMsg  *stratumv1_message.MiningConfigure
 	// TODO: handle pool setExtranonce message
 
 	msgCh              chan stratumv1_message.MiningMessageGeneric // auxillary channel to relay messages
@@ -38,13 +38,14 @@ type StratumV1PoolConn struct {
 	log interfaces.ILogger
 }
 
-func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDestination) *StratumV1PoolConn {
+func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDestination, configureMsg *stratumv1_message.MiningConfigure) *StratumV1PoolConn {
 	return &StratumV1PoolConn{
 
 		dest: dest,
 
-		conn:       conn,
-		notifyMsgs: make([]*stratumv1_message.MiningNotify, 100),
+		conn:         conn,
+		notifyMsgs:   make([]*stratumv1_message.MiningNotify, 100),
+		configureMsg: configureMsg,
 
 		msgCh:     make(chan stratumv1_message.MiningMessageGeneric, 100),
 		isReading: false, // hold on emitting messages to destination, until handshake
@@ -104,6 +105,14 @@ func (m *StratumV1PoolConn) Connect() error {
 	if err != nil {
 		return err
 	}
+
+	if m.configureMsg != nil {
+		_, err := m.SendPoolRequestWait(m.configureMsg)
+		if err != nil {
+			return err
+		}
+	}
+
 	subscribeRes, err := m.SendPoolRequestWait(stratumv1_message.NewMiningSubscribe(1, "miner", ""))
 	if err != nil {
 		// TODO: on error fallback to previous pool
@@ -202,7 +211,7 @@ func (s *StratumV1PoolConn) sendToReadCh(msg stratumv1_message.MiningMessageGene
 		case s.msgCh <- msg:
 			return
 		case <-time.After(timeoutAlert):
-			s.log.Errorf("sendToReadCh is blocked for %.1f seconds, pending message %+#v", timeoutAlert.Seconds()*float64(n), msg)
+			s.log.Errorf("sendToReadCh is blocked for %.1f seconds, pending message %s", timeoutAlert.Seconds()*float64(n), string(msg.Serialize()))
 		}
 	}
 }
