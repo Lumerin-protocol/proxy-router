@@ -41,6 +41,7 @@ func (d *DestSplit) Deallocate(split *Split) bool {
 	defer d.mutex.Unlock()
 
 	for i, item := range d.split {
+		fmt.Printf("STOP COMPARISON: %+v %+v %p %p", &item, split, &item, split)
 		if &item == split {
 			d.split = append(d.split[:i], d.split[i+1:]...)
 			return true
@@ -52,6 +53,7 @@ func (d *DestSplit) Deallocate(split *Split) bool {
 // adjustPercentage reduces precision of percentage according to AllocationPrecision
 // to avoid changing destination for short periods of time. it always rounds up
 func (d *DestSplit) adjustPercentage(percentage float64) uint8 {
+	fmt.Printf("=============== %.4f", percentage)
 	return uint8(math.Ceil(percentage*100/float64(AllocationPrecision))) * AllocationPrecision
 }
 
