@@ -22,7 +22,6 @@ func TestEventBus(t *testing.T) {
 	t.Logf("Message: %+v", msg)
 }
 
-//
 func TestSubscribeNotBlocking(t *testing.T) {
 	e := NewEventBus()
 

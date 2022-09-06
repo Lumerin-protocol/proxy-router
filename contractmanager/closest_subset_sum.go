@@ -7,8 +7,9 @@ import (
 
 // ClosestSubsetSum finds the subset of elements in array sum of which is closest to goal
 // The resulting sum is larger or equal to the goal
-//  numIndexes - indexes of elements from incoming array that make the subset
-//  delta - delta between actual value and expected
+//
+//	numIndexes - indexes of elements from incoming array that make the subset
+//	delta - delta between actual value and expected
 //
 // Copy-pasted from: https://leetcode.com/problems/closest-subsequence-sum/discuss/2237271/Go-solution-with-explanation
 func ClosestSubsetSum(numbers []int, goal int) (numIndexes []int, delta int) {

@@ -265,7 +265,6 @@ func (s *StratumV1PoolConn) readInterceptor(m stratumv1_message.MiningMessageGen
 	return m
 }
 
-//
 func (s *StratumV1PoolConn) writeInterceptor(m stratumv1_message.MiningMessageGeneric) stratumv1_message.MiningMessageGeneric {
 	switch typedMsg := m.(type) {
 	case *stratumv1_message.MiningSubmit:
