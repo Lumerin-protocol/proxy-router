@@ -83,7 +83,10 @@ func (d *DestSplit) AllocateRemaining(dest interfaces.IDestination) {
 	if remaining == 0 {
 		return
 	}
-	d.allocate(remaining, dest)
+	_, err := d.allocate(remaining, dest)
+	if err != nil {
+		panic(fmt.Errorf("AllocateRemaining failed: %s", err))
+	}
 }
 
 func (d *DestSplit) GetAllocated() uint8 {

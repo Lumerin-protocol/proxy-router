@@ -54,7 +54,10 @@ func (p *MinerController) ChangeDestAll(dest interfaces.IDestination) error {
 	p.collection.Range(func(miner MinerScheduler) bool {
 		p.log.Infof("changing pool to %s for minerID %s", dest.GetHost(), miner.GetID())
 
-		miner.Allocate(100, dest)
+		_, err := miner.Allocate(100, dest)
+		if err != nil {
+			return false
+		}
 
 		return true
 	})
