@@ -110,28 +110,29 @@ func sumIndexed(a [][2]int) int {
 	return res
 }
 
-func sum(a []int) int {
-	var res int
-	for _, v := range a {
-		res += v
+/*
+	func sum(a []int) int {
+		var res int
+		for _, v := range a {
+			res += v
+		}
+		return res
 	}
-	return res
-}
 
-func min(a, b int) int {
-	if a < b {
-		return a
+	func min(a, b int) int {
+		if a < b {
+			return a
+		}
+		return b
 	}
-	return b
-}
 
-func abs(a, b int) int {
-	if a < b {
-		return b - a
+	func abs(a, b int) int {
+		if a < b {
+			return b - a
+		}
+		return a - b
 	}
-	return a - b
-}
-
+*/
 func sub(a, b int) int {
 	// avoiding overflow
 	if a < b {
