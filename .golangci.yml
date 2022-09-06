@@ -3,13 +3,13 @@ linters:
   enable:
     - gofmt
     # TODO(acsaba): readd linters.
-    #- deadcode
-    #- errcheck
+    - deadcode
+    - errcheck
     # - golint
-    # - ineffassign
-    # - unconvert
+    - ineffassign
+    - unconvert
     # - misspell
-    # - govet
+    - govet
 run:
   deadline: 5m
   timeout: 5m
