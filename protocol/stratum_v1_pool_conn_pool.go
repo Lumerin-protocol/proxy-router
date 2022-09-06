@@ -70,6 +70,8 @@ func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination, configure 
 		return err
 	}
 
+	conn.ResendRelevantNotifications(context.TODO())
+
 	p.mu.Lock()
 	p.conn = conn
 	p.mu.Unlock()

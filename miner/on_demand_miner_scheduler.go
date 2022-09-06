@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/protocol"
 )
 
@@ -126,6 +127,12 @@ func (m *OnDemandMinerScheduler) GetDestSplit() *DestSplit {
 func (m *OnDemandMinerScheduler) Allocate(percentage float64, dest interfaces.IDestination) (*Split, error) {
 	defer m.resetDestCycle()
 	return m.destSplit.Allocate(percentage, dest)
+}
+
+// ChangeDest forcefully change destination
+//  may cause issues when split is enabled
+func (m *OnDemandMinerScheduler) ChangeDest(dest lib.Dest) error {
+	return m.minerModel.ChangeDest(dest)
 }
 
 func (m *OnDemandMinerScheduler) GetHashRateGHS() int {
