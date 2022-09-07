@@ -17,7 +17,6 @@ lint:
   script:
     - golangci-lint version
     - echo "Linting new code relative to branch $CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
-    - git fetch origin $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
     - golangci-lint run -v --out-format="junit-xml" > lint.xml
 
 test:
