@@ -45,6 +45,11 @@ func (m *MiningResult) Serialize() []byte {
 	return b
 }
 
+func (m *MiningResult) Copy() *MiningResult {
+	res, _ := ParseMiningResult(m.Serialize())
+	return res
+}
+
 var _ MiningMessageGeneric = new(MiningResult)
 
 // Parses Subscribe result message

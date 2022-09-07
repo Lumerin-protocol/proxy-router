@@ -1,5 +1,7 @@
 package interfaces
 
+import "go.uber.org/zap"
+
 type ILogger interface {
 	Debug(args ...interface{})
 	Info(args ...interface{})
@@ -16,4 +18,5 @@ type ILogger interface {
 	Panicf(template string, args ...interface{})
 	Fatalf(template string, args ...interface{})
 	Sync() error
+	Named(name string) *zap.SugaredLogger
 }

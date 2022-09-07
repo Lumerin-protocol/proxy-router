@@ -21,30 +21,24 @@ type StratumV1Miner struct {
 
 	cond          *sync.Cond
 	extraNonceMsg *stratumv1_message.MiningSubscribeResult
+	workerName    string
 	log           interfaces.ILogger
 }
 
 func NewStratumV1Miner(conn net.Conn, log interfaces.ILogger, extraNonce *stratumv1_message.MiningSubscribeResult) *StratumV1Miner {
 	mu := new(sync.Mutex)
 	return &StratumV1Miner{
-		conn,
-		bufio.NewReader(conn),
-		false,
-		mu,
-		sync.NewCond(mu),
-		extraNonce,
-		log,
+		conn:          conn,
+		reader:        bufio.NewReader(conn),
+		isWriting:     false,
+		mu:            mu,
+		cond:          sync.NewCond(mu),
+		extraNonceMsg: extraNonce,
+		log:           log,
 	}
 }
 
 func (m *StratumV1Miner) Write(ctx context.Context, msg stratumv1_message.MiningMessageGeneric) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	for !m.isWriting {
-		m.log.Info("Writing is locked")
-		m.cond.Wait()
-	}
-
 	return m.write(ctx, msg)
 }
 
@@ -73,31 +67,7 @@ func (s *StratumV1Miner) Read(ctx context.Context) (stratumv1_message.MiningMess
 		m, err := stratumv1_message.ParseMessageToPool(line)
 
 		if err != nil {
-			s.log.Errorf("Unknown miner message", string(line))
-		}
-
-		switch m.(type) {
-		case *stratumv1_message.MiningSubscribe:
-			s.extraNonceMsg.SetID(m.GetID())
-			err := s.write(context.TODO(), s.extraNonceMsg)
-			if err != nil {
-				return nil, err
-			}
-			continue
-
-		case *stratumv1_message.MiningAuthorize:
-			msg, _ := stratumv1_message.ParseMiningResult([]byte(`{"id":47,"result":true,"error":null}`))
-			msg.SetID(m.GetID())
-			err := s.write(context.TODO(), msg)
-			if err != nil {
-				return nil, err
-			}
-			s.mu.Lock()
-			s.isWriting = true
-			s.log.Debug("writing to miner is released")
-			s.cond.Broadcast()
-			s.mu.Unlock()
-
+			s.log.Errorf("unknown miner message: %s", string(line))
 			continue
 		}
 
@@ -107,6 +77,14 @@ func (s *StratumV1Miner) Read(ctx context.Context) (stratumv1_message.MiningMess
 
 func (s *StratumV1Miner) GetID() string {
 	return s.conn.RemoteAddr().String()
+}
+
+func (s *StratumV1Miner) setWorkerName(name string) {
+	s.workerName = name
+}
+
+func (s *StratumV1Miner) GetWorkerName() string {
+	return s.workerName
 }
 
 var _ StratumV1SourceConn = new(StratumV1Miner)

@@ -11,10 +11,13 @@ type StratumV1SourceConn interface {
 	GetID() string
 	Read(ctx context.Context) (stratumv1_message.MiningMessageGeneric, error)
 	Write(ctx context.Context, msg stratumv1_message.MiningMessageGeneric) error
+	GetWorkerName() string
 }
 
 type StratumV1DestConn interface {
-	SetDest(dest interfaces.IDestination) error
+	ResendRelevantNotifications(ctx context.Context)
+	SendPoolRequestWait(msg stratumv1_message.MiningMessageToPool) (*stratumv1_message.MiningResult, error)
+	SetDest(dest interfaces.IDestination, configure *stratumv1_message.MiningConfigure) error
 	GetDest() interfaces.IDestination
 	Read(ctx context.Context) (stratumv1_message.MiningMessageGeneric, error)
 	Write(ctx context.Context, msg stratumv1_message.MiningMessageGeneric) error

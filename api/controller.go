@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/miner"
 )
 
@@ -20,6 +21,8 @@ type Miner struct {
 	TotalHashrateGHS   int
 	Destinations       []DestItem
 	CurrentDestination string
+	CurrentDifficulty  int
+	WorkerName         string
 }
 
 type DestItem struct {
@@ -35,6 +38,7 @@ type Contract struct {
 	StartTimestamp string
 	EndTimestamp   string
 	State          string
+	Dest           string
 	// Miners         []string
 }
 
@@ -48,6 +52,21 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 	r.GET("/miners", func(ctx *gin.Context) {
 		data := controller.GetMiners()
 		ctx.JSON(http.StatusOK, data)
+	})
+
+	r.POST("/miners/change-dest", func(ctx *gin.Context) {
+		dest := ctx.Query("dest")
+		if dest == "" {
+			ctx.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		err := controller.changeDestAll(dest)
+
+		if err != nil {
+			ctx.AbortWithError(http.StatusInternalServerError, err)
+			return
+		}
+		ctx.Status(http.StatusOK)
 	})
 
 	r.GET("/contracts", func(ctx *gin.Context) {
@@ -72,13 +91,29 @@ func (c *ApiController) GetMiners() []Miner {
 		data = append(data, Miner{
 			ID:                 miner.GetID(),
 			TotalHashrateGHS:   miner.GetHashRateGHS(),
+			CurrentDifficulty:  miner.GetCurrentDifficulty(),
 			Destinations:       destItems,
 			CurrentDestination: miner.GetCurrentDest().String(),
+			WorkerName:         miner.GetWorkerName(),
 		})
 		return true
 	})
 
 	return data
+}
+
+func (c *ApiController) changeDestAll(destStr string) error {
+	dest, err := lib.ParseDest(destStr)
+	if err != nil {
+		return err
+	}
+
+	c.miners.Range(func(miner miner.MinerScheduler) bool {
+		err = miner.ChangeDest(dest)
+		return err == nil
+	})
+
+	return err
 }
 
 func (c *ApiController) GetContracts() []Contract {
@@ -92,6 +127,7 @@ func (c *ApiController) GetContracts() []Contract {
 			StartTimestamp: item.GetStartTime().Format(time.RFC3339),
 			EndTimestamp:   item.GetEndTime().Format(time.RFC3339),
 			State:          MapContractState(item.GetState()),
+			Dest:           item.GetDest().String(),
 		})
 		return true
 	})

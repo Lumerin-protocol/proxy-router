@@ -5,7 +5,6 @@
 //
 // The counter holds the exponentially (by time) weighted average of all added
 // values.
-//
 package hashrate
 
 import (
