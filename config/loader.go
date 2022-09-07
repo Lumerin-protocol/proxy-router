@@ -17,7 +17,10 @@ const (
 )
 
 func LoadConfig(cfg interface{}, osArgs *[]string) error {
-	godotenv.Load(".env")
+	err := godotenv.Load(".env")
+	if err != nil {
+		return err
+	}
 
 	// recursively iterates over each field of the nested struct
 	fields, err := flat.View(cfg)
@@ -34,7 +37,10 @@ func LoadConfig(cfg interface{}, osArgs *[]string) error {
 			continue
 		}
 		envValue := os.Getenv(envName)
-		field.Set(envValue)
+		err = field.Set(envValue)
+		if err != nil {
+			return err
+		}
 
 		flagName, ok := field.Tag(TagFlag)
 		if !ok {

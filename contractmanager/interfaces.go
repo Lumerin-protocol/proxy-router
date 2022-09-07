@@ -3,6 +3,8 @@ package contractmanager
 import (
 	"context"
 	"time"
+
+	"gitlab.com/TitanInd/hashrouter/lib"
 )
 
 type IContractModel interface {
@@ -16,4 +18,5 @@ type IContractModel interface {
 	GetStartTime() time.Time
 	GetEndTime() time.Time
 	GetState() ContractState
+	GetDest() lib.Dest
 }

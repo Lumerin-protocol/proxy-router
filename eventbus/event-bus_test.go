@@ -22,7 +22,6 @@ func TestEventBus(t *testing.T) {
 	t.Logf("Message: %+v", msg)
 }
 
-//
 func TestSubscribeNotBlocking(t *testing.T) {
 	e := NewEventBus()
 
@@ -56,7 +55,11 @@ func TestSubscribeNotBlocking(t *testing.T) {
 		return nil
 	})
 
-	gr.Wait()
+	err := gr.Wait()
+
+	if err != nil {
+		t.Fail()
+	}
 
 	if ch2Time >= ch1Time {
 		t.Fail()

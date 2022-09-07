@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
@@ -20,10 +21,10 @@ type StratumV1PoolConn struct {
 
 	conn net.Conn // tcp connection
 
-	notifyMsgs    []stratumv1_message.MiningNotify       // recent relevant notify messages, (respects stratum clean_jobs flag)
+	notifyMsgs    []*stratumv1_message.MiningNotify      // recent relevant notify messages, (respects stratum clean_jobs flag)
 	setDiffMsg    *stratumv1_message.MiningSetDifficulty // recent difficulty message
 	extraNonceMsg *stratumv1_message.MiningSetExtranonce // keeps relevant extranonce (picked from mining.subscribe response)
-
+	configureMsg  *stratumv1_message.MiningConfigure
 	// TODO: handle pool setExtranonce message
 
 	msgCh              chan stratumv1_message.MiningMessageGeneric // auxillary channel to relay messages
@@ -37,13 +38,14 @@ type StratumV1PoolConn struct {
 	log interfaces.ILogger
 }
 
-func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDestination) *StratumV1PoolConn {
+func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDestination, configureMsg *stratumv1_message.MiningConfigure) *StratumV1PoolConn {
 	return &StratumV1PoolConn{
 
 		dest: dest,
 
-		conn:       conn,
-		notifyMsgs: make([]stratumv1_message.MiningNotify, 100),
+		conn:         conn,
+		notifyMsgs:   make([]*stratumv1_message.MiningNotify, 100),
+		configureMsg: configureMsg,
 
 		msgCh:     make(chan stratumv1_message.MiningMessageGeneric, 100),
 		isReading: false, // hold on emitting messages to destination, until handshake
@@ -89,9 +91,9 @@ func (s *StratumV1PoolConn) run(ctx context.Context) error {
 		m = s.readInterceptor(m)
 
 		if s.getIsReading() {
-			s.msgCh <- m
+			s.sendToReadCh(m)
 		} else {
-			s.log.Debugf("pool message was cached but not emitted")
+			s.log.Debugf("pool message was cached but not emitted (%s)", s.GetDest().String())
 		}
 
 	}
@@ -103,7 +105,15 @@ func (m *StratumV1PoolConn) Connect() error {
 	if err != nil {
 		return err
 	}
-	subscribeRes, err := m.sendPoolRequestWait(stratumv1_message.NewMiningSubscribe(1, "miner", "1"))
+
+	if m.configureMsg != nil {
+		_, err := m.SendPoolRequestWait(m.configureMsg)
+		if err != nil {
+			return err
+		}
+	}
+
+	subscribeRes, err := m.SendPoolRequestWait(stratumv1_message.NewMiningSubscribe(1, "miner", ""))
 	if err != nil {
 		// TODO: on error fallback to previous pool
 		return err
@@ -117,12 +127,11 @@ func (m *StratumV1PoolConn) Connect() error {
 	if err != nil {
 		return err
 	}
-	msg := stratumv1_message.NewMiningSetExtranonce()
-	msg.SetExtranonce(extranonce, extranonceSize)
-	m.extraNonceMsg = msg
+
+	m.extraNonceMsg = stratumv1_message.NewMiningSetExtranonceV2(extranonce, extranonceSize)
 
 	authMsg := stratumv1_message.NewMiningAuthorize(1, m.dest.Username(), m.dest.Password())
-	_, err = m.sendPoolRequestWait(authMsg)
+	_, err = m.SendPoolRequestWait(authMsg)
 	if err != nil {
 		m.log.Debugf("reconnect: error sent subscribe %w", err)
 
@@ -131,17 +140,15 @@ func (m *StratumV1PoolConn) Connect() error {
 	}
 	m.log.Debug("connect: authorize sent")
 
-	m.resendRelevantNotifications(context.TODO())
-
 	m.setIsReading(true)
 
 	return nil
 }
 
-// sendPoolRequestWait sends a message and awaits for the response
-func (m *StratumV1PoolConn) sendPoolRequestWait(msg stratumv1_message.MiningMessageToPool) (*stratumv1_message.MiningResult, error) {
+// SendPoolRequestWait sends a message and awaits for the response
+func (m *StratumV1PoolConn) SendPoolRequestWait(msg stratumv1_message.MiningMessageToPool) (*stratumv1_message.MiningResult, error) {
 	id := int(m.lastRequestId.Inc())
-	msg.SetID(int(id))
+	msg.SetID(id)
 
 	err := m.Write(context.TODO(), msg)
 	if err != nil {
@@ -181,16 +188,32 @@ func (m *StratumV1PoolConn) ResendRelevantNotifications(ctx context.Context) {
 // resendRelevantNotifications sends cached extranonce, set_difficulty and notify messages
 // useful after changing miner's destinations
 func (m *StratumV1PoolConn) resendRelevantNotifications(ctx context.Context) {
-	m.msgCh <- m.extraNonceMsg
+	m.sendToReadCh(m.extraNonceMsg)
 	m.log.Infof("extranonce was resent")
 
-	m.msgCh <- m.setDiffMsg
-	m.log.Infof("set-difficulty was resent")
+	if m.setDiffMsg != nil {
+		m.sendToReadCh(m.setDiffMsg)
+		m.log.Infof("set-difficulty was resent", m.setDiffMsg)
+	}
 
 	for _, msg := range m.notifyMsgs {
-		m.msgCh <- &msg
+		if msg != nil {
+			m.sendToReadCh(msg)
+			m.log.Infof("notify was resent %s", msg.Serialize())
+		}
 	}
-	m.log.Infof("notify messages (%d) were resent", len(m.notifyMsgs))
+}
+
+func (s *StratumV1PoolConn) sendToReadCh(msg stratumv1_message.MiningMessageGeneric) {
+	timeoutAlert := 30 * time.Second
+	for n := 0; true; n++ {
+		select {
+		case s.msgCh <- msg:
+			return
+		case <-time.After(timeoutAlert):
+			s.log.Errorf("sendToReadCh is blocked for %.1f seconds, pending message %s", timeoutAlert.Seconds()*float64(n), string(msg.Serialize()))
+		}
+	}
 }
 
 // Read reads message from pool
@@ -230,16 +253,16 @@ func (s *StratumV1PoolConn) readInterceptor(m stratumv1_message.MiningMessageGen
 		if typedMessage.GetCleanJobs() {
 			s.notifyMsgs = s.notifyMsgs[:0]
 		}
-		s.notifyMsgs = append(s.notifyMsgs, *typedMessage)
+		s.notifyMsgs = append(s.notifyMsgs, typedMessage.Copy())
 
 	case *stratumv1_message.MiningSetDifficulty:
-		s.setDiffMsg = typedMessage
+		s.setDiffMsg = typedMessage.Copy()
 
 	case *stratumv1_message.MiningResult:
 		id := typedMessage.GetID()
 		handler, ok := s.resHandlers[id]
 		if ok {
-			handledMsg := handler(*typedMessage)
+			handledMsg := handler(*typedMessage.Copy())
 			if handledMsg != nil {
 				m = handledMsg.(*stratumv1_message.MiningResult)
 			}
@@ -249,7 +272,6 @@ func (s *StratumV1PoolConn) readInterceptor(m stratumv1_message.MiningMessageGen
 	return m
 }
 
-//
 func (s *StratumV1PoolConn) writeInterceptor(m stratumv1_message.MiningMessageGeneric) stratumv1_message.MiningMessageGeneric {
 	switch typedMsg := m.(type) {
 	case *stratumv1_message.MiningSubmit:

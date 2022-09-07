@@ -32,7 +32,7 @@ func (p *StratumV1PoolConnPool) GetDest() interfaces.IDestination {
 	return p.conn.GetDest()
 }
 
-func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination) error {
+func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination, configure *stratumv1_message.MiningConfigure) error {
 	p.mu.Lock()
 	if p.conn != nil {
 		if p.conn.GetDest().IsEqual(dest) {
@@ -44,6 +44,7 @@ func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination) error {
 	}
 	p.mu.Unlock()
 
+	// try to reuse connection from cache
 	conn, ok := p.load(dest.String())
 	if ok {
 		p.mu.Lock()
@@ -55,19 +56,21 @@ func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination) error {
 
 		return nil
 	}
-	p.log.Debugf("destination %s", dest)
+
+	// dial if not cached
 	c, err := net.Dial("tcp", dest.GetHost())
 	if err != nil {
 		return err
 	}
-	p.log.Infof("Dialed dest %s", dest)
+	p.log.Infof("dialed dest %s", dest)
 
-	conn = NewStratumV1Pool(c, p.log, dest)
-
+	conn = NewStratumV1Pool(c, p.log, dest, configure)
 	err = conn.Connect()
 	if err != nil {
 		return err
 	}
+
+	conn.ResendRelevantNotifications(context.TODO())
 
 	p.mu.Lock()
 	p.conn = conn
@@ -112,6 +115,14 @@ func (p *StratumV1PoolConnPool) setConn(conn *StratumV1PoolConn) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.conn = conn
+}
+
+func (p *StratumV1PoolConnPool) ResendRelevantNotifications(ctx context.Context) {
+	p.getConn().resendRelevantNotifications(ctx)
+}
+
+func (p *StratumV1PoolConnPool) SendPoolRequestWait(msg stratumv1_message.MiningMessageToPool) (*stratumv1_message.MiningResult, error) {
+	return p.getConn().SendPoolRequestWait(msg)
 }
 
 var _ StratumV1DestConn = new(StratumV1PoolConnPool)

@@ -79,4 +79,9 @@ func (m *MiningNotify) Serialize() []byte {
 	return b
 }
 
+func (m *MiningNotify) Copy() *MiningNotify {
+	res, _ := ParseMiningNotify(m.Serialize())
+	return res
+}
+
 var _ MiningMessageGeneric = new(MiningNotify)

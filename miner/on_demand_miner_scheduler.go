@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/protocol"
 )
 
@@ -19,7 +20,7 @@ type OnDemandMinerScheduler struct {
 }
 
 // const ON_DEMAND_SWITCH_TIMEOUT = 10 * time.Minute
-const ON_DEMAND_SWITCH_TIMEOUT = 5 * time.Minute
+const ON_DEMAND_SWITCH_TIMEOUT = 30 * time.Minute
 
 func NewOnDemandMinerScheduler(minerModel MinerModel, destSplit *DestSplit, log interfaces.ILogger, defaultDest interfaces.IDestination) *OnDemandMinerScheduler {
 	return &OnDemandMinerScheduler{
@@ -46,8 +47,6 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 		default:
 		}
 
-		m.log.Info(m.getDest())
-		m.log.Info("=========", len(m.getDest().Iter()))
 		// if only one destination
 		if len(m.getDest().Iter()) == 1 {
 			splitItem := m.getDest().Iter()[0]
@@ -130,6 +129,12 @@ func (m *OnDemandMinerScheduler) Allocate(percentage float64, dest interfaces.ID
 	return m.destSplit.Allocate(percentage, dest)
 }
 
+// ChangeDest forcefully change destination
+//  may cause issues when split is enabled
+func (m *OnDemandMinerScheduler) ChangeDest(dest lib.Dest) error {
+	return m.minerModel.ChangeDest(dest)
+}
+
 func (m *OnDemandMinerScheduler) GetHashRateGHS() int {
 	return m.minerModel.GetHashRateGHS()
 }
@@ -147,6 +152,14 @@ func (m *OnDemandMinerScheduler) OnSubmit(cb protocol.OnSubmitHandler) protocol.
 
 func (m *OnDemandMinerScheduler) GetCurrentDest() interfaces.IDestination {
 	return m.minerModel.GetDest()
+}
+
+func (m *OnDemandMinerScheduler) GetCurrentDifficulty() int {
+	return m.minerModel.GetCurrentDifficulty()
+}
+
+func (m *OnDemandMinerScheduler) GetWorkerName() string {
+	return m.minerModel.GetWorkerName()
 }
 
 // resetDestCycle signals that destSplit has been changed, and starts new destination cycle

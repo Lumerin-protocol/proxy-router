@@ -11,6 +11,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/blockchain"
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/lib"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -157,8 +158,7 @@ func (c *Contract) fulfillContract(ctx context.Context) error {
 			return nil
 		}
 
-		requiredHashrateGHS := int(c.data.Speed / int64(math.Pow10(9)))
-		minerList, err := c.globalScheduler.Allocate(requiredHashrateGHS, c.data.Dest)
+		minerList, err := c.globalScheduler.Allocate(c.GetHashrateGHS(), c.data.Dest)
 		if err != nil {
 			c.log.Warn("cannot allocate hashrate", err)
 			select {
@@ -238,6 +238,10 @@ func (c *Contract) GetEndTime() time.Time {
 
 func (c *Contract) GetState() ContractState {
 	return c.state
+}
+
+func (c *Contract) GetDest() lib.Dest {
+	return c.data.Dest
 }
 
 var _ interfaces.IModel = (*Contract)(nil)

@@ -38,7 +38,13 @@ func (a *App) Run() {
 		os.Exit(1)
 	}()
 
-	defer a.Logger.Sync()
+	defer func() {
+		err := a.Logger.Sync()
+		if err != nil {
+			a.Logger.Infof("Logger sync failed :%s", err)
+			os.Exit(1)
+		}
+	}()
 
 	g, subCtx := errgroup.WithContext(ctx)
 
@@ -48,7 +54,7 @@ func (a *App) Run() {
 		return a.TCPServer.Run(subCtx)
 	})
 
-	//Bootstrap contracts layer
+	// Bootstrap contracts layer
 	g.Go(func() error {
 		err := a.ContractManager.Run(subCtx)
 		a.Logger.Debugf("contract error: %v", err)
