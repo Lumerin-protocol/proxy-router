@@ -16,6 +16,7 @@ lint:
     GOPATH: $CI_PROJECT_DIR/.mygo
   script:
     - golangci-lint version
+    - go version
     - echo "Linting new code relative to branch $CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
     - golangci-lint run -v
 
