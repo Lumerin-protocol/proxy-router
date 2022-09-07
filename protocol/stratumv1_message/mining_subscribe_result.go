@@ -30,7 +30,7 @@ func ParseMiningSubscribeResult(b []byte) (*MiningSubscribeResult, error) {
 }
 
 func NewMiningSubscribeResult(extranonce1 string, size int) *MiningSubscribeResult {
-	data := [2][2]string{{"mining.set_difficulty", "1"}, {"mining.notify", "1"}}
+	data := [2][2]string{{"mining.set_difficulty", ""}, {"mining.notify", ""}}
 	result := [3]interface{}{data, extranonce1, size}
 	return &MiningSubscribeResult{
 		Result: result,
