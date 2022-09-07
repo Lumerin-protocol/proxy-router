@@ -16,6 +16,7 @@ const RGLI_TRIALS = 50
 //
 // https://rpubs.com/aviadt/subset-sum
 // https://web.stevens.edu/algebraic/Files/SubsetSum/przydatek99fast.pdf
+//  Delta should be <= 0 that means that sum is overallocated
 func ClosestSubsetSumRGLI(arr []int, sum int) (numIndexes []int, dlt int) {
 	if !SEED_CALLED {
 		Seed(time.Now().UnixNano())

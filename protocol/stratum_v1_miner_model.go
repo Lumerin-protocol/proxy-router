@@ -18,6 +18,11 @@ type stratumV1MinerModel struct {
 	onSubmit   []OnSubmitHandler
 	mutex      sync.RWMutex // guards onSubmit
 
+	configureMsgReq *stratumv1_message.MiningConfigure
+	configureMsgRes *stratumv1_message.MiningConfigureResult
+
+	workerName string
+
 	log interfaces.ILogger
 }
 
@@ -30,7 +35,69 @@ func NewStratumV1MinerModel(poolPool StratumV1DestConn, miner StratumV1SourceCon
 	}
 }
 
+func (s *stratumV1MinerModel) Connect() error {
+	for {
+		m, err := s.miner.Read(context.TODO())
+		if err != nil {
+			s.log.Error(err)
+			return err
+		}
+
+		switch typedMessage := m.(type) {
+		case *stratumv1_message.MiningConfigure:
+			id := typedMessage.GetID()
+
+			s.configureMsgReq = typedMessage
+			msg, err := s.pool.SendPoolRequestWait(typedMessage)
+			if err != nil {
+				return err
+			}
+			confRes, err := stratumv1_message.ToMiningConfigureResult(msg.Copy())
+			if err != nil {
+				return err
+			}
+
+			confRes.SetID(id)
+			s.configureMsgRes = confRes
+			err = s.miner.Write(context.TODO(), confRes)
+			if err != nil {
+				return err
+			}
+
+		case *stratumv1_message.MiningSubscribe:
+			extranonce, size := s.pool.GetExtranonce()
+			msg := stratumv1_message.NewMiningSubscribeResult(extranonce, size)
+
+			msg.SetID(typedMessage.GetID())
+			err := s.miner.Write(context.TODO(), msg)
+			if err != nil {
+				return err
+			}
+
+		case *stratumv1_message.MiningAuthorize:
+			s.setWorkerName(typedMessage.GetWorkerName())
+
+			msg, _ := stratumv1_message.ParseMiningResult([]byte(`{"id":47,"result":true,"error":null}`))
+			msg.SetID(typedMessage.GetID())
+			err := s.miner.Write(context.TODO(), msg)
+			if err != nil {
+				return err
+			}
+			// auth successful
+			return nil
+
+		}
+	}
+}
+
 func (s *stratumV1MinerModel) Run() error {
+	err := s.Connect()
+	if err != nil {
+		s.log.Error(err)
+		return err
+	}
+	s.pool.ResendRelevantNotifications(context.TODO())
+
 	errCh := make(chan error)
 	go func() {
 		for {
@@ -40,7 +107,6 @@ func (s *stratumV1MinerModel) Run() error {
 				errCh <- err
 				return
 			}
-
 			s.poolInterceptor(msg)
 
 			err = s.miner.Write(context.TODO(), msg)
@@ -98,8 +164,8 @@ func (s *stratumV1MinerModel) poolInterceptor(msg stratumv1_message.MiningMessag
 }
 
 func (s *stratumV1MinerModel) ChangeDest(dest interfaces.IDestination) error {
-	err := s.pool.SetDest(dest)
-	return err
+	return s.pool.SetDest(dest, s.configureMsgReq)
+
 }
 
 func (s *stratumV1MinerModel) GetDest() interfaces.IDestination {
@@ -127,7 +193,7 @@ func (s *stratumV1MinerModel) OnSubmit(cb OnSubmitHandler) ListenerHandle {
 }
 
 func (s *stratumV1MinerModel) GetWorkerName() string {
-	return s.miner.GetWorkerName()
+	return s.workerName
 }
 
 func (s *stratumV1MinerModel) RemoveListener(h ListenerHandle) {
@@ -135,4 +201,8 @@ func (s *stratumV1MinerModel) RemoveListener(h ListenerHandle) {
 	defer s.mutex.Unlock()
 
 	s.onSubmit[h] = nil
+}
+
+func (s *stratumV1MinerModel) setWorkerName(name string) {
+	s.workerName = name
 }
