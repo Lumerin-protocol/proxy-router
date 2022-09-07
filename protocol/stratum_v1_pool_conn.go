@@ -141,7 +141,7 @@ func (m *StratumV1PoolConn) Connect() error {
 // sendPoolRequestWait sends a message and awaits for the response
 func (m *StratumV1PoolConn) sendPoolRequestWait(msg stratumv1_message.MiningMessageToPool) (*stratumv1_message.MiningResult, error) {
 	id := int(m.lastRequestId.Inc())
-	msg.SetID(int(id))
+	msg.SetID(id)
 
 	err := m.Write(context.TODO(), msg)
 	if err != nil {
@@ -265,7 +265,6 @@ func (s *StratumV1PoolConn) readInterceptor(m stratumv1_message.MiningMessageGen
 	return m
 }
 
-//
 func (s *StratumV1PoolConn) writeInterceptor(m stratumv1_message.MiningMessageGeneric) stratumv1_message.MiningMessageGeneric {
 	switch typedMsg := m.(type) {
 	case *stratumv1_message.MiningSubmit:

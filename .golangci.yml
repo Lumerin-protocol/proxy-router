@@ -2,12 +2,11 @@ linters:
   disable-all: true
   enable:
     - gofmt
-    # TODO(acsaba): readd linters.
-    #- deadcode
-    #- errcheck
-    # - golint
-    # - ineffassign
-    # - unconvert
+    - deadcode
+    - errcheck
+    #- golint
+    - ineffassign
+    - unconvert
     # - misspell
     # - govet
 run:

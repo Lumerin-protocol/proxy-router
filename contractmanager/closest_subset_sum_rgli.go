@@ -10,8 +10,10 @@ import (
 const RGLI_TRIALS = 50
 
 // ClosestSubsetSumRGLI implements approgimate RGLI algo to solve closest subset sum problem
-// 	Added changes so the algo always returns value larger or equal to target
-//  Sources:
+//
+//		Added changes so the algo always returns value larger or equal to target
+//	 Sources:
+//
 // https://rpubs.com/aviadt/subset-sum
 // https://web.stevens.edu/algebraic/Files/SubsetSum/przydatek99fast.pdf
 func ClosestSubsetSumRGLI(arr []int, sum int) (numIndexes []int, dlt int) {

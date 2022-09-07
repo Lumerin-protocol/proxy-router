@@ -31,5 +31,8 @@ func TestNewInMemoryRepository(t *testing.T) {
 
 	repo := NewInMemoryRepository[ITestModel](nil, NewInMemoryDataStore(), transactionsChannel)
 
-	repo.Create(&TestModel{})
+	_, err := repo.Create(&TestModel{})
+	if err != nil {
+		t.Fail()
+	}
 }
