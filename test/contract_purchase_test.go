@@ -43,7 +43,10 @@ func TestHashrateContractCreation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	CreateHashrateContract(client, sellerAddress, sellerPrivateKey, clonefactoryAddress, price, limit, speed, length, clonefactoryAddress)
+	err = CreateHashrateContract(client, sellerAddress, sellerPrivateKey, clonefactoryAddress, price, limit, speed, length, clonefactoryAddress)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	logs := make(chan types.Log)
 	sub, err := client.SubscribeFilterLogs(context.Background(), ethereum.FilterQuery{
@@ -74,7 +77,10 @@ func TestHashrateContractPurchase(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	PurchaseHashrateContract(client, buyerAddress, buyerPrivateKey, clonefactoryAddress, hashrateContractAddress, buyerAddress, poolUrl)
+	err = PurchaseHashrateContract(client, buyerAddress, buyerPrivateKey, clonefactoryAddress, hashrateContractAddress, buyerAddress, poolUrl)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	logs := make(chan types.Log)
 	sub, err := client.SubscribeFilterLogs(context.Background(), ethereum.FilterQuery{

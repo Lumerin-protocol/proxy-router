@@ -26,7 +26,7 @@ func TestSubscribeConnection(t *testing.T) {
 
 func TestSubscribeConnectionCb(t *testing.T) {
 	eb := NewEventBus()
-	c := NewEventBusController(&eb)
+	c := NewEventBusController(eb)
 	data := ConnectionEventData{Addr: "0.0.0.0", Name: "Test"}
 
 	ch := make(chan ConnectionEventData)

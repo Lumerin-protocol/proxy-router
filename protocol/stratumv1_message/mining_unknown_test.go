@@ -4,7 +4,7 @@ import "testing"
 
 func TestMiningUnknown(t *testing.T) {
 	msg := []byte(`{"id":1,"method":"mining.configure","params":[["minimum-difficulty","version-rolling"],{"minimum-difficulty.value":2048,"version-rolling.mask":"1fffe000","version-rolling.min-bit-count":2}]}`)
-	parsed, err := ParseMiningConfigure([]byte(msg))
+	parsed, err := ParseMiningConfigure(msg)
 	if err != nil {
 		t.FailNow()
 	}
