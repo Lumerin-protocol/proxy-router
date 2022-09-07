@@ -4,3 +4,11 @@ remote-miner
 remote-test
 remote-todos
 *.code-workspace
+
+*.log
+.env
+
+.vscode
+hashrouter
+
+go.sum
