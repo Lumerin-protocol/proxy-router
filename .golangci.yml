@@ -2,7 +2,6 @@ linters:
   disable-all: true
   enable:
     - gofmt
-    # - typecheck
     - deadcode
     - errcheck
     - golint
@@ -10,6 +9,8 @@ linters:
     - unconvert
     # - misspell
     # - govet
+  disable:
+    - typecheck
 run:
   deadline: 5m
   timeout: 5m
