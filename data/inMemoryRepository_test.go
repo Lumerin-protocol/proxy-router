@@ -64,9 +64,4 @@ func TestNewInMemoryRepository(t *testing.T) {
 	// TODO: Update with better scenario
 	items:=repo.Query(model)
 	require.Nil(t, items)
-
-<<<<<<< Updated upstream
-	repo.Create(&TestModel{})
-=======
->>>>>>> Stashed changes
 }
