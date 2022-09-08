@@ -53,12 +53,12 @@ func (s *GlobalSchedulerService) GetUnallocatedHashrateGHS() (int, HashrateList)
 	var minerHashrates HashrateList
 
 	s.minerCollection.Range(func(miner miner.MinerScheduler) bool {
-		unallocatedHashrate = miner.GetUnallocatedHashrateGHS()
-		if unallocatedHashrate > 0 {
-			unallocatedHashrate += unallocatedHashrate
+		hashrate := miner.GetUnallocatedHashrateGHS()
+		if hashrate > 0 {
+			unallocatedHashrate += hashrate
 			// passing to struct to avoid potential race conditions due to hashrate not being constant
 			minerHashrates = append(minerHashrates, HashrateListItem{
-				Hashrate:      unallocatedHashrate,
+				Hashrate:      miner.GetUnallocatedHashrateGHS(),
 				MinerID:       miner.GetID(),
 				TotalHashrate: miner.GetHashRateGHS(),
 			})

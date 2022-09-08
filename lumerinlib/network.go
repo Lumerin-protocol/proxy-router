@@ -13,31 +13,19 @@ const TCPTRUNK NetworkType = "tcptrunk"
 const UDPTRUNK NetworkType = "udptrunk"
 const ANYAVAILABLE NetworkType = "anyavailable"
 
-//
-//
-//
 type NetAddr struct {
 	ipaddr  string
 	network NetworkType
 }
 
-//
-//
-//
 func (na *NetAddr) Network() string {
 	return string(na.network)
 }
 
-//
-//
-//
 func (na *NetAddr) String() string {
 	return na.ipaddr
 }
 
-//
-//
-//
 func NewNetAddr(net NetworkType, ip string) (na *NetAddr) {
 
 	// Error checking here

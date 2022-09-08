@@ -38,7 +38,10 @@ func NewContractManager(blockchain *blockchain.EthereumGateway, globalScheduler 
 }
 
 func (m *ContractManager) Run(ctx context.Context) error {
-	m.runExistingContracts()
+	err := m.runExistingContracts()
+	if err != nil {
+		return err
+	}
 	eventsCh, sub, err := m.blockchain.SubscribeToContractCreatedEvent(ctx)
 	if err != nil {
 		return err

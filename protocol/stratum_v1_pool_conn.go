@@ -24,7 +24,7 @@ type StratumV1PoolConn struct {
 	notifyMsgs    []*stratumv1_message.MiningNotify      // recent relevant notify messages, (respects stratum clean_jobs flag)
 	setDiffMsg    *stratumv1_message.MiningSetDifficulty // recent difficulty message
 	extraNonceMsg *stratumv1_message.MiningSetExtranonce // keeps relevant extranonce (picked from mining.subscribe response)
-
+	configureMsg  *stratumv1_message.MiningConfigure
 	// TODO: handle pool setExtranonce message
 
 	msgCh              chan stratumv1_message.MiningMessageGeneric // auxillary channel to relay messages
@@ -38,13 +38,14 @@ type StratumV1PoolConn struct {
 	log interfaces.ILogger
 }
 
-func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDestination) *StratumV1PoolConn {
+func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDestination, configureMsg *stratumv1_message.MiningConfigure) *StratumV1PoolConn {
 	return &StratumV1PoolConn{
 
 		dest: dest,
 
-		conn:       conn,
-		notifyMsgs: make([]*stratumv1_message.MiningNotify, 100),
+		conn:         conn,
+		notifyMsgs:   make([]*stratumv1_message.MiningNotify, 100),
+		configureMsg: configureMsg,
 
 		msgCh:     make(chan stratumv1_message.MiningMessageGeneric, 100),
 		isReading: false, // hold on emitting messages to destination, until handshake
@@ -104,7 +105,15 @@ func (m *StratumV1PoolConn) Connect() error {
 	if err != nil {
 		return err
 	}
-	subscribeRes, err := m.sendPoolRequestWait(stratumv1_message.NewMiningSubscribe(1, "miner", "1"))
+
+	if m.configureMsg != nil {
+		_, err := m.SendPoolRequestWait(m.configureMsg)
+		if err != nil {
+			return err
+		}
+	}
+
+	subscribeRes, err := m.SendPoolRequestWait(stratumv1_message.NewMiningSubscribe(1, "miner", ""))
 	if err != nil {
 		// TODO: on error fallback to previous pool
 		return err
@@ -122,7 +131,7 @@ func (m *StratumV1PoolConn) Connect() error {
 	m.extraNonceMsg = stratumv1_message.NewMiningSetExtranonceV2(extranonce, extranonceSize)
 
 	authMsg := stratumv1_message.NewMiningAuthorize(1, m.dest.Username(), m.dest.Password())
-	_, err = m.sendPoolRequestWait(authMsg)
+	_, err = m.SendPoolRequestWait(authMsg)
 	if err != nil {
 		m.log.Debugf("reconnect: error sent subscribe %w", err)
 
@@ -131,17 +140,15 @@ func (m *StratumV1PoolConn) Connect() error {
 	}
 	m.log.Debug("connect: authorize sent")
 
-	m.resendRelevantNotifications(context.TODO())
-
 	m.setIsReading(true)
 
 	return nil
 }
 
-// sendPoolRequestWait sends a message and awaits for the response
-func (m *StratumV1PoolConn) sendPoolRequestWait(msg stratumv1_message.MiningMessageToPool) (*stratumv1_message.MiningResult, error) {
+// SendPoolRequestWait sends a message and awaits for the response
+func (m *StratumV1PoolConn) SendPoolRequestWait(msg stratumv1_message.MiningMessageToPool) (*stratumv1_message.MiningResult, error) {
 	id := int(m.lastRequestId.Inc())
-	msg.SetID(int(id))
+	msg.SetID(id)
 
 	err := m.Write(context.TODO(), msg)
 	if err != nil {
@@ -204,7 +211,7 @@ func (s *StratumV1PoolConn) sendToReadCh(msg stratumv1_message.MiningMessageGene
 		case s.msgCh <- msg:
 			return
 		case <-time.After(timeoutAlert):
-			s.log.Errorf("sendToReadCh is blocked for %.1f seconds, pending message %+#v", timeoutAlert.Seconds()*float64(n), msg)
+			s.log.Errorf("sendToReadCh is blocked for %.1f seconds, pending message %s", timeoutAlert.Seconds()*float64(n), string(msg.Serialize()))
 		}
 	}
 }
@@ -265,7 +272,6 @@ func (s *StratumV1PoolConn) readInterceptor(m stratumv1_message.MiningMessageGen
 	return m
 }
 
-//
 func (s *StratumV1PoolConn) writeInterceptor(m stratumv1_message.MiningMessageGeneric) stratumv1_message.MiningMessageGeneric {
 	switch typedMsg := m.(type) {
 	case *stratumv1_message.MiningSubmit:

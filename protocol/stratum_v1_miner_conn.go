@@ -39,7 +39,6 @@ func NewStratumV1Miner(conn net.Conn, log interfaces.ILogger, extraNonce *stratu
 }
 
 func (m *StratumV1Miner) Write(ctx context.Context, msg stratumv1_message.MiningMessageGeneric) error {
-	m.waitForWriteUnlock()
 	return m.write(ctx, msg)
 }
 
@@ -72,29 +71,6 @@ func (s *StratumV1Miner) Read(ctx context.Context) (stratumv1_message.MiningMess
 			continue
 		}
 
-		switch typedMessage := m.(type) {
-		case *stratumv1_message.MiningSubscribe:
-			s.extraNonceMsg.SetID(m.GetID())
-			err := s.write(context.TODO(), s.extraNonceMsg)
-			if err != nil {
-				return nil, err
-			}
-			continue
-
-		case *stratumv1_message.MiningAuthorize:
-			s.setWorkerName(typedMessage.GetWorkerName())
-
-			msg, _ := stratumv1_message.ParseMiningResult([]byte(`{"id":47,"result":true,"error":null}`))
-			msg.SetID(m.GetID())
-			err := s.write(context.TODO(), msg)
-			if err != nil {
-				return nil, err
-			}
-			s.writeUnlock()
-
-			continue
-		}
-
 		return m, nil
 	}
 }
@@ -109,23 +85,6 @@ func (s *StratumV1Miner) setWorkerName(name string) {
 
 func (s *StratumV1Miner) GetWorkerName() string {
 	return s.workerName
-}
-
-func (s *StratumV1Miner) writeUnlock() {
-	s.mu.Lock()
-	s.isWriting = true
-	s.mu.Unlock()
-	s.log.Debug("writing to miner is released")
-	s.cond.Broadcast()
-}
-
-func (m *StratumV1Miner) waitForWriteUnlock() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	for !m.isWriting {
-		m.log.Info("writing to miner is locked")
-		m.cond.Wait()
-	}
 }
 
 var _ StratumV1SourceConn = new(StratumV1Miner)

@@ -54,16 +54,10 @@ func (r *ConcurrentMap) Delete(key string) {
 	delete(r.M, key)
 }
 
-//
-//
-//
 func BoilerPlateLibFunc(msg string) string {
 	return msg
 }
 
-//
-//
-//
 func FileLineFunc(a ...int) string {
 	var depth int = 1
 
@@ -103,9 +97,6 @@ func FileLineFunc(a ...int) string {
 	return ret
 }
 
-//
-//
-//
 func FileLine() string {
 	_, file, line, ok := runtime.Caller(1)
 	if !ok {
@@ -119,9 +110,6 @@ func FileLine() string {
 	return "[" + f[len(f)-1] + ":" + lineno + "]:"
 }
 
-//
-//
-//
 func Funcname() string {
 	pc, _, _, ok := runtime.Caller(1)
 	if !ok {
@@ -138,9 +126,6 @@ func Funcname() string {
 	return f[len(f)-1]
 }
 
-//
-//
-//
 func Errtrace() string {
 	pc, file, line, ok := runtime.Caller(1)
 	if !ok {
@@ -157,9 +142,6 @@ func Errtrace() string {
 	return file + "[" + lineno + "]:" + fn.Name()
 }
 
-//
-//
-//
 func PanicHere(text ...string) string {
 	_, file, line, ok := runtime.Caller(1)
 	if !ok {
@@ -173,10 +155,7 @@ func PanicHere(text ...string) string {
 	panic(fmt.Sprintf("[%s:%s]:%s", f[len(f)-1], lineno, text[0]))
 }
 
-//
-//
 // borrowed from https://blog.sgmansfield.com/2015/12/goroutine-ids/
-//
 func getGID() uint64 {
 	b := make([]byte, 64)
 	b = b[:runtime.Stack(b, false)]
@@ -186,10 +165,8 @@ func getGID() uint64 {
 	return n
 }
 
-//
 // goCounter()
 // Generates a UniqueID (int) and returns via supplied channel
-//
 func RunGoCounter(c chan int) {
 	go func() {
 		counter := 10000

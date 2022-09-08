@@ -3,11 +3,13 @@ package miner
 import (
 	"context"
 	"net"
+	"strings"
 
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/protocol"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
+	"gitlab.com/TitanInd/hashrouter/tcpserver"
 )
 
 type MinerController struct {
@@ -26,8 +28,25 @@ func NewMinerController(defaultDest interfaces.IDestination, collection interfac
 
 func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net.Conn) error {
 	p.log.Infof("incoming miner connection: %s", incomingConn.RemoteAddr().String())
+	// TODO: peek if incoming connection is stratum connection
+
+	buffered := tcpserver.NewBufferedConn(incomingConn)
+	bytes, err := buffered.Peek(100)
+	p.log.Error(err)
+	peakedMsg := strings.ToLower(string(bytes))
+
+	if !(strings.Contains(peakedMsg, "id") &&
+		strings.Contains(peakedMsg, "mining") &&
+		strings.Contains(peakedMsg, "params")) {
+		p.log.Infof("invalid incoming message: %s", peakedMsg)
+		err := buffered.Close()
+		return err
+	}
+
+	incomingConn = buffered
+
 	poolPool := protocol.NewStratumV1PoolPool(p.log.Named(incomingConn.RemoteAddr().String()))
-	err := poolPool.SetDest(p.defaultDest)
+	err = poolPool.SetDest(p.defaultDest, nil)
 	if err != nil {
 		p.log.Error(err)
 		return err
@@ -54,7 +73,10 @@ func (p *MinerController) ChangeDestAll(dest interfaces.IDestination) error {
 	p.collection.Range(func(miner MinerScheduler) bool {
 		p.log.Infof("changing pool to %s for minerID %s", dest.GetHost(), miner.GetID())
 
-		miner.Allocate(100, dest)
+		_, err := miner.Allocate(100, dest)
+		if err != nil {
+			return false
+		}
 
 		return true
 	})
