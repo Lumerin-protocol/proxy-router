@@ -1,3 +1,5 @@
+image: golang:1.18
+
 stages:
   - test
   - integration
@@ -23,12 +25,6 @@ lint:
 test:
   stage: test
   image: golang:1.18-alpine
-  services:
-    - docker:20.10.14-dind
-  variables:
-    DB_HOST: docker
-    DB_PORT: "5433"
   script:
-    - apk add --no-cache docker docker-compose git make musl-dev gcc
     - go version
     - go test -v -p 1 ./...
