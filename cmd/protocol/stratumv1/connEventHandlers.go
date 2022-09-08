@@ -607,7 +607,9 @@ func (svs *StratumV1Struct) handleNotice(uid simple.ConnUniqueID, notice *stratu
 	if uid < 0 {
 		switch notice.Method {
 		default:
-			contextlib.Logf(svs.Ctx(), contextlib.LevelPanic, lumerinlib.FileLineFunc()+" Bad Destination Message Type Recieved")
+			contextlib.Logf(svs.Ctx(), contextlib.LevelError, lumerinlib.FileLineFunc()+" Bad Destination Message Type Recieved: %s", notice.Method)
+			e = fmt.Errorf(lumerinlib.FileLineFunc()+" Bad Destination Message Type Recieved: %s", notice.Method)
+			return e
 		}
 	} else {
 
