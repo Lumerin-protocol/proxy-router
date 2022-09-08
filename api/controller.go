@@ -63,7 +63,7 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 		err := controller.changeDestAll(dest)
 
 		if err != nil {
-			ctx.AbortWithError(http.StatusInternalServerError, err)
+			_ = ctx.AbortWithError(http.StatusInternalServerError, err)
 			return
 		}
 		ctx.Status(http.StatusOK)
