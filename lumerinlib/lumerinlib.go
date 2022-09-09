@@ -3,6 +3,7 @@ package lumerinlib
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"runtime"
 	"strconv"
 	"strings"
@@ -64,7 +65,7 @@ func FileLineFunc(a ...int) string {
 	if len(a) != 0 {
 		depth = len(a)
 		if depth < 1 && depth > 10 {
-			panic(FileLine() + " depth out of bounds")
+			log.Default().Printf(FileLine() + " depth out of bounds")
 		}
 	}
 
@@ -140,19 +141,6 @@ func Errtrace() string {
 	}
 
 	return file + "[" + lineno + "]:" + fn.Name()
-}
-
-func PanicHere(text ...string) string {
-	_, file, line, ok := runtime.Caller(1)
-	if !ok {
-		panic("Well this is unexpected...")
-	}
-
-	f := strings.Split(file, "/")
-
-	lineno := strconv.Itoa(line)
-
-	panic(fmt.Sprintf("[%s:%s]:%s", f[len(f)-1], lineno, text[0]))
 }
 
 // borrowed from https://blog.sgmansfield.com/2015/12/goroutine-ids/
