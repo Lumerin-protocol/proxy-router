@@ -130,7 +130,7 @@ func (m *OnDemandMinerScheduler) Allocate(percentage float64, dest interfaces.ID
 }
 
 // ChangeDest forcefully change destination
-//  may cause issues when split is enabled
+// may cause issues when split is enabled
 func (m *OnDemandMinerScheduler) ChangeDest(dest lib.Dest) error {
 	return m.minerModel.ChangeDest(dest)
 }

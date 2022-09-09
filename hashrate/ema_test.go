@@ -1,24 +1,27 @@
 package hashrate
 
 import (
-	"fmt"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestEma(t *testing.T) {
-	t.Skip()
+	counter := New(time.Second)
+	counter.Add(10.0)
+	require.LessOrEqual(t, counter.Value(), float64(10.0))
+	val := counter.ValuePer(time.Second)
+	require.Less(t, val, float64(10))
+	val = counter.LastValuePer(time.Second)
+	require.LessOrEqual(t, val, float64(10))
 
-	counter := New(5 * time.Hour)
+	counter.Add(20.0)
+	val = counter.Value()
+	require.Greater(t, val, float64(29))
+	require.Less(t, val, float64(30))
 
-	for i := 0; i < 40; i++ {
-		counter.Add(10.0)
-		time.Sleep(time.Second)
-		fmt.Println(counter.LastValue(), counter.Value())
-	}
-
-	// The result about 60 (60 adds/minute)
-
-	// The result about 60 (60 adds/minute)
-
+	val = counter.valueAfter(time.Second)
+	require.Greater(t, val, float64(10))
+	require.Less(t, val, float64(12))
 }
