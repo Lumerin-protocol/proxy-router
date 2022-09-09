@@ -74,7 +74,7 @@ func (s *StratumV1PoolConn) run(ctx context.Context) error {
 	for {
 		line, isPrefix, err := sourceReader.ReadLine()
 		if isPrefix {
-			panic("line is too long")
+			return fmt.Errorf("line is too long")
 		}
 
 		if err != nil {

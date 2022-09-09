@@ -2,6 +2,7 @@ package miner
 
 import (
 	"fmt"
+	"log"
 	"math"
 	"sync"
 
@@ -60,7 +61,7 @@ func (d *DestSplit) adjustPercentage(percentage float64) uint8 {
 // allocate is used adjustPercentage is called for percentage
 func (d *DestSplit) allocate(percentage uint8, dest interfaces.IDestination) (*Split, error) {
 	if percentage > 100 || percentage == 0 {
-		panic("percentage should be withing range 1..100")
+		return nil, fmt.Errorf("percentage should be withing range 1..100")
 	}
 
 	if percentage > d.GetUnallocated() {
@@ -87,7 +88,7 @@ func (d *DestSplit) AllocateRemaining(dest interfaces.IDestination) {
 	}
 	_, err := d.allocate(remaining, dest)
 	if err != nil {
-		panic(fmt.Errorf("AllocateRemaining failed: %s", err))
+		log.Println(fmt.Errorf("AllocateRemaining failed: %s", err))
 	}
 }
 
