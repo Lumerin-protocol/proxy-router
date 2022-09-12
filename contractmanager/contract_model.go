@@ -33,8 +33,9 @@ type Contract struct {
 	blockchain      *blockchain.EthereumGateway
 	globalScheduler *GlobalSchedulerService
 
-	data         blockchain.ContractData
-	closeoutType blockchain.CloseoutType
+	data                  blockchain.ContractData
+	FullfillmentStartTime int64
+	closeoutType          blockchain.CloseoutType
 
 	state            ContractState
 	contractClosedCh chan struct{}
@@ -147,35 +148,37 @@ func (c *Contract) listenContractEvents(ctx context.Context, errGroup *errgroup.
 func (c *Contract) fulfillContract(ctx context.Context) error {
 	c.state = ContractStateRunning
 
+allocationBlock:
+	//do we need this for loop?
 	for {
-		c.log.Info("fulfilling contract %s", c.GetID())
-		if time.Now().After(c.data.GetContractEndTimeV2()) {
-			c.log.Info("contract time ended, closing...", c.GetID())
-			err := c.blockchain.SetContractCloseOut(c.data.Seller.Hex(), c.GetAddress(), c.closeoutType)
+		if !c.ContractIsExpired() {
+
+			err := c.StartHashrateAllocation()
+
 			if err != nil {
-				c.log.Error("cannot close contract: ", err)
+				c.log.Warn("cannot allocate hashrate", err)
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(30 * time.Second):
+				}
+				continue
 			}
-			return nil
+
+			break allocationBlock
 		}
 
-		minerList, err := c.globalScheduler.Allocate(c.GetHashrateGHS(), c.data.Dest)
-		if err != nil {
-			c.log.Warn("cannot allocate hashrate", err)
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(30 * time.Second):
-			}
-			continue
-		}
-		c.combination = minerList
 		break
 	}
 
 	for {
+		// TODO: make sure this value is updated if we have to wait for hashpower
 		if c.ContractIsExpired() {
 			c.log.Info("contract time ended, closing...", c.GetID())
+			//TODO: make sure this is updated so that we continue listening for contract events.
 			c.Stop()
+
+			//TODO: make sure this is updated so that we continue listening for contract events.
 			err := c.blockchain.SetContractCloseOut(c.data.Seller.Hex(), c.GetAddress(), c.closeoutType)
 			if err != nil {
 				c.log.Error("cannot close contract", err)
@@ -193,8 +196,24 @@ func (c *Contract) fulfillContract(ctx context.Context) error {
 	}
 }
 
+func (c *Contract) StartHashrateAllocation() error {
+
+	minerList, err := c.globalScheduler.Allocate(c.GetHashrateGHS(), c.data.Dest)
+
+	if err != nil {
+		return err
+	}
+
+	c.combination = minerList
+	c.FullfillmentStartTime = time.Now().Unix()
+
+	c.log.Info("fulfilling contract %s; expires at %v", c.GetID(), c.GetEndTime())
+
+	return nil
+}
+
 func (c *Contract) ContractIsExpired() bool {
-	return time.Now().Unix() > c.data.GetContractEndTime()
+	return time.Now().Unix() > c.GetEndTime().Unix()
 }
 
 // Stops fulfilling the contract by miners
@@ -233,7 +252,7 @@ func (c *Contract) GetStartTime() time.Time {
 }
 
 func (c *Contract) GetEndTime() time.Time {
-	return c.data.GetContractEndTimeV2()
+	return time.Unix(c.FullfillmentStartTime+c.data.Length, 0)
 }
 
 func (c *Contract) GetState() ContractState {
