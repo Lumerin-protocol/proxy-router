@@ -137,7 +137,6 @@ func (c *Contract) listenContractEvents(ctx context.Context, errGroup *errgroup.
 			case blockchain.ContractClosedSigHex:
 				c.log.Info("received contract closed event", c.data.Addr)
 				c.Stop()
-				sub.Unsubscribe()
 				return nil
 			}
 
