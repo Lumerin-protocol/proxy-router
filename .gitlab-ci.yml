@@ -22,4 +22,5 @@ test:
     - apk add --no-cache git make musl-dev gcc
     - go version
     - go mod download
+    - go mod tidy
     - go test -v -p 1 ./...
