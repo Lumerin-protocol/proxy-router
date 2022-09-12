@@ -148,7 +148,6 @@ func (c *Contract) fulfillContract(ctx context.Context) error {
 	c.state = ContractStateRunning
 
 allocationBlock:
-	//do we need this for loop?
 	for {
 		if !c.ContractIsExpired() {
 
@@ -171,7 +170,6 @@ allocationBlock:
 	}
 
 	for {
-		// TODO: make sure this value is updated if we have to wait for hashpower
 		if c.ContractIsExpired() {
 			c.log.Info("contract time ended, closing...", c.GetID())
 			//TODO: make sure this is updated so that we continue listening for contract events.
