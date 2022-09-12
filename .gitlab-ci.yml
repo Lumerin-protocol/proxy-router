@@ -11,7 +11,7 @@ variables:
 
 lint:
   stage: test
-  image: golangci/golangci-lint:v1.46
+  image: golangci/golangci-lint:v1.49
   script:
     - golangci-lint run -v
 
