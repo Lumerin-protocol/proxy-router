@@ -2,11 +2,11 @@ linters:
   disable-all: true
   enable:
     - gofmt
-    - deadcode
-    - errcheck
+    #- deadcode
+    #- errcheck
     #- golint
-    - ineffassign
-    - unconvert
+    #- ineffassign
+    #- unconvert
     # - misspell
     # - govet
 run:
