@@ -54,12 +54,12 @@ func (a *App) Run() {
 		return a.TCPServer.Run(subCtx)
 	})
 
-	//Bootstrap contracts layer
-	// g.Go(func() error {
-	// 	err := a.ContractManager.Run(subCtx)
-	// 	a.Logger.Debugf("contract error: %v", err)
-	// 	return err
-	// })
+	// Bootstrap contracts layer
+	g.Go(func() error {
+		err := a.ContractManager.Run(subCtx)
+		a.Logger.Debugf("contract error: %v", err)
+		return err
+	})
 
 	//Bootstrap API
 	g.Go(func() error {

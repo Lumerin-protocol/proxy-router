@@ -9,12 +9,14 @@ import (
 // RGLI_TRIALS is number of attempts to pick the best combination, recommended value from 10 to 50
 const RGLI_TRIALS = 50
 
-// ClosestSubsetSumRGLI implements approgimate RGLI algo to solve closest subset sum problem
+// ClosestSubsetSumRGLI implements approgimate RGLI algo to solve closest subset sum problem.
+// Changed from the original implementation to always returns value larger or equal to the
+// target (result value delta dlt is always <= 0)
 //
-//		Added changes so the algo always returns value larger or equal to target
-//	 Sources:
+// Sources:
 //
 // https://rpubs.com/aviadt/subset-sum
+//
 // https://web.stevens.edu/algebraic/Files/SubsetSum/przydatek99fast.pdf
 func ClosestSubsetSumRGLI(arr []int, sum int) (numIndexes []int, dlt int) {
 	if !SEED_CALLED {
