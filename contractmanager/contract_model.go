@@ -2,7 +2,6 @@ package contractmanager
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -82,8 +81,10 @@ func (c *Contract) Run(ctx context.Context) error {
 	})
 
 	g.Go(func() error {
-		<-c.contractClosedCh
-		return errors.New("contract closed")
+		for {
+			<-c.contractClosedCh
+			c.log.Infof("contract closed")
+		}
 	})
 
 	return g.Wait()
@@ -158,6 +159,7 @@ allocationBlock:
 				c.log.Warn("cannot allocate hashrate", err)
 				select {
 				case <-ctx.Done():
+					c.log.Errorf("contract context done while waiting for hashpower: %v", ctx.Err().Error())
 					return ctx.Err()
 				case <-time.After(30 * time.Second):
 				}
@@ -173,8 +175,6 @@ allocationBlock:
 	for {
 		if c.ContractIsExpired() {
 			c.log.Info("contract time ended, closing...", c.GetID())
-			//TODO: make sure this is updated so that we continue listening for contract events.
-			c.Stop()
 
 			//TODO: make sure this is updated so that we continue listening for contract events.
 			err := c.blockchain.SetContractCloseOut(c.data.Seller.Hex(), c.GetAddress(), c.closeoutType)
@@ -188,6 +188,7 @@ allocationBlock:
 
 		select {
 		case <-ctx.Done():
+			c.log.Errorf("contract context done while waiting for running contract to finish: %v", ctx.Err().Error())
 			return ctx.Err()
 		case <-time.After(10 * time.Second):
 		}
