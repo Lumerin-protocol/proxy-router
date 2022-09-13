@@ -80,13 +80,6 @@ func (c *Contract) Run(ctx context.Context) error {
 		return c.listenContractEvents(subCtx, g)
 	})
 
-	g.Go(func() error {
-		for {
-			// <-c.contractClosedCh
-			// c.log.Infof("contract closed")
-		}
-	})
-
 	return g.Wait()
 }
 
@@ -172,7 +165,6 @@ func (c *Contract) fulfillContract(ctx context.Context) error {
 			if err != nil {
 				c.log.Error("cannot close contract", err)
 			}
-			return nil
 		}
 		// TODO hashrate monitoring
 		c.log.Info("contract running...", c.GetID())
