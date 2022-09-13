@@ -222,6 +222,8 @@ func (c *Contract) Stop() {
 			c.log.Error("miner split not found during STOP . minerID: %s, contractID: %s", miner.GetSourceID(), c.GetID())
 		}
 	}
+
+	c.FullfillmentStartTime = 0
 	close(c.contractClosedCh)
 }
 
