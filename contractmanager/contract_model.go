@@ -115,9 +115,7 @@ func (c *Contract) listenContractEvents(ctx context.Context, errGroup *errgroup.
 				c.data = data
 
 				// use the same group to fail together with main goroutine
-				errGroup.Go(func() error {
-					return c.fulfillContract(ctx)
-				})
+				c.fulfillContract(ctx)
 
 			case blockchain.ContractCipherTextUpdatedHex:
 			case blockchain.ContractPurchaseInfoUpdatedHex:
@@ -164,7 +162,10 @@ func (c *Contract) fulfillContract(ctx context.Context) error {
 			err := c.blockchain.SetContractCloseOut(c.data.Seller.Hex(), c.GetAddress(), c.closeoutType)
 			if err != nil {
 				c.log.Error("cannot close contract", err)
+				return err
 			}
+
+			return nil
 		}
 		// TODO hashrate monitoring
 		c.log.Info("contract running...", c.GetID())
