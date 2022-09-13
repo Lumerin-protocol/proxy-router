@@ -54,13 +54,14 @@ func NewContract(data blockchain.ContractData, blockchain *blockchain.EthereumGa
 		hr = hashrate.NewHashrate(log, hashrate.EMA_INTERVAL)
 	}
 	return &Contract{
-		blockchain:       blockchain,
-		data:             data,
-		hashrate:         hr,
-		log:              log,
-		contractClosedCh: make(chan struct{}),
-		closeoutType:     2,
-		globalScheduler:  globalScheduler,
+		blockchain:            blockchain,
+		data:                  data,
+		hashrate:              hr,
+		log:                   log,
+		contractClosedCh:      make(chan struct{}),
+		closeoutType:          2,
+		globalScheduler:       globalScheduler,
+		FullfillmentStartTime: 0,
 	}
 }
 
@@ -210,7 +211,7 @@ func (c *Contract) StartHashrateAllocation() error {
 }
 
 func (c *Contract) ContractIsExpired() bool {
-	return c.FullfillmentStartTime == 0 || time.Now().Unix() > c.GetEndTime().Unix()
+	return c.FullfillmentStartTime != 0 && time.Now().Unix() > c.GetEndTime().Unix()
 }
 
 // Stops fulfilling the contract by miners
