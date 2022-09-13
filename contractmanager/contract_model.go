@@ -149,7 +149,6 @@ func (c *Contract) listenContractEvents(ctx context.Context, errGroup *errgroup.
 func (c *Contract) fulfillContract(ctx context.Context) error {
 	c.state = ContractStateRunning
 
-allocationBlock:
 	for {
 		if !c.ContractIsExpired() {
 
