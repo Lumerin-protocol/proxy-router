@@ -165,15 +165,7 @@ allocationBlock:
 				}
 				continue
 			}
-
-			break allocationBlock
-		}
-
-		break
-	}
-
-	for {
-		if c.ContractIsExpired() {
+		} else if c.ContractIsExpired() {
 			c.log.Info("contract time ended, closing...", c.GetID())
 
 			//TODO: make sure this is updated so that we continue listening for contract events.
