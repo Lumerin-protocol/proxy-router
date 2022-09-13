@@ -210,7 +210,7 @@ func (c *Contract) StartHashrateAllocation() error {
 }
 
 func (c *Contract) ContractIsExpired() bool {
-	return time.Now().Unix() > c.GetEndTime().Unix()
+	return c.FullfillmentStartTime == 0 || time.Now().Unix() > c.GetEndTime().Unix()
 }
 
 // Stops fulfilling the contract by miners
