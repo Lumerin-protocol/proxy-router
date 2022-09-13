@@ -82,8 +82,8 @@ func (c *Contract) Run(ctx context.Context) error {
 
 	g.Go(func() error {
 		for {
-			<-c.contractClosedCh
-			c.log.Infof("contract closed")
+			// <-c.contractClosedCh
+			// c.log.Infof("contract closed")
 		}
 	})
 
@@ -225,7 +225,7 @@ func (c *Contract) Stop() {
 	}
 
 	c.FullfillmentStartTime = 0
-	close(c.contractClosedCh)
+	// close(c.contractClosedCh)
 }
 
 func (c *Contract) GetBuyerAddress() string {
