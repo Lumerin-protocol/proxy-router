@@ -20,10 +20,10 @@ func (p *Collection[T]) Load(ID string) (item T, ok bool) {
 	if val, ok := p.items.Load(ID); ok {
 		return val.(T), true
 	} else {
-		if val!=nil{
+		if val != nil {
 			return val.(T), false
 		}
-		return *new(T),false
+		return *new(T), false
 	}
 }
 

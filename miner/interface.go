@@ -9,14 +9,13 @@ import (
 )
 
 type MinerModel interface {
-	Run() error    // shouldn't be available as public method, should be called when new miner announced
-	GetID() string // get miner unique id (host:port for example)
+	Run(ctx context.Context, errCh chan error) // shouldn't be available as public method, should be called when new miner announced
+	GetID() string                             // get miner unique id (host:port for example)
 
 	GetDest() interfaces.IDestination
 	ChangeDest(dest interfaces.IDestination) error
 	GetCurrentDifficulty() int
 	GetWorkerName() string
-
 	GetHashRateGHS() int
 	OnSubmit(cb protocol.OnSubmitHandler) protocol.ListenerHandle
 }
@@ -29,10 +28,8 @@ type MinerScheduler interface {
 	SetDestSplit(*DestSplit)
 	GetCurrentDest() interfaces.IDestination // get miner total hashrate in GH/s
 	ChangeDest(dest lib.Dest) error
-
 	GetCurrentDifficulty() int
 	GetWorkerName() string
-
 	GetHashRateGHS() int
 	GetUnallocatedHashrateGHS() int // get hashrate which is directed to default pool in GH/s
 
