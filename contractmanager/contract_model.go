@@ -203,7 +203,7 @@ func (c *Contract) fulfillContract(ctx context.Context) error {
 }
 func (c *Contract) ContractIsReady() bool {
 
-	return !c.ContractIsExpired() && c.FullfillmentStartTime == 0
+	return !c.ContractIsExpired()
 }
 
 func (c *Contract) StartHashrateAllocation() error {
