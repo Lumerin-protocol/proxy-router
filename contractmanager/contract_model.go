@@ -141,7 +141,7 @@ func (c *Contract) fulfillContract(ctx context.Context) error {
 	c.state = ContractStateRunning
 
 	for {
-		if !c.ContractIsExpired() {
+		if c.ContractIsReady() {
 
 			err := c.StartHashrateAllocation()
 
@@ -178,6 +178,10 @@ func (c *Contract) fulfillContract(ctx context.Context) error {
 		}
 	}
 }
+func (c *Contract) ContractIsReady() bool {
+
+	return !c.ContractIsExpired() && c.FullfillmentStartTime == 0
+}
 
 func (c *Contract) StartHashrateAllocation() error {
 
@@ -190,7 +194,7 @@ func (c *Contract) StartHashrateAllocation() error {
 	c.combination = minerList
 	c.FullfillmentStartTime = time.Now().Unix()
 
-	c.log.Info("fulfilling contract %s; expires at %v", c.GetID(), c.GetEndTime())
+	c.log.Infof("fulfilling contract %s; expires at %v", c.GetID(), c.GetEndTime())
 
 	return nil
 }
