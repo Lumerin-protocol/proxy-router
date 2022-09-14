@@ -95,9 +95,12 @@ func (c *Contract) listenContractEvents(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
+			c.log.Errorf("Unsubscribing from contract %v", c.GetID())
 			sub.Unsubscribe()
 			return ctx.Err()
 		case err := <-sub.Err():
+
+			c.log.Errorf("Contract subscription error %v", c.GetID())
 			return err
 		case e := <-eventsCh:
 			eventHex := e.Topics[0].Hex()
@@ -117,6 +120,7 @@ func (c *Contract) listenContractEvents(ctx context.Context) error {
 
 				// use the same group to fail together with main goroutine
 				c.fulfillContract(ctx)
+				continue
 
 			case blockchain.ContractCipherTextUpdatedHex:
 			case blockchain.ContractPurchaseInfoUpdatedHex:
