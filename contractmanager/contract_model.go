@@ -234,6 +234,7 @@ func (c *Contract) Stop() {
 	}
 
 	c.FullfillmentStartTime = 0
+	c.data.State = blockchain.ContractBlockchainStateAvailable
 	// close(c.contractClosedCh)
 }
 
