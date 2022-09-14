@@ -186,6 +186,8 @@ func (c *Contract) fulfillContract(ctx context.Context) error {
 				return err
 			}
 
+			c.Stop()
+
 			return nil
 		}
 		// TODO hashrate monitoring
@@ -226,15 +228,17 @@ func (c *Contract) ContractIsExpired() bool {
 
 // Stops fulfilling the contract by miners
 func (c *Contract) Stop() {
-	for _, miner := range c.combination {
-		ok := miner.SplitPtr.Deallocate()
-		if !ok {
-			c.log.Error("miner split not found during STOP . minerID: %s, contractID: %s", miner.GetSourceID(), c.GetID())
+	if c.data.State == blockchain.ContractBlockchainStateRunning {
+		for _, miner := range c.combination {
+			ok := miner.SplitPtr.Deallocate()
+			if !ok {
+				c.log.Error("miner split not found during STOP . minerID: %s, contractID: %s", miner.GetSourceID(), c.GetID())
+			}
 		}
-	}
 
-	c.FullfillmentStartTime = 0
-	c.data.State = blockchain.ContractBlockchainStateAvailable
+		c.FullfillmentStartTime = 0
+		c.data.State = blockchain.ContractBlockchainStateAvailable
+	}
 	// close(c.contractClosedCh)
 }
 
