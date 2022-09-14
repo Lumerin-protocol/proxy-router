@@ -37,7 +37,7 @@ var networkSet = wire.NewSet(provideTCPServer, provideApiServer)
 var protocolSet = wire.NewSet(provideMinerCollection, provideMinerController, eventbus.NewEventBus)
 var contractsSet = wire.NewSet(provideGlobalScheduler, provideContractCollection, provideEthClient, provideEthWallet, provideEthGateway, provideSellerContractManager)
 
-//TODO: make sure all providers initialized
+// TODO: make sure all providers initialized
 func InitApp() (*app.App, error) {
 	wire.Build(
 		provideConfig,
@@ -51,8 +51,8 @@ func InitApp() (*app.App, error) {
 	return nil, nil
 }
 
-func provideGlobalScheduler(miners interfaces.ICollection[miner.MinerScheduler]) *contractmanager.GlobalSchedulerService {
-	return contractmanager.NewGlobalScheduler(miners)
+func provideGlobalScheduler(miners interfaces.ICollection[miner.MinerScheduler], log interfaces.ILogger) *contractmanager.GlobalSchedulerService {
+	return contractmanager.NewGlobalScheduler(miners, log)
 }
 
 func provideMinerCollection() interfaces.ICollection[miner.MinerScheduler] {

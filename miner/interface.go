@@ -36,5 +36,6 @@ type MinerScheduler interface {
 	GetHashRateGHS() int
 	GetUnallocatedHashrateGHS() int // get hashrate which is directed to default pool in GH/s
 
-	Allocate(percentage float64, dest interfaces.IDestination) (*Split, error) // allocates available miner resources
+	Allocate(ID string, percentage float64, dest interfaces.IDestination) (*Split, error) // allocates available miner resources
+	Deallocate(ID string) (ok bool)
 }

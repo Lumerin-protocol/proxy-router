@@ -40,11 +40,8 @@ type Contract struct {
 	state            ContractState
 	contractClosedCh chan struct{}
 
-	eventsCh chan blockchain.BlockchainEvent
-	eventSub blockchain.BlockchainEventSubscription
-
-	hashrate    *hashrate.Hashrate // the counter of single contract
-	combination HashrateList       // combination of full/partially allocated miners fulfilling the contract
+	hashrate *hashrate.Hashrate // the counter of single contract
+	minerIDs []string           // miners involved in fulfilling this contract
 
 	log interfaces.ILogger
 }
@@ -195,13 +192,18 @@ allocationBlock:
 
 func (c *Contract) StartHashrateAllocation() error {
 
-	minerList, err := c.globalScheduler.Allocate(c.GetHashrateGHS(), c.data.Dest)
+	minerList, err := c.globalScheduler.Allocate(c.GetID(), c.GetHashrateGHS(), c.data.Dest)
 
 	if err != nil {
 		return err
 	}
 
-	c.combination = minerList
+	minerIDs := make([]string, minerList.Len())
+	for i, item := range minerList {
+		minerIDs[i] = item.MinerID
+	}
+
+	c.minerIDs = minerIDs
 	c.FullfillmentStartTime = time.Now().Unix()
 
 	c.log.Info("fulfilling contract %s; expires at %v", c.GetID(), c.GetEndTime())
@@ -215,11 +217,9 @@ func (c *Contract) ContractIsExpired() bool {
 
 // Stops fulfilling the contract by miners
 func (c *Contract) Stop() {
-	for _, miner := range c.combination {
-		ok := miner.SplitPtr.Deallocate()
-		if !ok {
-			c.log.Error("miner split not found during STOP . minerID: %s, contractID: %s", miner.GetSourceID(), c.GetID())
-		}
+	err := c.globalScheduler.DeallocateContract(c.minerIDs, c.GetID())
+	if err != nil {
+		c.log.Warn(err)
 	}
 	close(c.contractClosedCh)
 }

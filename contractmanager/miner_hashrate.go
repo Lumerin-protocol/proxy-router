@@ -6,6 +6,7 @@ type HashrateListItem struct {
 	Hashrate      int
 	TotalHashrate int
 	MinerID       string
+	Percentage    float64
 	SplitPtr      *miner.Split
 }
 
