@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/interop"
 )
 
 type ContractManager struct {
@@ -17,14 +18,14 @@ type ContractManager struct {
 
 	// configuration parameters
 	claimFunds       bool
-	sellerAddr       blockchain.BlockchainAddress
+	sellerAddr       interop.BlockchainAddress
 	sellerPrivateKey string
 
 	// internal state
 	contracts interfaces.ICollection[IContractModel]
 }
 
-func NewContractManager(blockchain *blockchain.EthereumGateway, globalScheduler *GlobalSchedulerService, log interfaces.ILogger, contracts interfaces.ICollection[IContractModel], sellerAddr blockchain.BlockchainAddress, sellerPrivateKey string) *ContractManager {
+func NewContractManager(blockchain *blockchain.EthereumGateway, globalScheduler *GlobalSchedulerService, log interfaces.ILogger, contracts interfaces.ICollection[IContractModel], sellerAddr interop.BlockchainAddress, sellerPrivateKey string) *ContractManager {
 	return &ContractManager{
 		blockchain:      blockchain,
 		globalScheduler: globalScheduler,
@@ -90,14 +91,14 @@ func (m *ContractManager) runExistingContracts() error {
 	return nil
 }
 
-func (m *ContractManager) handleContract(ctx context.Context, address blockchain.BlockchainAddress) error {
+func (m *ContractManager) handleContract(ctx context.Context, address interop.BlockchainAddress) error {
 	data, err := m.blockchain.ReadContract(address)
 	if err != nil {
 		return fmt.Errorf("cannot read created contract %w", err)
 	}
 
 	m.log.Infof("handling contract \n%+v", data)
-	contract := NewContract(data, m.blockchain, m.globalScheduler, m.log, nil)
+	contract := NewContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil)
 
 	go func() {
 		err := contract.Run(ctx)

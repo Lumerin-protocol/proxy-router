@@ -5,12 +5,13 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts"
 	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
+	"gitlab.com/TitanInd/hashrouter/interop"
 )
 
 type EthereumWallet struct {
 	wallet     *hdwallet.Wallet
 	account    accounts.Account
-	address    BlockchainAddress
+	address    interop.BlockchainAddress
 	privateKey string
 }
 
@@ -40,7 +41,7 @@ func NewEthereumWallet(mnemonic string, accountIndex int) (*EthereumWallet, erro
 	return &EthereumWallet{wallet: wallet, account: account, address: address, privateKey: privateKey}, nil
 }
 
-func (wallet *EthereumWallet) GetAccountAddress() BlockchainAddress {
+func (wallet *EthereumWallet) GetAccountAddress() interop.BlockchainAddress {
 	return wallet.account.Address
 }
 

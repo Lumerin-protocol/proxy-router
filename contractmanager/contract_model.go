@@ -8,8 +8,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
+	"gitlab.com/TitanInd/hashrouter/constants"
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"golang.org/x/sync/errgroup"
 )
@@ -29,18 +31,18 @@ const (
 // Contract represents the collection of mining resources (collection of miners / parts of the miners) that work to fulfill single contract and monotoring tools of their performance
 type Contract struct {
 	// dependencies
-	blockchain      *blockchain.EthereumGateway
+	blockchain      interfaces.IBlockchainGateway
 	globalScheduler *GlobalSchedulerService
 
 	data                  blockchain.ContractData
 	FullfillmentStartTime int64
-	closeoutType          blockchain.CloseoutType
+	closeoutType          constants.CloseoutType
 
 	state            ContractState
 	contractClosedCh chan struct{}
 
-	eventsCh chan blockchain.BlockchainEvent
-	eventSub blockchain.BlockchainEventSubscription
+	eventsCh chan interop.BlockchainEvent
+	eventSub interop.BlockchainEventSubscription
 
 	hashrate    *hashrate.Hashrate // the counter of single contract
 	combination HashrateList       // combination of full/partially allocated miners fulfilling the contract
@@ -48,7 +50,7 @@ type Contract struct {
 	log interfaces.ILogger
 }
 
-func NewContract(data blockchain.ContractData, blockchain *blockchain.EthereumGateway, globalScheduler *GlobalSchedulerService, log interfaces.ILogger, hr *hashrate.Hashrate) *Contract {
+func NewContract(data blockchain.ContractData, blockchain interfaces.IBlockchainGateway, globalScheduler *GlobalSchedulerService, log interfaces.ILogger, hr *hashrate.Hashrate) *Contract {
 	if hr == nil {
 		hr = hashrate.NewHashrate(log, hashrate.EMA_INTERVAL)
 	}
@@ -77,14 +79,15 @@ func (c *Contract) Run(ctx context.Context) error {
 	}
 
 	g.Go(func() error {
-		return c.listenContractEvents(subCtx, g)
+		return c.listenContractEvents(subCtx)
 	})
 
 	return g.Wait()
 }
 
-func (c *Contract) listenContractEvents(ctx context.Context, errGroup *errgroup.Group) error {
+func (c *Contract) listenContractEvents(ctx context.Context) error {
 	eventsCh, sub, err := c.blockchain.SubscribeToContractEvents(ctx, common.HexToAddress(c.GetAddress()))
+
 	if err != nil {
 		return fmt.Errorf("cannot subscribe for contract events %w", err)
 	}
@@ -106,41 +109,55 @@ func (c *Contract) listenContractEvents(ctx context.Context, errGroup *errgroup.
 				c.state = ContractStatePurchased
 				// buyerAddr := common.HexToAddress(payloadHex)
 				// get updated contract information fields: buyer and dest
-				data, err := c.blockchain.ReadContract(c.data.Addr)
+				err := c.LoadBlockchainContract()
+
 				if err != nil {
-					c.log.Error("cannot read contract", err)
 					continue
 				}
-				// TODO guard it
-				c.data = data
 
 				// use the same group to fail together with main goroutine
 				c.fulfillContract(ctx)
 
 			case blockchain.ContractCipherTextUpdatedHex:
 			case blockchain.ContractPurchaseInfoUpdatedHex:
-				data, err := c.blockchain.ReadContract(c.data.Addr)
+				err := c.LoadBlockchainContract()
+
 				if err != nil {
-					c.log.Error("cannot read contract", err)
 					continue
 				}
-				// TODO guard it
-				c.data = data
 
 			case blockchain.ContractClosedSigHex:
 				c.log.Info("received contract closed event", c.data.Addr)
 				c.Stop()
-				return nil
+				continue
 			}
 
 		}
 	}
+}
+func (c *Contract) LoadBlockchainContract() error {
+	data, err := c.blockchain.ReadContract(c.data.Addr)
+	if err != nil {
+		c.log.Error("cannot read contract", err)
+		return err
+	}
+	// TODO guard it
+	contractData, ok := data.(blockchain.ContractData)
+
+	if !ok {
+		return fmt.Errorf("Failed to load blockhain data: %#+v", c.data.Addr)
+	}
+
+	c.data = contractData
+
+	return nil
 }
 
 func (c *Contract) fulfillContract(ctx context.Context) error {
 	c.state = ContractStateRunning
 
 	for {
+		c.log.Debugf("Checking if contract is ready for allocation: %v", c.GetID())
 		if c.ContractIsReady() {
 
 			err := c.StartHashrateAllocation()
@@ -159,7 +176,7 @@ func (c *Contract) fulfillContract(ctx context.Context) error {
 			c.log.Info("contract time ended, closing...", c.GetID())
 
 			//TODO: make sure this is updated so that we continue listening for contract events.
-			err := c.blockchain.SetContractCloseOut(c.data.Seller.Hex(), c.GetAddress(), c.closeoutType)
+			err := c.blockchain.SetContractCloseOut(c.data.Seller.Hex(), c.GetAddress(), int64(c.closeoutType))
 			if err != nil {
 				c.log.Error("cannot close contract", err)
 				return err
