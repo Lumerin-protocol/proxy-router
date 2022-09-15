@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/lumerinlib/clonefactory"
 	"gitlab.com/TitanInd/hashrouter/lumerinlib/implementation"
@@ -77,7 +78,7 @@ func NewEthereumGateway(ethClient *ethclient.Client, privateKeyString string, cl
 }
 
 // SubscribeToContractCreatedEvent returns channel with events like new contract creation
-func (g *EthereumGateway) SubscribeToContractCreatedEvent(ctx context.Context) (chan types.Log, BlockchainEventSubscription, error) {
+func (g *EthereumGateway) SubscribeToContractCreatedEvent(ctx context.Context) (chan types.Log, interop.BlockchainEventSubscription, error) {
 	return g.SubscribeToContractEvents(ctx, g.cloneFactoryAddr)
 }
 
@@ -107,7 +108,7 @@ func (g *EthereumGateway) SubscribeToContractEvents(ctx context.Context, contrac
 }
 
 // ReadContract reads contract information encoded in the blockchain
-func (g *EthereumGateway) ReadContract(contractAddress common.Address) (ContractData, error) {
+func (g *EthereumGateway) ReadContract(contractAddress common.Address) (interface{}, error) {
 	var contractData ContractData
 	instance, err := implementation.NewImplementation(contractAddress, g.client)
 	if err != nil {
@@ -141,7 +142,7 @@ func (g *EthereumGateway) ReadContract(contractAddress common.Address) (Contract
 	return contractData, nil
 }
 
-func (g *EthereumGateway) ReadContracts(sellerAccountAddr BlockchainAddress) ([]BlockchainAddress, error) {
+func (g *EthereumGateway) ReadContracts(sellerAccountAddr interop.BlockchainAddress) ([]interop.BlockchainAddress, error) {
 	hashrateContractAddresses, err := g.cloneFactory.GetContractList(&bind.CallOpts{})
 	if err != nil {
 		g.log.Error(err)
@@ -171,7 +172,7 @@ func (g *EthereumGateway) ReadContracts(sellerAccountAddr BlockchainAddress) ([]
 }
 
 // SetContractCloseOut closes the contract with specified closeoutType
-func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddress string, closeoutType CloseoutType) error {
+func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddress string, closeoutType int64) error {
 	ctx := context.TODO()
 
 	instance, err := implementation.NewImplementation(common.HexToAddress(contractAddress), g.client)
@@ -219,7 +220,7 @@ func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddres
 	g.log.Debugf("closeout type: %v", closeoutType)
 
 	//TODO: retry if price is too low
-	tx, err := instance.SetContractCloseOut(options, big.NewInt(int64(closeoutType)))
+	tx, err := instance.SetContractCloseOut(options, big.NewInt(closeoutType))
 	// g.pendingNonce.Unlock()
 	if err != nil {
 		g.log.Errorf("cannot close transaction: %s tx: %s fromAddr: %s contractAddr: %s", err, tx, fromAddress, contractAddress)
