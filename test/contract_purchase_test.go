@@ -66,7 +66,7 @@ func TestHashrateContractCreation(t *testing.T) {
 			t.Fatalf("Error::%v", err)
 		case event := <-logs:
 			if event.Topics[0].Hex() == blockchain.ContractCreatedHex {
-				hashrateContractAddress := common.HexToAddress(event.Topics[1].Hex())
+				hashrateContractAddress = common.HexToAddress(event.Topics[1].Hex())
 				fmt.Printf("Address of created Hashrate Contract: %v\n\n", hashrateContractAddress.Hex())
 			}
 		}
