@@ -96,7 +96,7 @@ func (m *ContractManager) handleContract(ctx context.Context, address blockchain
 		return fmt.Errorf("cannot read created contract %w", err)
 	}
 
-	m.log.Infof("handling contract \n%+v \nexpires %s", data, data.GetContractEndTimeV2())
+	m.log.Infof("handling contract \n%+v", data)
 	contract := NewContract(data, m.blockchain, m.globalScheduler, m.log, nil)
 
 	go func() {

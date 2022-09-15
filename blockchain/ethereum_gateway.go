@@ -32,20 +32,15 @@ type EthereumGateway struct {
 type PendingNonce struct {
 	getNonceChannel chan uint64
 	setNonceChannel chan uint64
-	setErrorChannel chan error
-	getErrorChannel chan error
 	sync.Mutex
 }
 
 func (n PendingNonce) mux() {
 	var value uint64
-	var err error
 	for {
 		select {
 		case value = <-n.setNonceChannel: // set the current value.
 		case n.getNonceChannel <- value:
-		case err = <-n.setErrorChannel: // set the current value.
-		case n.getErrorChannel <- err:
 		}
 	}
 }
@@ -58,10 +53,6 @@ func (n *PendingNonce) GetNonce() uint64 {
 	return <-n.getNonceChannel
 }
 
-func (n *PendingNonce) GetError() error {
-	return <-n.getErrorChannel
-}
-
 func NewEthereumGateway(ethClient *ethclient.Client, privateKeyString string, cloneFactoryAddrStr string, log interfaces.ILogger) (*EthereumGateway, error) {
 	// TODO: extract it to dependency injection, because we'll going to have only one cloneFactory per project
 	cloneFactoryAddr := common.HexToAddress(cloneFactoryAddrStr)
@@ -70,7 +61,7 @@ func NewEthereumGateway(ethClient *ethclient.Client, privateKeyString string, cl
 		return nil, err
 	}
 
-	pendingNonce := PendingNonce{make(chan uint64), make(chan uint64), make(chan error), make(chan error), sync.Mutex{}}
+	pendingNonce := PendingNonce{make(chan uint64), make(chan uint64), sync.Mutex{}}
 
 	go pendingNonce.mux()
 
@@ -200,13 +191,13 @@ func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddres
 		g.log.Error(err)
 		return err
 	}
-
+	//TODO: deal with likely gasPrice issue so our transaction processes before another pending nonce.
 	// gasPrice, err := g.client.SuggestGasPrice(ctx)
 	// if err != nil {
 	// 	g.log.Error(err)
 	// 	return err
 	// }
-
+	//TODO: figure out how to lock the thread effectively to avoid multiple contracts closing at once.
 	// g.pendingNonce.Lock()
 	nonce, err := g.client.PendingNonceAt(ctx, common.HexToAddress(fromAddress))
 
@@ -226,6 +217,8 @@ func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddres
 	// options.GasPrice = gasPrice
 	options.Nonce = big.NewInt(int64(g.pendingNonce.GetNonce()))
 	g.log.Debugf("closeout type: %v", closeoutType)
+
+	//TODO: retry if price is too low
 	tx, err := instance.SetContractCloseOut(options, big.NewInt(int64(closeoutType)))
 	// g.pendingNonce.Unlock()
 	if err != nil {
