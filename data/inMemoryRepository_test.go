@@ -18,7 +18,7 @@ func (t *TestModel) SetID(id string) interfaces.IBaseModel {
 	return t
 }
 
-func (t *TestModel) Test() error{
+func (t *TestModel) Test() error {
 	return nil
 }
 
@@ -36,32 +36,30 @@ func TestNewInMemoryRepository(t *testing.T) {
 	model, err := repo.Create(&TestModel{})
 	require.Nil(t, err)
 
-	err=model.Test()
+	err = model.Test()
 	require.Nil(t, err)
 
-	id:=model.GetID()
-	require.Equal(t, id,"testid")
+	id := model.GetID()
+	require.Equal(t, id, "testid")
 
-
-	_,err=repo.Save(model)
+	_, err = repo.Save(model)
 	require.Nil(t, err)
 
-	_,err=repo.Get("testid213")
+	_, err = repo.Get("testid213")
 	require.NotNil(t, err)
 
-	item,err:=repo.Update(model)
+	item, err := repo.Update(model)
 	require.Nil(t, err)
-	require.Equal(t, item,model)
+	require.Equal(t, item, model)
 
-	item,err=repo.Delete(model)
+	item, err = repo.Delete(model)
 	require.Nil(t, err)
-	require.Equal(t, item,nil)
+	require.Equal(t, item, nil)
 
-	_,err=repo.FindOne(model)
+	_, err = repo.FindOne(model)
 	require.Nil(t, err)
-
 
 	// TODO: Update with better scenario
-	items:=repo.Query(model)
+	items := repo.Query(model)
 	require.Nil(t, items)
 }
