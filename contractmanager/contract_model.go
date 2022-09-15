@@ -28,7 +28,7 @@ const (
 	ContractStateClosed                         // contract is closed
 )
 
-// Contract represents the collection of mining resources (collection of miners / parts of the miners) that work to fulfill single contract and monotoring tools of their performance
+// BTCHashrateContract represents the collection of mining resources (collection of miners / parts of the miners) that work to fulfill single contract and monotoring tools of their performance
 type BTCHashrateContract struct {
 	// dependencies
 	blockchain      interfaces.IBlockchainGateway
@@ -50,11 +50,11 @@ type BTCHashrateContract struct {
 	log interfaces.ILogger
 }
 
-func NewContract(data blockchain.ContractData, blockchain interfaces.IBlockchainGateway, globalScheduler *GlobalSchedulerService, log interfaces.ILogger, hr *hashrate.Hashrate) *Contract {
+func NewContract(data blockchain.ContractData, blockchain interfaces.IBlockchainGateway, globalScheduler *GlobalSchedulerService, log interfaces.ILogger, hr *hashrate.Hashrate) *BTCHashrateContract {
 	if hr == nil {
 		hr = hashrate.NewHashrate(log, hashrate.EMA_INTERVAL)
 	}
-	return &Contract{
+	return &BTCHashrateContract{
 		blockchain:            blockchain,
 		data:                  data,
 		hashrate:              hr,
@@ -67,7 +67,7 @@ func NewContract(data blockchain.ContractData, blockchain interfaces.IBlockchain
 }
 
 // Runs goroutine that monitors the contract events and replace the miners which are out
-func (c *Contract) Run(ctx context.Context) error {
+func (c *BTCHashrateContract) Run(ctx context.Context) error {
 	g, subCtx := errgroup.WithContext(ctx)
 
 	// if proxy started after the contract was purchased and wasn't able to pick up event
@@ -85,7 +85,7 @@ func (c *Contract) Run(ctx context.Context) error {
 	return g.Wait()
 }
 
-func (c *Contract) listenContractEvents(ctx context.Context) error {
+func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 	eventsCh, sub, err := c.blockchain.SubscribeToContractEvents(ctx, common.HexToAddress(c.GetAddress()))
 
 	if err != nil {
@@ -139,7 +139,7 @@ func (c *Contract) listenContractEvents(ctx context.Context) error {
 		}
 	}
 }
-func (c *Contract) LoadBlockchainContract() error {
+func (c *BTCHashrateContract) LoadBlockchainContract() error {
 	data, err := c.blockchain.ReadContract(c.data.Addr)
 	if err != nil {
 		c.log.Error("cannot read contract", err)
@@ -157,7 +157,7 @@ func (c *Contract) LoadBlockchainContract() error {
 	return nil
 }
 
-func (c *Contract) fulfillContract(ctx context.Context) error {
+func (c *BTCHashrateContract) fulfillContract(ctx context.Context) error {
 	c.state = ContractStateRunning
 
 	for {
@@ -201,12 +201,12 @@ func (c *Contract) fulfillContract(ctx context.Context) error {
 		}
 	}
 }
-func (c *Contract) ContractIsReady() bool {
+func (c *BTCHashrateContract) ContractIsReady() bool {
 
 	return !c.ContractIsExpired()
 }
 
-func (c *Contract) StartHashrateAllocation() error {
+func (c *BTCHashrateContract) StartHashrateAllocation() error {
 
 	minerList, err := c.globalScheduler.Allocate(c.GetHashrateGHS(), c.data.Dest)
 
@@ -222,12 +222,12 @@ func (c *Contract) StartHashrateAllocation() error {
 	return nil
 }
 
-func (c *Contract) ContractIsExpired() bool {
+func (c *BTCHashrateContract) ContractIsExpired() bool {
 	return c.FullfillmentStartTime != 0 && time.Now().Unix() > c.GetEndTime().Unix()
 }
 
 // Stops fulfilling the contract by miners
-func (c *Contract) Stop() {
+func (c *BTCHashrateContract) Stop() {
 	if c.data.State == blockchain.ContractBlockchainStateRunning {
 		for _, miner := range c.combination {
 			ok := miner.SplitPtr.Deallocate()
@@ -242,40 +242,40 @@ func (c *Contract) Stop() {
 	// close(c.contractClosedCh)
 }
 
-func (c *Contract) GetBuyerAddress() string {
+func (c *BTCHashrateContract) GetBuyerAddress() string {
 	return c.data.Buyer.String()
 }
 
-func (c *Contract) GetSellerAddress() string {
+func (c *BTCHashrateContract) GetSellerAddress() string {
 	return c.data.Seller.String()
 }
 
-func (c *Contract) GetID() string {
+func (c *BTCHashrateContract) GetID() string {
 	return c.GetAddress()
 }
 
-func (c *Contract) GetAddress() string {
+func (c *BTCHashrateContract) GetAddress() string {
 	return c.data.Addr.String()
 }
 
-func (c *Contract) GetHashrateGHS() int {
+func (c *BTCHashrateContract) GetHashrateGHS() int {
 	return int(c.data.Speed / int64(math.Pow10(9)))
 }
 
-func (c *Contract) GetStartTime() time.Time {
+func (c *BTCHashrateContract) GetStartTime() time.Time {
 	return time.Unix(c.data.StartingBlockTimestamp, 0)
 }
 
-func (c *Contract) GetEndTime() time.Time {
+func (c *BTCHashrateContract) GetEndTime() time.Time {
 	return time.Unix(c.FullfillmentStartTime+c.data.Length, 0)
 }
 
-func (c *Contract) GetState() ContractState {
+func (c *BTCHashrateContract) GetState() ContractState {
 	return c.state
 }
 
-func (c *Contract) GetDest() lib.Dest {
+func (c *BTCHashrateContract) GetDest() lib.Dest {
 	return c.data.Dest
 }
 
-var _ interfaces.IModel = (*Contract)(nil)
+var _ interfaces.IModel = (*BTCHashrateContract)(nil)

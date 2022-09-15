@@ -37,7 +37,7 @@ func TestListenContractEvents(t *testing.T) {
 		t.Errorf("Failed creating logger: %v", err)
 	}
 
-	contract := &Contract{
+	contract := &BTCHashrateContract{
 		log:        logger,
 		blockchain: blockchainGateway,
 	}
