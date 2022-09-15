@@ -33,10 +33,8 @@ func NewOnDemandMinerScheduler(minerModel MinerModel, destSplit *DestSplit, log 
 }
 
 func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
-	var minerModelErr chan error
-	go func() {
-		minerModelErr <- m.minerModel.Run()
-	}()
+	minerModelErr := make(chan error)
+	go m.minerModel.Run(ctx, minerModelErr)
 
 	for {
 		select {
