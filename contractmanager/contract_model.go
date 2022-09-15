@@ -29,7 +29,7 @@ const (
 )
 
 // Contract represents the collection of mining resources (collection of miners / parts of the miners) that work to fulfill single contract and monotoring tools of their performance
-type Contract struct {
+type BTCHashrateContract struct {
 	// dependencies
 	blockchain      interfaces.IBlockchainGateway
 	globalScheduler *GlobalSchedulerService
@@ -203,7 +203,7 @@ func (c *Contract) fulfillContract(ctx context.Context) error {
 }
 func (c *Contract) ContractIsReady() bool {
 
-	return !c.ContractIsExpired() && c.FullfillmentStartTime == 0
+	return !c.ContractIsExpired()
 }
 
 func (c *Contract) StartHashrateAllocation() error {
