@@ -1,17 +1,9 @@
 package blockchain
 
-import (
-	ethereum "github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-)
-
-type BlockchainAddress = common.Address
-type BlockchainEventSubscription = ethereum.Subscription
-type BlockchainEvent = types.Log
+import "gitlab.com/TitanInd/hashrouter/interop"
 
 type Wallet interface {
-	GetAccountAddress() BlockchainAddress
+	GetAccountAddress() interop.BlockchainAddress
 	GetPrivateKey() string
 }
 
