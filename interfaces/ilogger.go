@@ -7,7 +7,7 @@ type ILogger interface {
 	Info(args ...interface{})
 	Warn(args ...interface{})
 	Error(args ...interface{})
-	DPanic(args ...interface{})
+	DPanic(args ...interface{}) // Development panic - panics only in development mode
 	Panic(args ...interface{})
 	Fatal(args ...interface{})
 	Debugf(template string, args ...interface{})

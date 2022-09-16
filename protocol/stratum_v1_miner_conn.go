@@ -23,9 +23,10 @@ type StratumV1Miner struct {
 	extraNonceMsg *stratumv1_message.MiningSubscribeResult
 	workerName    string
 	log           interfaces.ILogger
+	logStratum    bool
 }
 
-func NewStratumV1Miner(conn net.Conn, log interfaces.ILogger, extraNonce *stratumv1_message.MiningSubscribeResult) *StratumV1Miner {
+func NewStratumV1Miner(conn net.Conn, log interfaces.ILogger, extraNonce *stratumv1_message.MiningSubscribeResult, logStratum bool) *StratumV1Miner {
 	mu := new(sync.Mutex)
 	return &StratumV1Miner{
 		conn:          conn,
@@ -35,6 +36,7 @@ func NewStratumV1Miner(conn net.Conn, log interfaces.ILogger, extraNonce *stratu
 		cond:          sync.NewCond(mu),
 		extraNonceMsg: extraNonce,
 		log:           log,
+		logStratum:    logStratum,
 	}
 }
 
@@ -44,7 +46,9 @@ func (m *StratumV1Miner) Write(ctx context.Context, msg stratumv1_message.Mining
 
 // write writes to miner omitting locks
 func (m *StratumV1Miner) write(ctx context.Context, msg stratumv1_message.MiningMessageGeneric) error {
-	lib.LogMsg(true, false, m.conn.RemoteAddr().String(), msg.Serialize(), m.log)
+	if m.logStratum {
+		lib.LogMsg(true, false, m.conn.RemoteAddr().String(), msg.Serialize(), m.log)
+	}
 
 	b := fmt.Sprintf("%s\n", msg.Serialize())
 	_, err := m.conn.Write([]byte(b))
@@ -62,7 +66,9 @@ func (s *StratumV1Miner) Read(ctx context.Context) (stratumv1_message.MiningMess
 			return nil, err
 		}
 
-		lib.LogMsg(true, true, s.conn.RemoteAddr().String(), line, s.log)
+		if s.logStratum {
+			lib.LogMsg(true, true, s.conn.RemoteAddr().String(), line, s.log)
+		}
 
 		m, err := stratumv1_message.ParseMessageToPool(line)
 

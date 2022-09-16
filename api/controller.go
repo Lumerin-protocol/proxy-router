@@ -31,14 +31,15 @@ type DestItem struct {
 }
 
 type Contract struct {
-	ID             string
-	BuyerAddr      string
-	SellerAddr     string
-	HashrateGHS    int
-	StartTimestamp string
-	EndTimestamp   string
-	State          string
-	Dest           string
+	ID              string
+	BuyerAddr       string
+	SellerAddr      string
+	HashrateGHS     int
+	DurationSeconds int
+	StartTimestamp  *string
+	EndTimestamp    *string
+	State           string
+	Dest            string
 	// Miners         []string
 }
 
@@ -119,15 +120,27 @@ func (c *ApiController) changeDestAll(destStr string) error {
 func (c *ApiController) GetContracts() []Contract {
 	data := []Contract{}
 	c.contracts.Range(func(item contractmanager.IContractModel) bool {
+		var StartTimestamp *string
+		var EndTimestamp *string
+
+		if item.GetStartTime() != nil {
+			*StartTimestamp = item.GetStartTime().Format(time.RFC3339)
+		}
+
+		if item.GetEndTime() != nil {
+			*EndTimestamp = item.GetEndTime().Format(time.RFC3339)
+		}
+
 		data = append(data, Contract{
-			ID:             item.GetID(),
-			BuyerAddr:      item.GetBuyerAddress(),
-			SellerAddr:     item.GetSellerAddress(),
-			HashrateGHS:    item.GetHashrateGHS(),
-			StartTimestamp: item.GetStartTime().Format(time.RFC3339),
-			EndTimestamp:   item.GetEndTime().Format(time.RFC3339),
-			State:          MapContractState(item.GetState()),
-			Dest:           item.GetDest().String(),
+			ID:              item.GetID(),
+			BuyerAddr:       item.GetBuyerAddress(),
+			SellerAddr:      item.GetSellerAddress(),
+			HashrateGHS:     item.GetHashrateGHS(),
+			DurationSeconds: int(item.GetDuration().Seconds()),
+			StartTimestamp:  StartTimestamp,
+			EndTimestamp:    EndTimestamp,
+			State:           MapContractState(item.GetState()),
+			Dest:            item.GetDest().String(),
 		})
 		return true
 	})
@@ -137,8 +150,8 @@ func (c *ApiController) GetContracts() []Contract {
 
 func MapContractState(state contractmanager.ContractState) string {
 	switch state {
-	case contractmanager.ContractStateCreated:
-		return "created"
+	case contractmanager.ContractStateAvailable:
+		return "available"
 	case contractmanager.ContractStatePurchased:
 		return "purchased"
 	case contractmanager.ContractStateRunning:
