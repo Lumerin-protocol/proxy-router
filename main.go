@@ -69,7 +69,7 @@ func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo inter
 		return nil, err
 	}
 
-	return miner.NewMinerController(destination, repo, l), nil
+	return miner.NewMinerController(destination, repo, l, cfg.Proxy.LogStratum), nil
 }
 
 func provideApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel]) *gin.Engine {
