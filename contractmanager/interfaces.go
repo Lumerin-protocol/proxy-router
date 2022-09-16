@@ -15,8 +15,9 @@ type IContractModel interface {
 	GetID() string
 	GetAddress() string
 	GetHashrateGHS() int
-	GetStartTime() time.Time
-	GetEndTime() time.Time
+	GetStartTime() *time.Time
+	GetDuration() time.Duration
+	GetEndTime() *time.Time
 	GetState() ContractState
 	GetDest() lib.Dest
 }
