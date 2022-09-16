@@ -1,6 +1,8 @@
 package protocol
 
 import (
+	"context"
+
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
 
@@ -17,8 +19,8 @@ type MinerModelMock struct {
 	ChangeDestErr error
 }
 
-func (m *MinerModelMock) Run() error {
-	return nil
+func (m *MinerModelMock) Run(ctx context.Context, errCh chan error) {
+	// <- m.RunErr
 }
 func (m *MinerModelMock) GetID() string {
 	return m.ID

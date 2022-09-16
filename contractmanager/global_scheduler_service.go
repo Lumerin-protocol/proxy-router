@@ -32,29 +32,30 @@ func NewGlobalScheduler(minerCollection interfaces.ICollection[miner.MinerSchedu
 	}
 }
 
-func (s *GlobalSchedulerService) Allocate(contractID string, hashrateGHS int, dest interfaces.IDestination) (combination HashrateList, returnErr error) {
+func (s *GlobalSchedulerService) Allocate(contractID string, hashrateGHS int, dest interfaces.IDestination) (HashrateList, error) {
 	remainingHashrate, minerHashrates := s.GetUnallocatedHashrateGHS()
 	if remainingHashrate < hashrateGHS {
 		return nil, lib.WrapError(ErrNotEnoughHashrate, fmt.Errorf("required %d available %d", hashrateGHS, remainingHashrate))
 	}
 
-	combination = FindCombinations(minerHashrates, hashrateGHS)
+	combination := FindCombinations(minerHashrates, hashrateGHS)
 	for i, item := range combination {
 		miner, ok := s.minerCollection.Load(item.GetSourceID())
 		if !ok {
-			returnErr = lib.WrapError(returnErr, fmt.Errorf("unknown miner: %v, skipping...", item.GetSourceID()))
+			//just logging error message because the miner might disconnect
+			s.log.Warnf("unknown miner: %v, skipping", item.GetSourceID())
 			continue
 		}
 		splitPtr, err := miner.Allocate(contractID, item.GetPercentage(), dest)
 		if err != nil {
-			returnErr = lib.WrapError(returnErr, fmt.Errorf("failed to allocate miner: %v, skipping...; %w", item.GetSourceID(), err))
+			s.log.Warnf("failed to allocate miner: %v, skipping...; %w", item.GetSourceID(), err)
 			continue
 		}
 		combination[i].SplitPtr = splitPtr
 	}
 
 	//pass returnErr whether nil or not;  this way we can attach errors without crashing
-	return combination, returnErr
+	return combination, nil
 }
 
 func (s *GlobalSchedulerService) GetUnallocatedHashrateGHS() (int, HashrateList) {
@@ -109,7 +110,7 @@ func (s *GlobalSchedulerService) UpdateCombination(ctx context.Context, minerIDs
 	}
 }
 
-func (s *GlobalSchedulerService) DeallocateContract(minerIDs []string, contractID string) error {
+func (s *GlobalSchedulerService) DeallocateContract(minerIDs []string, contractID string) {
 	for _, minerID := range minerIDs {
 		miner, ok := s.minerCollection.Load(minerID)
 		if !ok {
@@ -122,7 +123,6 @@ func (s *GlobalSchedulerService) DeallocateContract(minerIDs []string, contractI
 			s.log.Warnf("allocation error: miner (%s) is not fulfilling this contract (%s)", minerID, contractID)
 		}
 	}
-	return nil
 }
 
 // incAllocation increases allocation hashrate prioritizing allocation of existing miners
@@ -209,7 +209,7 @@ func (s *GlobalSchedulerService) decrAllocation(ctx context.Context, oldMinerIDs
 		split := miner.GetDestSplit()
 		removeMinerGHS := 0
 
-		if remainingGHS > item.Hashrate {
+		if remainingGHS >= item.Hashrate {
 			// remove miner totally
 			ok := split.RemoveByID(contractID)
 			if !ok {

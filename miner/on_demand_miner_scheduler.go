@@ -28,7 +28,7 @@ func NewOnDemandMinerScheduler(minerModel MinerModel, destSplit *DestSplit, log 
 	return &OnDemandMinerScheduler{
 		minerModel,
 		destSplit,
-		make(chan struct{}),
+		make(chan struct{}, 1),
 		log,
 		defaultDest,
 	}
@@ -67,8 +67,10 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 
 		// if multiple destinations
 		// TODO: generalize cycle function to be used by both single and multiple destinations
+		destSplit := m.getDest().Copy()
+
 	cycle:
-		for _, splitItem := range m.getDest().Iter() {
+		for _, splitItem := range destSplit.Iter() {
 			m.log.Infof("changing destination to %s", splitItem.Dest)
 
 			err := m.minerModel.ChangeDest(splitItem.Dest)
