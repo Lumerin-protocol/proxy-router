@@ -98,7 +98,7 @@ func (m *ContractManager) handleContract(ctx context.Context, address interop.Bl
 	}
 
 	m.log.Infof("handling contract \n%+v", data)
-	contract := NewContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil)
+	contract := NewContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, m.contracts)
 
 	go func() {
 		err := contract.Run(ctx)
