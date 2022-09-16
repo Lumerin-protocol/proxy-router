@@ -31,8 +31,14 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	// TODO: peek if incoming connection is stratum connection
 
 	buffered := tcpserver.NewBufferedConn(incomingConn)
-	bytes, err := buffered.Peek(100)
-	p.log.Error(err)
+	bytes, err := tcpserver.PeekJSON(buffered)
+	if err != nil {
+		err2 := buffered.Close()
+		if err2 != nil {
+			return err2
+		}
+		return err
+	}
 	peakedMsg := strings.ToLower(string(bytes))
 
 	if !(strings.Contains(peakedMsg, "id") &&
