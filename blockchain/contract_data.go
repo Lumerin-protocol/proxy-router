@@ -27,7 +27,7 @@ type ContractData struct {
 	Addr                   common.Address
 	Buyer                  common.Address
 	Seller                 common.Address
-	State                  ContractBlockchainState
+	State                  ContractBlockchainState // external state of the contract (state from blockchain)
 	Price                  int64
 	Limit                  int64
 	Speed                  int64
