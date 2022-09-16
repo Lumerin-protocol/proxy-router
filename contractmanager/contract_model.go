@@ -48,9 +48,11 @@ type BTCHashrateContract struct {
 	combination HashrateList       // combination of full/partially allocated miners fulfilling the contract
 
 	log interfaces.ILogger
+
+	contracts interfaces.ICollection[IContractModel]
 }
 
-func NewContract(data blockchain.ContractData, blockchain interfaces.IBlockchainGateway, globalScheduler *GlobalSchedulerService, log interfaces.ILogger, hr *hashrate.Hashrate) *BTCHashrateContract {
+func NewContract(data blockchain.ContractData, blockchain interfaces.IBlockchainGateway, globalScheduler *GlobalSchedulerService, log interfaces.ILogger, hr *hashrate.Hashrate, contracts interfaces.ICollection[IContractModel]) *BTCHashrateContract {
 	if hr == nil {
 		hr = hashrate.NewHashrate(log, hashrate.EMA_INTERVAL)
 	}
@@ -63,6 +65,7 @@ func NewContract(data blockchain.ContractData, blockchain interfaces.IBlockchain
 		closeoutType:          2,
 		globalScheduler:       globalScheduler,
 		FullfillmentStartTime: 0,
+		contracts:             contracts,
 	}
 }
 
@@ -206,6 +209,7 @@ func (c *BTCHashrateContract) fulfillContract(ctx context.Context) error {
 		}
 	}
 }
+
 func (c *BTCHashrateContract) ContractIsReady() bool {
 
 	return !c.ContractIsExpired()
@@ -233,7 +237,7 @@ func (c *BTCHashrateContract) ContractIsExpired() bool {
 
 // Stops fulfilling the contract by miners
 func (c *BTCHashrateContract) Stop() {
-	if c.data.State == blockchain.ContractBlockchainStateRunning {
+	if c.state == ContractStateRunning {
 		for _, miner := range c.combination {
 			ok := miner.SplitPtr.Deallocate()
 			if !ok {
@@ -242,7 +246,8 @@ func (c *BTCHashrateContract) Stop() {
 		}
 
 		c.FullfillmentStartTime = 0
-		c.data.State = blockchain.ContractBlockchainStateAvailable
+		c.state = ContractStateClosed
+
 	}
 	// close(c.contractClosedCh)
 }
