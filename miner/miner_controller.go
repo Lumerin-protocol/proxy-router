@@ -63,6 +63,7 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	// try to connect to dest before running
 
 	p.collection.Store(minerScheduler)
+	defer p.collection.Delete(minerScheduler.GetID())
 
 	return minerScheduler.Run(ctx)
 
