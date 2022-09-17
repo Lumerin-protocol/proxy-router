@@ -1,8 +1,6 @@
 package blockchain
 
 import (
-	"time"
-
 	"github.com/ethereum/go-ethereum/common"
 	"gitlab.com/TitanInd/hashrouter/lib"
 )
@@ -51,12 +49,4 @@ func NewContractData(addr, buyer, seller common.Address, state uint8, price, lim
 		startingBlockTimestamp,
 		dest,
 	}
-}
-
-func (d ContractData) GetContractEndTime() int64 {
-	return d.StartingBlockTimestamp + d.Length
-}
-
-func (d ContractData) GetContractEndTimeV2() time.Time {
-	return time.Unix(d.StartingBlockTimestamp+d.Length, 0)
 }

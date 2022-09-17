@@ -90,18 +90,17 @@ func (s *stratumV1MinerModel) Connect() error {
 	}
 }
 
-func (s *stratumV1MinerModel) Run() error {
+func (s *stratumV1MinerModel) Run(ctx context.Context, errCh chan error) {
 	err := s.Connect()
 	if err != nil {
 		s.log.Error(err)
-		return err
+		errCh <- err
+		return
 	}
-	s.pool.ResendRelevantNotifications(context.TODO())
-
-	errCh := make(chan error)
+	s.pool.ResendRelevantNotifications(ctx)
 	go func() {
 		for {
-			msg, err := s.pool.Read(context.TODO())
+			msg, err := s.pool.Read(ctx)
 			if err != nil {
 				s.log.Error(err)
 				errCh <- err
@@ -109,7 +108,7 @@ func (s *stratumV1MinerModel) Run() error {
 			}
 			s.poolInterceptor(msg)
 
-			err = s.miner.Write(context.TODO(), msg)
+			err = s.miner.Write(ctx, msg)
 			if err != nil {
 				s.log.Error(err)
 				errCh <- err
@@ -120,7 +119,7 @@ func (s *stratumV1MinerModel) Run() error {
 
 	go func() {
 		for {
-			msg, err := s.miner.Read(context.TODO())
+			msg, err := s.miner.Read(ctx)
 			if err != nil {
 				s.log.Error(err)
 				errCh <- err
@@ -129,7 +128,7 @@ func (s *stratumV1MinerModel) Run() error {
 
 			s.minerInterceptor(msg)
 
-			err = s.pool.Write(context.TODO(), msg)
+			err = s.pool.Write(ctx, msg)
 			if err != nil {
 				s.log.Error(err)
 				errCh <- err
@@ -137,8 +136,6 @@ func (s *stratumV1MinerModel) Run() error {
 			}
 		}
 	}()
-
-	return <-errCh
 }
 
 func (s *stratumV1MinerModel) minerInterceptor(msg stratumv1_message.MiningMessageGeneric) {
@@ -158,14 +155,13 @@ func (s *stratumV1MinerModel) minerInterceptor(msg stratumv1_message.MiningMessa
 func (s *stratumV1MinerModel) poolInterceptor(msg stratumv1_message.MiningMessageGeneric) {
 	switch m := msg.(type) {
 	case *stratumv1_message.MiningSetDifficulty:
-		//TODO: some pools return difficulty in float, decide if we need that kind of precision
+		// TODO: some pools return difficulty in float, decide if we need that kind of precision
 		s.difficulty = int64(m.GetDifficulty())
 	}
 }
 
 func (s *stratumV1MinerModel) ChangeDest(dest interfaces.IDestination) error {
 	return s.pool.SetDest(dest, s.configureMsgReq)
-
 }
 
 func (s *stratumV1MinerModel) GetDest() interfaces.IDestination {
