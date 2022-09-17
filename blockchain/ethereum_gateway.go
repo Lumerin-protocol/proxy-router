@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/lumerinlib/clonefactory"
 	"gitlab.com/TitanInd/hashrouter/lumerinlib/implementation"
@@ -32,20 +33,15 @@ type EthereumGateway struct {
 type PendingNonce struct {
 	getNonceChannel chan uint64
 	setNonceChannel chan uint64
-	setErrorChannel chan error
-	getErrorChannel chan error
 	sync.Mutex
 }
 
 func (n PendingNonce) mux() {
 	var value uint64
-	var err error
 	for {
 		select {
 		case value = <-n.setNonceChannel: // set the current value.
 		case n.getNonceChannel <- value:
-		case err = <-n.setErrorChannel: // set the current value.
-		case n.getErrorChannel <- err:
 		}
 	}
 }
@@ -58,10 +54,6 @@ func (n *PendingNonce) GetNonce() uint64 {
 	return <-n.getNonceChannel
 }
 
-func (n *PendingNonce) GetError() error {
-	return <-n.getErrorChannel
-}
-
 func NewEthereumGateway(ethClient *ethclient.Client, privateKeyString string, cloneFactoryAddrStr string, log interfaces.ILogger) (*EthereumGateway, error) {
 	// TODO: extract it to dependency injection, because we'll going to have only one cloneFactory per project
 	cloneFactoryAddr := common.HexToAddress(cloneFactoryAddrStr)
@@ -70,7 +62,7 @@ func NewEthereumGateway(ethClient *ethclient.Client, privateKeyString string, cl
 		return nil, err
 	}
 
-	pendingNonce := PendingNonce{make(chan uint64), make(chan uint64), make(chan error), make(chan error), sync.Mutex{}}
+	pendingNonce := PendingNonce{make(chan uint64), make(chan uint64), sync.Mutex{}}
 
 	go pendingNonce.mux()
 
@@ -86,7 +78,7 @@ func NewEthereumGateway(ethClient *ethclient.Client, privateKeyString string, cl
 }
 
 // SubscribeToContractCreatedEvent returns channel with events like new contract creation
-func (g *EthereumGateway) SubscribeToContractCreatedEvent(ctx context.Context) (chan types.Log, BlockchainEventSubscription, error) {
+func (g *EthereumGateway) SubscribeToContractCreatedEvent(ctx context.Context) (chan types.Log, interop.BlockchainEventSubscription, error) {
 	return g.SubscribeToContractEvents(ctx, g.cloneFactoryAddr)
 }
 
@@ -116,7 +108,7 @@ func (g *EthereumGateway) SubscribeToContractEvents(ctx context.Context, contrac
 }
 
 // ReadContract reads contract information encoded in the blockchain
-func (g *EthereumGateway) ReadContract(contractAddress common.Address) (ContractData, error) {
+func (g *EthereumGateway) ReadContract(contractAddress common.Address) (interface{}, error) {
 	var contractData ContractData
 	instance, err := implementation.NewImplementation(contractAddress, g.client)
 	if err != nil {
@@ -150,7 +142,7 @@ func (g *EthereumGateway) ReadContract(contractAddress common.Address) (Contract
 	return contractData, nil
 }
 
-func (g *EthereumGateway) ReadContracts(sellerAccountAddr BlockchainAddress) ([]BlockchainAddress, error) {
+func (g *EthereumGateway) ReadContracts(sellerAccountAddr interop.BlockchainAddress) ([]interop.BlockchainAddress, error) {
 	hashrateContractAddresses, err := g.cloneFactory.GetContractList(&bind.CallOpts{})
 	if err != nil {
 		g.log.Error(err)
@@ -180,7 +172,7 @@ func (g *EthereumGateway) ReadContracts(sellerAccountAddr BlockchainAddress) ([]
 }
 
 // SetContractCloseOut closes the contract with specified closeoutType
-func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddress string, closeoutType CloseoutType) error {
+func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddress string, closeoutType int64) error {
 	ctx := context.TODO()
 
 	instance, err := implementation.NewImplementation(common.HexToAddress(contractAddress), g.client)
@@ -200,13 +192,13 @@ func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddres
 		g.log.Error(err)
 		return err
 	}
-
+	//TODO: deal with likely gasPrice issue so our transaction processes before another pending nonce.
 	// gasPrice, err := g.client.SuggestGasPrice(ctx)
 	// if err != nil {
 	// 	g.log.Error(err)
 	// 	return err
 	// }
-
+	//TODO: figure out how to lock the thread effectively to avoid multiple contracts closing at once.
 	// g.pendingNonce.Lock()
 	nonce, err := g.client.PendingNonceAt(ctx, common.HexToAddress(fromAddress))
 
@@ -226,7 +218,9 @@ func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddres
 	// options.GasPrice = gasPrice
 	options.Nonce = big.NewInt(int64(g.pendingNonce.GetNonce()))
 	g.log.Debugf("closeout type: %v", closeoutType)
-	tx, err := instance.SetContractCloseOut(options, big.NewInt(int64(closeoutType)))
+
+	//TODO: retry if price is too low
+	tx, err := instance.SetContractCloseOut(options, big.NewInt(closeoutType))
 	// g.pendingNonce.Unlock()
 	if err != nil {
 		g.log.Errorf("cannot close transaction: %s tx: %s fromAddr: %s contractAddr: %s", err, tx, fromAddress, contractAddress)
