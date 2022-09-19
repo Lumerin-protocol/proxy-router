@@ -251,10 +251,11 @@ func (c *BTCHashrateContract) ContractIsExpired() bool {
 func (c *BTCHashrateContract) Stop() {
 	if c.state == ContractStateRunning {
 		c.globalScheduler.DeallocateContract(c.minerIDs, c.GetID())
+
+		c.FullfillmentStartTime = nil
+		c.state = ContractStateAvailable
 	}
 
-	c.FullfillmentStartTime = nil
-	c.state = ContractStateAvailable
 }
 
 func (c *BTCHashrateContract) GetBuyerAddress() string {
