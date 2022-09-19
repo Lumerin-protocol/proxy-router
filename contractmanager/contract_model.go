@@ -56,7 +56,6 @@ func NewContract(data blockchain.ContractData, blockchain interfaces.IBlockchain
 		log:                   log,
 		closeoutType:          2,
 		globalScheduler:       globalScheduler,
-		FullfillmentStartTime: 0,
 		contracts:             contracts,
 		state:           ContractStateAvailable,
 	}
