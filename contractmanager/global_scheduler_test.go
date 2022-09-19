@@ -54,12 +54,13 @@ func TestIncAllocation(t *testing.T) {
 	addGHS := 5000
 	dest, _ := lib.ParseDest("stratum+tcp://user:pwd@host.com:3333")
 	contractID := "test-contract"
-	minerIds := []string{"1", "2"}
 
 	miners := CreateMockMinerCollection(contractID, dest)
 	globalScheduler := NewGlobalScheduler(miners, &lib.LoggerMock{})
+	snapshot := CreateMinerSnapshot(miners)
 
-	_, err := globalScheduler.incAllocation(context.Background(), minerIds, addGHS, dest, contractID)
+	fmt.Print(snapshot.String())
+	_, err := globalScheduler.incAllocation(context.Background(), snapshot, addGHS, dest, contractID)
 	if err != nil {
 		t.Fatal(err)
 		return
@@ -72,10 +73,10 @@ func TestIncAllocation(t *testing.T) {
 	destSplit2, _ := miner2.GetDestSplit().GetByID(contractID)
 
 	if destSplit1.Percentage != 1 {
-		t.Fatal("should use miner which already had been more allocated for the contract")
+		t.Fatalf("should use miner which already had been more allocated for the contract %v", destSplit1)
 	}
 	if destSplit2.Percentage != 0.3 {
-		t.Fatal("should not alter allocation of the second miner")
+		t.Fatalf("should not alter allocation of the second miner %v", destSplit2)
 	}
 }
 
@@ -83,12 +84,12 @@ func TestIncAllocationAddMiner(t *testing.T) {
 	addGHS := 20000
 	dest, _ := lib.ParseDest("stratum+tcp://user:pwd@host.com:3333")
 	contractID := "test-contract"
-	minerIds := []string{"1", "2"}
 
 	miners := CreateMockMinerCollection(contractID, dest)
 	globalScheduler := NewGlobalScheduler(miners, &lib.LoggerMock{})
+	snapshot := CreateMinerSnapshot(miners)
 
-	_, err := globalScheduler.incAllocation(context.Background(), minerIds, addGHS, dest, contractID)
+	_, err := globalScheduler.incAllocation(context.Background(), snapshot, addGHS, dest, contractID)
 	if err != nil {
 		t.Fatal(err)
 		return
@@ -117,12 +118,12 @@ func TestDecrAllocation(t *testing.T) {
 	removeGHS := 3000
 	dest, _ := lib.ParseDest("stratum+tcp://user:pwd@host.com:3333")
 	contractID := "test-contract"
-	minerIds := []string{"1", "2"}
 
 	miners := CreateMockMinerCollection(contractID, dest)
 	globalScheduler := NewGlobalScheduler(miners, &lib.LoggerMock{})
+	snapshot := CreateMinerSnapshot(miners)
 
-	_, err := globalScheduler.decrAllocation(context.Background(), minerIds, removeGHS, contractID)
+	_, err := globalScheduler.decrAllocation(context.Background(), snapshot, removeGHS, contractID)
 	if err != nil {
 		t.Fatal(err)
 		return
@@ -146,12 +147,12 @@ func TestDecrAllocationRemoveMiner(t *testing.T) {
 	removeGHS := 5000
 	dest, _ := lib.ParseDest("stratum+tcp://user:pwd@host.com:3333")
 	contractID := "test-contract"
-	minerIds := []string{"1", "2"}
 
 	miners := CreateMockMinerCollection(contractID, dest)
 	globalScheduler := NewGlobalScheduler(miners, &lib.LoggerMock{})
+	snapshot := CreateMinerSnapshot(miners)
 
-	_, err := globalScheduler.decrAllocation(context.Background(), minerIds, removeGHS, contractID)
+	_, err := globalScheduler.decrAllocation(context.Background(), snapshot, removeGHS, contractID)
 	if err != nil {
 		t.Fatal(err)
 		return
