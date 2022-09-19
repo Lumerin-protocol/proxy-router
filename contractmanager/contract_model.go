@@ -41,19 +41,22 @@ type BTCHashrateContract struct {
 	minerIDs []string           // miners involved in fulfilling this contract
 
 	log interfaces.ILogger
+
+	contracts interfaces.ICollection[IContractModel]
 }
 
-func NewContract(data blockchain.ContractData, blockchain interfaces.IBlockchainGateway, globalScheduler *GlobalSchedulerService, log interfaces.ILogger, hr *hashrate.Hashrate) *BTCHashrateContract {
+func NewContract(data blockchain.ContractData, blockchain interfaces.IBlockchainGateway, globalScheduler *GlobalSchedulerService, log interfaces.ILogger, hr *hashrate.Hashrate, contracts interfaces.ICollection[IContractModel]) *BTCHashrateContract {
 	if hr == nil {
 		hr = hashrate.NewHashrate(log, hashrate.EMA_INTERVAL)
 	}
 	return &BTCHashrateContract{
-		blockchain:      blockchain,
-		data:            data,
-		hashrate:        hr,
-		log:             log,
-		closeoutType:    2,
-		globalScheduler: globalScheduler,
+		blockchain:            blockchain,
+		data:                  data,
+		hashrate:              hr,
+		log:                   log,
+		closeoutType:          2,
+		globalScheduler:       globalScheduler,
+		contracts:             contracts,
 		state:           ContractStateAvailable,
 	}
 }
@@ -247,11 +250,18 @@ func (c *BTCHashrateContract) ContractIsExpired() bool {
 // Stops fulfilling the contract by miners
 func (c *BTCHashrateContract) Stop() {
 	if c.state == ContractStateRunning {
-		c.globalScheduler.DeallocateContract(c.minerIDs, c.GetID())
-	}
+		for _, miner := range c.combination {
+			ok := miner.SplitPtr.Deallocate()
+			if !ok {
+				c.log.Error("miner split not found during STOP . minerID: %s, contractID: %s", miner.GetSourceID(), c.GetID())
+			}
+		}
 
-	c.FullfillmentStartTime = nil
-	c.state = ContractStateAvailable
+		c.globalScheduler.DeallocateContract(c.minerIDs, c.GetID())
+		
+		c.FullfillmentStartTime = nil
+		c.state = ContractStateAvailable
+	}
 }
 
 func (c *BTCHashrateContract) GetBuyerAddress() string {
