@@ -16,13 +16,15 @@ type StratumV1PoolConnPool struct {
 	conn *StratumV1PoolConn
 	mu   sync.Mutex // guards conn
 
-	log interfaces.ILogger
+	log        interfaces.ILogger
+	logStratum bool
 }
 
-func NewStratumV1PoolPool(log interfaces.ILogger) *StratumV1PoolConnPool {
+func NewStratumV1PoolPool(log interfaces.ILogger, logStratum bool) *StratumV1PoolConnPool {
 	return &StratumV1PoolConnPool{
-		pool: sync.Map{},
-		log:  log,
+		pool:       sync.Map{},
+		log:        log,
+		logStratum: logStratum,
 	}
 }
 
@@ -64,7 +66,7 @@ func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination, configure 
 	}
 	p.log.Infof("dialed dest %s", dest)
 
-	conn = NewStratumV1Pool(c, p.log, dest, configure)
+	conn = NewStratumV1Pool(c, p.log, dest, configure, p.logStratum)
 	err = conn.Connect()
 	if err != nil {
 		return err

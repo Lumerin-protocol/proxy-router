@@ -35,10 +35,11 @@ type StratumV1PoolConn struct {
 	lastRequestId *atomic.Uint32                 // stratum request id counter
 	resHandlers   map[int]StratumV1ResultHandler // allows to register callbacks for particular messages to simplify transaction flow
 
-	log interfaces.ILogger
+	log        interfaces.ILogger
+	logStratum bool
 }
 
-func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDestination, configureMsg *stratumv1_message.MiningConfigure) *StratumV1PoolConn {
+func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDestination, configureMsg *stratumv1_message.MiningConfigure, logStratum bool) *StratumV1PoolConn {
 	return &StratumV1PoolConn{
 
 		dest: dest,
@@ -55,7 +56,8 @@ func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDe
 		lastRequestId: atomic.NewUint32(0),
 		resHandlers:   make(map[int]StratumV1ResultHandler),
 
-		log: log,
+		log:        log,
+		logStratum: logStratum,
 	}
 }
 
@@ -81,7 +83,9 @@ func (s *StratumV1PoolConn) run(ctx context.Context) error {
 			return err
 		}
 
-		lib.LogMsg(false, true, s.dest.GetHost(), line, s.log)
+		if s.logStratum {
+			lib.LogMsg(false, true, s.dest.GetHost(), line, s.log)
+		}
 
 		m, err := stratumv1_message.ParseMessageFromPool(line)
 		if err != nil {
@@ -193,13 +197,13 @@ func (m *StratumV1PoolConn) resendRelevantNotifications(ctx context.Context) {
 
 	if m.setDiffMsg != nil {
 		m.sendToReadCh(m.setDiffMsg)
-		m.log.Infof("set-difficulty was resent", m.setDiffMsg)
+		m.log.Infof("set-difficulty was resent")
 	}
 
 	for _, msg := range m.notifyMsgs {
 		if msg != nil {
 			m.sendToReadCh(msg)
-			m.log.Infof("notify was resent %s", msg.Serialize())
+			m.log.Infof("notify was resent")
 		}
 	}
 }
@@ -211,7 +215,7 @@ func (s *StratumV1PoolConn) sendToReadCh(msg stratumv1_message.MiningMessageGene
 		case s.msgCh <- msg:
 			return
 		case <-time.After(timeoutAlert):
-			s.log.Errorf("sendToReadCh is blocked for %.1f seconds, pending message %s", timeoutAlert.Seconds()*float64(n), string(msg.Serialize()))
+			s.log.Warnf("sendToReadCh is blocked for %.1f seconds, pending message %s", timeoutAlert.Seconds()*float64(n), string(msg.Serialize()))
 		}
 	}
 }
@@ -226,7 +230,9 @@ func (s *StratumV1PoolConn) Read() (stratumv1_message.MiningMessageGeneric, erro
 func (m *StratumV1PoolConn) Write(ctx context.Context, msg stratumv1_message.MiningMessageGeneric) error {
 	msg = m.writeInterceptor(msg)
 
-	lib.LogMsg(false, false, m.dest.GetHost(), msg.Serialize(), m.log)
+	if m.logStratum {
+		lib.LogMsg(false, false, m.dest.GetHost(), msg.Serialize(), m.log)
+	}
 
 	b := fmt.Sprintf("%s\n", msg.Serialize())
 	_, err := m.conn.Write([]byte(b))

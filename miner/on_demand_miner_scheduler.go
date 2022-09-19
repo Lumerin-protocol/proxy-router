@@ -9,6 +9,8 @@ import (
 	"gitlab.com/TitanInd/hashrouter/protocol"
 )
 
+const DefaultDestID = "default-dest"
+
 // OnDemandMinerScheduler is responsible for distributing the resources of a single miner across multiple destinations
 // and falling back to default pool for unallocated resources
 type OnDemandMinerScheduler struct {
@@ -26,7 +28,7 @@ func NewOnDemandMinerScheduler(minerModel MinerModel, destSplit *DestSplit, log 
 	return &OnDemandMinerScheduler{
 		minerModel,
 		destSplit,
-		make(chan struct{}),
+		make(chan struct{}, 1),
 		log,
 		defaultDest,
 	}
@@ -65,8 +67,10 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 
 		// if multiple destinations
 		// TODO: generalize cycle function to be used by both single and multiple destinations
+		destSplit := m.getDest().Copy()
+
 	cycle:
-		for _, splitItem := range m.getDest().Iter() {
+		for _, splitItem := range destSplit.Iter() {
 			m.log.Infof("changing destination to %s", splitItem.Dest)
 
 			err := m.minerModel.ChangeDest(splitItem.Dest)
@@ -74,7 +78,7 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 				return err
 			}
 
-			splitDuration := time.Duration(int64(ON_DEMAND_SWITCH_TIMEOUT/100) * int64(splitItem.Percentage))
+			splitDuration := time.Duration(float64(ON_DEMAND_SWITCH_TIMEOUT) * splitItem.Percentage)
 			m.log.Infof("destination was changed to %s for %.2f seconds", splitItem.Dest, splitDuration.Seconds())
 
 			select {
@@ -96,7 +100,7 @@ func (m *OnDemandMinerScheduler) GetID() string {
 }
 
 // GetUnallocatedPercentage returns the percentage of power of a miner available to fulfill some contact
-func (m *OnDemandMinerScheduler) GetUnallocatedPercentage() uint8 {
+func (m *OnDemandMinerScheduler) GetUnallocatedPercentage() float64 {
 	return m.destSplit.GetUnallocated()
 }
 
@@ -105,7 +109,7 @@ func (m *OnDemandMinerScheduler) GetUnallocatedPercentage() uint8 {
 // the average hashpower value excluding the periods potential drop during reconnection
 func (m *OnDemandMinerScheduler) GetUnallocatedHashrateGHS() int {
 	// the remainder should be small enough to ignore
-	return int(m.destSplit.GetUnallocated()) * m.minerModel.GetHashRateGHS() / 100
+	return int(m.destSplit.GetUnallocated() * float64(m.minerModel.GetHashRateGHS()))
 }
 
 // IsBusy returns true if miner is fulfilling at least one contract
@@ -122,9 +126,23 @@ func (m *OnDemandMinerScheduler) GetDestSplit() *DestSplit {
 }
 
 // Allocate directs miner resources to the destination
-func (m *OnDemandMinerScheduler) Allocate(percentage float64, dest interfaces.IDestination) (*Split, error) {
+func (m *OnDemandMinerScheduler) Allocate(ID string, percentage float64, dest interfaces.IDestination) (*Split, error) {
 	defer m.resetDestCycle()
-	return m.destSplit.Allocate(percentage, dest)
+	return m.destSplit.Allocate(ID, percentage, dest)
+}
+
+func (m *OnDemandMinerScheduler) Deallocate(ID string) (ok bool) {
+	ok = false
+	for i, item := range m.destSplit.Iter() {
+		if item.ID == ID {
+			newSplit := append(m.destSplit.split[:i], m.destSplit.split[i+1:]...)
+			m.destSplit.mutex.Lock()
+			m.destSplit.split = newSplit
+			m.destSplit.mutex.Unlock()
+			ok = true
+		}
+	}
+	return ok
 }
 
 // ChangeDest forcefully change destination
@@ -140,7 +158,7 @@ func (m *OnDemandMinerScheduler) GetHashRateGHS() int {
 // getDest adds default destination to remaining part of destination split
 func (m *OnDemandMinerScheduler) getDest() *DestSplit {
 	dest := m.destSplit.Copy()
-	dest.AllocateRemaining(m.defaultDest)
+	dest.AllocateRemaining(DefaultDestID, m.defaultDest)
 	return dest
 }
 
@@ -164,3 +182,5 @@ func (m *OnDemandMinerScheduler) GetWorkerName() string {
 func (m *OnDemandMinerScheduler) resetDestCycle() {
 	m.reset <- struct{}{}
 }
+
+var _ MinerScheduler = new(OnDemandMinerScheduler)
