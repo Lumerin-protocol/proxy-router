@@ -78,7 +78,7 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 				return err
 			}
 
-			splitDuration := time.Duration(int64(ON_DEMAND_SWITCH_TIMEOUT/100) * int64(splitItem.Percentage))
+			splitDuration := time.Duration(float64(ON_DEMAND_SWITCH_TIMEOUT) * splitItem.Percentage)
 			m.log.Infof("destination was changed to %s for %.2f seconds", splitItem.Dest, splitDuration.Seconds())
 
 			select {
