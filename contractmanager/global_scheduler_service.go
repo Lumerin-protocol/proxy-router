@@ -38,6 +38,9 @@ func (s *GlobalSchedulerService) Allocate(contractID string, hashrateGHS int, de
 	}
 
 	combination := FindCombinations(minerHashrates, hashrateGHS)
+
+	s.log.Debug(combination.String())
+
 	for _, item := range combination {
 		miner, ok := s.minerCollection.Load(item.GetSourceID())
 		if !ok {

@@ -1,5 +1,10 @@
 package contractmanager
 
+import (
+	"bytes"
+	"fmt"
+)
+
 type HashrateListItem struct {
 	Hashrate      int
 	TotalHashrate int
@@ -41,4 +46,15 @@ func (m HashrateList) TotalHashrateGHS() int {
 		hashrateGHS += item.Hashrate
 	}
 	return hashrateGHS
+}
+func (m HashrateList) String() string {
+	var b bytes.Buffer
+	for _, item := range m {
+		fmt.Fprintf(
+			&b,
+			"id %s HR %d TOTAL HR %d PERCENT %.3f\n\n",
+			item.MinerID, item.Hashrate, item.TotalHashrate, item.GetPercentage(),
+		)
+	}
+	return b.String()
 }

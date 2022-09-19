@@ -29,7 +29,7 @@ var (
 func LoadConfig(cfg interface{}, osArgs *[]string) error {
 	err := godotenv.Load(".env")
 	if err != nil {
-		return lib.WrapError(ErrEnvLoad, err)
+		fmt.Println(lib.WrapError(ErrEnvLoad, err))
 	}
 
 	// recursively iterates over each field of the nested struct
@@ -47,10 +47,11 @@ func LoadConfig(cfg interface{}, osArgs *[]string) error {
 		}
 
 		envValue := os.Getenv(envName)
-		err = field.Set(envValue)
-		if err != nil {
-			return lib.WrapError(ErrEnvParse, fmt.Errorf("%s: %w", envName, err))
-		}
+		_ = field.Set(envValue)
+		// if err != nil {
+		// TODO: set default value on error
+		// 	return lib.WrapError(ErrEnvParse, fmt.Errorf("%s: %w", envName, err))
+		// }
 
 		flagName, ok := field.Tag(TagFlag)
 		if !ok {
