@@ -9,6 +9,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/miner"
+	"golang.org/x/exp/slices"
 )
 
 type ApiController struct {
@@ -26,8 +27,8 @@ type Miner struct {
 }
 
 type DestItem struct {
-	URI        string
-	Percentage int
+	URI      string
+	Fraction float64
 }
 
 type Contract struct {
@@ -85,8 +86,8 @@ func (c *ApiController) GetMiners() []Miner {
 		dest := miner.GetDestSplit()
 		for _, item := range dest.Iter() {
 			destItems = append(destItems, DestItem{
-				URI:        item.Dest.String(),
-				Percentage: int(item.Percentage),
+				URI:      item.Dest.String(),
+				Fraction: item.Percentage,
 			})
 		}
 		data = append(data, Miner{
@@ -98,6 +99,10 @@ func (c *ApiController) GetMiners() []Miner {
 			WorkerName:         miner.GetWorkerName(),
 		})
 		return true
+	})
+
+	slices.SortStableFunc(data, func(a Miner, b Miner) bool {
+		return a.ID < b.ID
 	})
 
 	return data
@@ -120,31 +125,23 @@ func (c *ApiController) changeDestAll(destStr string) error {
 func (c *ApiController) GetContracts() []Contract {
 	data := []Contract{}
 	c.contracts.Range(func(item contractmanager.IContractModel) bool {
-		var StartTimestamp *string
-		var EndTimestamp *string
-
-		if item.GetStartTime() != nil {
-			*StartTimestamp = item.GetStartTime().Format(time.RFC3339)
-		}
-
-		if item.GetEndTime() != nil {
-			*EndTimestamp = item.GetEndTime().Format(time.RFC3339)
-		}
-
 		data = append(data, Contract{
 			ID:              item.GetID(),
 			BuyerAddr:       item.GetBuyerAddress(),
 			SellerAddr:      item.GetSellerAddress(),
 			HashrateGHS:     item.GetHashrateGHS(),
 			DurationSeconds: int(item.GetDuration().Seconds()),
-			StartTimestamp:  StartTimestamp,
-			EndTimestamp:    EndTimestamp,
+			StartTimestamp:  TimePtrToStringPtr(item.GetStartTime()),
+			EndTimestamp:    TimePtrToStringPtr(item.GetEndTime()),
 			State:           MapContractState(item.GetState()),
 			Dest:            item.GetDest().String(),
 		})
 		return true
 	})
 
+	slices.SortStableFunc(data, func(a Contract, b Contract) bool {
+		return a.ID < b.ID
+	})
 	return data
 }
 
@@ -160,4 +157,12 @@ func MapContractState(state contractmanager.ContractState) string {
 		return "closed"
 	}
 	return "unknown"
+}
+
+func TimePtrToStringPtr(t *time.Time) *string {
+	if t != nil {
+		a := t.Format(time.RFC3339)
+		return &a
+	}
+	return nil
 }

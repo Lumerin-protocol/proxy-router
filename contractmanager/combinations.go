@@ -7,14 +7,13 @@ func FindCombinations(list HashrateList, targetHashrate int) HashrateList {
 	combination, delta := FindClosestMinerCombination(list, targetHashrate)
 	fmt.Printf("target %d delta %d", targetHashrate, delta)
 
-	// partially allocate last miner
-	combination[combination.Len()-1].Hashrate = combination[combination.Len()-1].Hashrate - delta
-
-	fmt.Printf("\n\n")
-	for _, item := range combination {
-		fmt.Printf("id %s HR %d TOTAL HR %d PERCENT %.3f", item.MinerID, item.Hashrate, item.TotalHashrate, item.GetPercentage())
+	if combination.Len() == 0 {
+		return combination
 	}
-	fmt.Printf("\n\n")
+
+	// partially allocate last miner
+	// TODO: fix case when delta is larger than hashrate of one of the miner
+	combination[combination.Len()-1].Hashrate = combination[combination.Len()-1].Hashrate - delta
 
 	return combination
 }

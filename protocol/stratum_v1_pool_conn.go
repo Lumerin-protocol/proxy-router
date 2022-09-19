@@ -215,7 +215,7 @@ func (s *StratumV1PoolConn) sendToReadCh(msg stratumv1_message.MiningMessageGene
 		case s.msgCh <- msg:
 			return
 		case <-time.After(timeoutAlert):
-			s.log.Errorf("sendToReadCh is blocked for %.1f seconds, pending message %s", timeoutAlert.Seconds()*float64(n), string(msg.Serialize()))
+			s.log.Warnf("sendToReadCh is blocked for %.1f seconds, pending message %s", timeoutAlert.Seconds()*float64(n), string(msg.Serialize()))
 		}
 	}
 }

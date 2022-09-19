@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"sort"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
@@ -39,23 +38,29 @@ func (s *GlobalSchedulerService) Allocate(contractID string, hashrateGHS int, de
 	}
 
 	combination := FindCombinations(minerHashrates, hashrateGHS)
-	for i, item := range combination {
+
+	s.log.Debug(combination.String())
+
+	for _, item := range combination {
 		miner, ok := s.minerCollection.Load(item.GetSourceID())
 		if !ok {
 			//just logging error message because the miner might disconnect
 			s.log.Warnf("unknown miner: %v, skipping", item.GetSourceID())
 			continue
 		}
-		splitPtr, err := miner.Allocate(contractID, item.GetPercentage(), dest)
+		_, err := miner.Allocate(contractID, item.GetPercentage(), dest)
 		if err != nil {
 			s.log.Warnf("failed to allocate miner: %v, skipping...; %w", item.GetSourceID(), err)
 			continue
 		}
-		combination[i].SplitPtr = splitPtr
 	}
 
 	//pass returnErr whether nil or not;  this way we can attach errors without crashing
 	return combination, nil
+}
+
+func (s *GlobalSchedulerService) GetMinerSnapshot() AllocSnap {
+	return CreateMinerSnapshot(s.minerCollection)
 }
 
 func (s *GlobalSchedulerService) GetUnallocatedHashrateGHS() (int, HashrateList) {
@@ -80,33 +85,34 @@ func (s *GlobalSchedulerService) GetUnallocatedHashrateGHS() (int, HashrateList)
 }
 
 func (s *GlobalSchedulerService) UpdateCombination(ctx context.Context, minerIDs []string, targetHashrateGHS int, dest lib.Dest, contractID string) ([]string, error) {
-	totalHashrate := 0
-
-	for _, minerID := range minerIDs {
-		miner, ok := s.minerCollection.Load(minerID)
-		if !ok {
-			continue
-		}
-		destSplit, ok := miner.GetDestSplit().GetByID(contractID)
-		if !ok {
-			s.log.Warn("cannot find split", contractID)
-		}
-		actualHashrateGHS := int(float64(miner.GetHashRateGHS()) * destSplit.Percentage)
-		totalHashrate += actualHashrateGHS
+	snapshot := s.GetMinerSnapshot()
+	s.log.Info(snapshot.String())
+	miners, ok := snapshot.Contract(contractID)
+	if !ok {
+		s.log.Warnf("contract not found %s", contractID)
+		return minerIDs, nil
 	}
 
-	deltaGHS := targetHashrateGHS - totalHashrate
-	s.log.Debug("target hashrate %d, actual hashrate %d, delta %d", targetHashrateGHS, totalHashrate, deltaGHS)
+	actualHashrate := 0
+	for _, m := range miners {
+		actualHashrate += m.AllocatedGHS()
+	}
+
+	deltaGHS := targetHashrateGHS - actualHashrate
+	s.log.Debugf("target hashrate %d, actual hashrate %d, delta %d", targetHashrateGHS, actualHashrate, deltaGHS)
 	// check if hashrate increase is available in the system
 
 	if math.Abs(float64(deltaGHS))/float64(targetHashrateGHS) < HASHRATE_DIFF_THRESHOLD {
+		s.log.Debugf("no need to update hashrate")
 		return minerIDs, nil
 	}
 
 	if deltaGHS > 0 {
-		return s.incAllocation(ctx, minerIDs, deltaGHS, dest, contractID)
+		s.log.Debugf("increasing allocation")
+		return s.incAllocation(ctx, snapshot, deltaGHS, dest, contractID)
 	} else {
-		return s.decrAllocation(ctx, minerIDs, -deltaGHS, contractID)
+		s.log.Debugf("decreasing allocation")
+		return s.decrAllocation(ctx, snapshot, -deltaGHS, contractID)
 	}
 }
 
@@ -126,29 +132,40 @@ func (s *GlobalSchedulerService) DeallocateContract(minerIDs []string, contractI
 }
 
 // incAllocation increases allocation hashrate prioritizing allocation of existing miners
-func (s *GlobalSchedulerService) incAllocation(ctx context.Context, minerIDs []string, addGHS int, dest lib.Dest, contractID string) ([]string, error) {
+func (s *GlobalSchedulerService) incAllocation(ctx context.Context, snapshot AllocSnap, addGHS int, dest lib.Dest, contractID string) ([]string, error) {
 	remainingToAddGHS := addGHS
 
+	minersSnap, ok := snapshot.Contract(contractID)
+	if !ok {
+		s.log.DPanicf("contract (%s) not found", contractID)
+	}
+
+	minerIDs := []string{}
+
 	// try to increase allocation in the miners that already serve the contract
-	for _, minerID := range minerIDs {
+	for minerID, minerSnap := range minersSnap {
 		miner, ok := s.minerCollection.Load(minerID)
 		if !ok {
+			s.log.Warnf("miner (%s) is not found", minerID)
 			continue
 		}
 
-		availableFraction := float64(miner.GetUnallocatedHashrateGHS()) / float64(miner.GetHashRateGHS())
-		availableHashrateGHS := int(float64(miner.GetHashRateGHS()) * availableFraction)
-		hashrateToAllocateGHS := lib.MinInt(remainingToAddGHS, availableHashrateGHS)
-		if hashrateToAllocateGHS == 0 {
+		minerIDs = append(minerIDs, minerID)
+		if remainingToAddGHS <= 0 {
 			continue
 		}
 
-		fractionToAdd := float64(hashrateToAllocateGHS) / float64(miner.GetHashRateGHS())
+		availableGHS := minerSnap.AvailableGHS()
+		toAllocateGHS := lib.MinInt(remainingToAddGHS, availableGHS)
+		if toAllocateGHS == 0 {
+			continue
+		}
+
+		fractionToAdd := float64(toAllocateGHS) / float64(minerSnap.TotalGHS)
+
 		miner.GetDestSplit().IncreaseAllocation(contractID, fractionToAdd)
-		remainingToAddGHS -= hashrateToAllocateGHS
-		if remainingToAddGHS == 0 {
-			break
-		}
+		remainingToAddGHS -= toAllocateGHS
+
 	}
 
 	if remainingToAddGHS == 0 {
@@ -168,34 +185,16 @@ func (s *GlobalSchedulerService) incAllocation(ctx context.Context, minerIDs []s
 	return newCombination, nil
 }
 
-func (s *GlobalSchedulerService) decrAllocation(ctx context.Context, oldMinerIDs []string, removeGHS int, contractID string) ([]string, error) {
-	newHashrateList := HashrateList{}
-
-	for _, minerID := range oldMinerIDs {
-		miner, ok := s.minerCollection.Load(minerID)
-		if !ok {
-			continue
-		}
-
-		allocated, ok := miner.GetDestSplit().GetByID(contractID)
-		if !ok {
-			s.log.Warnf("miner (%s) that was fulfilling contract (%s) not found", minerID, contractID)
-			continue
-		}
-		availableFraction := 1 - allocated.Percentage
-		availableHashrateGHS := int(float64(miner.GetHashRateGHS()) * availableFraction)
-		newHashrateList = append(newHashrateList, HashrateListItem{
-			MinerID:       minerID,
-			Hashrate:      availableHashrateGHS,
-			TotalHashrate: miner.GetHashRateGHS(),
-			Percentage:    availableFraction,
-		})
+func (s *GlobalSchedulerService) decrAllocation(ctx context.Context, snapshot AllocSnap, removeGHS int, contractID string) ([]string, error) {
+	allocSnap, ok := snapshot.Contract(contractID)
+	if !ok {
+		s.log.DPanicf("contract (%s) not found in snap", contractID)
+		return nil, nil
 	}
 
-	sort.Sort(newHashrateList)
-
+	minerIDs := []string{}
 	remainingGHS := removeGHS
-	for _, item := range newHashrateList {
+	for _, item := range allocSnap.SortByAllocatedGHS() {
 		if remainingGHS <= 0 {
 			break
 		}
@@ -209,36 +208,31 @@ func (s *GlobalSchedulerService) decrAllocation(ctx context.Context, oldMinerIDs
 		split := miner.GetDestSplit()
 		removeMinerGHS := 0
 
-		if remainingGHS >= item.Hashrate {
+		if remainingGHS >= item.AllocatedGHS() {
 			// remove miner totally
 			ok := split.RemoveByID(contractID)
 			if !ok {
 				s.log.Warnf("split (%s) not found", contractID)
 			}
-			removeMinerGHS = item.Hashrate
+			removeMinerGHS = item.AllocatedGHS()
 
-			for i, ID := range oldMinerIDs {
-				if ID == item.MinerID {
-					oldMinerIDs = append(oldMinerIDs[:i], oldMinerIDs[i+1:]...)
-					break
-				}
-			}
 		} else {
-			removeMinerFraction := float64(remainingGHS) / float64(item.TotalHashrate)
+			removeMinerFraction := float64(remainingGHS) / float64(item.TotalGHS)
 			// if removeMinerFraction < miner.Min
-			newFraction := item.Percentage - removeMinerFraction
+			newFraction := item.Fraction - removeMinerFraction
 			split.SetFractionByID(contractID, newFraction)
 			removeMinerGHS = remainingGHS
+			minerIDs = append(minerIDs, item.MinerID)
 		}
 
 		remainingGHS -= removeMinerGHS
 	}
 
 	if remainingGHS != 0 {
-		err := fmt.Errorf("deallocation fault, remainingGHS %d, hashrateList %+v", remainingGHS, newHashrateList)
+		err := fmt.Errorf("deallocation fault, remainingGHS %d, allocSnap %+v", remainingGHS, allocSnap)
 		s.log.DPanic(err)
 		return nil, err
 	}
 
-	return oldMinerIDs, nil
+	return minerIDs, nil
 }
