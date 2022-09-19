@@ -14,9 +14,9 @@ func TestPeekJSON(t *testing.T) {
 	chunk1, chunk2 := testJSON[:6], testJSON[6:]
 
 	go func() {
-		client.Write(chunk1)
+		_, _ = client.Write(chunk1)
 		time.Sleep(time.Second)
-		client.Write(chunk2)
+		_, _ = client.Write(chunk2)
 	}()
 
 	msg, err := PeekJSON(NewBufferedConn(server))

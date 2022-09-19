@@ -63,7 +63,6 @@ func (c *BTCHashrateContract) Run(ctx context.Context) error {
 	g, subCtx := errgroup.WithContext(ctx)
 
 	// if proxy started after the contract was purchased and wasn't able to pick up event
-	c.log.Infof("contract is being listened %s %v", c.GetID(), c.data.State)
 	if c.data.State == blockchain.ContractBlockchainStateRunning {
 		g.Go(func() error {
 			return c.fulfillContract(subCtx)
@@ -112,11 +111,9 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 				c.state = ContractStatePurchased
 				// use the same group to fail together with main goroutine
 				err = c.fulfillContract(ctx)
-
 				if err != nil {
 					c.log.Error(err)
 				}
-
 				continue
 
 			case blockchain.ContractCipherTextUpdatedHex:
@@ -194,7 +191,7 @@ func (c *BTCHashrateContract) fulfillContract(ctx context.Context) error {
 		}
 
 		// TODO hashrate monitoring
-		c.log.Infof("contract (%s) is running for %.0f", c.GetID(), time.Since(*c.GetStartTime()).Seconds())
+		c.log.Infof("contract (%s) is running for %.0f seconds", c.GetID(), time.Since(*c.GetStartTime()).Seconds())
 
 		minerIDs, err := c.globalScheduler.UpdateCombination(ctx, c.minerIDs, c.GetHashrateGHS(), c.GetDest(), c.GetID())
 		if err != nil {

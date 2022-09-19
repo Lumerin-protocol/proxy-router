@@ -1,13 +1,15 @@
 package contractmanager
 
-import "gitlab.com/TitanInd/hashrouter/miner"
+import (
+	"bytes"
+	"fmt"
+)
 
 type HashrateListItem struct {
 	Hashrate      int
 	TotalHashrate int
 	MinerID       string
 	Percentage    float64
-	SplitPtr      *miner.Split
 }
 
 func (m HashrateListItem) GetHashrateGHS() int {
@@ -37,4 +39,22 @@ func (m HashrateList) Len() int      { return len(m) }
 func (m HashrateList) Swap(i, j int) { m[i], m[j] = m[j], m[i] }
 func (m HashrateList) Less(i, j int) bool {
 	return m[i].Hashrate < m[j].Hashrate
+}
+func (m HashrateList) TotalHashrateGHS() int {
+	var hashrateGHS int
+	for _, item := range m {
+		hashrateGHS += item.Hashrate
+	}
+	return hashrateGHS
+}
+func (m HashrateList) String() string {
+	var b bytes.Buffer
+	for _, item := range m {
+		fmt.Fprintf(
+			&b,
+			"id %s HR %d TOTAL HR %d PERCENT %.3f\n\n",
+			item.MinerID, item.Hashrate, item.TotalHashrate, item.GetPercentage(),
+		)
+	}
+	return b.String()
 }
