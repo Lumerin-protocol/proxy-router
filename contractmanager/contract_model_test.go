@@ -49,7 +49,7 @@ func TestListenContractEvents(t *testing.T) {
 
 		fmt.Println("subscribeToContractEventsCalled")
 
-		topics := []interop.BlockchainHash{interop.BlockchainHash(blockchain.ContractPurchasedHash)}
+		topics := []interop.BlockchainHash{blockchain.ContractPurchasedHash}
 
 		t.Logf("sending topic 1: %#+v\n\n", topics[0])
 		channel <- interop.BlockchainEvent{

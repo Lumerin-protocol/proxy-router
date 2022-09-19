@@ -31,10 +31,10 @@ func CreateMockMinerCollection(contractID string, dest lib.Dest) *data.Collectio
 	}
 
 	destSplit1 := miner.NewDestSplit()
-	destSplit1.Allocate(contractID, 0.5, dest)
+	_, _ = destSplit1.Allocate(contractID, 0.5, dest)
 
 	destSplit2 := miner.NewDestSplit()
-	destSplit2.Allocate(contractID, 0.3, dest)
+	_, _ = destSplit2.Allocate(contractID, 0.3, dest)
 
 	destSplit3 := miner.NewDestSplit()
 
