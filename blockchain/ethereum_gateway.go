@@ -31,27 +31,22 @@ type EthereumGateway struct {
 }
 
 type PendingNonce struct {
-	getNonceChannel chan uint64
-	setNonceChannel chan uint64
-	sync.Mutex
+	pendingNonce uint64
+	mutex        sync.Mutex
 }
 
-func (n PendingNonce) mux() {
-	var value uint64
-	for {
-		select {
-		case value = <-n.setNonceChannel: // set the current value.
-		case n.getNonceChannel <- value:
-		}
-	}
+func (n *PendingNonce) Lock() {
+	n.mutex.Lock()
 }
-
+func (n *PendingNonce) Unlock() {
+	n.mutex.Unlock()
+}
 func (n *PendingNonce) SetNonce(nonce uint64) {
-	n.setNonceChannel <- nonce
+	n.pendingNonce = nonce
 }
 
 func (n *PendingNonce) GetNonce() uint64 {
-	return <-n.getNonceChannel
+	return n.pendingNonce
 }
 
 func NewEthereumGateway(ethClient *ethclient.Client, privateKeyString string, cloneFactoryAddrStr string, log interfaces.ILogger) (*EthereumGateway, error) {
@@ -62,9 +57,7 @@ func NewEthereumGateway(ethClient *ethclient.Client, privateKeyString string, cl
 		return nil, err
 	}
 
-	pendingNonce := PendingNonce{make(chan uint64), make(chan uint64), sync.Mutex{}}
-
-	go pendingNonce.mux()
+	pendingNonce := PendingNonce{mutex: sync.Mutex{}}
 
 	return &EthereumGateway{
 		client:                 ethClient,
@@ -91,7 +84,9 @@ func (g *EthereumGateway) SubscribeToContractEvents(ctx context.Context, contrac
 	timeoutContext, cancelFunc := context.WithTimeout(ctx, 15*time.Second)
 
 	logs := make(chan types.Log)
+
 	sub, err := g.client.SubscribeFilterLogs(timeoutContext, query, logs)
+
 	if err != nil {
 		cancelFunc()
 		g.log.Error(err)
@@ -198,15 +193,17 @@ func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddres
 	// 	g.log.Error(err)
 	// 	return err
 	// }
-	//TODO: figure out how to lock the thread effectively to avoid multiple contracts closing at once.
-	// g.pendingNonce.Lock()
+
+	g.pendingNonce.Lock()
 	nonce, err := g.client.PendingNonceAt(ctx, common.HexToAddress(fromAddress))
 
 	if err != nil {
+		g.pendingNonce.Unlock()
 		return err
 	}
-
 	g.pendingNonce.SetNonce(nonce)
+
+	g.pendingNonce.Unlock()
 
 	options, err := bind.NewKeyedTransactorWithChainID(privateKey, chainId)
 	if err != nil {
@@ -221,7 +218,7 @@ func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddres
 
 	//TODO: retry if price is too low
 	tx, err := instance.SetContractCloseOut(options, big.NewInt(closeoutType))
-	// g.pendingNonce.Unlock()
+
 	if err != nil {
 		g.log.Errorf("cannot close transaction: %s tx: %s fromAddr: %s contractAddr: %s", err, tx, fromAddress, contractAddress)
 		return err
