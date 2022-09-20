@@ -193,7 +193,7 @@ func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddres
 	// 	g.log.Error(err)
 	// 	return err
 	// }
-	//TODO: figure out how to lock the thread effectively to avoid multiple contracts closing at once.
+
 	g.pendingNonce.Lock()
 	nonce, err := g.client.PendingNonceAt(ctx, common.HexToAddress(fromAddress))
 
@@ -218,7 +218,7 @@ func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddres
 
 	//TODO: retry if price is too low
 	tx, err := instance.SetContractCloseOut(options, big.NewInt(closeoutType))
-	// g.pendingNonce.Unlock()
+
 	if err != nil {
 		g.log.Errorf("cannot close transaction: %s tx: %s fromAddr: %s contractAddr: %s", err, tx, fromAddress, contractAddress)
 		return err
