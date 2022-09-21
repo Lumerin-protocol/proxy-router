@@ -4,12 +4,12 @@ stages:
   # - test
   - deploy-dev
 
-variables:
-  DOCKER_DRIVER: overlay2
-  DOCKER_HOST: tcp://docker:2376
-  DOCKER_TLS_CERTDIR: "/certs"
-  DOCKER_TLS_VERIFY: 1
-  DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
+# variables:
+#   DOCKER_DRIVER: overlay2
+#   DOCKER_HOST: tcp://docker:2376
+#   DOCKER_TLS_CERTDIR: "/certs"
+#   DOCKER_TLS_VERIFY: 1
+#   DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
 
 # lint:
 #   stage: test
@@ -44,9 +44,7 @@ bedrock-02-build-docker:
     stage: deploy-dev
     only:
         - dev
-    # image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
-    image: golang:1.18-alpine
-
+    image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
     tags:
         - devops 
         - bedrock
