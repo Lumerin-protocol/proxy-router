@@ -87,15 +87,15 @@ func (s *GlobalSchedulerService) GetUnallocatedHashrateGHS() (int, HashrateList)
 func (s *GlobalSchedulerService) UpdateCombination(ctx context.Context, minerIDs []string, targetHashrateGHS int, dest lib.Dest, contractID string) ([]string, error) {
 	snapshot := s.GetMinerSnapshot()
 	s.log.Info(snapshot.String())
-	miners, ok := snapshot.Contract(contractID)
-	if !ok {
-		s.log.Warnf("contract not found %s", contractID)
-		return minerIDs, nil
-	}
 
 	actualHashrate := 0
-	for _, m := range miners {
-		actualHashrate += m.AllocatedGHS()
+	miners, ok := snapshot.Contract(contractID)
+	if ok {
+		for _, m := range miners {
+			actualHashrate += m.AllocatedGHS()
+		}
+	} else {
+		s.log.Warnf("no miner is serving the contract %s", contractID)
 	}
 
 	deltaGHS := targetHashrateGHS - actualHashrate
