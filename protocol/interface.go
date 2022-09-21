@@ -7,6 +7,12 @@ import (
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
 )
 
+type Hashrate interface {
+	GetHashrate5minAvgGHS() int
+	GetHashrate30minAvgGHS() int
+	GetHashrate1hAvgGHS() int
+}
+
 type StratumV1SourceConn interface {
 	GetID() string
 	Read(ctx context.Context) (stratumv1_message.MiningMessageGeneric, error)

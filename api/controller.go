@@ -20,10 +20,17 @@ type ApiController struct {
 type Miner struct {
 	ID                 string
 	TotalHashrateGHS   int
+	HashrateAvgGHS     HashrateAvgGHS
 	Destinations       []DestItem
 	CurrentDestination string
 	CurrentDifficulty  int
 	WorkerName         string
+}
+
+type HashrateAvgGHS struct {
+	T5m  int `json:"5m"`
+	T30m int `json:"30m"`
+	T1h  int `json:"1h"`
 }
 
 type DestItem struct {
@@ -90,11 +97,17 @@ func (c *ApiController) GetMiners() []Miner {
 				Fraction: item.Percentage,
 			})
 		}
+		hashrate := miner.GetHashRate()
 		data = append(data, Miner{
-			ID:                 miner.GetID(),
-			TotalHashrateGHS:   miner.GetHashRateGHS(),
-			CurrentDifficulty:  miner.GetCurrentDifficulty(),
-			Destinations:       destItems,
+			ID:                miner.GetID(),
+			TotalHashrateGHS:  miner.GetHashRateGHS(),
+			CurrentDifficulty: miner.GetCurrentDifficulty(),
+			Destinations:      destItems,
+			HashrateAvgGHS: HashrateAvgGHS{
+				T5m:  hashrate.GetHashrate5minAvgGHS(),
+				T30m: hashrate.GetHashrate30minAvgGHS(),
+				T1h:  hashrate.GetHashrate1hAvgGHS(),
+			},
 			CurrentDestination: miner.GetCurrentDest().String(),
 			WorkerName:         miner.GetWorkerName(),
 		})
