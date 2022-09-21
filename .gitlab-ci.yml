@@ -94,11 +94,11 @@ bedrock-02-build-docker:
         - echo "*****************************"        
         - echo "Deploying new container definition..."
         - echo "*****************************"        
-        - aws ecs register-task-definition --region $AWS_DEFAULT_REGION --cli-input-json file://input.json
+        - aws ecs register-task-definition --region $AWS_DEFAULT_REGION --cli-input-json file://input.json | grep taskDefinitionArn
         - REVISION=$(aws ecs describe-task-definition --task-definition tsk-$CI_AWS_ECR_REPO --region $AWS_DEFAULT_REGION | egrep "revision" | tr "/" " " | awk '{print $2}' | sed 's/"$//' | cut -d "," -f 1)
         - echo $REVISION
         - echo "Review Cluster Definition...."
         - echo ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION
         - echo "Review Service Definition...."
         - echo svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION
-        - aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-$CI_AWS_ECR_REPO:$REVISION
+        - aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-$CI_AWS_ECR_REPO:$REVISION | grep serviceArn
