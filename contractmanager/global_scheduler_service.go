@@ -95,7 +95,6 @@ func (s *GlobalSchedulerService) UpdateCombination(ctx context.Context, minerIDs
 			actualHashrate += m.AllocatedGHS()
 		}
 	} else {
-		// it means no miner is serving the contract for some reason
 		s.log.Warnf("no miner is serving the contract %s", contractID)
 	}
 
