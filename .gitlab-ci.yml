@@ -1,44 +1,49 @@
 # image: golang:1.18
 
 stages:
-  # - test
+  - test
   - deploy-dev
 
-# variables:
-#   DOCKER_DRIVER: overlay2
-#   DOCKER_HOST: tcp://docker:2376
-#   DOCKER_TLS_CERTDIR: "/certs"
-#   DOCKER_TLS_VERIFY: 1
-#   DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
+lint:
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_HOST: tcp://docker:2376
+  DOCKER_TLS_CERTDIR: "/certs"
+  DOCKER_TLS_VERIFY: 1
+  DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
+stage: test
+  tags:
+    - devops 
+    - bedrock
+    - titanio-dev
+    - docker
+  only: 
+    - branches
+  image: golangci/golangci-lint:v1.49
+  script:
+    - golangci-lint run -v
 
-# lint:
-#   stage: test
-#   tags:
-#     - devops 
-#     - bedrock
-#     - titanio-dev
-#     - docker
-#   only: 
-#     - branches
-#   image: golangci/golangci-lint:v1.49
-#   script:
-#     - golangci-lint run -v
-
-# test:
-#   stage: test
-#   tags:
-#     - devops 
-#     - bedrock
-#     - titanio-dev
-#     - docker
-#   only: 
-#     - branches
-#   image: golang:1.18-alpine
-#   script:
-#     - apk add --no-cache git make musl-dev gcc
-#     - go version
-#     - go mod download
-#     - go test -v -p 1 $(go list ./... | grep -v /test) # skips the test folder for now
+test:
+  variables:
+    DOCKER_DRIVER: overlay2
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_TLS_VERIFY: 1
+    DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
+  stage: test
+  tags:
+    - devops 
+    - bedrock
+    - titanio-dev
+    - docker
+  only: 
+    - branches
+  image: golang:1.18-alpine
+  script:
+    - apk add --no-cache git make musl-dev gcc
+    - go version
+    - go mod download
+    - go test -v -p 1 $(go list ./... | grep -v /test) # skips the test folder for now
 
 bedrock-02-build-docker:
     stage: deploy-dev
@@ -76,25 +81,24 @@ bedrock-02-build-docker:
         - docker push $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG
         - docker push $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:latest
         #### DEPLOYMENT TO DEV STEPS BELOW (must keep ECR LOGIN and TAG from prior steps)
-        # - echo "*****************************"
-        # - echo "Preparing deployment of $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG to $TGT_ACCOUNT, titanio-$TGT_ENV Environment..."
-        # - echo "*****************************"        
-        # - aws ecs describe-task-definition --region $AWS_DEFAULT_REGION --task-definition tsk-$CI_AWS_ECR_REPO > input.json
-        # - echo $(cat input.json | jq '.taskDefinition.containerDefinitions[].image="'$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO'"') > input.json
-        # - echo $(cat input.json | jq '.taskDefinition') > input.json
-        # - echo $(cat input.json | jq  'del(.taskDefinitionArn)' | jq 'del(.revision)' | jq 'del(.status)' | jq 'del(.requiresAttributes)' | jq 'del(.compatibilities)' | jq 'del(.registeredBy)' | jq 'del(.registeredAt)') > input.json
-        # - sed -i 's/'$CI_AWS_ACCOUNT_SBX'/'$TGT_ACCOUNT'/g' input.json
+        - echo "*****************************"
+        - echo "Preparing deployment of $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG to $TGT_ACCOUNT, titanio-$TGT_ENV Environment..."
+        - echo "*****************************"        
+        - aws ecs describe-task-definition --region $AWS_DEFAULT_REGION --task-definition tsk-$CI_AWS_ECR_REPO > input.json
+        - echo $(cat input.json | jq '.taskDefinition.containerDefinitions[].image="'$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO'"') > input.json
+        - echo $(cat input.json | jq '.taskDefinition') > input.json
+        - echo $(cat input.json | jq  'del(.taskDefinitionArn)' | jq 'del(.revision)' | jq 'del(.status)' | jq 'del(.requiresAttributes)' | jq 'del(.compatibilities)' | jq 'del(.registeredBy)' | jq 'del(.registeredAt)') > input.json
+        - sed -i 's/'$CI_AWS_ACCOUNT_SBX'/'$TGT_ACCOUNT'/g' input.json
         # - echo "Review input.json file...."
         # - cat input.json
-
-        # - echo "*****************************"        
-        # - echo "Deploying new container definition..."
-        # - echo "*****************************"        
-        # - aws ecs register-task-definition --region $AWS_DEFAULT_REGION --cli-input-json file://input.json
-        # - REVISION=$(aws ecs describe-task-definition --task-definition tsk-$CI_AWS_ECR_REPO --region $AWS_DEFAULT_REGION | egrep "revision" | tr "/" " " | awk '{print $2}' | sed 's/"$//' | cut -d "," -f 1)
-        # - echo $REVISION
-        # - echo "Review Cluster Definition...."
-        # - echo ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION
-        # - echo "Review Service Definition...."
-        # - echo svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION
-        # - aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-$CI_AWS_ECR_REPO:$REVISION
+        - echo "*****************************"        
+        - echo "Deploying new container definition..."
+        - echo "*****************************"        
+        - aws ecs register-task-definition --region $AWS_DEFAULT_REGION --cli-input-json file://input.json
+        - REVISION=$(aws ecs describe-task-definition --task-definition tsk-$CI_AWS_ECR_REPO --region $AWS_DEFAULT_REGION | egrep "revision" | tr "/" " " | awk '{print $2}' | sed 's/"$//' | cut -d "," -f 1)
+        - echo $REVISION
+        - echo "Review Cluster Definition...."
+        - echo ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION
+        - echo "Review Service Definition...."
+        - echo svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION
+        - aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-$CI_AWS_ECR_REPO:$REVISION
