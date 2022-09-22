@@ -49,7 +49,7 @@ func (s *MinerSchedulerMock) SetDestSplit(d *DestSplit) {
 func (s *MinerSchedulerMock) GetCurrentDest() interfaces.IDestination {
 	return s.Dest
 }
-func (s *MinerSchedulerMock) ChangeDest(dest lib.Dest) error {
+func (s *MinerSchedulerMock) ChangeDest(dest interfaces.IDestination) error {
 	return nil
 }
 
@@ -70,6 +70,10 @@ func (s *MinerSchedulerMock) GetHashRate() protocol.Hashrate {
 
 func (s *MinerSchedulerMock) GetUnallocatedHashrateGHS() int {
 	return s.UnallocatedHashrateGHS
+}
+
+func (s *MinerSchedulerMock) SwitchToDefaultDestination() error {
+	return nil
 }
 
 var _ MinerScheduler = new(MinerSchedulerMock)

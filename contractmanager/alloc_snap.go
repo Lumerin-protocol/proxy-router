@@ -97,7 +97,7 @@ func (m *AllocSnap) Contract(contractID string) (AllocCollection, bool) {
 
 func (m *AllocSnap) String() string {
 	b := new(bytes.Buffer)
-	fmt.Fprintf(b, "ContractID\tMinerID\tFraction\tTotalGHS\n")
+	fmt.Fprintf(b, "\nContractID\tMinerID\tFraction\tTotalGHS\n")
 	for _, item := range m.contractIDMinerIDMap {
 		for _, alloc := range item {
 			fmt.Fprintf(b, "%s\t%s\t%.2f\t%d\n", alloc.ContractID, alloc.MinerID, alloc.Fraction, alloc.TotalGHS)

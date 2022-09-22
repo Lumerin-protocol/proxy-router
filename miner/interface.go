@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
-	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/protocol"
 )
 
@@ -36,7 +35,7 @@ type MinerScheduler interface {
 	GetDestSplit() *DestSplit
 	SetDestSplit(*DestSplit)
 	GetCurrentDest() interfaces.IDestination // get miner total hashrate in GH/s
-	ChangeDest(dest lib.Dest) error
+	ChangeDest(dest interfaces.IDestination) error
 	GetCurrentDifficulty() int
 	GetWorkerName() string
 	GetHashRateGHS() int
@@ -45,4 +44,5 @@ type MinerScheduler interface {
 
 	Allocate(ID string, percentage float64, dest interfaces.IDestination) (*Split, error) // allocates available miner resources
 	Deallocate(ID string) (ok bool)
+	SwitchToDefaultDestination() error
 }
