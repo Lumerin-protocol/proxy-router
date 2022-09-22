@@ -219,6 +219,7 @@ func (c *BTCHashrateContract) StartHashrateAllocation() error {
 	minerList, err := c.globalScheduler.Allocate(c.GetID(), c.GetHashrateGHS(), c.data.Dest)
 
 	if err != nil {
+		c.Stop()
 		return err
 	}
 
