@@ -128,6 +128,8 @@ func (s *GlobalSchedulerService) DeallocateContract(minerIDs []string, contractI
 		if !ok {
 			s.log.Warnf("allocation error: miner (%s) is not fulfilling this contract (%s)", minerID, contractID)
 		}
+
+		miner.SwitchToDefaultDestination()
 	}
 }
 
