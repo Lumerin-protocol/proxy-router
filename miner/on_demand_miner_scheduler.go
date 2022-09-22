@@ -155,6 +155,10 @@ func (m *OnDemandMinerScheduler) GetHashRateGHS() int {
 	return m.minerModel.GetHashRateGHS()
 }
 
+func (m *OnDemandMinerScheduler) GetHashRate() protocol.Hashrate {
+	return m.minerModel.GetHashRate()
+}
+
 // getDest adds default destination to remaining part of destination split
 func (m *OnDemandMinerScheduler) getDest() *DestSplit {
 	dest := m.destSplit.Copy()

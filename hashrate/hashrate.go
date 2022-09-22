@@ -10,23 +10,27 @@ import (
 
 const EMA_INTERVAL = 5 * time.Minute
 
-// const EMA_INTERVAL = 30
-
 type Hashrate struct {
-	ema         *Counter
+	ema5m       *Counter
+	ema30m      *Counter
+	ema1h       *Counter
 	totalHashes atomic.Uint64
 	log         interfaces.ILogger
 }
 
 func NewHashrate(log interfaces.ILogger, emaInterval time.Duration) *Hashrate {
 	return &Hashrate{
-		ema: New(emaInterval),
-		log: log,
+		ema5m:  New(5 * time.Minute),
+		ema30m: New(30 * time.Minute),
+		ema1h:  New(1 * time.Hour),
+		log:    log,
 	}
 }
 
 func (h *Hashrate) OnSubmit(diff int64) {
-	h.ema.Add(float64(diff))
+	h.ema5m.Add(float64(diff))
+	h.ema30m.Add(float64(diff))
+	h.ema1h.Add(float64(diff))
 	h.totalHashes.Add(uint64(diff))
 }
 
@@ -34,10 +38,29 @@ func (h *Hashrate) GetTotalHashes() uint64 {
 	return h.totalHashes.Load()
 }
 
+// Deprecated: use GetHashrate5minAvgGHS
 func (h *Hashrate) GetHashrateGHS() int {
-	return int(h.getHashrateHS() / uint64(math.Pow10(9)))
+	return h.averageSubmitDiffToGHS(h.ema5m.ValuePer(time.Second))
 }
 
-func (h *Hashrate) getHashrateHS() uint64 {
-	return uint64(h.ema.ValuePer(time.Second)) * uint64(math.Pow(2, 32))
+func (h *Hashrate) GetHashrate5minAvgGHS() int {
+	return h.averageSubmitDiffToGHS(h.ema5m.ValuePer(time.Second))
+}
+
+func (h *Hashrate) GetHashrate30minAvgGHS() int {
+	return h.averageSubmitDiffToGHS(h.ema30m.ValuePer(time.Second))
+}
+
+func (h *Hashrate) GetHashrate1hAvgGHS() int {
+	return h.averageSubmitDiffToGHS(h.ema1h.ValuePer(time.Second))
+}
+
+// averageSubmitDiffToGHS converts average value provided by ema to hashrate in GH/S
+func (h *Hashrate) averageSubmitDiffToGHS(averagePerSecond float64) int {
+	hashrateHS := uint64(averagePerSecond) * uint64(math.Pow(2, 32))
+	return HSToGHS(hashrateHS)
+}
+
+func HSToGHS(hashrateHS uint64) int {
+	return int(hashrateHS / uint64(math.Pow10(9)))
 }

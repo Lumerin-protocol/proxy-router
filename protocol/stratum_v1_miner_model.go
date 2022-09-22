@@ -176,6 +176,10 @@ func (s *stratumV1MinerModel) GetHashRateGHS() int {
 	return s.validator.GetHashrateGHS()
 }
 
+func (s *stratumV1MinerModel) GetHashRate() Hashrate {
+	return s.validator
+}
+
 func (s *stratumV1MinerModel) GetCurrentDifficulty() int {
 	return int(s.difficulty)
 }
