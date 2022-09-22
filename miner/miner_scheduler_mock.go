@@ -5,6 +5,7 @@ import (
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
+	"gitlab.com/TitanInd/hashrouter/protocol"
 )
 
 type MinerSchedulerMock struct {
@@ -61,6 +62,10 @@ func (s *MinerSchedulerMock) GetWorkerName() string {
 
 func (s *MinerSchedulerMock) GetHashRateGHS() int {
 	return s.HashrateGHS
+}
+
+func (s *MinerSchedulerMock) GetHashRate() protocol.Hashrate {
+	return nil
 }
 
 func (s *MinerSchedulerMock) GetUnallocatedHashrateGHS() int {
