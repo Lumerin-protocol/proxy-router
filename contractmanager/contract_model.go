@@ -219,6 +219,7 @@ func (c *BTCHashrateContract) StartHashrateAllocation() error {
 	minerList, err := c.globalScheduler.Allocate(c.GetID(), c.GetHashrateGHS(), c.data.Dest)
 
 	if err != nil {
+		c.Stop()
 		return err
 	}
 
@@ -228,8 +229,6 @@ func (c *BTCHashrateContract) StartHashrateAllocation() error {
 	}
 
 	c.minerIDs = minerIDs
-	now := time.Now()
-	c.FullfillmentStartTime = &now
 
 	c.log.Infof("fulfilling contract %s; expires at %v", c.GetID(), c.GetEndTime())
 
@@ -249,7 +248,6 @@ func (c *BTCHashrateContract) Stop() {
 	if c.state == ContractStateRunning {
 		c.globalScheduler.DeallocateContract(c.minerIDs, c.GetID())
 
-		c.FullfillmentStartTime = nil
 		c.state = ContractStateAvailable
 	} else {
 		c.log.Warnf("contract (%s) is not running", c.GetID())
@@ -281,14 +279,14 @@ func (c *BTCHashrateContract) GetDuration() time.Duration {
 }
 
 func (c *BTCHashrateContract) GetStartTime() *time.Time {
-	return c.FullfillmentStartTime
+	startTime := time.Unix(c.data.StartingBlockTimestamp, 0)
+
+	return &startTime
 }
 
 func (c *BTCHashrateContract) GetEndTime() *time.Time {
-	if c.FullfillmentStartTime == nil {
-		return nil
-	}
-	endTime := c.FullfillmentStartTime.Add(c.GetDuration())
+
+	endTime := c.GetStartTime().Add(c.GetDuration())
 	return &endTime
 }
 
