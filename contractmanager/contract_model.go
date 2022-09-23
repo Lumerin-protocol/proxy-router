@@ -64,6 +64,7 @@ func (c *BTCHashrateContract) Run(ctx context.Context) error {
 
 	// if proxy started after the contract was purchased and wasn't able to pick up event
 	if c.data.State == blockchain.ContractBlockchainStateRunning {
+		c.state = ContractStateRunning
 		c.Close()
 	}
 
@@ -237,7 +238,6 @@ func (c *BTCHashrateContract) ContractIsExpired() bool {
 
 func (c *BTCHashrateContract) Close() error {
 
-	c.state = ContractStateAvailable
 	err := c.blockchain.SetContractCloseOut(c.data.Seller.Hex(), c.GetAddress(), int64(c.closeoutType))
 
 	if err != nil {
