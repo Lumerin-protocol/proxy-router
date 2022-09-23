@@ -203,8 +203,6 @@ func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddres
 	}
 	g.pendingNonce.SetNonce(nonce)
 
-	g.pendingNonce.Unlock()
-
 	options, err := bind.NewKeyedTransactorWithChainID(privateKey, chainId)
 	if err != nil {
 		return err
@@ -219,6 +217,7 @@ func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddres
 	//TODO: retry if price is too low
 	tx, err := instance.SetContractCloseOut(options, big.NewInt(closeoutType))
 
+	g.pendingNonce.Unlock()
 	if err != nil {
 		g.log.Errorf("cannot close transaction: %s tx: %s fromAddr: %s contractAddr: %s", err, tx, fromAddress, contractAddress)
 		return err
