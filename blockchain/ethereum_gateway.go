@@ -194,6 +194,15 @@ func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddres
 	// 	return err
 	// }
 
+	options, err := bind.NewKeyedTransactorWithChainID(privateKey, chainId)
+	if err != nil {
+		return err
+	}
+
+	options.GasLimit = uint64(3000000) // in units
+	options.Value = big.NewInt(0)      // in wei
+	// options.GasPrice = gasPrice
+
 	g.pendingNonce.Lock()
 	nonce, err := g.client.PendingNonceAt(ctx, common.HexToAddress(fromAddress))
 
@@ -203,14 +212,6 @@ func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddres
 	}
 	g.pendingNonce.SetNonce(nonce)
 
-	options, err := bind.NewKeyedTransactorWithChainID(privateKey, chainId)
-	if err != nil {
-		return err
-	}
-
-	options.GasLimit = uint64(3000000) // in units
-	options.Value = big.NewInt(0)      // in wei
-	// options.GasPrice = gasPrice
 	options.Nonce = big.NewInt(int64(g.pendingNonce.GetNonce()))
 	g.log.Debugf("closeout type: %v", closeoutType)
 
@@ -218,6 +219,7 @@ func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddres
 	tx, err := instance.SetContractCloseOut(options, big.NewInt(closeoutType))
 
 	g.pendingNonce.Unlock()
+
 	if err != nil {
 		g.log.Errorf("cannot close transaction: %s tx: %s fromAddr: %s contractAddr: %s", err, tx, fromAddress, contractAddress)
 		return err
