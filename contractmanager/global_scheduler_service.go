@@ -120,14 +120,15 @@ func (s *GlobalSchedulerService) DeallocateContract(minerIDs []string, contractI
 	for _, minerID := range minerIDs {
 		miner, ok := s.minerCollection.Load(minerID)
 		if !ok {
-			s.log.Warnf("allocation error: miner (%s) not found (%s)", minerID, contractID)
+			s.log.Warnf("deallocation error: miner (%s) not found (%s)", minerID, contractID)
 			continue
 		}
 
 		ok = miner.Deallocate(contractID)
 		if !ok {
-			s.log.Warnf("allocation error: miner (%s) is not fulfilling this contract (%s)", minerID, contractID)
+			s.log.Warnf("deallocation error: miner (%s) is not fulfilling this contract (%s)", minerID, contractID)
 		}
+
 	}
 }
 

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
-	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/protocol"
 )
 
@@ -133,26 +132,37 @@ func (m *OnDemandMinerScheduler) Allocate(ID string, percentage float64, dest in
 
 func (m *OnDemandMinerScheduler) Deallocate(ID string) (ok bool) {
 	ok = false
+
 	for i, item := range m.destSplit.Iter() {
 		if item.ID == ID {
 			newSplit := append(m.destSplit.split[:i], m.destSplit.split[i+1:]...)
 			m.destSplit.mutex.Lock()
 			m.destSplit.split = newSplit
 			m.destSplit.mutex.Unlock()
+
 			ok = true
 		}
 	}
+
+	if ok {
+		m.resetDestCycle()
+	}
+
 	return ok
 }
 
 // ChangeDest forcefully change destination
 // may cause issues when split is enabled
-func (m *OnDemandMinerScheduler) ChangeDest(dest lib.Dest) error {
+func (m *OnDemandMinerScheduler) ChangeDest(dest interfaces.IDestination) error {
 	return m.minerModel.ChangeDest(dest)
 }
 
 func (m *OnDemandMinerScheduler) GetHashRateGHS() int {
 	return m.minerModel.GetHashRateGHS()
+}
+
+func (m *OnDemandMinerScheduler) GetHashRate() protocol.Hashrate {
+	return m.minerModel.GetHashRate()
 }
 
 // getDest adds default destination to remaining part of destination split
@@ -181,6 +191,17 @@ func (m *OnDemandMinerScheduler) GetWorkerName() string {
 // resetDestCycle signals that destSplit has been changed, and starts new destination cycle
 func (m *OnDemandMinerScheduler) resetDestCycle() {
 	m.reset <- struct{}{}
+}
+func (m *OnDemandMinerScheduler) SwitchToDefaultDestination() error {
+	err := m.ChangeDest(m.defaultDest)
+
+	if err != nil {
+		return err
+	}
+
+	_, err = m.Allocate(DefaultDestID, 1, m.defaultDest)
+
+	return err
 }
 
 var _ MinerScheduler = new(OnDemandMinerScheduler)
