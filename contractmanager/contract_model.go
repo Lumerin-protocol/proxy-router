@@ -64,9 +64,7 @@ func (c *BTCHashrateContract) Run(ctx context.Context) error {
 
 	// if proxy started after the contract was purchased and wasn't able to pick up event
 	if c.data.State == blockchain.ContractBlockchainStateRunning {
-		g.Go(func() error {
-			return c.fulfillContract(subCtx)
-		})
+		c.Stop()
 	}
 
 	g.Go(func() error {
@@ -245,7 +243,10 @@ func (c *BTCHashrateContract) ContractIsExpired() bool {
 
 // Stops fulfilling the contract by miners
 func (c *BTCHashrateContract) Stop() {
+
+	c.log.Infof("Attempting to stop contract %v; with state %v", c.GetID(), c.state)
 	if c.state == ContractStateRunning {
+		c.log.Infof("Stopping contract %v", c.GetID())
 		c.globalScheduler.DeallocateContract(c.minerIDs, c.GetID())
 
 		c.state = ContractStateAvailable
