@@ -244,7 +244,7 @@ func (c *BTCHashrateContract) Close() error {
 	c.Stop()
 
 	err := c.blockchain.SetContractCloseOut(c.data.Seller.Hex(), c.GetAddress(), int64(c.closeoutType))
-
+	c.log.Debugf("exited closeout")
 	if err != nil {
 		c.log.Error("cannot close contract", err)
 		return err
