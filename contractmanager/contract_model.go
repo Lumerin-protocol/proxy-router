@@ -11,6 +11,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/constants"
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"golang.org/x/sync/errgroup"
 )
@@ -41,6 +42,8 @@ type BTCHashrateContract struct {
 	minerIDs []string           // miners involved in fulfilling this contract
 
 	log interfaces.ILogger
+
+	contracts interfaces.ICollection[IContractModel]
 }
 
 func NewContract(data blockchain.ContractData, blockchain interfaces.IBlockchainGateway, globalScheduler *GlobalSchedulerService, log interfaces.ILogger, hr *hashrate.Hashrate) *BTCHashrateContract {
