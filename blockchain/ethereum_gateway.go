@@ -173,7 +173,7 @@ func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddres
 }
 
 func (g *EthereumGateway) setContractCloseOut(fromAddress string, contractAddress string, closeoutType int64) error {
-	g.log.Debug("starting closeout, %v; %v; %v", fromAddress, contractAddress, closeoutType)
+	g.log.Debugf("starting closeout, %v; %v; %v", fromAddress, contractAddress, closeoutType)
 	ctx := context.TODO()
 
 	instance, err := implementation.NewImplementation(common.HexToAddress(contractAddress), g.client)
@@ -227,7 +227,7 @@ func (g *EthereumGateway) setContractCloseOut(fromAddress string, contractAddres
 
 	g.log.Infof("contract %s closed, tx: %s", contractAddress, tx.Hash().Hex())
 
-	g.log.Debug("ending closeout, %v; %v; %v", fromAddress, contractAddress, closeoutType)
+	g.log.Debugf("ending closeout, %v; %v; %v", fromAddress, contractAddress, closeoutType)
 	return nil
 }
 
