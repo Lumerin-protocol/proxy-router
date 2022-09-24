@@ -177,7 +177,7 @@ func (c *BTCHashrateContract) fulfillContract(ctx context.Context) error {
 	for {
 		c.log.Debugf("Checking if contract is ready for allocation: %v", c.GetID())
 
-		if c.ContractIsExpired() || c.state == ContractStateClosed {
+		if c.ContractIsExpired() {
 			c.log.Info("contract time ended, or state is closed, closing...", c.GetID())
 
 			c.Close()
@@ -190,6 +190,7 @@ func (c *BTCHashrateContract) fulfillContract(ctx context.Context) error {
 
 		minerIDs, err := c.globalScheduler.UpdateCombination(ctx, c.minerIDs, c.GetHashrateGHS(), c.GetDest(), c.GetID())
 		if err != nil {
+			c.Close()
 			c.log.Warnf("error during combination update %s", err)
 		} else {
 			c.minerIDs = minerIDs
@@ -259,8 +260,8 @@ func (c *BTCHashrateContract) Stop() {
 	if c.state == ContractStateRunning || c.state == ContractStatePurchased {
 
 		c.log.Infof("Stopping contract %v", c.GetID())
-		c.globalScheduler.DeallocateContract(c.minerIDs, c.GetID())
 		c.state = ContractStateAvailable
+		c.globalScheduler.DeallocateContract(c.minerIDs, c.GetID())
 	} else {
 		c.log.Warnf("contract (%s) is not running", c.GetID())
 	}
