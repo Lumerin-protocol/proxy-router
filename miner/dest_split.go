@@ -3,77 +3,75 @@ package miner
 import (
 	"fmt"
 	"log"
-	"math"
 	"sync"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
 
-// TODO: consider storing percentage in float64 to simplify the code
-var AllocationPrecision uint8 = 10 // the precision for percentages, should be a divisor of 100
-
-type DestSplit struct {
-	split []Split // array of the percentages of splitted hashpower, total should be less than 100
-	mutex sync.RWMutex
-}
+const MinPercentage = 0.05
 
 type Split struct {
-	Percentage uint8 // percentage of total miner power, value in range from 1 to 100
+	ID         string
+	Percentage float64 // percentage of total miner power, value in range from 0 to 1
 	Dest       interfaces.IDestination
-	Parent     *DestSplit
 }
 
-func (s *Split) Deallocate() bool {
-	return s.Parent.Deallocate(s)
+type DestSplit struct {
+	split []Split // array of the percentages of splitted hashpower, total should be less than 1
+	mutex sync.RWMutex
 }
 
 func NewDestSplit() *DestSplit {
 	return &DestSplit{}
 }
 
-func (d *DestSplit) Allocate(percentage float64, dest interfaces.IDestination) (*Split, error) {
+func (d *DestSplit) Allocate(ID string, percentage float64, dest interfaces.IDestination) (*Split, error) {
 	adjustedPercentage := d.adjustPercentage(percentage)
-	return d.allocate(adjustedPercentage, dest)
+	return d.allocate(ID, adjustedPercentage, dest)
 }
 
-// Deallocate accepts pointer to the allocated split and deallocates it from the miner
-func (d *DestSplit) Deallocate(split *Split) bool {
-	d.mutex.Lock()
-	defer d.mutex.Unlock()
-
+func (d *DestSplit) IncreaseAllocation(ID string, percentage float64) bool {
 	for i, item := range d.split {
-		fmt.Printf("STOP COMPARISON: %+v %+v %p %p", &item, split, &item, split)
-		if &item == split {
-			d.split = append(d.split[:i], d.split[i+1:]...)
+		if item.ID == ID {
+			d.split[i] = Split{
+				ID:         ID,
+				Percentage: item.Percentage + percentage,
+				Dest:       item.Dest,
+			}
 			return true
 		}
 	}
 	return false
 }
 
-// adjustPercentage reduces precision of percentage according to AllocationPrecision
-// to avoid changing destination for short periods of time. it always rounds up
-func (d *DestSplit) adjustPercentage(percentage float64) uint8 {
-	fmt.Printf("=============== %.4f", percentage)
-	return uint8(math.Ceil(percentage*100/float64(AllocationPrecision))) * AllocationPrecision
+// adjustPercentage prevents from setting too low percentage
+// TODO: adjust it so minimum time will be larger than 2 minutes
+func (d *DestSplit) adjustPercentage(percentage float64) float64 {
+	if percentage < MinPercentage {
+		return MinPercentage
+	}
+	if percentage > 1-MinPercentage {
+		return 1
+	}
+	return percentage
 }
 
 // allocate is used adjustPercentage is called for percentage
-func (d *DestSplit) allocate(percentage uint8, dest interfaces.IDestination) (*Split, error) {
-	if percentage > 100 || percentage == 0 {
-		return nil, fmt.Errorf("percentage should be withing range 1..100")
+func (d *DestSplit) allocate(ID string, percentage float64, dest interfaces.IDestination) (*Split, error) {
+	if percentage > 1 || percentage == 0 {
+		return nil, fmt.Errorf("percentage should be withing range 0..1")
 	}
 
 	if percentage > d.GetUnallocated() {
-		return nil, fmt.Errorf("total allocated value will exceed 100 percent")
+		return nil, fmt.Errorf("total allocated value will exceed 1")
 	}
 
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 	newSplit := Split{
-		percentage,
-		dest,
-		d,
+		ID:         ID,
+		Percentage: percentage,
+		Dest:       dest,
 	}
 	// TODO: check if already allocated to this destination
 	d.split = append(d.split, newSplit)
@@ -81,19 +79,52 @@ func (d *DestSplit) allocate(percentage uint8, dest interfaces.IDestination) (*S
 	return &newSplit, nil // returning pointer to be used for further deletion
 }
 
-func (d *DestSplit) AllocateRemaining(dest interfaces.IDestination) {
+func (d *DestSplit) AllocateRemaining(ID string, dest interfaces.IDestination) {
 	remaining := d.GetUnallocated()
 	if remaining == 0 {
 		return
 	}
-	_, err := d.allocate(remaining, dest)
+	_, err := d.allocate(ID, remaining, dest)
 	if err != nil {
-		log.Println(fmt.Errorf("AllocateRemaining failed: %s", err))
+		log.Println(fmt.Errorf("allocateRemaining failed: %s", err))
 	}
 }
 
-func (d *DestSplit) GetAllocated() uint8 {
-	var total uint8 = 0
+func (d *DestSplit) GetByID(ID string) (Split, bool) {
+	for _, item := range d.split {
+		if item.ID == ID {
+			return item, true
+		}
+	}
+	return Split{}, false
+}
+
+func (d *DestSplit) SetFractionByID(ID string, fraction float64) bool {
+	for i, item := range d.split {
+		if item.ID == ID {
+			d.split[i] = Split{
+				ID:         ID,
+				Percentage: fraction,
+				Dest:       item.Dest,
+			}
+			return true
+		}
+	}
+	return false
+}
+
+func (d *DestSplit) RemoveByID(ID string) bool {
+	for i, item := range d.split {
+		if item.ID == ID {
+			d.split = append(d.split[:i], d.split[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
+func (d *DestSplit) GetAllocated() float64 {
+	var total float64 = 0
 
 	d.mutex.RLock()
 	defer d.mutex.RUnlock()
@@ -103,8 +134,8 @@ func (d *DestSplit) GetAllocated() uint8 {
 	return total
 }
 
-func (d *DestSplit) GetUnallocated() uint8 {
-	return 100 - d.GetAllocated()
+func (d *DestSplit) GetUnallocated() float64 {
+	return 1 - d.GetAllocated()
 }
 
 func (d *DestSplit) Iter() []Split {

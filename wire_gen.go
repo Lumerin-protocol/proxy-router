@@ -26,7 +26,7 @@ import (
 
 // Injectors from main.go:
 
-//TODO: make sure all providers initialized
+// TODO: make sure all providers initialized
 func InitApp() (*app.App, error) {
 	config, err := provideConfig()
 	if err != nil {
@@ -57,7 +57,7 @@ func InitApp() (*app.App, error) {
 	if err != nil {
 		return nil, err
 	}
-	globalSchedulerService := provideGlobalScheduler(iCollection)
+	globalSchedulerService := provideGlobalScheduler(iCollection, iLogger)
 	contractManager := provideSellerContractManager(config, ethereumGateway, ethereumWallet, globalSchedulerService, interfacesICollection, iLogger)
 	appApp := &app.App{
 		TCPServer:       tcpServer,
@@ -88,8 +88,8 @@ var protocolSet = wire.NewSet(provideMinerCollection, provideMinerController, ev
 
 var contractsSet = wire.NewSet(provideGlobalScheduler, provideContractCollection, provideEthClient, provideEthWallet, provideEthGateway, provideSellerContractManager)
 
-func provideGlobalScheduler(miners interfaces.ICollection[miner.MinerScheduler]) *contractmanager.GlobalSchedulerService {
-	return contractmanager.NewGlobalScheduler(miners)
+func provideGlobalScheduler(miners interfaces.ICollection[miner.MinerScheduler], log interfaces.ILogger) *contractmanager.GlobalSchedulerService {
+	return contractmanager.NewGlobalScheduler(miners, log)
 }
 
 func provideMinerCollection() interfaces.ICollection[miner.MinerScheduler] {
@@ -106,7 +106,7 @@ func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo inter
 		return nil, err
 	}
 
-	return miner.NewMinerController(destination, repo, l), nil
+	return miner.NewMinerController(destination, repo, l, cfg.Proxy.LogStratum), nil
 }
 
 func provideApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel]) *gin.Engine {
