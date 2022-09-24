@@ -107,7 +107,6 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 					continue
 				}
 
-				c.state = ContractStatePurchased
 				// use the same group to fail together with main goroutine
 				err = c.fulfillContract(ctx)
 				if err != nil {
@@ -151,13 +150,14 @@ func (c *BTCHashrateContract) LoadBlockchainContract() error {
 }
 
 func (c *BTCHashrateContract) fulfillContract(ctx context.Context) error {
+
 	c.state = ContractStatePurchased
 
 	if c.ContractIsExpired() {
 		c.log.Warn("contract is expired %s", c.GetID())
 		return nil
 	}
-
+	//race condition here for some contract closeout scenarios
 	// initialization cycle waits for hashpower to be available
 	for {
 		err := c.StartHashrateAllocation()
@@ -177,10 +177,12 @@ func (c *BTCHashrateContract) fulfillContract(ctx context.Context) error {
 	for {
 		c.log.Debugf("Checking if contract is ready for allocation: %v", c.GetID())
 
-		if c.ContractIsExpired() {
-			c.log.Info("contract time ended, closing...", c.GetID())
+		if c.ContractIsExpired() || c.state == ContractStateClosed {
+			c.log.Info("contract time ended, or state is closed, closing...", c.GetID())
 
-			return c.Close()
+			c.Close()
+
+			return nil
 		}
 
 		// TODO hashrate monitoring
@@ -254,11 +256,10 @@ func (c *BTCHashrateContract) Close() error {
 func (c *BTCHashrateContract) Stop() {
 
 	c.log.Infof("Attempting to stop contract %v; with state %v", c.GetID(), c.state)
-	if c.state == ContractStateRunning {
+	if c.state == ContractStateRunning || c.state == ContractStatePurchased {
 
 		c.log.Infof("Stopping contract %v", c.GetID())
 		c.globalScheduler.DeallocateContract(c.minerIDs, c.GetID())
-
 		c.state = ContractStateAvailable
 	} else {
 		c.log.Warnf("contract (%s) is not running", c.GetID())
