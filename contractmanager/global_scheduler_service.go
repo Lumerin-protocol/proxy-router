@@ -179,7 +179,7 @@ func (s *GlobalSchedulerService) incAllocation(ctx context.Context, snapshot All
 	}
 	addMinerIDs := make([]string, newHashrateList.Len())
 	for i, item := range newHashrateList {
-		minerIDs[i] = item.MinerID
+		addMinerIDs[i] = item.MinerID
 	}
 
 	newCombination := append(minerIDs, addMinerIDs...)
