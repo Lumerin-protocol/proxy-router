@@ -21,6 +21,12 @@ import (
 	"gitlab.com/TitanInd/hashrouter/lumerinlib/implementation"
 )
 
+type closeout struct {
+	fromAddress     string
+	contractAddress string
+	closeoutType    int64
+}
+
 type EthereumGateway struct {
 	client                 *ethclient.Client
 	cloneFactory           *clonefactory.Clonefactory
@@ -28,26 +34,8 @@ type EthereumGateway struct {
 	cloneFactoryAddr       common.Address
 	log                    interfaces.ILogger
 	mutex                  sync.Mutex
-	pendingNonce           PendingNonce
-}
-
-type PendingNonce struct {
-	pendingNonce uint64
-	mutex        sync.Mutex
-}
-
-func (n *PendingNonce) Lock() {
-	n.mutex.Lock()
-}
-func (n *PendingNonce) Unlock() {
-	n.mutex.Unlock()
-}
-func (n *PendingNonce) SetNonce(nonce uint64) {
-	n.pendingNonce = nonce
-}
-
-func (n *PendingNonce) GetNonce() uint64 {
-	return n.pendingNonce
+	startCloseout          chan *closeout
+	endCloseout            chan error
 }
 
 func NewEthereumGateway(ethClient *ethclient.Client, privateKeyString string, cloneFactoryAddrStr string, log interfaces.ILogger) (*EthereumGateway, error) {
@@ -60,15 +48,23 @@ func NewEthereumGateway(ethClient *ethclient.Client, privateKeyString string, cl
 
 	// pendingNonce := PendingNonce{mutex: sync.Mutex{}}
 
-	return &EthereumGateway{
+	g := &EthereumGateway{
 		client:                 ethClient,
 		sellerPrivateKeyString: privateKeyString,
 		cloneFactoryAddr:       common.HexToAddress(cloneFactoryAddrStr),
 		cloneFactory:           cloneFactory,
 		log:                    log,
-		mutex:                  sync.Mutex{},
-	}, nil
+		startCloseout:          make(chan *closeout),
+		endCloseout:            make(chan error),
+	}
 
+	go func() {
+		closeout := <-g.startCloseout
+
+		g.endCloseout <- g.setContractCloseOut(closeout.fromAddress, closeout.contractAddress, closeout.closeoutType)
+	}()
+
+	return g, nil
 }
 
 // SubscribeToContractCreatedEvent returns channel with events like new contract creation
@@ -169,9 +165,16 @@ func (g *EthereumGateway) ReadContracts(sellerAccountAddr interop.BlockchainAddr
 
 // SetContractCloseOut closes the contract with specified closeoutType
 func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddress string, closeoutType int64) error {
+	g.startCloseout <- &closeout{fromAddress, contractAddress, closeoutType}
+
+	err := <-g.endCloseout
+
+	return err
+}
+
+func (g *EthereumGateway) setContractCloseOut(fromAddress string, contractAddress string, closeoutType int64) error {
 	ctx := context.TODO()
 
-	g.mutex.Lock()
 	instance, err := implementation.NewImplementation(common.HexToAddress(contractAddress), g.client)
 	if err != nil {
 		g.log.Error(err)
@@ -199,7 +202,6 @@ func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddres
 	nonce, err := g.client.PendingNonceAt(ctx, common.HexToAddress(fromAddress))
 
 	if err != nil {
-		g.mutex.Unlock()
 		return err
 	}
 
@@ -216,8 +218,6 @@ func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddres
 
 	//TODO: retry if price is too low
 	tx, err := instance.SetContractCloseOut(options, big.NewInt(closeoutType))
-
-	g.mutex.Unlock()
 
 	if err != nil {
 		g.log.Errorf("cannot close transaction: %s tx: %s fromAddr: %s contractAddr: %s", err, tx, fromAddress, contractAddress)
