@@ -240,7 +240,7 @@ func (c *BTCHashrateContract) ContractIsExpired() bool {
 }
 
 func (c *BTCHashrateContract) Close() error {
-	c.log.Debugf("closing %v", c.GetID())
+	c.log.Debugf("closing contract %v", c.GetID())
 	c.Stop()
 
 	err := c.blockchain.SetContractCloseOut(c.data.Seller.Hex(), c.GetAddress(), int64(c.closeoutType))

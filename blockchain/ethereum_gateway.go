@@ -59,9 +59,11 @@ func NewEthereumGateway(ethClient *ethclient.Client, privateKeyString string, cl
 	}
 
 	go func() {
-		closeout := <-g.startCloseout
+		for {
+			closeout := <-g.startCloseout
 
-		g.endCloseout <- g.setContractCloseOut(closeout.fromAddress, closeout.contractAddress, closeout.closeoutType)
+			g.endCloseout <- g.setContractCloseOut(closeout.fromAddress, closeout.contractAddress, closeout.closeoutType)
+		}
 	}()
 
 	return g, nil
