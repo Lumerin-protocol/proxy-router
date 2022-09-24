@@ -27,7 +27,7 @@ func TestEnvString(t *testing.T) {
 
 	err := LoadConfig(&config, &[]string{"cmd"})
 	if err != nil {
-		t.Fatalf("%+v", config)
+		t.Fatalf("%+v", err)
 	}
 	if config.StringVal != val {
 		t.Fatal()
@@ -154,7 +154,7 @@ func TestFlagRequired(t *testing.T) {
 	}
 	var vErrs validator.ValidationErrors
 	if !errors.As(err, &vErrs) {
-		t.Fatal("invalid error type")
+		t.Fatalf("invalid error type %v", err)
 	}
 	vErr := vErrs[0]
 

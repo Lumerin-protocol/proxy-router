@@ -6,7 +6,8 @@ type Config struct {
 		Address string `env:"WEB_ADDRESS" flag:"web-address" desc:"http server address host:port" validate:"required,hostname_port"`
 	}
 	Proxy struct {
-		Address string `env:"PROXY_ADDRESS" flag:"proxy-address" validate:"required,hostname_port"`
+		Address    string `env:"PROXY_ADDRESS" flag:"proxy-address" validate:"required,hostname_port"`
+		LogStratum bool   `env:"PROXY_LOG_STRATUM"`
 	}
 	Pool struct {
 		Address string `env:"POOL_ADDRESS" flag:"pool-address" validate:"required,uri"`

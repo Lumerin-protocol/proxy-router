@@ -16,9 +16,10 @@ type MinerController struct {
 	defaultDest interfaces.IDestination
 	collection  interfaces.ICollection[MinerScheduler]
 	log         interfaces.ILogger
+	logStratum  bool
 }
 
-func NewMinerController(defaultDest interfaces.IDestination, collection interfaces.ICollection[MinerScheduler], log interfaces.ILogger) *MinerController {
+func NewMinerController(defaultDest interfaces.IDestination, collection interfaces.ICollection[MinerScheduler], log interfaces.ILogger, logStratum bool) *MinerController {
 	return &MinerController{
 		defaultDest: defaultDest,
 		log:         log,
@@ -31,8 +32,14 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	// TODO: peek if incoming connection is stratum connection
 
 	buffered := tcpserver.NewBufferedConn(incomingConn)
-	bytes, err := buffered.Peek(100)
-	p.log.Error(err)
+	bytes, err := tcpserver.PeekJSON(buffered)
+	if err != nil {
+		err2 := buffered.Close()
+		if err2 != nil {
+			return err2
+		}
+		return err
+	}
 	peakedMsg := strings.ToLower(string(bytes))
 
 	if !(strings.Contains(peakedMsg, "id") &&
@@ -45,7 +52,7 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 
 	incomingConn = buffered
 
-	poolPool := protocol.NewStratumV1PoolPool(p.log.Named(incomingConn.RemoteAddr().String()))
+	poolPool := protocol.NewStratumV1PoolPool(p.log.Named(incomingConn.RemoteAddr().String()), p.logStratum)
 	err = poolPool.SetDest(p.defaultDest, nil)
 	if err != nil {
 		p.log.Error(err)
@@ -53,7 +60,7 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	}
 	extranonce, size := poolPool.GetExtranonce()
 	msg := stratumv1_message.NewMiningSubscribeResult(extranonce, size)
-	miner := protocol.NewStratumV1Miner(incomingConn, p.log, msg)
+	miner := protocol.NewStratumV1Miner(incomingConn, p.log, msg, p.logStratum)
 	validator := hashrate.NewHashrate(p.log, hashrate.EMA_INTERVAL)
 	minerModel := protocol.NewStratumV1MinerModel(poolPool, miner, validator, p.log)
 
@@ -74,12 +81,9 @@ func (p *MinerController) ChangeDestAll(dest interfaces.IDestination) error {
 	p.collection.Range(func(miner MinerScheduler) bool {
 		p.log.Infof("changing pool to %s for minerID %s", dest.GetHost(), miner.GetID())
 
-		_, err := miner.Allocate(100, dest)
-		if err != nil {
-			return false
-		}
+		_, err := miner.Allocate("API_TEST", 1, dest)
 
-		return true
+		return err == nil
 	})
 
 	return nil

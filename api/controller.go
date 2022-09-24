@@ -9,6 +9,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/miner"
+	"golang.org/x/exp/slices"
 )
 
 type ApiController struct {
@@ -19,26 +20,34 @@ type ApiController struct {
 type Miner struct {
 	ID                 string
 	TotalHashrateGHS   int
+	HashrateAvgGHS     HashrateAvgGHS
 	Destinations       []DestItem
 	CurrentDestination string
 	CurrentDifficulty  int
 	WorkerName         string
 }
 
+type HashrateAvgGHS struct {
+	T5m  int `json:"5m"`
+	T30m int `json:"30m"`
+	T1h  int `json:"1h"`
+}
+
 type DestItem struct {
-	URI        string
-	Percentage int
+	URI      string
+	Fraction float64
 }
 
 type Contract struct {
-	ID             string
-	BuyerAddr      string
-	SellerAddr     string
-	HashrateGHS    int
-	StartTimestamp string
-	EndTimestamp   string
-	State          string
-	Dest           string
+	ID              string
+	BuyerAddr       string
+	SellerAddr      string
+	HashrateGHS     int
+	DurationSeconds int
+	StartTimestamp  *string
+	EndTimestamp    *string
+	State           string
+	Dest            string
 	// Miners         []string
 }
 
@@ -84,19 +93,29 @@ func (c *ApiController) GetMiners() []Miner {
 		dest := miner.GetDestSplit()
 		for _, item := range dest.Iter() {
 			destItems = append(destItems, DestItem{
-				URI:        item.Dest.String(),
-				Percentage: int(item.Percentage),
+				URI:      item.Dest.String(),
+				Fraction: item.Percentage,
 			})
 		}
+		hashrate := miner.GetHashRate()
 		data = append(data, Miner{
-			ID:                 miner.GetID(),
-			TotalHashrateGHS:   miner.GetHashRateGHS(),
-			CurrentDifficulty:  miner.GetCurrentDifficulty(),
-			Destinations:       destItems,
+			ID:                miner.GetID(),
+			TotalHashrateGHS:  miner.GetHashRateGHS(),
+			CurrentDifficulty: miner.GetCurrentDifficulty(),
+			Destinations:      destItems,
+			HashrateAvgGHS: HashrateAvgGHS{
+				T5m:  hashrate.GetHashrate5minAvgGHS(),
+				T30m: hashrate.GetHashrate30minAvgGHS(),
+				T1h:  hashrate.GetHashrate1hAvgGHS(),
+			},
 			CurrentDestination: miner.GetCurrentDest().String(),
 			WorkerName:         miner.GetWorkerName(),
 		})
 		return true
+	})
+
+	slices.SortStableFunc(data, func(a Miner, b Miner) bool {
+		return a.ID < b.ID
 	})
 
 	return data
@@ -120,25 +139,29 @@ func (c *ApiController) GetContracts() []Contract {
 	data := []Contract{}
 	c.contracts.Range(func(item contractmanager.IContractModel) bool {
 		data = append(data, Contract{
-			ID:             item.GetID(),
-			BuyerAddr:      item.GetBuyerAddress(),
-			SellerAddr:     item.GetSellerAddress(),
-			HashrateGHS:    item.GetHashrateGHS(),
-			StartTimestamp: item.GetStartTime().Format(time.RFC3339),
-			EndTimestamp:   item.GetEndTime().Format(time.RFC3339),
-			State:          MapContractState(item.GetState()),
-			Dest:           item.GetDest().String(),
+			ID:              item.GetID(),
+			BuyerAddr:       item.GetBuyerAddress(),
+			SellerAddr:      item.GetSellerAddress(),
+			HashrateGHS:     item.GetHashrateGHS(),
+			DurationSeconds: int(item.GetDuration().Seconds()),
+			StartTimestamp:  TimePtrToStringPtr(item.GetStartTime()),
+			EndTimestamp:    TimePtrToStringPtr(item.GetEndTime()),
+			State:           MapContractState(item.GetState()),
+			Dest:            item.GetDest().String(),
 		})
 		return true
 	})
 
+	slices.SortStableFunc(data, func(a Contract, b Contract) bool {
+		return a.ID < b.ID
+	})
 	return data
 }
 
 func MapContractState(state contractmanager.ContractState) string {
 	switch state {
-	case contractmanager.ContractStateCreated:
-		return "created"
+	case contractmanager.ContractStateAvailable:
+		return "available"
 	case contractmanager.ContractStatePurchased:
 		return "purchased"
 	case contractmanager.ContractStateRunning:
@@ -147,4 +170,12 @@ func MapContractState(state contractmanager.ContractState) string {
 		return "closed"
 	}
 	return "unknown"
+}
+
+func TimePtrToStringPtr(t *time.Time) *string {
+	if t != nil {
+		a := t.Format(time.RFC3339)
+		return &a
+	}
+	return nil
 }
