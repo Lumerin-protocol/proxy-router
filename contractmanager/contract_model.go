@@ -159,19 +159,20 @@ func (c *BTCHashrateContract) fulfillContract(ctx context.Context) error {
 	}
 	//race condition here for some contract closeout scenarios
 	// initialization cycle waits for hashpower to be available
-	for {
-		err := c.StartHashrateAllocation()
-		if err == nil {
-			break
-		}
-
-		select {
-		case <-ctx.Done():
-			c.log.Errorf("contract context canceled while waiting for hashpower: %s", ctx.Err().Error())
-			return ctx.Err()
-		case <-time.After(30 * time.Second):
-		}
+	// for {
+	err := c.StartHashrateAllocation()
+	if err != nil {
+		return c.Close()
 	}
+
+	// break
+	// select {
+	// case <-ctx.Done():
+	// 	c.log.Errorf("contract context canceled while waiting for hashpower: %s", ctx.Err().Error())
+	// 	return ctx.Err()
+	// case <-time.After(30 * time.Second):
+	// }
+	// }
 
 	// running cycle checks combination every N seconds
 	for {
@@ -215,7 +216,6 @@ func (c *BTCHashrateContract) StartHashrateAllocation() error {
 	minerList, err := c.globalScheduler.Allocate(c.GetID(), c.GetHashrateGHS(), c.data.Dest)
 
 	if err != nil {
-		c.Close()
 		return err
 	}
 
