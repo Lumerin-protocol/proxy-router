@@ -27,6 +27,7 @@ type EthereumGateway struct {
 	sellerPrivateKeyString string
 	cloneFactoryAddr       common.Address
 	log                    interfaces.ILogger
+	mutex                  sync.Mutex
 	pendingNonce           PendingNonce
 }
 
@@ -57,7 +58,7 @@ func NewEthereumGateway(ethClient *ethclient.Client, privateKeyString string, cl
 		return nil, err
 	}
 
-	pendingNonce := PendingNonce{mutex: sync.Mutex{}}
+	// pendingNonce := PendingNonce{mutex: sync.Mutex{}}
 
 	return &EthereumGateway{
 		client:                 ethClient,
@@ -65,7 +66,7 @@ func NewEthereumGateway(ethClient *ethclient.Client, privateKeyString string, cl
 		cloneFactoryAddr:       common.HexToAddress(cloneFactoryAddrStr),
 		cloneFactory:           cloneFactory,
 		log:                    log,
-		pendingNonce:           pendingNonce,
+		mutex:                  sync.Mutex{},
 	}, nil
 
 }
@@ -203,22 +204,21 @@ func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddres
 	options.Value = big.NewInt(0)      // in wei
 	// options.GasPrice = gasPrice
 
-	g.pendingNonce.Lock()
+	g.mutex.Lock()
 	nonce, err := g.client.PendingNonceAt(ctx, common.HexToAddress(fromAddress))
 
 	if err != nil {
-		g.pendingNonce.Unlock()
+		g.mutex.Unlock()
 		return err
 	}
-	g.pendingNonce.SetNonce(nonce)
 
-	options.Nonce = big.NewInt(int64(g.pendingNonce.GetNonce()))
+	options.Nonce = big.NewInt(int64(nonce))
 	g.log.Debugf("closeout type: %v", closeoutType)
 
 	//TODO: retry if price is too low
 	tx, err := instance.SetContractCloseOut(options, big.NewInt(closeoutType))
 
-	g.pendingNonce.Unlock()
+	g.mutex.Unlock()
 
 	if err != nil {
 		g.log.Errorf("cannot close transaction: %s tx: %s fromAddr: %s contractAddr: %s", err, tx, fromAddress, contractAddress)
