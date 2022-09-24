@@ -171,6 +171,7 @@ func (g *EthereumGateway) ReadContracts(sellerAccountAddr interop.BlockchainAddr
 func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddress string, closeoutType int64) error {
 	ctx := context.TODO()
 
+	g.mutex.Lock()
 	instance, err := implementation.NewImplementation(common.HexToAddress(contractAddress), g.client)
 	if err != nil {
 		g.log.Error(err)
@@ -195,6 +196,13 @@ func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddres
 	// 	return err
 	// }
 
+	nonce, err := g.client.PendingNonceAt(ctx, common.HexToAddress(fromAddress))
+
+	if err != nil {
+		g.mutex.Unlock()
+		return err
+	}
+
 	options, err := bind.NewKeyedTransactorWithChainID(privateKey, chainId)
 	if err != nil {
 		return err
@@ -203,17 +211,8 @@ func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddres
 	options.GasLimit = uint64(3000000) // in units
 	options.Value = big.NewInt(0)      // in wei
 	// options.GasPrice = gasPrice
-
-	g.mutex.Lock()
-	nonce, err := g.client.PendingNonceAt(ctx, common.HexToAddress(fromAddress))
-
-	if err != nil {
-		g.mutex.Unlock()
-		return err
-	}
-
 	options.Nonce = big.NewInt(int64(nonce))
-	g.log.Debugf("closeout type: %v", closeoutType)
+	g.log.Debugf("closeout type: %v; nonce: %v", closeoutType, nonce)
 
 	//TODO: retry if price is too low
 	tx, err := instance.SetContractCloseOut(options, big.NewInt(closeoutType))
