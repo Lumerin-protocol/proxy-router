@@ -226,7 +226,7 @@ func (g *EthereumGateway) setContractCloseOut(fromAddress string, contractAddres
 		g.log.Errorf("cannot close transaction: %s tx: %s fromAddr: %s contractAddr: %s", err, tx, fromAddress, contractAddress)
 		return err
 	}
-
+	time.Sleep(30 * time.Second)
 	g.log.Infof("contract %s closed, tx: %s", contractAddress, tx.Hash().Hex())
 
 	g.log.Debugf("ending closeout, %v; %v; %v", fromAddress, contractAddress, closeoutType)
