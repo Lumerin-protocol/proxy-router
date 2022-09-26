@@ -119,7 +119,7 @@ func provideSellerContractManager(
 }
 
 func provideLogger(cfg *config.Config) (interfaces.ILogger, error) {
-	return lib.NewLogger(cfg.Log.Syslog)
+	return lib.NewLogger(cfg.Environment == "production")
 }
 
 func provideConfig() (*config.Config, error) {

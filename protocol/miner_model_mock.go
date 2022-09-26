@@ -2,8 +2,11 @@ package protocol
 
 import (
 	"context"
+	"time"
 
+	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/lib"
 )
 
 type MinerModelMock struct {
@@ -39,6 +42,9 @@ func (m *MinerModelMock) GetWorkerName() string {
 }
 func (m *MinerModelMock) GetHashRateGHS() int {
 	return m.HashrateGHS
+}
+func (m *MinerModelMock) GetHashRate() Hashrate {
+	return hashrate.NewHashrate(&lib.LoggerMock{}, time.Minute)
 }
 func (m *MinerModelMock) OnSubmit(cb OnSubmitHandler) ListenerHandle {
 	return ListenerHandle(m.OnSubmitListenerHandle)
