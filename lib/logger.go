@@ -63,6 +63,7 @@ func newDevelopmentLogger() (*zap.Logger, error) {
 
 func newProductionLogger() (*zap.Logger, error) {
 	cfg := zap.NewProductionConfig()
+	cfg.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
 	l, err := cfg.Build()
 	if err != nil {
 		return nil, err
