@@ -14,13 +14,13 @@ const green = "\u001b[32m"
 const red = "\u001b[31m"
 const reset = "\u001b[0m"
 */
-func NewLogger(syslog bool) (*zap.SugaredLogger, error) {
+func NewLogger(isProduction bool) (*zap.SugaredLogger, error) {
 	var (
 		log *zap.Logger
 		err error
 	)
 
-	if syslog {
+	if isProduction {
 		log, err = newProductionLogger()
 	} else {
 		log, err = newDevelopmentLogger()
@@ -63,6 +63,7 @@ func newDevelopmentLogger() (*zap.Logger, error) {
 
 func newProductionLogger() (*zap.Logger, error) {
 	cfg := zap.NewProductionConfig()
+	cfg.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
 	l, err := cfg.Build()
 	if err != nil {
 		return nil, err
