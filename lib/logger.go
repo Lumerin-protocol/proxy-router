@@ -14,13 +14,13 @@ const green = "\u001b[32m"
 const red = "\u001b[31m"
 const reset = "\u001b[0m"
 */
-func NewLogger(syslog bool) (*zap.SugaredLogger, error) {
+func NewLogger(isProduction bool) (*zap.SugaredLogger, error) {
 	var (
 		log *zap.Logger
 		err error
 	)
 
-	if syslog {
+	if isProduction {
 		log, err = newProductionLogger()
 	} else {
 		log, err = newDevelopmentLogger()
