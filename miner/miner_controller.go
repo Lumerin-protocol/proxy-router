@@ -24,6 +24,7 @@ func NewMinerController(defaultDest interfaces.IDestination, collection interfac
 		defaultDest: defaultDest,
 		log:         log,
 		collection:  collection,
+		logStratum:  logStratum,
 	}
 }
 
