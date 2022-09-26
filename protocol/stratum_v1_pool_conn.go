@@ -89,7 +89,7 @@ func (s *StratumV1PoolConn) run(ctx context.Context) error {
 
 		m, err := stratumv1_message.ParseMessageFromPool(line)
 		if err != nil {
-			s.log.Errorf("Unknown miner message", string(line))
+			s.log.Errorf("unknown pool message", string(line))
 		}
 
 		m = s.readInterceptor(m)
