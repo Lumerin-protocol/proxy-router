@@ -16,6 +16,10 @@ type AllocItem struct {
 	TotalGHS   int
 }
 
+func (m *AllocItem) GetSourceId() string {
+	return m.MinerID
+}
+
 func (m *AllocItem) AllocatedGHS() int {
 	return int(float64(m.TotalGHS) * m.Fraction)
 }

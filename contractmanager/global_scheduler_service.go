@@ -63,15 +63,15 @@ func (s *GlobalSchedulerService) Allocate(contractID string, hashrateGHS int, de
 	}
 
 	for _, item := range combination.GetItems() {
-		miner, ok := s.minerCollection.Load(item.MinerID)
+		miner, ok := s.minerCollection.Load(item.GetSourceId())
 		if !ok {
 			//just logging error message because the miner might disconnect
-			s.log.Warnf("unknown miner: %v, skipping", item.MinerID)
+			s.log.Warnf("unknown miner: %v, skipping", item.GetSourceId())
 			continue
 		}
 		_, err := miner.Allocate(contractID, item.Fraction, dest)
 		if err != nil {
-			s.log.Warnf("failed to allocate miner: %v, skipping...; %w", item.MinerID, err)
+			s.log.Warnf("failed to allocate miner: %v, skipping...; %w", item.GetSourceId(), err)
 			continue
 		}
 	}
@@ -99,7 +99,7 @@ func (s *GlobalSchedulerService) getAllocateComb(minerHashrates *AllocCollection
 			// TODO: consider replacing the largest alloc item with a new miner
 			// items := combination.SortByAllocatedGHS()
 			// largestAllocItem := items[len(items)-1]
-			// items[largestAllocItem.MinerID] =
+			// items[largestAllocItem.GetSourceId()] =
 			return combination, false
 		}
 
@@ -122,7 +122,7 @@ func (s *GlobalSchedulerService) getBestMinerToReduceHashrate(combination *Alloc
 			if fraction > MIN_DEST_FRACTION &&
 				fraction < MAX_DEST_FRACTION &&
 				fractionDelta < bestMinerFractionDelta {
-				bestMinerID = item.MinerID
+				bestMinerID = item.GetSourceId()
 				bestMinerFractionDelta = fractionDelta
 			}
 		}
@@ -283,9 +283,9 @@ func (s *GlobalSchedulerService) decrAllocation(ctx context.Context, snapshot Al
 			break
 		}
 
-		miner, ok := s.minerCollection.Load(item.MinerID)
+		miner, ok := s.minerCollection.Load(item.GetSourceId())
 		if !ok {
-			s.log.Warnf("miner (%s) not found", item.MinerID)
+			s.log.Warnf("miner (%s) not found", item.GetSourceId())
 			continue
 		}
 
@@ -320,7 +320,7 @@ func (s *GlobalSchedulerService) decrAllocation(ctx context.Context, snapshot Al
 			}
 
 			split.SetFractionByID(contractID, newFraction)
-			minerIDs = append(minerIDs, item.MinerID)
+			minerIDs = append(minerIDs, item.GetSourceId())
 		}
 
 		remainingGHS -= removeMinerGHS
