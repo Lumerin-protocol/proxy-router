@@ -16,10 +16,6 @@ func (m HashrateListItem) GetHashrateGHS() int {
 	return m.Hashrate
 }
 
-func (m HashrateListItem) SetHashrateGHS(hashrate int) {
-	m.Hashrate = hashrate
-}
-
 func (m HashrateListItem) GetTotalHashrateGHS() int {
 	return m.TotalHashrate
 
