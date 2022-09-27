@@ -143,7 +143,7 @@ func (c *BTCHashrateContract) LoadBlockchainContract() error {
 	contractData, ok := data.(blockchain.ContractData)
 
 	if !ok {
-		return fmt.Errorf("Failed to load blockhain data: %#+v", c.data.Addr)
+		return fmt.Errorf("failed to load blockhain data: %#+v", c.data.Addr)
 	}
 
 	c.data = contractData
@@ -223,12 +223,7 @@ func (c *BTCHashrateContract) StartHashrateAllocation() error {
 		return err
 	}
 
-	minerIDs := make([]string, minerList.Len())
-	for i, item := range minerList {
-		minerIDs[i] = item.MinerID
-	}
-
-	c.minerIDs = minerIDs
+	c.minerIDs = minerList.IDs()
 
 	c.log.Infof("fulfilling contract %s; expires at %v", c.GetID(), c.GetEndTime())
 

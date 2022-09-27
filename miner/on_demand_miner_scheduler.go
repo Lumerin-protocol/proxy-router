@@ -20,8 +20,7 @@ type OnDemandMinerScheduler struct {
 	defaultDest interfaces.IDestination // the default destination that is used for unallocated part of destSplit
 }
 
-// const ON_DEMAND_SWITCH_TIMEOUT = 10 * time.Minute
-const ON_DEMAND_SWITCH_TIMEOUT = 30 * time.Minute
+const ON_DEMAND_SWITCH_TIMEOUT = 6 * time.Minute
 
 func NewOnDemandMinerScheduler(minerModel MinerModel, destSplit *DestSplit, log interfaces.ILogger, defaultDest interfaces.IDestination) *OnDemandMinerScheduler {
 	return &OnDemandMinerScheduler{
