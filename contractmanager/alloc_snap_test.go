@@ -24,7 +24,7 @@ func TestAllocSnap(t *testing.T) {
 	if !ok {
 		t.Fatalf("allocCollection not found")
 	}
-	if len(allocCollection) != 2 {
+	if len(allocCollection.GetItems()) != 2 {
 		t.Fatalf("invalid allocCollection length")
 	}
 
@@ -32,7 +32,7 @@ func TestAllocSnap(t *testing.T) {
 	if !ok {
 		t.Fatalf("allocCollection not found")
 	}
-	if len(allocCollection2) != 2 {
+	if len(allocCollection2.GetItems()) != 2 {
 		t.Fatalf("invalid allocCollection length")
 	}
 
@@ -42,7 +42,7 @@ func TestAllocSnap(t *testing.T) {
 		t.Fatalf("expected unallocated HR %d actual %d", expectedHrGHS, hrGHS)
 	}
 
-	if len(list) != 3 {
+	if len(list.GetItems()) != 3 {
 		t.Fatalf("expected 2 unalloc items")
 	}
 

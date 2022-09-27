@@ -27,22 +27,36 @@ func (m *AllocItem) String() string {
 	return b.String()
 }
 
-type AllocCollection map[string]*AllocItem
+type AllocCollection struct {
+	items map[string]*AllocItem
+}
 
-func (m AllocCollection) FilterFullyAvailable() AllocCollection {
-	fullyAvailable := AllocCollection{}
-	for key, item := range m {
+func (m AllocCollection) ReduceMinerAllocation(minerId string, delta int) {
+	item, ok := m.Get(minerId)
+
+	if ok {
+		item.Fraction -= float64(delta) / float64(item.TotalGHS)
+	}
+}
+
+func (m AllocCollection) GetItems() map[string]*AllocItem {
+	return m.items
+}
+
+func (m AllocCollection) FilterFullyAvailable() *AllocCollection {
+	fullyAvailable := NewAllocCollection()
+	for key, item := range m.items {
 		if item.Fraction == 1 {
-			fullyAvailable[key] = item
+			fullyAvailable.items[key] = item
 		}
 	}
 	return fullyAvailable
 }
 
 func (m AllocCollection) SortByAllocatedGHS() []AllocItem {
-	items := make([]AllocItem, len(m))
+	items := make([]AllocItem, len(m.items))
 	i := 0
-	for _, item := range m {
+	for _, item := range m.items {
 		items[i] = *item
 		i++
 	}
@@ -55,24 +69,34 @@ func (m AllocCollection) SortByAllocatedGHS() []AllocItem {
 func (m AllocCollection) String() string {
 	b := new(bytes.Buffer)
 	fmt.Fprintf(b, "\nContractID\tMinerID\tFraction\tTotalGHS\n")
-	for _, alloc := range m {
+	for _, alloc := range m.items {
 		fmt.Fprintf(b, "%s\t%s\t%.2f\t%d\n", alloc.ContractID, alloc.MinerID, alloc.Fraction, alloc.TotalGHS)
 	}
 	return b.String()
 }
 
 func (m AllocCollection) Len() int {
-	return len(m)
+	return len(m.GetItems())
 }
 
 func (m AllocCollection) IDs() []string {
 	minerIDs := make([]string, m.Len())
 	i := 0
-	for _, item := range m {
+	for _, item := range m.items {
 		minerIDs[i] = item.MinerID
 		i++
 	}
 	return minerIDs
+}
+
+func (m *AllocCollection) Get(id string) (*AllocItem, bool) {
+	item, ok := m.items[id]
+
+	return item, ok
+}
+
+func (m *AllocCollection) Add(id string, item *AllocItem) {
+	m.items[id] = item
 }
 
 func (m AllocCollection) GetUnallocatedGHS() (int, *AllocItem) {
@@ -81,7 +105,7 @@ func (m AllocCollection) GetUnallocatedGHS() (int, *AllocItem) {
 	var minerID string
 	var totalGHS int
 
-	for _, item := range m {
+	for _, item := range m.items {
 		allocatedFrac += item.Fraction
 		minerID = item.MinerID
 		totalGHS = item.TotalGHS
@@ -99,19 +123,23 @@ func (m AllocCollection) GetUnallocatedGHS() (int, *AllocItem) {
 }
 
 type AllocSnap struct {
-	contractIDMinerIDMap map[string]AllocCollection
-	minerIDcontractIDMap map[string]AllocCollection
+	contractIDMinerIDMap map[string]*AllocCollection
+	minerIDcontractIDMap map[string]*AllocCollection
 	minerIDHashrateGHS   map[string]int
 }
 
 func NewAllocSnap() AllocSnap {
 	return AllocSnap{
-		contractIDMinerIDMap: make(map[string]AllocCollection),
-		minerIDcontractIDMap: make(map[string]AllocCollection),
+		contractIDMinerIDMap: make(map[string]*AllocCollection),
+		minerIDcontractIDMap: make(map[string]*AllocCollection),
 		minerIDHashrateGHS:   make(map[string]int),
 	}
 }
-
+func NewAllocCollection() *AllocCollection {
+	return &AllocCollection{
+		items: make(map[string]*AllocItem),
+	}
+}
 func (m *AllocSnap) Set(minerID string, contractID string, fraction float64, totalGHS int) {
 	m.SetMiner(minerID, totalGHS)
 
@@ -123,21 +151,21 @@ func (m *AllocSnap) Set(minerID string, contractID string, fraction float64, tot
 	}
 	_, ok := m.contractIDMinerIDMap[contractID]
 	if !ok {
-		m.contractIDMinerIDMap[contractID] = make(AllocCollection)
+		m.contractIDMinerIDMap[contractID] = NewAllocCollection()
 	}
-	m.contractIDMinerIDMap[contractID][minerID] = item
+	m.contractIDMinerIDMap[contractID].Add(minerID, item)
 
 	_, ok = m.minerIDcontractIDMap[minerID]
 	if !ok {
-		m.minerIDcontractIDMap[minerID] = make(AllocCollection)
+		m.minerIDcontractIDMap[minerID] = NewAllocCollection()
 	}
-	m.minerIDcontractIDMap[minerID][contractID] = item
+	m.minerIDcontractIDMap[minerID].Add(contractID, item)
 }
 
 func (m *AllocSnap) SetMiner(minerID string, hashrateGHS int) {
 	_, ok := m.minerIDcontractIDMap[minerID]
 	if !ok {
-		m.minerIDcontractIDMap[minerID] = make(AllocCollection)
+		m.minerIDcontractIDMap[minerID] = NewAllocCollection()
 	}
 	m.minerIDHashrateGHS[minerID] = hashrateGHS
 }
@@ -147,26 +175,26 @@ func (m *AllocSnap) Get(minerID string, contractID string) (AllocItem, bool) {
 	if !ok {
 		return AllocItem{}, false
 	}
-	item, ok := contractIDMap[contractID]
+	item, ok := contractIDMap.Get(contractID)
 	if !ok {
 		return AllocItem{}, false
 	}
 	return *item, true
 }
 
-func (m *AllocSnap) Miner(minerID string) (AllocCollection, bool) {
+func (m *AllocSnap) Miner(minerID string) (*AllocCollection, bool) {
 	res, ok := m.minerIDcontractIDMap[minerID]
 	return res, ok
 }
 
-func (m *AllocSnap) Contract(contractID string) (AllocCollection, bool) {
+func (m *AllocSnap) Contract(contractID string) (*AllocCollection, bool) {
 	res, ok := m.contractIDMinerIDMap[contractID]
 	return res, ok
 }
 
-func (s *AllocSnap) GetUnallocatedGHS() (int, AllocCollection) {
+func (s *AllocSnap) GetUnallocatedGHS() (int, *AllocCollection) {
 	var unallocatedHashrateGHS int = 0
-	allocItemsAvailable := make(AllocCollection)
+	allocItemsAvailable := NewAllocCollection()
 
 	for minerID, miner := range s.minerIDcontractIDMap {
 		_, allocItem := miner.GetUnallocatedGHS()
@@ -178,7 +206,7 @@ func (s *AllocSnap) GetUnallocatedGHS() (int, AllocCollection) {
 				Fraction:   allocItem.Fraction,
 				TotalGHS:   s.minerIDHashrateGHS[minerID],
 			}
-			allocItemsAvailable[minerID] = item
+			allocItemsAvailable.Add(minerID, item)
 			unallocatedHashrateGHS += item.AllocatedGHS()
 		}
 	}
@@ -190,7 +218,7 @@ func (m *AllocSnap) String() string {
 	b := new(bytes.Buffer)
 	fmt.Fprintf(b, "\nContractID\tMinerID\tFraction\tTotalGHS\n")
 	for _, item := range m.contractIDMinerIDMap {
-		for _, alloc := range item {
+		for _, alloc := range item.GetItems() {
 			fmt.Fprintf(b, "%s\t%s\t%.2f\t%d\n", alloc.ContractID, alloc.MinerID, alloc.Fraction, alloc.TotalGHS)
 		}
 	}

@@ -68,7 +68,7 @@ func TestAllocation50percent(t *testing.T) {
 	}
 	t.Log(col.String())
 
-	allocItem, ok := col["1"]
+	allocItem, ok := col.Get("1")
 	if !ok || allocItem.Fraction != 0.5 {
 		t.Errorf("miner 1 should be allocated for 0.5 of hashpower")
 	}
@@ -88,7 +88,7 @@ func TestAllocationPreferSingleMiner(t *testing.T) {
 		t.Error(err)
 	}
 
-	miner, ok := col["3"]
+	miner, ok := col.Get("3")
 	if !ok {
 		t.Errorf("should use a fully vacant miner")
 	}
@@ -113,7 +113,7 @@ func TestAllocationReduce(t *testing.T) {
 	}
 	t.Log(col.String())
 
-	allocItem, ok := col["1"]
+	allocItem, ok := col.Get("1")
 	if !ok || allocItem.Fraction != 0.5 {
 		t.Errorf("miner 1 should be allocated for 0.5 of hashpower")
 	}
