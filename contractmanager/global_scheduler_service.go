@@ -212,7 +212,7 @@ func (s *GlobalSchedulerService) incAllocation(ctx context.Context, snapshot All
 
 	minersSnap, ok := snapshot.Contract(contractID)
 	if !ok {
-		s.log.DPanicf("contract (%s) not found", contractID)
+		s.log.Errorf("contract (%s) not found", contractID)
 	}
 
 	minerIDs := []string{}
@@ -273,7 +273,7 @@ func (s *GlobalSchedulerService) incAllocation(ctx context.Context, snapshot All
 func (s *GlobalSchedulerService) decrAllocation(ctx context.Context, snapshot AllocSnap, removeGHS int, contractID string) ([]string, error) {
 	allocSnap, ok := snapshot.Contract(contractID)
 	if !ok {
-		s.log.DPanicf("contract (%s) not found in snap", contractID)
+		s.log.Errorf("contract (%s) not found in snap", contractID)
 		return nil, nil
 	}
 

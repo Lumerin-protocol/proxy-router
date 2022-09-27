@@ -144,7 +144,7 @@ func (m *OnDemandMinerScheduler) Deallocate(ID string) (ok bool) {
 	}
 
 	if ok {
-		m.resetDestCycle()
+		go m.resetDestCycle()
 	}
 
 	return ok

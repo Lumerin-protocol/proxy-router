@@ -231,7 +231,9 @@ func (m *StratumV1PoolConn) Write(ctx context.Context, msg stratumv1_message.Min
 	msg = m.writeInterceptor(msg)
 
 	if m.logStratum {
-		lib.LogMsg(false, false, m.dest.GetHost(), msg.Serialize(), m.log)
+		if m.dest != nil && msg != nil {
+			lib.LogMsg(false, false, m.dest.GetHost(), msg.Serialize(), m.log)
+		}
 	}
 
 	b := fmt.Sprintf("%s\n", msg.Serialize())

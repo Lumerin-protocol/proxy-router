@@ -46,13 +46,17 @@ func (m *StratumV1Miner) Write(ctx context.Context, msg stratumv1_message.Mining
 
 // write writes to miner omitting locks
 func (m *StratumV1Miner) write(ctx context.Context, msg stratumv1_message.MiningMessageGeneric) error {
-	if m.logStratum {
-		lib.LogMsg(true, false, m.conn.RemoteAddr().String(), msg.Serialize(), m.log)
+	if m.conn != nil && msg != nil {
+		if m.logStratum {
+			lib.LogMsg(true, false, m.conn.RemoteAddr().String(), msg.Serialize(), m.log)
+		}
+
+		b := fmt.Sprintf("%s\n", msg.Serialize())
+		_, err := m.conn.Write([]byte(b))
+		return err
 	}
 
-	b := fmt.Sprintf("%s\n", msg.Serialize())
-	_, err := m.conn.Write([]byte(b))
-	return err
+	return fmt.Errorf("invalid message or connection; connection: %v; message: %v", m.conn, msg)
 }
 
 func (s *StratumV1Miner) Read(ctx context.Context) (stratumv1_message.MiningMessageGeneric, error) {
