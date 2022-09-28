@@ -164,7 +164,7 @@ bedrock-03-STG:
         - aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-$CI_AWS_ECR_REPO:$REVISION | grep serviceArn
 
 bedrock-04-PRD:
-    stage: deploy-lmn
+    stage: deploy-prd
     only:
         - main
     image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
