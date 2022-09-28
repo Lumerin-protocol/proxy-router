@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"strings"
+	"time"
 
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
@@ -13,18 +14,20 @@ import (
 )
 
 type MinerController struct {
-	defaultDest interfaces.IDestination
-	collection  interfaces.ICollection[MinerScheduler]
-	log         interfaces.ILogger
-	logStratum  bool
+	defaultDest        interfaces.IDestination
+	collection         interfaces.ICollection[MinerScheduler]
+	log                interfaces.ILogger
+	logStratum         bool
+	minerVettingPeriod time.Duration
 }
 
-func NewMinerController(defaultDest interfaces.IDestination, collection interfaces.ICollection[MinerScheduler], log interfaces.ILogger, logStratum bool) *MinerController {
+func NewMinerController(defaultDest interfaces.IDestination, collection interfaces.ICollection[MinerScheduler], log interfaces.ILogger, logStratum bool, minerVettingPeriod time.Duration) *MinerController {
 	return &MinerController{
-		defaultDest: defaultDest,
-		log:         log,
-		collection:  collection,
-		logStratum:  logStratum,
+		defaultDest:        defaultDest,
+		log:                log,
+		collection:         collection,
+		logStratum:         logStratum,
+		minerVettingPeriod: minerVettingPeriod,
 	}
 }
 
@@ -61,21 +64,19 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	}
 	extranonce, size := poolPool.GetExtranonce()
 	msg := stratumv1_message.NewMiningSubscribeResult(extranonce, size)
-	miner := protocol.NewStratumV1Miner(incomingConn, p.log, msg, p.logStratum)
+	miner := protocol.NewStratumV1MinerConn(incomingConn, p.log, msg, p.logStratum, time.Now())
 	validator := hashrate.NewHashrate(p.log, hashrate.EMA_INTERVAL)
 	minerModel := protocol.NewStratumV1MinerModel(poolPool, miner, validator, p.log)
 
 	destSplit := NewDestSplit()
 
-	minerScheduler := NewOnDemandMinerScheduler(minerModel, destSplit, p.log, p.defaultDest)
+	minerScheduler := NewOnDemandMinerScheduler(minerModel, destSplit, p.log, p.defaultDest, p.minerVettingPeriod)
 	// try to connect to dest before running
 
 	p.collection.Store(minerScheduler)
 	defer p.collection.Delete(minerScheduler.GetID())
 
 	return minerScheduler.Run(ctx)
-
-	// return nil
 }
 
 func (p *MinerController) ChangeDestAll(dest interfaces.IDestination) error {

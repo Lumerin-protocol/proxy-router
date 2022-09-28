@@ -15,6 +15,7 @@ type MinerModelMock struct {
 	Diff        int
 	WorkerName  string
 	HashrateGHS int
+	ConnectedAt time.Time
 
 	OnSubmitListenerHandle int
 
@@ -45,6 +46,9 @@ func (m *MinerModelMock) GetHashRateGHS() int {
 }
 func (m *MinerModelMock) GetHashRate() Hashrate {
 	return hashrate.NewHashrate(&lib.LoggerMock{}, time.Minute)
+}
+func (m *MinerModelMock) GetConnectedAt() time.Time {
+	return m.ConnectedAt
 }
 func (m *MinerModelMock) OnSubmit(cb OnSubmitHandler) ListenerHandle {
 	return ListenerHandle(m.OnSubmitListenerHandle)
