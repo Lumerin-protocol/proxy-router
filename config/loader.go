@@ -3,11 +3,9 @@ package config
 import (
 	"errors"
 	"flag"
-	"fmt"
 	"os"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/joho/godotenv"
 	"github.com/omeid/uconfig/flat"
 	"gitlab.com/TitanInd/hashrouter/lib"
 )
@@ -19,18 +17,12 @@ const (
 )
 
 var (
-	ErrEnvLoad          = errors.New("error during loading .env file")
-	ErrEnvParse         = errors.New("cannot parse env variable")
 	ErrFlagParse        = errors.New("cannot parse flag")
 	ErrConfigInvalid    = errors.New("invalid config struct")
 	ErrConfigValidation = errors.New("config validation error")
 )
 
 func LoadConfig(cfg interface{}, osArgs *[]string) error {
-	err := godotenv.Load(".env")
-	if err != nil {
-		fmt.Println(lib.WrapError(ErrEnvLoad, err))
-	}
 
 	// recursively iterates over each field of the nested struct
 	fields, err := flat.View(cfg)

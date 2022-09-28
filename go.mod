@@ -9,7 +9,6 @@ require (
 	github.com/go-playground/validator/v10 v10.11.0
 	github.com/google/uuid v1.2.0
 	github.com/google/wire v0.5.0
-	github.com/joho/godotenv v1.4.0
 	github.com/miguelmota/go-ethereum-hdwallet v0.1.1
 	github.com/omeid/uconfig v1.2.0
 	github.com/stretchr/testify v1.8.0
