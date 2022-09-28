@@ -22,6 +22,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/miner"
 	"gitlab.com/TitanInd/hashrouter/tcpserver"
 	"os"
+	"time"
 )
 
 // Injectors from main.go:
@@ -57,7 +58,7 @@ func InitApp() (*app.App, error) {
 	if err != nil {
 		return nil, err
 	}
-	globalSchedulerService := provideGlobalScheduler(iCollection, iLogger)
+	globalSchedulerService := provideGlobalScheduler(iCollection, config, iLogger)
 	contractManager := provideSellerContractManager(config, ethereumGateway, ethereumWallet, globalSchedulerService, interfacesICollection, iLogger)
 	appApp := &app.App{
 		TCPServer:       tcpServer,
@@ -88,8 +89,8 @@ var protocolSet = wire.NewSet(provideMinerCollection, provideMinerController, ev
 
 var contractsSet = wire.NewSet(provideGlobalScheduler, provideContractCollection, provideEthClient, provideEthWallet, provideEthGateway, provideSellerContractManager)
 
-func provideGlobalScheduler(miners interfaces.ICollection[miner.MinerScheduler], log interfaces.ILogger) *contractmanager.GlobalSchedulerService {
-	return contractmanager.NewGlobalScheduler(miners, log)
+func provideGlobalScheduler(miners interfaces.ICollection[miner.MinerScheduler], cfg *config.Config, log interfaces.ILogger) *contractmanager.GlobalSchedulerService {
+	return contractmanager.NewGlobalScheduler(miners, time.Duration(cfg.Miner.VettingPeriodSeconds), log)
 }
 
 func provideMinerCollection() interfaces.ICollection[miner.MinerScheduler] {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"strings"
+	"time"
 
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
@@ -61,7 +62,7 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	}
 	extranonce, size := poolPool.GetExtranonce()
 	msg := stratumv1_message.NewMiningSubscribeResult(extranonce, size)
-	miner := protocol.NewStratumV1Miner(incomingConn, p.log, msg, p.logStratum)
+	miner := protocol.NewStratumV1MinerConn(incomingConn, p.log, msg, p.logStratum, time.Now())
 	validator := hashrate.NewHashrate(p.log, hashrate.EMA_INTERVAL)
 	minerModel := protocol.NewStratumV1MinerModel(poolPool, miner, validator, p.log)
 
@@ -74,8 +75,6 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	defer p.collection.Delete(minerScheduler.GetID())
 
 	return minerScheduler.Run(ctx)
-
-	// return nil
 }
 
 func (p *MinerController) ChangeDestAll(dest interfaces.IDestination) error {

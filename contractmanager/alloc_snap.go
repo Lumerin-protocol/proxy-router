@@ -3,6 +3,7 @@ package contractmanager
 import (
 	"bytes"
 	"fmt"
+	"time"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/miner"
@@ -229,10 +230,14 @@ func (m *AllocSnap) String() string {
 	return b.String()
 }
 
-func CreateMinerSnapshot(minerCollection interfaces.ICollection[miner.MinerScheduler]) AllocSnap {
+func CreateMinerSnapshot(minerCollection interfaces.ICollection[miner.MinerScheduler], minUptime time.Duration) AllocSnap {
 	snapshot := NewAllocSnap()
 
 	minerCollection.Range(func(miner miner.MinerScheduler) bool {
+		if time.Since(miner.GetConnectedAt()) < minUptime {
+			return true
+		}
+
 		hashrateGHS := miner.GetHashRateGHS()
 		minerID := miner.GetID()
 

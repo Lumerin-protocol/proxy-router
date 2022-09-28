@@ -187,10 +187,15 @@ func (m *OnDemandMinerScheduler) GetWorkerName() string {
 	return m.minerModel.GetWorkerName()
 }
 
+func (s *OnDemandMinerScheduler) GetConnectedAt() time.Time {
+	return s.minerModel.GetConnectedAt()
+}
+
 // resetDestCycle signals that destSplit has been changed, and starts new destination cycle
 func (m *OnDemandMinerScheduler) resetDestCycle() {
 	m.reset <- struct{}{}
 }
+
 func (m *OnDemandMinerScheduler) SwitchToDefaultDestination() error {
 	err := m.ChangeDest(m.defaultDest)
 

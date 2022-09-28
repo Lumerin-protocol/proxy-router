@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"os"
+	"time"
 
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/gin-gonic/gin"
@@ -51,8 +52,8 @@ func InitApp() (*app.App, error) {
 	return nil, nil
 }
 
-func provideGlobalScheduler(miners interfaces.ICollection[miner.MinerScheduler], log interfaces.ILogger) *contractmanager.GlobalSchedulerService {
-	return contractmanager.NewGlobalScheduler(miners, log)
+func provideGlobalScheduler(miners interfaces.ICollection[miner.MinerScheduler], cfg *config.Config, log interfaces.ILogger) *contractmanager.GlobalSchedulerService {
+	return contractmanager.NewGlobalScheduler(miners, time.Duration(cfg.Miner.VettingPeriodSeconds), log)
 }
 
 func provideMinerCollection() interfaces.ICollection[miner.MinerScheduler] {

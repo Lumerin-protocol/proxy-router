@@ -19,6 +19,9 @@ type Config struct {
 	EthNode     struct {
 		Address string `env:"ETH_NODE_ADDRESS" flag:"eth-node-address" validate:"required,url"`
 	}
+	Miner struct {
+		VettingPeriodSeconds int `env:"MINER_VETTING_PERIOD_SECONDS" validate:"required,gte=0"`
+	}
 	Log struct {
 		Syslog bool `env:"LOG_SYSLOG" flag:"log-syslog"`
 	}

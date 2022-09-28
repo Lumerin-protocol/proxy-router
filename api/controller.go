@@ -25,6 +25,8 @@ type Miner struct {
 	CurrentDestination string
 	CurrentDifficulty  int
 	WorkerName         string
+	ConnectedAt        string
+	UptimeSeconds      int
 }
 
 type HashrateAvgGHS struct {
@@ -110,6 +112,8 @@ func (c *ApiController) GetMiners() []Miner {
 			},
 			CurrentDestination: miner.GetCurrentDest().String(),
 			WorkerName:         miner.GetWorkerName(),
+			ConnectedAt:        miner.GetConnectedAt().Format(time.RFC3339),
+			UptimeSeconds:      int(time.Since(miner.GetConnectedAt()).Seconds()),
 		})
 		return true
 	})
