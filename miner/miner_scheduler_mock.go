@@ -82,4 +82,16 @@ func (s *MinerSchedulerMock) GetConnectedAt() time.Time {
 	return s.ConnectedAt
 }
 
+func (s *MinerSchedulerMock) GetStatus() MinerStatus {
+	return MinerStatusFree
+}
+
+func (s *MinerSchedulerMock) IsVetted() bool {
+	return true
+}
+
+func (s *MinerSchedulerMock) GetUptime() time.Duration {
+	return time.Hour
+}
+
 var _ MinerScheduler = new(MinerSchedulerMock)

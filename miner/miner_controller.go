@@ -14,18 +14,20 @@ import (
 )
 
 type MinerController struct {
-	defaultDest interfaces.IDestination
-	collection  interfaces.ICollection[MinerScheduler]
-	log         interfaces.ILogger
-	logStratum  bool
+	defaultDest        interfaces.IDestination
+	collection         interfaces.ICollection[MinerScheduler]
+	log                interfaces.ILogger
+	logStratum         bool
+	minerVettingPeriod time.Duration
 }
 
-func NewMinerController(defaultDest interfaces.IDestination, collection interfaces.ICollection[MinerScheduler], log interfaces.ILogger, logStratum bool) *MinerController {
+func NewMinerController(defaultDest interfaces.IDestination, collection interfaces.ICollection[MinerScheduler], log interfaces.ILogger, logStratum bool, minerVettingPeriod time.Duration) *MinerController {
 	return &MinerController{
-		defaultDest: defaultDest,
-		log:         log,
-		collection:  collection,
-		logStratum:  logStratum,
+		defaultDest:        defaultDest,
+		log:                log,
+		collection:         collection,
+		logStratum:         logStratum,
+		minerVettingPeriod: minerVettingPeriod,
 	}
 }
 
@@ -68,7 +70,7 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 
 	destSplit := NewDestSplit()
 
-	minerScheduler := NewOnDemandMinerScheduler(minerModel, destSplit, p.log, p.defaultDest)
+	minerScheduler := NewOnDemandMinerScheduler(minerModel, destSplit, p.log, p.defaultDest, p.minerVettingPeriod)
 	// try to connect to dest before running
 
 	p.collection.Store(minerScheduler)

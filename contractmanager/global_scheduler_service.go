@@ -33,14 +33,12 @@ var (
 
 type GlobalSchedulerService struct {
 	minerCollection interfaces.ICollection[miner.MinerScheduler]
-	minerMinUptime  time.Duration
 	log             interfaces.ILogger
 }
 
-func NewGlobalScheduler(minerCollection interfaces.ICollection[miner.MinerScheduler], minerMinUptime time.Duration, log interfaces.ILogger) *GlobalSchedulerService {
+func NewGlobalScheduler(minerCollection interfaces.ICollection[miner.MinerScheduler], log interfaces.ILogger) *GlobalSchedulerService {
 	return &GlobalSchedulerService{
 		minerCollection: minerCollection,
-		minerMinUptime:  minerMinUptime,
 		log:             log,
 	}
 }
@@ -134,7 +132,7 @@ func (s *GlobalSchedulerService) getBestMinerToReduceHashrate(combination *Alloc
 }
 
 func (s *GlobalSchedulerService) GetMinerSnapshot() AllocSnap {
-	return CreateMinerSnapshot(s.minerCollection, s.minerMinUptime)
+	return CreateMinerSnapshot(s.minerCollection)
 }
 
 func (s *GlobalSchedulerService) GetUnallocatedHashrateGHS() (int, HashrateList) {

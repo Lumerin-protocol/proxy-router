@@ -19,6 +19,7 @@ type ApiController struct {
 
 type Miner struct {
 	ID                 string
+	Status             string
 	TotalHashrateGHS   int
 	HashrateAvgGHS     HashrateAvgGHS
 	Destinations       []DestItem
@@ -99,9 +100,11 @@ func (c *ApiController) GetMiners() []Miner {
 				Fraction: item.Percentage,
 			})
 		}
+
 		hashrate := miner.GetHashRate()
 		data = append(data, Miner{
 			ID:                miner.GetID(),
+			Status:            miner.GetStatus().String(),
 			TotalHashrateGHS:  miner.GetHashRateGHS(),
 			CurrentDifficulty: miner.GetCurrentDifficulty(),
 			Destinations:      destItems,
@@ -113,7 +116,7 @@ func (c *ApiController) GetMiners() []Miner {
 			CurrentDestination: miner.GetCurrentDest().String(),
 			WorkerName:         miner.GetWorkerName(),
 			ConnectedAt:        miner.GetConnectedAt().Format(time.RFC3339),
-			UptimeSeconds:      int(time.Since(miner.GetConnectedAt()).Seconds()),
+			UptimeSeconds:      int(miner.GetUptime().Seconds()),
 		})
 		return true
 	})

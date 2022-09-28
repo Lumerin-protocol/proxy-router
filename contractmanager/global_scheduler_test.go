@@ -40,9 +40,9 @@ func CreateMockMinerCollection(contractID string, dest lib.Dest) *data.Collectio
 
 	destSplit3 := miner.NewDestSplit()
 
-	scheduler1 := miner.NewOnDemandMinerScheduler(miner1, destSplit1, &lib.LoggerMock{}, DefaultDest)
-	scheduler2 := miner.NewOnDemandMinerScheduler(miner2, destSplit2, &lib.LoggerMock{}, DefaultDest)
-	scheduler3 := miner.NewOnDemandMinerScheduler(miner3, destSplit3, &lib.LoggerMock{}, DefaultDest)
+	scheduler1 := miner.NewOnDemandMinerScheduler(miner1, destSplit1, &lib.LoggerMock{}, DefaultDest, 0)
+	scheduler2 := miner.NewOnDemandMinerScheduler(miner2, destSplit2, &lib.LoggerMock{}, DefaultDest, 0)
+	scheduler3 := miner.NewOnDemandMinerScheduler(miner3, destSplit3, &lib.LoggerMock{}, DefaultDest, 0)
 
 	miners := miner.NewMinerCollection()
 	miners.Store(scheduler1)
@@ -58,7 +58,7 @@ func TestAllocation50percent(t *testing.T) {
 	dest, _ := lib.ParseDest("stratum+tcp://user:pwd@host.com:3333")
 	contractID := "test-contract"
 	miners := CreateMockMinerCollection(contractID, dest)
-	globalScheduler := NewGlobalScheduler(miners, 0, &lib.LoggerMock{})
+	globalScheduler := NewGlobalScheduler(miners, &lib.LoggerMock{})
 
 	contract2ID := "test-contract-2"
 	hrGHS := 5000
@@ -79,7 +79,7 @@ func TestAllocationPreferSingleMiner(t *testing.T) {
 	dest, _ := lib.ParseDest("stratum+tcp://user:pwd@host.com:3333")
 	contractID := "test-contract"
 	miners := CreateMockMinerCollection(contractID, dest)
-	globalScheduler := NewGlobalScheduler(miners, 0, &lib.LoggerMock{})
+	globalScheduler := NewGlobalScheduler(miners, &lib.LoggerMock{})
 
 	contract2ID := "test-contract-2"
 	hrGHS := 10000
@@ -103,7 +103,7 @@ func TestAllocationReduce(t *testing.T) {
 	dest, _ := lib.ParseDest("stratum+tcp://user:pwd@host.com:3333")
 	contractID := "test-contract"
 	miners := CreateMockMinerCollection(contractID, dest)
-	globalScheduler := NewGlobalScheduler(miners, 0, &lib.LoggerMock{})
+	globalScheduler := NewGlobalScheduler(miners, &lib.LoggerMock{})
 
 	contract2ID := "test-contract-2"
 	hrGHS := 5000
@@ -126,7 +126,7 @@ func TestIncAllocation(t *testing.T) {
 	contractID := "test-contract"
 
 	miners := CreateMockMinerCollection(contractID, dest)
-	globalScheduler := NewGlobalScheduler(miners, 0, &lib.LoggerMock{})
+	globalScheduler := NewGlobalScheduler(miners, &lib.LoggerMock{})
 	snapshot := globalScheduler.GetMinerSnapshot()
 
 	fmt.Print(snapshot.String())
@@ -155,7 +155,7 @@ func TestIncAllocationAddMiner(t *testing.T) {
 	contractID := "test-contract"
 
 	miners := CreateMockMinerCollection(contractID, dest)
-	globalScheduler := NewGlobalScheduler(miners, 0, &lib.LoggerMock{})
+	globalScheduler := NewGlobalScheduler(miners, &lib.LoggerMock{})
 	snapshot := globalScheduler.GetMinerSnapshot()
 
 	_, err := globalScheduler.incAllocation(context.Background(), snapshot, addGHS, dest, contractID)
@@ -190,7 +190,7 @@ func TestDecrAllocation(t *testing.T) {
 	contractID := "test-contract"
 
 	miners := CreateMockMinerCollection(contractID, dest)
-	globalScheduler := NewGlobalScheduler(miners, 0, &lib.LoggerMock{})
+	globalScheduler := NewGlobalScheduler(miners, &lib.LoggerMock{})
 	snapshot := globalScheduler.GetMinerSnapshot()
 
 	_, err := globalScheduler.decrAllocation(context.Background(), snapshot, removeGHS, contractID)
@@ -219,7 +219,7 @@ func TestDecrAllocationRemoveMiner(t *testing.T) {
 	contractID := "test-contract"
 
 	miners := CreateMockMinerCollection(contractID, dest)
-	globalScheduler := NewGlobalScheduler(miners, 0, &lib.LoggerMock{})
+	globalScheduler := NewGlobalScheduler(miners, &lib.LoggerMock{})
 	snapshot := globalScheduler.GetMinerSnapshot()
 
 	_, err := globalScheduler.decrAllocation(context.Background(), snapshot, removeGHS, contractID)
@@ -261,14 +261,17 @@ func TestGetMinerSnapshot(t *testing.T) {
 		HashrateGHS: 20000,
 		ConnectedAt: time.Now(),
 	}
-	scheduler1 := miner.NewOnDemandMinerScheduler(miner1, miner.NewDestSplit(), &lib.LoggerMock{}, dest)
-	scheduler2 := miner.NewOnDemandMinerScheduler(miner2, miner.NewDestSplit(), &lib.LoggerMock{}, dest)
+
+	vettingPeriod := time.Second * 10
+
+	scheduler1 := miner.NewOnDemandMinerScheduler(miner1, miner.NewDestSplit(), &lib.LoggerMock{}, dest, vettingPeriod)
+	scheduler2 := miner.NewOnDemandMinerScheduler(miner2, miner.NewDestSplit(), &lib.LoggerMock{}, dest, vettingPeriod)
 
 	miners := miner.NewMinerCollection()
 	miners.Store(scheduler1)
 	miners.Store(scheduler2)
 
-	globalScheduler := NewGlobalScheduler(miners, time.Second*10, &lib.LoggerMock{})
+	globalScheduler := NewGlobalScheduler(miners, &lib.LoggerMock{})
 	snapshot := globalScheduler.GetMinerSnapshot()
 
 	if len(snapshot.minerIDHashrateGHS) != 1 {
