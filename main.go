@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"os"
+	"time"
 
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/gin-gonic/gin"
@@ -69,7 +70,7 @@ func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo inter
 		return nil, err
 	}
 
-	return miner.NewMinerController(destination, repo, l, cfg.Proxy.LogStratum), nil
+	return miner.NewMinerController(destination, repo, l, cfg.Proxy.LogStratum, time.Duration(cfg.Miner.VettingPeriodSeconds)*time.Second), nil
 }
 
 func provideApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel]) *gin.Engine {
