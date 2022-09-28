@@ -129,23 +129,26 @@ func TestIncAllocation(t *testing.T) {
 	globalScheduler := NewGlobalScheduler(miners, &lib.LoggerMock{})
 	snapshot := globalScheduler.GetMinerSnapshot()
 
-	fmt.Print(snapshot.String())
 	_, err := globalScheduler.incAllocation(context.Background(), snapshot, addGHS, dest, contractID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	miner1, _ := miners.Load("1")
-	miner2, _ := miners.Load("2")
-
-	destSplit1, _ := miner1.GetDestSplit().GetByID(contractID)
-	destSplit2, _ := miner2.GetDestSplit().GetByID(contractID)
-
-	if destSplit1.Percentage != 1 {
-		t.Fatalf("should use miner which already had been more allocated for the contract %v", destSplit1)
+	snapshot2 := globalScheduler.GetMinerSnapshot()
+	list, ok := snapshot2.Contract(contractID)
+	if !ok {
+		t.Fatalf("contract should show up in the snapshot")
 	}
-	if destSplit2.Percentage != 0.3 {
-		t.Fatalf("should not alter allocation of the second miner %v", destSplit2)
+
+	totalGHS := 0
+	for _, item := range list.GetItems() {
+		totalGHS += item.AllocatedGHS()
+	}
+
+	expectedGHS := 16000
+
+	if totalGHS != expectedGHS {
+		t.Fatalf("total hashrate (%v) should be %v", totalGHS, expectedGHS)
 	}
 }
 
