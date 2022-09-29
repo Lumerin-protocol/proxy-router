@@ -175,7 +175,7 @@ bedrock-04-PRD:
         - shell
     variables: 
         TGT_ACCOUNT: $CI_AWS_ACCOUNT_LMN
-        TGT_ENV: LMN
+        TGT_ENV: lmn
     script:
         - echo "*****************************"
         - echo "Logging in to Titanio-NET ECR ..."
