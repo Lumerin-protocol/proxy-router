@@ -2,6 +2,7 @@ package miner
 
 import (
 	"context"
+	"time"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
@@ -16,6 +17,7 @@ type MinerSchedulerMock struct {
 	WorkerName             string
 	HashrateGHS            int
 	UnallocatedHashrateGHS int
+	ConnectedAt            time.Time
 }
 
 func NewMinerSchedulerMock() MinerSchedulerMock {
@@ -74,6 +76,22 @@ func (s *MinerSchedulerMock) GetUnallocatedHashrateGHS() int {
 
 func (s *MinerSchedulerMock) SwitchToDefaultDestination() error {
 	return nil
+}
+
+func (s *MinerSchedulerMock) GetConnectedAt() time.Time {
+	return s.ConnectedAt
+}
+
+func (s *MinerSchedulerMock) GetStatus() MinerStatus {
+	return MinerStatusFree
+}
+
+func (s *MinerSchedulerMock) IsVetted() bool {
+	return true
+}
+
+func (s *MinerSchedulerMock) GetUptime() time.Duration {
+	return time.Hour
 }
 
 var _ MinerScheduler = new(MinerSchedulerMock)

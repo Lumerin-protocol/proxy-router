@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"context"
+	"time"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
@@ -18,6 +19,7 @@ type StratumV1SourceConn interface {
 	Read(ctx context.Context) (stratumv1_message.MiningMessageGeneric, error)
 	Write(ctx context.Context, msg stratumv1_message.MiningMessageGeneric) error
 	GetWorkerName() string
+	GetConnectedAt() time.Time
 }
 
 type StratumV1DestConn interface {
