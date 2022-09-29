@@ -13,23 +13,24 @@ const DefaultDestID = "default-dest"
 // OnDemandMinerScheduler is responsible for distributing the resources of a single miner across multiple destinations
 // and falling back to default pool for unallocated resources
 type OnDemandMinerScheduler struct {
-	minerModel  MinerModel
-	destSplit   *DestSplit    // may be not allocated fully, the remaining will be directed to defaultDest
-	reset       chan struct{} // used to start over the destination cycle after update has been made
-	log         interfaces.ILogger
-	defaultDest interfaces.IDestination // the default destination that is used for unallocated part of destSplit
+	minerModel     MinerModel
+	destSplit      *DestSplit    // may be not allocated fully, the remaining will be directed to defaultDest
+	reset          chan struct{} // used to start over the destination cycle after update has been made
+	log            interfaces.ILogger
+	defaultDest    interfaces.IDestination // the default destination that is used for unallocated part of destSplit
+	minerMinUptime time.Duration
 }
 
-// const ON_DEMAND_SWITCH_TIMEOUT = 10 * time.Minute
-const ON_DEMAND_SWITCH_TIMEOUT = 30 * time.Minute
+const ON_DEMAND_SWITCH_TIMEOUT = 6 * time.Minute
 
-func NewOnDemandMinerScheduler(minerModel MinerModel, destSplit *DestSplit, log interfaces.ILogger, defaultDest interfaces.IDestination) *OnDemandMinerScheduler {
+func NewOnDemandMinerScheduler(minerModel MinerModel, destSplit *DestSplit, log interfaces.ILogger, defaultDest interfaces.IDestination, minerMinUptime time.Duration) *OnDemandMinerScheduler {
 	return &OnDemandMinerScheduler{
 		minerModel,
 		destSplit,
 		make(chan struct{}, 1),
 		log,
 		defaultDest,
+		minerMinUptime,
 	}
 }
 
@@ -188,10 +189,33 @@ func (m *OnDemandMinerScheduler) GetWorkerName() string {
 	return m.minerModel.GetWorkerName()
 }
 
+func (s *OnDemandMinerScheduler) GetConnectedAt() time.Time {
+	return s.minerModel.GetConnectedAt()
+}
+
+func (s *OnDemandMinerScheduler) GetUptime() time.Duration {
+	return time.Since(s.GetConnectedAt())
+}
+
+func (s *OnDemandMinerScheduler) IsVetted() bool {
+	return time.Since(s.GetConnectedAt()) >= s.minerMinUptime
+}
+
+func (s *OnDemandMinerScheduler) GetStatus() MinerStatus {
+	if !s.IsVetted() {
+		return MinerStatusVetting
+	}
+	if len(s.destSplit.split) == 0 {
+		return MinerStatusFree
+	}
+	return MinerStatusBusy
+}
+
 // resetDestCycle signals that destSplit has been changed, and starts new destination cycle
 func (m *OnDemandMinerScheduler) resetDestCycle() {
 	m.reset <- struct{}{}
 }
+
 func (m *OnDemandMinerScheduler) SwitchToDefaultDestination() error {
 	err := m.ChangeDest(m.defaultDest)
 
