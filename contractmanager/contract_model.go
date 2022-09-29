@@ -108,10 +108,12 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 				}
 
 				// use the same group to fail together with main goroutine
-				err = c.fulfillContract(ctx)
-				if err != nil {
-					c.log.Error(err)
-				}
+				go func() {
+					err = c.fulfillContract(ctx)
+					if err != nil {
+						c.log.Error(err)
+					}
+				}()
 				continue
 
 			case blockchain.ContractCipherTextUpdatedHex:
