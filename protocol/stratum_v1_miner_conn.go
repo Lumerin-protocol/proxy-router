@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
@@ -13,8 +14,9 @@ import (
 )
 
 type StratumV1Miner struct {
-	conn   net.Conn
-	reader *bufio.Reader
+	conn        net.Conn
+	reader      *bufio.Reader
+	connectedAt time.Time
 
 	isWriting bool        // used to temporarily pause writing messages to miner
 	mu        *sync.Mutex // guards isWriting
@@ -26,11 +28,12 @@ type StratumV1Miner struct {
 	logStratum    bool
 }
 
-func NewStratumV1Miner(conn net.Conn, log interfaces.ILogger, extraNonce *stratumv1_message.MiningSubscribeResult, logStratum bool) *StratumV1Miner {
+func NewStratumV1MinerConn(conn net.Conn, log interfaces.ILogger, extraNonce *stratumv1_message.MiningSubscribeResult, logStratum bool, connectedAt time.Time) *StratumV1Miner {
 	mu := new(sync.Mutex)
 	return &StratumV1Miner{
 		conn:          conn,
 		reader:        bufio.NewReader(conn),
+		connectedAt:   connectedAt,
 		isWriting:     false,
 		mu:            mu,
 		cond:          sync.NewCond(mu),
@@ -89,12 +92,12 @@ func (s *StratumV1Miner) GetID() string {
 	return s.conn.RemoteAddr().String()
 }
 
-func (s *StratumV1Miner) setWorkerName(name string) {
-	s.workerName = name
-}
-
 func (s *StratumV1Miner) GetWorkerName() string {
 	return s.workerName
+}
+
+func (s *StratumV1Miner) GetConnectedAt() time.Time {
+	return s.connectedAt
 }
 
 var _ StratumV1SourceConn = new(StratumV1Miner)

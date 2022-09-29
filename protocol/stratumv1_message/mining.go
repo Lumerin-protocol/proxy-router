@@ -59,6 +59,9 @@ func ParseMessageFromPool(raw []byte) (MiningMessageGeneric, error) {
 	if msg.Method == MethodMiningSetVersionMask {
 		return ParseMiningSetVersionMask(raw)
 	}
+	if msg.Method == MethodMiningSetExtranonce {
+		return ParseMiningSetExtranonce(raw)
+	}
 	if msg.Result != nil {
 		return ParseMiningResult(raw)
 	}
