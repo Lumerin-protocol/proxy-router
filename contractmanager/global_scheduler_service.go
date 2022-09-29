@@ -207,52 +207,52 @@ func (s *GlobalSchedulerService) DeallocateContract(minerIDs []string, contractI
 // incAllocation increases allocation hashrate prioritizing allocation of existing miners
 func (s *GlobalSchedulerService) incAllocation(ctx context.Context, snapshot AllocSnap, addGHS int, dest lib.Dest, contractID string) ([]string, error) {
 	remainingToAddGHS := addGHS
+	minerIDs := []string{}
 
 	minersSnap, ok := snapshot.Contract(contractID)
 	if !ok {
 		s.log.Errorf("contract (%s) not found", contractID)
-	}
+	} else {
 
-	minerIDs := []string{}
+		// try to increase allocation in the miners that already serve the contract
+		for minerID, minerSnap := range minersSnap.GetItems() {
+			miner, ok := s.minerCollection.Load(minerID)
+			if !ok {
+				s.log.Warnf("miner (%s) is not found", minerID)
+				continue
+			}
 
-	// try to increase allocation in the miners that already serve the contract
-	for minerID, minerSnap := range minersSnap.GetItems() {
-		miner, ok := s.minerCollection.Load(minerID)
-		if !ok {
-			s.log.Warnf("miner (%s) is not found", minerID)
-			continue
+			minerIDs = append(minerIDs, minerID)
+			if remainingToAddGHS <= 0 {
+				continue
+			}
+
+			minerAlloc, ok := snapshot.Miner(minerID)
+			if !ok {
+				s.log.DPanicf("miner (%s) not found")
+			}
+			_, allocItem := minerAlloc.GetUnallocatedGHS()
+			allocItem.TotalGHS = snapshot.minerIDHashrateGHS[minerID]
+			toAllocateGHS := lib.MinInt(remainingToAddGHS, allocItem.AllocatedGHS())
+			if toAllocateGHS == 0 {
+				continue
+			}
+
+			fractionToAdd := float64(toAllocateGHS) / float64(minerSnap.TotalGHS)
+			allocationItem, _ := minerAlloc.Get(contractID)
+			newFraction := allocationItem.Fraction + fractionToAdd
+
+			if newFraction < MIN_DEST_FRACTION {
+				continue
+			}
+
+			if newFraction > MAX_DEST_FRACTION && newFraction < 1 {
+				fractionToAdd = MAX_DEST_FRACTION - allocationItem.Fraction
+			}
+
+			miner.GetDestSplit().IncreaseAllocation(contractID, fractionToAdd)
+			remainingToAddGHS -= int(fractionToAdd * float64(minerSnap.TotalGHS))
 		}
-
-		minerIDs = append(minerIDs, minerID)
-		if remainingToAddGHS <= 0 {
-			continue
-		}
-
-		minerAlloc, ok := snapshot.Miner(minerID)
-		if !ok {
-			s.log.DPanicf("miner (%s) not found")
-		}
-		_, allocItem := minerAlloc.GetUnallocatedGHS()
-		allocItem.TotalGHS = snapshot.minerIDHashrateGHS[minerID]
-		toAllocateGHS := lib.MinInt(remainingToAddGHS, allocItem.AllocatedGHS())
-		if toAllocateGHS == 0 {
-			continue
-		}
-
-		fractionToAdd := float64(toAllocateGHS) / float64(minerSnap.TotalGHS)
-		allocationItem, _ := minerAlloc.Get(contractID)
-		newFraction := allocationItem.Fraction + fractionToAdd
-
-		if newFraction < MIN_DEST_FRACTION {
-			continue
-		}
-
-		if newFraction > MAX_DEST_FRACTION && newFraction < 1 {
-			fractionToAdd = MAX_DEST_FRACTION - allocationItem.Fraction
-		}
-
-		miner.GetDestSplit().IncreaseAllocation(contractID, fractionToAdd)
-		remainingToAddGHS -= int(fractionToAdd * float64(minerSnap.TotalGHS))
 	}
 
 	if remainingToAddGHS == 0 {
