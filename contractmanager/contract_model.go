@@ -61,7 +61,7 @@ func NewContract(data blockchain.ContractData, blockchain interfaces.IBlockchain
 // Runs goroutine that monitors the contract events and replace the miners which are out
 func (c *BTCHashrateContract) Run(ctx context.Context) error {
 	g, subCtx := errgroup.WithContext(ctx)
-
+	c.log.Debugf("running contract %v", c.GetID())
 	// if proxy started after the contract was purchased and wasn't able to pick up event
 	if c.data.State == blockchain.ContractBlockchainStateRunning {
 		c.state = ContractStateRunning
@@ -108,10 +108,12 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 				}
 
 				// use the same group to fail together with main goroutine
-				err = c.fulfillContract(ctx)
-				if err != nil {
-					c.log.Error(err)
-				}
+				go func() {
+					err = c.fulfillContract(ctx)
+					if err != nil {
+						c.log.Error(err)
+					}
+				}()
 				continue
 
 			case blockchain.ContractCipherTextUpdatedHex:
