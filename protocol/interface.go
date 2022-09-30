@@ -25,6 +25,7 @@ type StratumV1SourceConn interface {
 type StratumV1DestConn interface {
 	ResendRelevantNotifications(ctx context.Context)
 	SendPoolRequestWait(msg stratumv1_message.MiningMessageToPool) (*stratumv1_message.MiningResult, error)
+	RegisterResultHandler(msgID int, handler StratumV1ResultHandler)
 	SetDest(dest interfaces.IDestination, configure *stratumv1_message.MiningConfigure) error
 	GetDest() interfaces.IDestination
 	Read(ctx context.Context) (stratumv1_message.MiningMessageGeneric, error)

@@ -21,11 +21,6 @@ const (
 	MAX_DEST_TIME = 5 * time.Minute // maximum time the miner can be pointed to the destination
 )
 
-const (
-	MIN_DEST_FRACTION = float64(MIN_DEST_TIME) / float64(MIN_DEST_TIME+MAX_DEST_TIME)
-	MAX_DEST_FRACTION = 1 - MIN_DEST_FRACTION
-)
-
 var (
 	ErrNotEnoughHashrate     = errors.New("not enough hashrate")                // simply not enough hashrate
 	ErrCannotFindCombination = errors.New("cannot find allocation combination") // hashrate is enough but with given constraint cannot find a working combination of miner alloc items. Adding more miners into system should help
@@ -33,12 +28,20 @@ var (
 
 type GlobalSchedulerService struct {
 	minerCollection interfaces.ICollection[miner.MinerScheduler]
+	poolMinDuration time.Duration
+	poolMaxDuration time.Duration
+	poolMinFraction float64
+	poolMaxFraction float64
 	log             interfaces.ILogger
 }
 
-func NewGlobalScheduler(minerCollection interfaces.ICollection[miner.MinerScheduler], log interfaces.ILogger) *GlobalSchedulerService {
+func NewGlobalScheduler(minerCollection interfaces.ICollection[miner.MinerScheduler], log interfaces.ILogger, poolMinDuration, poolMaxDuration time.Duration) *GlobalSchedulerService {
 	return &GlobalSchedulerService{
 		minerCollection: minerCollection,
+		poolMinDuration: poolMinDuration,
+		poolMaxDuration: poolMaxDuration,
+		poolMinFraction: float64(poolMinDuration) / float64(poolMinDuration+poolMaxDuration),
+		poolMaxFraction: float64(poolMaxDuration) / float64(poolMinDuration+poolMaxDuration),
 		log:             log,
 	}
 }
@@ -119,8 +122,8 @@ func (s *GlobalSchedulerService) getBestMinerToReduceHashrate(combination *Alloc
 		if item.Fraction == 1 {
 			fraction := float64(hrToReduceGHS) / float64(item.TotalGHS)
 			fractionDelta := math.Abs(fraction - optimalFraction)
-			if fraction > MIN_DEST_FRACTION &&
-				fraction < MAX_DEST_FRACTION &&
+			if fraction > s.poolMinFraction &&
+				fraction < s.poolMaxFraction &&
 				fractionDelta < bestMinerFractionDelta {
 				bestMinerID = item.GetSourceId()
 				bestMinerFractionDelta = fractionDelta
@@ -175,7 +178,7 @@ func (s *GlobalSchedulerService) UpdateCombination(ctx context.Context, minerIDs
 	// check if hashrate increase is available in the system
 
 	if math.Abs(float64(deltaGHS))/float64(targetHashrateGHS) < HASHRATE_DIFF_THRESHOLD {
-		s.log.Debugf("no need to update hashrate")
+		s.log.Debugf("no need to adjust allocation")
 		return minerIDs, nil
 	}
 
@@ -242,12 +245,12 @@ func (s *GlobalSchedulerService) incAllocation(ctx context.Context, snapshot All
 			allocationItem, _ := minerAlloc.Get(contractID)
 			newFraction := allocationItem.Fraction + fractionToAdd
 
-			if newFraction < MIN_DEST_FRACTION {
+			if newFraction < s.poolMinFraction {
 				continue
 			}
 
-			if newFraction > MAX_DEST_FRACTION && newFraction < 1 {
-				fractionToAdd = MAX_DEST_FRACTION - allocationItem.Fraction
+			if newFraction > s.poolMaxFraction && newFraction < 1 {
+				fractionToAdd = s.poolMaxFraction - allocationItem.Fraction
 			}
 
 			miner.GetDestSplit().IncreaseAllocation(contractID, fractionToAdd)
@@ -306,7 +309,7 @@ func (s *GlobalSchedulerService) decrAllocation(ctx context.Context, snapshot Al
 			newFraction := item.Fraction - removeMinerFraction
 			removeMinerGHS = remainingGHS
 
-			if newFraction < MIN_DEST_FRACTION {
+			if newFraction < s.poolMinFraction {
 				ok := split.RemoveByID(contractID)
 				if !ok {
 					s.log.Warnf("split (%s) not found", contractID)
@@ -314,7 +317,7 @@ func (s *GlobalSchedulerService) decrAllocation(ctx context.Context, snapshot Al
 				removeMinerGHS = item.AllocatedGHS()
 			}
 
-			if newFraction > MAX_DEST_FRACTION {
+			if newFraction > s.poolMaxFraction {
 				newFraction = 0.5
 				removeMinerGHS = int(float64(item.TotalGHS) * newFraction)
 			}
