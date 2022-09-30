@@ -12,4 +12,7 @@ COPY --from=builder /app/hashrouter /usr/bin/
 
 EXPOSE 3333 8081
 
+ARG eth_node_address="wss://ropsten.infura.io/ws/v3/91fa8dea25fe4bf4b8ce1c6be8bb9eb3" # you could give this a default value as well
+ENV ETH_NODE_ADDRESS=$eth_node_address
+
 ENTRYPOINT ["hashrouter"]
