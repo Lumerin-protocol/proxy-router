@@ -16,9 +16,7 @@ variables:
   POOL_MAX_DURATION: 5m
 stages:
   - test
-  - deploy-dev
-  - deploy-stg
-  - deploy-prd
+  - deploy
 
 lint:
   inherit:
@@ -64,22 +62,18 @@ test:
     - go version
     - go mod download
     - go test -v -p 1 $(go list ./... | grep -v /test) # skips the test folder for now
-bedrock-02-DEV:
+default:
     image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
-    stage: deploy-dev
+    stage: deploy
     only:
-        - dev
+      - dev
+      - stg
+      - main
     tags:
-        - titanio-dev
         - devops 
         - bedrock
         - shell
-    variables:
-        TGT_ACCOUNT: $CI_AWS_ACCOUNT_DEV
-        TGT_ENV: dev
-        POOL_ADDRESS: "//titan1.ecs-dev:@mining.pool.titan.io:4242" #no scheme for compat purposes
-        CONTRACT_ADDRESS: "0xbF2A6EA18e2CF0846cE7FC9Fa9EB9bA22BF035fF"
-    script:
+    before_script:
         - echo "*****************************"
         - echo "Logging in to Titanio-NET ECR ..."
         - echo "*****************************"
@@ -130,6 +124,18 @@ bedrock-02-DEV:
         - echo "*****************************"        
         - aws ecs register-task-definition --region $AWS_DEFAULT_REGION --cli-input-json file://input.json | grep taskDefinitionArn
         - REVISION=$(aws ecs describe-task-definition --task-definition tsk-$CI_AWS_ECR_REPO --region $AWS_DEFAULT_REGION | egrep "revision" | tr "/" " " | awk '{print $2}' | sed 's/"$//' | cut -d "," -f 1)
+bedrock-02-DEV:
+    stage: deploy
+    only:
+        - dev
+    tags:
+        - titanio-dev
+    variables:
+        TGT_ACCOUNT: $CI_AWS_ACCOUNT_DEV
+        TGT_ENV: dev
+        POOL_ADDRESS: "//titan1.ecs-dev:@mining.pool.titan.io:4242" #no scheme for compat purposes
+        CONTRACT_ADDRESS: "0xbF2A6EA18e2CF0846cE7FC9Fa9EB9bA22BF035fF"
+    script:
         - echo $REVISION
         - echo "Review Cluster Definition...."
         - echo ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION
@@ -138,7 +144,7 @@ bedrock-02-DEV:
         - aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-$CI_AWS_ECR_REPO:$REVISION | grep serviceArn
 
 bedrock-03-STG:
-    stage: deploy-stg
+    stage: deploy
     only:
         - stg
     image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
@@ -198,7 +204,7 @@ bedrock-03-STG:
         - aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-$CI_AWS_ECR_REPO:$REVISION | grep serviceArn
 
 bedrock-04-PRD:
-    stage: deploy-prd
+    stage: deploy
     only:
         - main
     image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
