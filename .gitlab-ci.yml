@@ -8,7 +8,12 @@ variables:
   account_index: "0"
   proxy_log_stratum: "true"
   miner_vetting_period_seconds: "30" # miner will not serve contracts for this period after connecing to proxy
-
+  account_index: "0"
+  proxy_log_stratum: "true"
+  miner_vetting_period_seconds: "30" # miner will not serve contracts for this period after connecing to proxy
+  MINER_VETTING_DURATION: 1m
+  POOL_MIN_DURATION: 2m
+  POOL_MAX_DURATION: 5m
 stages:
   - test
   - deploy-dev
@@ -76,14 +81,18 @@ default:
         - echo "Building image..."
         - echo "*****************************"
         - docker build --build-arg api_url=$api_url \
-        -  --build-arg web_address=$web_address \
-        -  --build-arg proxy_address=$proxy_address \
-        -  --build-arg eth_node_address=$eth_node_address \
-        -  --build-arg is_buyer=$is_buyer \
-        -  --build-arg environment=$environment  \
-        -  --build-arg account_index=$account_index  \
-        -  --build-arg proxy_log_stratum=$proxy_log_stratum  \
-        -  --build-arg miner_vetting_period_seconds=$API_URL  \ 
+        -  --build-arg WEB_ADDRESS=$web_address \
+        -  --build-arg PROXY_ADDRESS=$proxy_address \
+        -  --build-arg ETH_NODE_ADDRESS=$eth_node_address \
+        -  --build-arg IS_BUYER=$is_buyer \
+        -  --build-arg ENVIRONMENT=$environment  \
+        -  --build-arg ACCOUNT_INDEX=$account_index  \
+        -  --build-arg PROXY_LOG_STRATUM=$proxy_log_stratum  \
+        -  --build-arg MINER_VETTING_PERIOD_SECONDS=$miner_vetting_period_seconds  \ 
+        -  --build-arg MINER_VETTING_DURATION=$MINER_VETTING_DURATION  \ 
+        -  --build-arg POOL_ADDRESS=$POOL_ADDRESS  \ 
+        -  --build-arg POOL_MIN_DURATION=$POOL_MIN_DURATION  \ 
+        -  --build-arg POOL_MAX_DURATION=$POOL_MAX_DURATION  \ 
         -  -t $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:latest --no-cache .
         - echo "Tagging image..."
         - docker tag  $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:latest $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG
