@@ -114,13 +114,13 @@ func provideContractManager(
 	globalScheduler *contractmanager.GlobalSchedulerService,
 	contracts interfaces.ICollection[contractmanager.IContractModel],
 	log interfaces.ILogger,
-) *contractmanager.ContractManager {
+) (*contractmanager.ContractManager, error) {
 	destination, err := lib.ParseDest(cfg.Pool.Address)
 	if err != nil {
 		return nil, err
 	}
 
-	return contractmanager.NewContractManager(ethGateway, globalScheduler, log, contracts, ethWallet.GetAccountAddress(), ethWallet.GetPrivateKey(), cfg.Contract.IsBuyer, destination)
+	return contractmanager.NewContractManager(ethGateway, globalScheduler, log, contracts, ethWallet.GetAccountAddress(), ethWallet.GetPrivateKey(), cfg.Contract.IsBuyer, destination), nil
 }
 
 func provideLogger(cfg *config.Config) (interfaces.ILogger, error) {
