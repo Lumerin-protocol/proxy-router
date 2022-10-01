@@ -1,13 +1,13 @@
 # image: golang:1.18
 variables:
-  - web_address: "0.0.0.0:8080"
-  - proxy_address: "0.0.0.0:3333"
-  - eth_node_address: "wss://ropsten.infura.io/ws/v3/91fa8dea25fe4bf4b8ce1c6be8bb9eb3"
-  - is_buyer: false
-  - environment: "production" # production makes logs in json and not panics when calling DPanic
-  - account_index: 0
-  - proxy_log_stratum: true
-  - miner_vetting_period_seconds: 30 # miner will not serve contracts for this period after connecing to proxy
+  web_address: "0.0.0.0:8080"
+  proxy_address: "0.0.0.0:3333"
+  eth_node_address: "wss://ropsten.infura.io/ws/v3/91fa8dea25fe4bf4b8ce1c6be8bb9eb3"
+  is_buyer: "false"
+  environment: "production" # production makes logs in json and not panics when calling DPanic
+  account_index: "0"
+  proxy_log_stratum: "true"
+  miner_vetting_period_seconds: "30" # miner will not serve contracts for this period after connecing to proxy
 
 stages:
   - test
