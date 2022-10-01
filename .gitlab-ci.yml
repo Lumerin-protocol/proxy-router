@@ -70,7 +70,19 @@ default:
         - devops 
         - bedrock
         - shell
-    before_script:
+        
+bedrock-02-DEV:
+    stage: deploy-dev
+    only:
+        - dev
+    tags:
+        - titanio-dev
+    variables:
+        TGT_ACCOUNT: $CI_AWS_ACCOUNT_DEV
+        TGT_ENV: dev
+        POOL_ADDRESS: "//titan1.ecs-dev:@mining.pool.titan.io:4242" #no scheme for compat purposes
+        CONTRACT_ADDRESS: "0xbF2A6EA18e2CF0846cE7FC9Fa9EB9bA22BF035fF"
+    script:
         - echo "*****************************"
         - echo "Logging in to Titanio-NET ECR ..."
         - echo "*****************************"
@@ -121,19 +133,7 @@ default:
         - echo "*****************************"        
         - aws ecs register-task-definition --region $AWS_DEFAULT_REGION --cli-input-json file://input.json | grep taskDefinitionArn
         - REVISION=$(aws ecs describe-task-definition --task-definition tsk-$CI_AWS_ECR_REPO --region $AWS_DEFAULT_REGION | egrep "revision" | tr "/" " " | awk '{print $2}' | sed 's/"$//' | cut -d "," -f 1)
-bedrock-02-DEV:
-    stage: deploy-dev
-    only:
-        - dev
-    tags:
-        - titanio-dev
-    variables:
-        TGT_ACCOUNT: $CI_AWS_ACCOUNT_DEV
-        TGT_ENV: dev
-        POOL_ADDRESS: "//titan1.ecs-dev:@mining.pool.titan.io:4242" #no scheme for compat purposes
-        CONTRACT_ADDRESS: "0xbF2A6EA18e2CF0846cE7FC9Fa9EB9bA22BF035fF"
-    script:
-        echo $REVISION
+        - echo $REVISION
         - echo "Review Cluster Definition...."
         - echo ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION
         - echo "Review Service Definition...."
