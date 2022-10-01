@@ -43,7 +43,7 @@ func TestListenContractEvents(t *testing.T) {
 
 	testContext := context.TODO()
 
-	go func(t *testing.T, channel chan interop.BlockchainEvent, subscribeToContractCreatedEventCalled chan struct{}, contractCloseoutCalled chan struct{}) {
+	go func(t *testing.T, channel chan interop.BlockchainEvent, subscribeToCloneFactoryEventsCalled chan struct{}, contractCloseoutCalled chan struct{}) {
 		<-subscribeToContractEventsCalled
 
 		t.Logf("subscribeToContractEventsCalled")
@@ -93,13 +93,13 @@ func (s testSubscription) Err() <-chan error {
 type testBlockchainGateway struct {
 	eventChannel                          chan interop.BlockchainEvent
 	eventSubscriptionChannel              interop.BlockchainEventSubscription
-	subscribeToContractCreatedEventCalled chan struct{}
+	subscribeToCloneFactoryEventsCalled chan struct{}
 	subscribeToContractEventsCalled       chan struct{}
 	contractCloseoutCalled                chan struct{}
 }
 
-func (g *testBlockchainGateway) SubscribeToContractCreatedEvent(ctx context.Context) (chan types.Log, interop.BlockchainEventSubscription, error) {
-	g.send(g.subscribeToContractCreatedEventCalled)
+func (g *testBlockchainGateway) SubscribeToCloneFactoryEvents(ctx context.Context) (chan types.Log, interop.BlockchainEventSubscription, error) {
+	g.send(g.subscribeToCloneFactoryEventsCalled)
 	return g.eventChannel, g.eventSubscriptionChannel, nil
 }
 
@@ -119,7 +119,7 @@ func (g *testBlockchainGateway) ReadContract(contractAddress common.Address) (in
 	return blockchain.ContractData{Length: 5}, nil
 }
 
-func (g *testBlockchainGateway) ReadContracts(sellerAccountAddr interop.BlockchainAddress) ([]interop.BlockchainAddress, error) {
+func (g *testBlockchainGateway) ReadContracts(walletAddr interop.BlockchainAddress, isBuyer bool) ([]interop.BlockchainAddress, error) {
 	return nil, nil
 }
 

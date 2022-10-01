@@ -35,7 +35,7 @@ func main() {
 
 var networkSet = wire.NewSet(provideTCPServer, provideApiServer)
 var protocolSet = wire.NewSet(provideMinerCollection, provideMinerController, eventbus.NewEventBus)
-var contractsSet = wire.NewSet(provideGlobalScheduler, provideContractCollection, provideEthClient, provideEthWallet, provideEthGateway, provideSellerContractManager)
+var contractsSet = wire.NewSet(provideGlobalScheduler, provideContractCollection, provideEthClient, provideEthWallet, provideEthGateway, provideContractManager)
 
 // TODO: make sure all providers initialized
 func InitApp() (*app.App, error) {
@@ -107,7 +107,7 @@ func provideEthGateway(cfg *config.Config, ethClient *ethclient.Client, ethWalle
 	return g, nil
 }
 
-func provideSellerContractManager(
+func provideContractManager(
 	cfg *config.Config,
 	ethGateway *blockchain.EthereumGateway,
 	ethWallet *blockchain.EthereumWallet,
@@ -115,7 +115,12 @@ func provideSellerContractManager(
 	contracts interfaces.ICollection[contractmanager.IContractModel],
 	log interfaces.ILogger,
 ) *contractmanager.ContractManager {
-	return contractmanager.NewContractManager(ethGateway, globalScheduler, log, contracts, ethWallet.GetAccountAddress(), ethWallet.GetPrivateKey())
+	destination, err := lib.ParseDest(cfg.Pool.Address)
+	if err != nil {
+		return nil, err
+	}
+
+	return contractmanager.NewContractManager(ethGateway, globalScheduler, log, contracts, ethWallet.GetAccountAddress(), ethWallet.GetPrivateKey(), cfg.Contract.IsBuyer, destination)
 }
 
 func provideLogger(cfg *config.Config) (interfaces.ILogger, error) {

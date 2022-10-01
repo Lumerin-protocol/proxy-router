@@ -43,7 +43,7 @@ type BTCHashrateContract struct {
 	log interfaces.ILogger
 }
 
-func NewContract(data blockchain.ContractData, blockchain interfaces.IBlockchainGateway, globalScheduler *GlobalSchedulerService, log interfaces.ILogger, hr *hashrate.Hashrate) *BTCHashrateContract {
+func NewContract(data blockchain.ContractData, blockchain interfaces.IBlockchainGateway, globalScheduler *GlobalSchedulerService, log interfaces.ILogger, hr *hashrate.Hashrate, closeoutType constants.CloseoutType) *BTCHashrateContract {
 	if hr == nil {
 		hr = hashrate.NewHashrate(log, hashrate.EMA_INTERVAL)
 	}
@@ -52,7 +52,7 @@ func NewContract(data blockchain.ContractData, blockchain interfaces.IBlockchain
 		data:            data,
 		hashrate:        hr,
 		log:             log,
-		closeoutType:    2,
+		closeoutType:    closeoutType,
 		globalScheduler: globalScheduler,
 		state:           ContractStateAvailable,
 	}
@@ -62,12 +62,6 @@ func NewContract(data blockchain.ContractData, blockchain interfaces.IBlockchain
 func (c *BTCHashrateContract) Run(ctx context.Context) error {
 	g, subCtx := errgroup.WithContext(ctx)
 
-	// if proxy started after the contract was purchased and wasn't able to pick up event
-	if c.data.State == blockchain.ContractBlockchainStateRunning {
-		c.state = ContractStateRunning
-		c.Close()
-	}
-
 	g.Go(func() error {
 		return c.listenContractEvents(subCtx)
 	})
@@ -75,11 +69,44 @@ func (c *BTCHashrateContract) Run(ctx context.Context) error {
 	return g.Wait()
 }
 
+// Ignore checks if contract should be ignored by the node
+func (c *BTCHashrateContract) Ignore(isBuyer bool, walletAddress common.Address, defaultDest lib.Dest) bool {	
+	switch isBuyer {
+	case true:
+		if c.data.State == blockchain.ContractBlockchainStateAvailable || c.data.Buyer != walletAddress {
+			return true
+		}
+		// buyer node points contracts to default
+		c.setDestToDefault(defaultDest)
+	case false:
+		if c.data.State == blockchain.ContractBlockchainStateRunning || c.data.Seller != walletAddress {
+			return true
+		}
+	}
+	
+	return false
+}
+
+// Sets contract dest to default dest for buyer node
+func (c *BTCHashrateContract) setDestToDefault(defaultDest lib.Dest) {
+	c.data.Dest = defaultDest
+}
+
 func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 	eventsCh, sub, err := c.blockchain.SubscribeToContractEvents(ctx, common.HexToAddress(c.GetAddress()))
 
 	if err != nil {
 		return fmt.Errorf("cannot subscribe for contract events %w", err)
+	}
+
+	// contract is running already in buyer node
+	if c.data.State == blockchain.ContractBlockchainStateRunning {
+		go func() {
+			err = c.fulfillContract(ctx, true)
+			if err != nil {
+				c.log.Error(err)
+			}
+		}()
 	}
 
 	for {
@@ -108,10 +135,13 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 				}
 
 				// use the same group to fail together with main goroutine
-				err = c.fulfillContract(ctx)
-				if err != nil {
-					c.log.Error(err)
-				}
+				// seller node responds to purchase events off the contract
+				go func() {
+					err = c.fulfillContract(ctx, false)
+					if err != nil {
+						c.log.Error(err)
+					}
+				}()
 				continue
 
 			case blockchain.ContractCipherTextUpdatedHex:
@@ -149,7 +179,7 @@ func (c *BTCHashrateContract) LoadBlockchainContract() error {
 	return nil
 }
 
-func (c *BTCHashrateContract) fulfillContract(ctx context.Context) error {
+func (c *BTCHashrateContract) fulfillContract(ctx context.Context, isBuyer bool) error {
 
 	c.state = ContractStatePurchased
 
@@ -162,7 +192,7 @@ func (c *BTCHashrateContract) fulfillContract(ctx context.Context) error {
 	// for {
 	err := c.StartHashrateAllocation()
 	if err != nil {
-		return c.Close()
+		return c.Close(isBuyer)
 	}
 
 	// break
@@ -181,7 +211,7 @@ func (c *BTCHashrateContract) fulfillContract(ctx context.Context) error {
 		if c.ContractIsExpired() {
 			c.log.Info("contract time ended, or state is closed, closing...", c.GetID())
 
-			c.Close()
+			c.Close(isBuyer)
 
 			return nil
 		}
@@ -191,7 +221,7 @@ func (c *BTCHashrateContract) fulfillContract(ctx context.Context) error {
 
 		minerIDs, err := c.globalScheduler.UpdateCombination(ctx, c.minerIDs, c.GetHashrateGHS(), c.GetDest(), c.GetID())
 		if err != nil {
-			c.Close()
+			c.Close(isBuyer)
 			c.log.Warnf("error during combination update %s", err)
 		} else {
 			c.minerIDs = minerIDs
@@ -234,11 +264,19 @@ func (c *BTCHashrateContract) ContractIsExpired() bool {
 	return time.Now().After(*endTime)
 }
 
-func (c *BTCHashrateContract) Close() error {
+func (c *BTCHashrateContract) Close(isBuyer bool) error {
 	c.log.Debugf("closing contract %v", c.GetID())
 	c.Stop()
 
-	err := c.blockchain.SetContractCloseOut(c.data.Seller.Hex(), c.GetAddress(), int64(c.closeoutType))
+	var closeoutAccount common.Address
+	switch isBuyer {
+	case true:
+		closeoutAccount = c.data.Buyer
+	case false:
+		closeoutAccount = c.data.Seller
+	}
+
+	err := c.blockchain.SetContractCloseOut(closeoutAccount.Hex(), c.GetAddress(), int64(c.closeoutType))
 	c.log.Debugf("exited closeout")
 	if err != nil {
 		c.log.Error("cannot close contract", err)
