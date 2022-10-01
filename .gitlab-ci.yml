@@ -64,12 +64,6 @@ test:
     - go version
     - go mod download
     - go test -v -p 1 $(go list ./... | grep -v /test) # skips the test folder for now
-default:
-    tags:
-        - devops 
-        - bedrock
-        - shell
-        
 bedrock-02-DEV:
     image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
     stage: deploy-dev
@@ -77,6 +71,9 @@ bedrock-02-DEV:
         - dev
     tags:
         - titanio-dev
+        - devops 
+        - bedrock
+        - shell
     variables:
         TGT_ACCOUNT: $CI_AWS_ACCOUNT_DEV
         TGT_ENV: dev
