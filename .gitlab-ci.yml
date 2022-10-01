@@ -17,7 +17,6 @@ variables:
 stages:
   - test
   - deploy
-
 lint:
   inherit:
       default: false
@@ -64,12 +63,7 @@ test:
     - go test -v -p 1 $(go list ./... | grep -v /test) # skips the test folder for now
 default:
     image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
-    stage: deploy
-    only:
-      - dev
-      - stg
-      - main
-    tags:
+    tags: 
         - devops 
         - bedrock
         - shell
@@ -87,20 +81,21 @@ default:
         - echo "*****************************"       
         - echo "Building image..."
         - echo "*****************************"
-        - docker build --build-arg api_url=$api_url \
-        -  --build-arg WEB_ADDRESS=$web_address \
-        -  --build-arg PROXY_ADDRESS=$proxy_address \
-        -  --build-arg ETH_NODE_ADDRESS=$eth_node_address \
-        -  --build-arg IS_BUYER=$is_buyer \
-        -  --build-arg ENVIRONMENT=$environment  \
-        -  --build-arg ACCOUNT_INDEX=$account_index  \
-        -  --build-arg PROXY_LOG_STRATUM=$proxy_log_stratum  \
-        -  --build-arg MINER_VETTING_PERIOD_SECONDS=$miner_vetting_period_seconds  \ 
-        -  --build-arg MINER_VETTING_DURATION=$MINER_VETTING_DURATION  \ 
-        -  --build-arg POOL_ADDRESS=$POOL_ADDRESS  \ 
-        -  --build-arg POOL_MIN_DURATION=$POOL_MIN_DURATION  \ 
-        -  --build-arg POOL_MAX_DURATION=$POOL_MAX_DURATION  \ 
-        -  -t $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:latest --no-cache .
+        -
+          docker build --build-arg api_url=$api_url 
+          --build-arg WEB_ADDRESS=$web_address 
+          --build-arg PROXY_ADDRESS=$proxy_address 
+          --build-arg ETH_NODE_ADDRESS=$eth_node_address 
+          --build-arg IS_BUYER=$is_buyer 
+          --build-arg ENVIRONMENT=$environment
+          --build-arg ACCOUNT_INDEX=$account_index
+          --build-arg PROXY_LOG_STRATUM=$proxy_log_stratum
+          --build-arg MINER_VETTING_PERIOD_SECONDS=$miner_vetting_period_seconds 
+          --build-arg MINER_VETTING_DURATION=$MINER_VETTING_DURATION  
+          --build-arg POOL_ADDRESS=$POOL_ADDRESS 
+          --build-arg POOL_MIN_DURATION=$POOL_MIN_DURATION  
+          --build-arg POOL_MAX_DURATION=$POOL_MAX_DURATION  
+          -t $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:latest --no-cache .
         - echo "Tagging image..."
         - docker tag  $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:latest $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG
         - echo "*****************************"        
@@ -129,6 +124,9 @@ bedrock-02-DEV:
     only:
         - dev
     tags:
+        - devops 
+        - bedrock
+        - shell
         - titanio-dev
     variables:
         TGT_ACCOUNT: $CI_AWS_ACCOUNT_DEV
