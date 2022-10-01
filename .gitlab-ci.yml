@@ -21,6 +21,8 @@ stages:
   - deploy-prd
 
 lint:
+  inherit:
+      default: false
   variables:
     DOCKER_DRIVER: overlay2
     DOCKER_HOST: tcp://docker:2376
@@ -40,6 +42,8 @@ lint:
     - golangci-lint run -v
 
 test:
+  inherit:
+      default: false
   variables:
     DOCKER_DRIVER: overlay2
     DOCKER_HOST: tcp://docker:2376
