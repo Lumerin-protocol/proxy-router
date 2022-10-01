@@ -1,4 +1,13 @@
 # image: golang:1.18
+variables:
+  web_address: "0.0.0.0:8080"
+  proxy_address: "0.0.0.0:3333"
+  eth_node_address: "wss://ropsten.infura.io/ws/v3/91fa8dea25fe4bf4b8ce1c6be8bb9eb3"
+  is_buyer: false
+  environment: "production" # production makes logs in json and not panics when calling DPanic
+  account_index: 0
+  proxy_log_stratum: true
+  miner_vetting_period_seconds: 30 # miner will not serve contracts for this period after connecing to proxy
 
 stages:
   - test
@@ -46,21 +55,13 @@ test:
     - go version
     - go mod download
     - go test -v -p 1 $(go list ./... | grep -v /test) # skips the test folder for now
-
-bedrock-02-DEV:
-    stage: deploy-dev
-    only:
-        - dev
+default:
     image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
     tags:
         - devops 
         - bedrock
-        - titanio-dev
         - shell
-    variables: 
-        TGT_ACCOUNT: $CI_AWS_ACCOUNT_DEV
-        TGT_ENV: dev
-    script:
+    before_script:
         - echo "*****************************"
         - echo "Logging in to Titanio-NET ECR ..."
         - echo "*****************************"
@@ -98,7 +99,19 @@ bedrock-02-DEV:
         - echo "*****************************"        
         - aws ecs register-task-definition --region $AWS_DEFAULT_REGION --cli-input-json file://input.json | grep taskDefinitionArn
         - REVISION=$(aws ecs describe-task-definition --task-definition tsk-$CI_AWS_ECR_REPO --region $AWS_DEFAULT_REGION | egrep "revision" | tr "/" " " | awk '{print $2}' | sed 's/"$//' | cut -d "," -f 1)
-        - echo $REVISION
+bedrock-02-DEV:
+    stage: deploy-dev
+    only:
+        - dev
+    tags:
+        - titanio-dev
+    variables:
+        TGT_ACCOUNT: $CI_AWS_ACCOUNT_DEV
+        TGT_ENV: dev
+        POOL_ADDRESS: "//titan1.ecs-dev:@mining.pool.titan.io:4242" #no scheme for compat purposes
+        CONTRACT_ADDRESS: "0xbF2A6EA18e2CF0846cE7FC9Fa9EB9bA22BF035fF"
+    script:
+        echo $REVISION
         - echo "Review Cluster Definition...."
         - echo ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION
         - echo "Review Service Definition...."
@@ -118,6 +131,8 @@ bedrock-03-STG:
     variables: 
         TGT_ACCOUNT: $CI_AWS_ACCOUNT_STG
         TGT_ENV: stg
+        POOL_ADDRESS: "//titan1.ecs-stg:@mining.pool.titan.io:4242" #no scheme for compat purposes
+        CONTRACT_ADDRESS: "0xbF2A6EA18e2CF0846cE7FC9Fa9EB9bA22BF035fF"
     script:
         - echo "*****************************"
         - echo "Logging in to Titanio-NET ECR ..."
@@ -175,7 +190,9 @@ bedrock-04-PRD:
         - shell
     variables: 
         TGT_ACCOUNT: $CI_AWS_ACCOUNT_LMN
-        TGT_ENV: LMN
+        TGT_ENV: lmn
+        POOL_ADDRESS: "//titan1.ecs-lmn:@mining.pool.titan.io:4242" #no scheme for compat purposes
+        CONTRACT_ADDRESS: "0x059cD152b4e9e6Ff222E8fB979197A739FC9Dd42"
     script:
         - echo "*****************************"
         - echo "Logging in to Titanio-NET ECR ..."
