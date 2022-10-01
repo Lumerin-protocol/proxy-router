@@ -75,7 +75,16 @@ default:
         - echo "*****************************"       
         - echo "Building image..."
         - echo "*****************************"
-        - docker build -t $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:latest --no-cache .
+        - docker build --build-arg api_url=$api_url \
+        -  --build-arg web_address=$web_address \
+        -  --build-arg proxy_address=$proxy_address \
+        -  --build-arg eth_node_address=$eth_node_address \
+        -  --build-arg is_buyer=$is_buyer \
+        -  --build-arg environment=$environment  \
+        -  --build-arg account_index=$account_index  \
+        -  --build-arg proxy_log_stratum=$proxy_log_stratum  \
+        -  --build-arg miner_vetting_period_seconds=$API_URL  \ 
+        -  -t $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:latest --no-cache .
         - echo "Tagging image..."
         - docker tag  $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:latest $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG
         - echo "*****************************"        
