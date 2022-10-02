@@ -110,5 +110,5 @@ func NewValidator() (*validator.Validate, error) {
 		return nil, err
 	}
 
-	return valid
+	return valid, nil
 }
