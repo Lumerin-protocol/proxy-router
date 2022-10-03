@@ -1,16 +1,18 @@
 FROM golang:1.18-alpine as builder
-
 WORKDIR /app 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" . && \
+    cp /app/hashrouter /usr/bin 
+    # cp /bin/sh /app/sh && chmod +x /app/sh
 
-FROM scratch
-WORKDIR /app
+# FROM scratch
+# WORKDIR /app
 
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=builder /app/hashrouter /usr/bin/
+# COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+# COPY --from=builder /app/hashrouter /usr/bin/
+# COPY --chmod=0755 --from=builder /app/sh /bin/sh
 
-EXPOSE 3333 8081
+# SHELL ["/bin/sh", "-c"]
 
 ARG ETH_NODE_ADDRESS="wss://ropsten.infura.io/ws/v3/91fa8dea25fe4bf4b8ce1c6be8bb9eb3" 
 ENV ETH_NODE_ADDRESS=$ETH_NODE_ADDRESS
@@ -24,6 +26,12 @@ ARG ENVIRONMENT
 ENV ENVIRONMENT=$ENVIRONMENT
 ARG ACCOUNT_INDEX 
 ENV ACCOUNT_INDEX=$ACCOUNT_INDEX
+ARG CONTRACT_MNEMONIC
+ENV CONTRACT_MNEMONIC=$CONTRACT_MNEMONIC
+ARG WALLET_ADDRESS
+ENV WALLET_ADDRESS=$WALLET_ADDRESS
+ARG WALLET_PRIVATE_KEY
+ENV WALLET_PRIVATE_KEY=$WALLET_PRIVATE_KEY
 ARG PROXY_LOG_STRATUM 
 ENV PROXY_LOG_STRATUM=$PROXY_LOG_STRATUM
 ARG MINER_VETTING_PERIOD_SECONDS 
@@ -36,5 +44,20 @@ ARG POOL_MIN_DURATION=2m # min online duration to get submits
 ENV POOL_MIN_DURATION=$POOL_MIN_DURATION
 ARG POOL_MAX_DURATION=5m
 ENV POOL_MAX_DURATION=$POOL_MAX_DURATION
+
+RUN echo "ETH_NODE_ADDRESS=$ETH_NODE_ADDRESS" \
+    echo "WEB_ADDRESS=$WEB_ADDRESS" \
+    echo "PROXY_ADDRESS=$PROXY_ADDRESS" \
+    echo "IS_BUYER=$IS_BUYER" \
+    echo "ENVIRONMENT=$ENVIRONMENT" \
+    echo "PROXY_LOG_STRATUM=$PROXY_LOG_STRATUM" \
+    echo "MINER_VETTING_PERIOD_SECONDS=$MINER_VETTING_PERIOD_SECONDS" \
+    echo "MINER_VETTING_DURATION=$MINER_VETTING_DURATION" \
+    echo "POOL_ADDRESS=$POOL_ADDRESS" \
+    echo "POOL_MIN_DURATION=$POOL_MIN_DURATION" \
+    echo "POOL_MAX_DURATION=$POOL_MAX_DURATION" \
+    echo "ACCOUNT_INDEX=$ACCOUNT_INDEX"
+
+EXPOSE 3333 8081
 
 ENTRYPOINT ["hashrouter"]
