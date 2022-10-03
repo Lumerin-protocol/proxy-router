@@ -7,6 +7,7 @@ import (
 	"syscall"
 
 	"gitlab.com/TitanInd/hashrouter/api"
+	"gitlab.com/TitanInd/hashrouter/config"
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/miner"
@@ -20,10 +21,12 @@ type App struct {
 	Server          *api.Server
 	ContractManager *contractmanager.ContractManager
 	Logger          interfaces.ILogger
+	Config          *config.Config
 	// EventsRouter    interfaces.IEventsRouter
 }
 
 func (a *App) Run() {
+	a.Logger.Debugf("config: %+v\n", a.Config)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	shutdownChan := make(chan os.Signal, 1)
