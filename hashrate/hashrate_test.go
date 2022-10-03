@@ -12,7 +12,7 @@ import (
 
 func TestHashrate(t *testing.T) {
 	log, _ := zap.NewDevelopment()
-	hashrate := NewHashrate(log.Sugar(), time.Second)
+	hashrate := NewHashrate(log.Sugar())
 
 	for i := 0; i < 5; i++ {
 		hashrate.OnSubmit(10000)
