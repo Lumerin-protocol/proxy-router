@@ -7,13 +7,14 @@ type Config struct {
 		IsBuyer             bool   `env:"IS_BUYER" flag:"is-buyer"`
 		Mnemonic            string `env:"CONTRACT_MNEMONIC"`
 		AccountIndex        int    `env:"ACCOUNT_INDEX"`
+		WalletPrivateKey    string `env:"WALLET_PRIVATE_KEY"`
+		WalletAddress       string `env:"WALLET_ADDRESS"`
 		EthNodeAddr         string
 		ClaimFunds          bool
 		TimeThreshold       int
 		LumerinTokenAddress string
 		ValidatorAddress    string
 		ProxyAddress        string
-		WalletAddress       string `env:"SELLER_ADDRESS"`
 	}
 	Environment string `env:"ENVIRONMENT" flag:"environment"`
 	EthNode     struct {
