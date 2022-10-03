@@ -122,8 +122,6 @@ func provideSellerContractManager(
 func provideLogger(cfg *config.Config) (interfaces.ILogger, error) {
 	logger := lib.NewLogger(cfg.Environment == "production")
 
-	logger.Debugf("config: %+v\n", cfg)
-
 	return logger
 }
 

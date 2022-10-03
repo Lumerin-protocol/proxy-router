@@ -6,6 +6,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/TIBCOSoftware/flogo-lib/logger"
+	"github.com/go-delve/delve/pkg/config"
 	"gitlab.com/TitanInd/hashrouter/api"
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
@@ -20,10 +22,12 @@ type App struct {
 	Server          *api.Server
 	ContractManager *contractmanager.ContractManager
 	Logger          interfaces.ILogger
+	Config          *config.Config
 	// EventsRouter    interfaces.IEventsRouter
 }
 
 func (a *App) Run() {
+	logger.Debugf("config: %+v\n", a.Config)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	shutdownChan := make(chan os.Signal, 1)
