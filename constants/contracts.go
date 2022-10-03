@@ -19,5 +19,5 @@ const (
 )
 
 const (
-	ValidationBufferPeriod time.Duration = 5*time.Minute // buffer period before buyer node starts validating newly running contract
+	ValidationBufferPeriod time.Duration = 5 * time.Minute // buffer period before buyer node starts validating newly running contract
 )

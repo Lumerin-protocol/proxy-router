@@ -60,12 +60,12 @@ func (m *ContractManager) Run(ctx context.Context) error {
 			switch eventHex {
 			case blockchain.ContractCreatedHex:
 				address := common.HexToAddress(payloadHex)
-				
+
 				err = m.handleContract(ctx, address)
 				if err != nil {
 					m.log.Error("cannot handle contract, skipping...", err)
 				}
-				
+
 			case blockchain.ClonefactoryContractPurchasedHex:
 				address := common.HexToAddress(payloadHex)
 
@@ -73,7 +73,7 @@ func (m *ContractManager) Run(ctx context.Context) error {
 				if err != nil {
 					m.log.Error("cannot handle purchased contract, skipping...", err)
 				}
-				
+
 			default:
 				m.log.Debugf("ignored clonefactory event %s %s", eventHex, payloadHex)
 			}
@@ -120,10 +120,10 @@ func (m *ContractManager) handleContract(ctx context.Context, contractAddr commo
 		closeoutType = constants.CloseoutTypeWithoutClaim
 	}
 	contract := NewContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, closeoutType)
-	
+
 	if contract.Ignore(m.isBuyer, m.walletAddr, m.defaultDest) {
 		// contract will be ignored by this node
-		return nil 
+		return nil
 	}
 
 	m.log.Infof("handling contract \n%+v", data)

@@ -91,11 +91,11 @@ func (s testSubscription) Err() <-chan error {
 }
 
 type testBlockchainGateway struct {
-	eventChannel                          chan interop.BlockchainEvent
-	eventSubscriptionChannel              interop.BlockchainEventSubscription
+	eventChannel                        chan interop.BlockchainEvent
+	eventSubscriptionChannel            interop.BlockchainEventSubscription
 	subscribeToCloneFactoryEventsCalled chan struct{}
-	subscribeToContractEventsCalled       chan struct{}
-	contractCloseoutCalled                chan struct{}
+	subscribeToContractEventsCalled     chan struct{}
+	contractCloseoutCalled              chan struct{}
 }
 
 func (g *testBlockchainGateway) SubscribeToCloneFactoryEvents(ctx context.Context) (chan types.Log, interop.BlockchainEventSubscription, error) {

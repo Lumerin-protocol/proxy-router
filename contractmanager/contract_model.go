@@ -70,7 +70,7 @@ func (c *BTCHashrateContract) Run(ctx context.Context) error {
 }
 
 // Ignore checks if contract should be ignored by the node
-func (c *BTCHashrateContract) Ignore(isBuyer bool, walletAddress common.Address, defaultDest lib.Dest) bool {	
+func (c *BTCHashrateContract) Ignore(isBuyer bool, walletAddress common.Address, defaultDest lib.Dest) bool {
 	switch isBuyer {
 	case true:
 		if c.data.State == blockchain.ContractBlockchainStateAvailable || c.data.Buyer != walletAddress {
@@ -83,7 +83,7 @@ func (c *BTCHashrateContract) Ignore(isBuyer bool, walletAddress common.Address,
 			return true
 		}
 	}
-	
+
 	return false
 }
 
