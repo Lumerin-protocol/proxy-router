@@ -66,6 +66,7 @@ func InitApp() (*app.App, error) {
 		Server:          server,
 		ContractManager: contractManager,
 		Logger:          iLogger,
+		Config:          config,
 	}
 	return appApp, nil
 }
@@ -127,7 +128,7 @@ func provideEthClient(cfg *config.Config, log interfaces.ILogger) (*ethclient.Cl
 }
 
 func provideEthWallet(cfg *config.Config) (*blockchain.EthereumWallet, error) {
-	return blockchain.NewEthereumWallet(cfg.Contract.Mnemonic, cfg.Contract.AccountIndex)
+	return blockchain.NewEthereumWallet(cfg.Contract.Mnemonic, cfg.Contract.AccountIndex, cfg.Contract.WalletPrivateKey, cfg.Contract.WalletAddress)
 }
 
 func provideEthGateway(cfg *config.Config, ethClient *ethclient.Client, ethWallet *blockchain.EthereumWallet, log interfaces.ILogger) (*blockchain.EthereumGateway, error) {
@@ -157,7 +158,9 @@ func provideSellerContractManager(
 }
 
 func provideLogger(cfg *config.Config) (interfaces.ILogger, error) {
-	return lib.NewLogger(cfg.Environment == "production")
+	logger, err := lib.NewLogger(cfg.Environment == "production")
+
+	return logger, err
 }
 
 func provideConfig() (*config.Config, error) {
