@@ -28,13 +28,14 @@ type OnDemandMinerScheduler struct {
 
 func NewOnDemandMinerScheduler(minerModel MinerModel, destSplit *DestSplit, log interfaces.ILogger, defaultDest interfaces.IDestination, minerVettingPeriod, destMinUptime, destMaxUptime time.Duration) *OnDemandMinerScheduler {
 	return &OnDemandMinerScheduler{
-		minerModel:       minerModel,
-		destSplit:        destSplit,
-		log:              log,
-		defaultDest:      defaultDest,
-		destMinUptime:    destMinUptime,
-		destMaxUptime:    destMaxUptime,
-		restartDestCycle: make(chan struct{}, 1),
+		minerModel:         minerModel,
+		destSplit:          destSplit,
+		log:                log,
+		defaultDest:        defaultDest,
+		minerVettingPeriod: minerVettingPeriod,
+		destMinUptime:      destMinUptime,
+		destMaxUptime:      destMaxUptime,
+		restartDestCycle:   make(chan struct{}, 1),
 	}
 }
 
