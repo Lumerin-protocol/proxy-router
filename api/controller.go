@@ -1,11 +1,19 @@
 package api
 
 import (
+	"context"
+	"math"
+	"math/big"
+	"math/rand"
 	"net/http"
+	"strconv"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/gin-gonic/gin"
+	"gitlab.com/TitanInd/hashrouter/blockchain"
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
+	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/miner"
@@ -54,7 +62,7 @@ type Contract struct {
 	// Miners         []string
 }
 
-func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel]) *gin.Engine {
+func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerService) *gin.Engine {
 	r := gin.Default()
 	controller := ApiController{
 		miners:    miners,
@@ -66,6 +74,12 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 		ctx.JSON(http.StatusOK, data)
 	})
 
+	r.GET("/contracts", func(ctx *gin.Context) {
+		data := controller.GetContracts()
+		ctx.JSON(http.StatusOK, data)
+	})
+
+	// for tests
 	r.POST("/miners/change-dest", func(ctx *gin.Context) {
 		dest := ctx.Query("dest")
 		if dest == "" {
@@ -81,9 +95,38 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 		ctx.Status(http.StatusOK)
 	})
 
-	r.GET("/contracts", func(ctx *gin.Context) {
-		data := controller.GetContracts()
-		ctx.JSON(http.StatusOK, data)
+	// for tests
+	r.POST("/contracts", func(ctx *gin.Context) {
+		dest, err := lib.ParseDest(ctx.Query("dest"))
+		if err != nil {
+			ctx.AbortWithStatus(http.StatusBadRequest)
+		}
+		hrGHS, err := strconv.ParseInt(ctx.Query("hrGHS"), 10, 0)
+		if err != nil {
+			ctx.AbortWithStatus(http.StatusBadRequest)
+		}
+		duration, err := time.ParseDuration(ctx.Query("duration"))
+		if err != nil {
+			ctx.AbortWithStatus(http.StatusBadRequest)
+		}
+		contract := contractmanager.NewContract(blockchain.ContractData{
+			Addr:                   common.BigToAddress(big.NewInt(rand.Int63())),
+			State:                  blockchain.ContractBlockchainStateRunning,
+			Price:                  0,
+			Speed:                  hrGHS * int64(math.Pow10(9)),
+			Length:                 int64(duration.Seconds()),
+			Dest:                   dest,
+			StartingBlockTimestamp: time.Now().Unix(),
+		}, nil, gs, log, hashrate.NewHashrate(log))
+
+		go func() {
+			err := contract.FulfillContract(context.Background())
+			if err != nil {
+				log.Errorf("error during fulfillment of the test contract: %s", err)
+			}
+		}()
+
+		contracts.Store(contract)
 	})
 
 	return r

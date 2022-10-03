@@ -37,7 +37,6 @@ type MinerScheduler interface {
 	IsVetted() bool
 	GetStatus() MinerStatus
 	GetDestSplit() *DestSplit
-	SetDestSplit(*DestSplit)
 	GetCurrentDest() interfaces.IDestination // get miner total hashrate in GH/s
 	ChangeDest(dest interfaces.IDestination) error
 	GetCurrentDifficulty() int
@@ -50,5 +49,4 @@ type MinerScheduler interface {
 
 	Allocate(ID string, percentage float64, dest interfaces.IDestination) (*Split, error) // allocates available miner resources
 	Deallocate(ID string) (ok bool)
-	SwitchToDefaultDestination() error
 }
