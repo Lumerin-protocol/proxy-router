@@ -5,7 +5,6 @@ variables:
   ETH_NODE_ADDRESS: "wss://ropsten.infura.io/ws/v3/91fa8dea25fe4bf4b8ce1c6be8bb9eb3"
   IS_BUYER: "false"
   ENVIRONMENT: "production" # production makes logs in json and not panics when calling DPanic
-  ACCOUNT_INDEX: "0"
   PROXY_LOG_STRATUM: "true"
   MINER_VETTING_PERIOD_SECONDS: "30" # miner will not serve contracts for this period after connecing to proxy
   MINER_VETTING_DURATION: 1m
@@ -80,14 +79,15 @@ default:
         - echo "*****************************"
         -
           docker build --build-arg api_url=$api_url 
-          --build-arg WEB_ADDRESS=$web_address 
-          --build-arg PROXY_ADDRESS=$proxy_address 
-          --build-arg ETH_NODE_ADDRESS=$eth_node_address 
-          --build-arg IS_BUYER=$is_buyer 
-          --build-arg ENVIRONMENT=$environment
-          --build-arg ACCOUNT_INDEX=$account_index
-          --build-arg PROXY_LOG_STRATUM=$proxy_log_stratum
-          --build-arg MINER_VETTING_PERIOD_SECONDS=$miner_vetting_period_seconds 
+          --build-arg WEB_ADDRESS=$WEB_ADDRESS 
+          --build-arg PROXY_ADDRESS=$PROXY_ADDRESS 
+          --build-arg ETH_NODE_ADDRESS=$ETH_NODE_ADDRESS 
+          --build-arg IS_BUYER=$IS_BUYER 
+          --build-arg ENVIRONMENT=$ENVIRONMENT
+          --build-arg WALLET_ADDRESS=$WALLET_ADDRESS
+          --build-arg WALLET_PRIVATE_KEY=$WALLET_PRIVATE_KEY
+          --build-arg PROXY_LOG_STRATUM=$PROXY_LOG_STRATUM
+          --build-arg MINER_VETTING_PERIOD_SECONDS=$MINER_VETTING_PERIOD_SECONDS 
           --build-arg MINER_VETTING_DURATION=$MINER_VETTING_DURATION  
           --build-arg POOL_ADDRESS=$POOL_ADDRESS 
           --build-arg POOL_MIN_DURATION=$POOL_MIN_DURATION  
