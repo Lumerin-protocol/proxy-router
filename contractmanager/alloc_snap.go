@@ -233,6 +233,10 @@ func CreateMinerSnapshot(minerCollection interfaces.ICollection[miner.MinerSched
 	snapshot := NewAllocSnap()
 
 	minerCollection.Range(func(miner miner.MinerScheduler) bool {
+		if !miner.IsVetted() {
+			return true
+		}
+
 		hashrateGHS := miner.GetHashRateGHS()
 		minerID := miner.GetID()
 

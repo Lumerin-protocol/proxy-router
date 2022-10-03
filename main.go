@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"os"
+	"time"
 
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/gin-gonic/gin"
@@ -69,7 +70,7 @@ func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo inter
 		return nil, err
 	}
 
-	return miner.NewMinerController(destination, repo, l, cfg.Proxy.LogStratum), nil
+	return miner.NewMinerController(destination, repo, l, cfg.Proxy.LogStratum, time.Duration(cfg.Miner.VettingPeriodSeconds)*time.Second), nil
 }
 
 func provideApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel]) *gin.Engine {
@@ -89,7 +90,7 @@ func provideEthClient(cfg *config.Config, log interfaces.ILogger) (*ethclient.Cl
 }
 
 func provideEthWallet(cfg *config.Config) (*blockchain.EthereumWallet, error) {
-	return blockchain.NewEthereumWallet(cfg.Contract.Mnemonic, cfg.Contract.AccountIndex)
+	return blockchain.NewEthereumWallet(cfg.Contract.Mnemonic, cfg.Contract.AccountIndex, cfg.Contract.WalletPrivateKey, cfg.Contract.WalletAddress)
 }
 
 func provideEthGateway(cfg *config.Config, ethClient *ethclient.Client, ethWallet *blockchain.EthereumWallet, log interfaces.ILogger) (*blockchain.EthereumGateway, error) {
@@ -124,7 +125,9 @@ func provideContractManager(
 }
 
 func provideLogger(cfg *config.Config) (interfaces.ILogger, error) {
-	return lib.NewLogger(cfg.Environment == "production")
+	logger, err := lib.NewLogger(cfg.Environment == "production")
+
+	return logger, err
 }
 
 func provideConfig() (*config.Config, error) {

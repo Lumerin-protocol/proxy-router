@@ -7,17 +7,21 @@ type Config struct {
 		IsBuyer             bool   `env:"IS_BUYER" flag:"is-buyer"`
 		Mnemonic            string `env:"CONTRACT_MNEMONIC"`
 		AccountIndex        int    `env:"ACCOUNT_INDEX"`
+		WalletPrivateKey    string `env:"WALLET_PRIVATE_KEY"`
+		WalletAddress       string `env:"WALLET_ADDRESS"`
 		EthNodeAddr         string
 		ClaimFunds          bool
 		TimeThreshold       int
 		LumerinTokenAddress string
 		ValidatorAddress    string
 		ProxyAddress        string
-		WalletAddress       string `env:"SELLER_ADDRESS"`
 	}
 	Environment string `env:"ENVIRONMENT" flag:"environment"`
 	EthNode     struct {
 		Address string `env:"ETH_NODE_ADDRESS" flag:"eth-node-address" validate:"required,url"`
+	}
+	Miner struct {
+		VettingPeriodSeconds int `env:"MINER_VETTING_PERIOD_SECONDS" validate:"required,gte=0"`
 	}
 	Log struct {
 		Syslog bool `env:"LOG_SYSLOG" flag:"log-syslog"`
