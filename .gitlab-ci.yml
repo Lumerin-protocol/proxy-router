@@ -78,7 +78,7 @@ default:
         - echo "Building image..."
         - echo "*****************************"
         -
-          docker build --build-arg api_url=$api_url 
+          docker build --progress=plain --build-arg api_url=$api_url 
           --build-arg WEB_ADDRESS=$WEB_ADDRESS 
           --build-arg PROXY_ADDRESS=$PROXY_ADDRESS 
           --build-arg ETH_NODE_ADDRESS=$ETH_NODE_ADDRESS 
