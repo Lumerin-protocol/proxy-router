@@ -135,7 +135,7 @@ bedrock-02-DEV:
         TGT_ENV: dev
         POOL_ADDRESS: "//titan1.ecs-dev:@mining.pool.titan.io:4242" #no scheme for compat purposes
         CONTRACT_ADDRESS: "0xbF2A6EA18e2CF0846cE7FC9Fa9EB9bA22BF035fF"
-
+    script: echo "$TGT_ENV Updated"
 bedrock-03-STG:
     stage: deploy
     environment: stg
@@ -149,7 +149,7 @@ bedrock-03-STG:
         TGT_ENV: stg
         POOL_ADDRESS: "//titan1.ecs-stg:@mining.pool.titan.io:4242" #no scheme for compat purposes
         CONTRACT_ADDRESS: "0xbF2A6EA18e2CF0846cE7FC9Fa9EB9bA22BF035fF"
-       
+    script: echo "$TGT_ENV Updated"
 bedrock-04-PRD:
     stage: deploy
     environment: lmn
@@ -157,12 +157,10 @@ bedrock-04-PRD:
         - main
     image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
     tags:
-        - devops 
-        - bedrock
         - titanio-lmn
-        - shell
     variables: 
         TGT_ACCOUNT: $CI_AWS_ACCOUNT_LMN
         TGT_ENV: lmn
         POOL_ADDRESS: "//titan1.ecs-lmn:@mining.pool.titan.io:4242" #no scheme for compat purposes
         CONTRACT_ADDRESS: "0x059cD152b4e9e6Ff222E8fB979197A739FC9Dd42"
+    script: echo "$TGT_ENV Updated"
