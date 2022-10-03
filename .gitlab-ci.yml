@@ -92,6 +92,7 @@ default:
           --build-arg POOL_ADDRESS=$POOL_ADDRESS 
           --build-arg POOL_MIN_DURATION=$POOL_MIN_DURATION  
           --build-arg POOL_MAX_DURATION=$POOL_MAX_DURATION  
+          
           -t $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:latest --no-cache .
         - echo "Tagging image..."
         - docker tag  $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:latest $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG
@@ -118,6 +119,7 @@ default:
         - REVISION=$(aws ecs describe-task-definition --task-definition tsk-$CI_AWS_ECR_REPO --region $AWS_DEFAULT_REGION | egrep "revision" | tr "/" " " | awk '{print $2}' | sed 's/"$//' | cut -d "," -f 1)
 bedrock-02-DEV:
     stage: deploy
+    environment: dev
     only:
         - dev
     tags:
