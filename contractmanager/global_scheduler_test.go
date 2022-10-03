@@ -79,7 +79,7 @@ func TestAllocationPreferSingleMiner(t *testing.T) {
 	dest, _ := lib.ParseDest("stratum+tcp://user:pwd@host.com:3333")
 	contractID := "test-contract"
 	miners := CreateMockMinerCollection(contractID, dest)
-	globalScheduler := NewGlobalScheduler(miners, &lib.LoggerMock{}, 0, 0)
+	globalScheduler := NewGlobalScheduler(miners, &lib.LoggerMock{}, 2*time.Minute, 5*time.Minute)
 
 	contract2ID := "test-contract-2"
 	hrGHS := 10000
@@ -95,7 +95,7 @@ func TestAllocationPreferSingleMiner(t *testing.T) {
 	}
 	expFraction := float64(hrGHS) / float64(miner.TotalGHS)
 	if math.Abs((miner.Fraction-expFraction)/miner.Fraction) > 0.001 {
-		t.Errorf("incorrect fraction: expected (%.2f) actual (%.2f)", miner.Fraction, expFraction)
+		t.Errorf("incorrect fraction: expected (%.2f) actual (%.2f)\n %s", expFraction, miner.Fraction, miner)
 	}
 }
 

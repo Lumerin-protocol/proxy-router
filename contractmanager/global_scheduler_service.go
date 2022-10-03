@@ -36,14 +36,18 @@ type GlobalSchedulerService struct {
 }
 
 func NewGlobalScheduler(minerCollection interfaces.ICollection[miner.MinerScheduler], log interfaces.ILogger, poolMinDuration, poolMaxDuration time.Duration) *GlobalSchedulerService {
-	return &GlobalSchedulerService{
+	instance := &GlobalSchedulerService{
 		minerCollection: minerCollection,
-		poolMinDuration: poolMinDuration,
-		poolMaxDuration: poolMaxDuration,
-		poolMinFraction: float64(poolMinDuration) / float64(poolMinDuration+poolMaxDuration),
-		poolMaxFraction: float64(poolMaxDuration) / float64(poolMinDuration+poolMaxDuration),
 		log:             log,
 	}
+	instance.setPoolDurationConstraints(poolMinDuration, poolMaxDuration)
+	return instance
+}
+
+func (s *GlobalSchedulerService) setPoolDurationConstraints(min, max time.Duration) {
+	s.poolMinDuration, s.poolMaxDuration = min, max
+	s.poolMinFraction = float64(min) / float64(min+max)
+	s.poolMaxFraction = float64(max) / float64(min+max)
 }
 
 func (s *GlobalSchedulerService) Allocate(contractID string, hashrateGHS int, dest interfaces.IDestination) (*AllocCollection, error) {
