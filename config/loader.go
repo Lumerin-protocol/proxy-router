@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"reflect"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/joho/godotenv"
@@ -77,10 +78,37 @@ func LoadConfig(cfg interface{}, osArgs *[]string) error {
 		return lib.WrapError(ErrFlagParse, err)
 	}
 
-	err = validator.New().Struct(cfg)
+	validator, err := NewValidator()
+
+	if err != nil {
+		return lib.WrapError(ErrConfigValidation, err)
+	}
+
+	err = validator.Struct(cfg)
+
 	if err != nil {
 		return lib.WrapError(ErrConfigValidation, err)
 	}
 
 	return nil
+}
+
+func NewValidator() (*validator.Validate, error) {
+	valid := validator.New()
+
+	err := valid.RegisterValidation("duration", func(fl validator.FieldLevel) bool {
+		kind := fl.Field().Kind()
+		if kind != reflect.Int64 {
+			return false
+		}
+
+		value := fl.Field().Int()
+		return value != 0
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return valid, nil
 }

@@ -8,8 +8,6 @@ import (
 	"go.uber.org/atomic"
 )
 
-const EMA_INTERVAL = 5 * time.Minute
-
 type Hashrate struct {
 	ema5m       *Counter
 	ema30m      *Counter
@@ -18,7 +16,7 @@ type Hashrate struct {
 	log         interfaces.ILogger
 }
 
-func NewHashrate(log interfaces.ILogger, emaInterval time.Duration) *Hashrate {
+func NewHashrate(log interfaces.ILogger) *Hashrate {
 	return &Hashrate{
 		ema5m:  New(5 * time.Minute),
 		ema30m: New(30 * time.Minute),

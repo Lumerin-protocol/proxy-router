@@ -127,4 +127,8 @@ func (p *StratumV1PoolConnPool) SendPoolRequestWait(msg stratumv1_message.Mining
 	return p.getConn().SendPoolRequestWait(msg)
 }
 
+func (p *StratumV1PoolConnPool) RegisterResultHandler(id int, handler StratumV1ResultHandler) {
+	p.getConn().RegisterResultHandler(id, handler)
+}
+
 var _ StratumV1DestConn = new(StratumV1PoolConnPool)
