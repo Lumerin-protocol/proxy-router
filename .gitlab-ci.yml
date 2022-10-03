@@ -116,13 +116,12 @@ default:
         - echo "*****************************"        
         - aws ecs register-task-definition --region $AWS_DEFAULT_REGION --cli-input-json file://input.json | grep taskDefinitionArn
         - REVISION=$(aws ecs describe-task-definition --task-definition tsk-$CI_AWS_ECR_REPO --region $AWS_DEFAULT_REGION | egrep "revision" | tr "/" " " | awk '{print $2}' | sed 's/"$//' | cut -d "," -f 1)
-        script: 
-          - echo $REVISION
-          - echo "Review Cluster Definition...."
-          - echo ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION
-          - echo "Review Service Definition...."
-          - echo svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION
-          - aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-$CI_AWS_ECR_REPO:$REVISION | grep serviceArn
+        - echo $REVISION
+        - echo "Review Cluster Definition...."
+        - echo ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION
+        - echo "Review Service Definition...."
+        - echo svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION
+        - aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-$CI_AWS_ECR_REPO:$REVISION | grep serviceArn
 
 bedrock-02-DEV:
     stage: deploy
@@ -136,85 +135,32 @@ bedrock-02-DEV:
         TGT_ENV: dev
         POOL_ADDRESS: "//titan1.ecs-dev:@mining.pool.titan.io:4242" #no scheme for compat purposes
         CONTRACT_ADDRESS: "0xbF2A6EA18e2CF0846cE7FC9Fa9EB9bA22BF035fF"
+    script: echo "$TGT_ENV Updated"
 bedrock-03-STG:
     stage: deploy
+    environment: stg
     only:
         - stg
     image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
     tags:
-        - devops 
-        - bedrock
         - titanio-stg
-        - shell
     variables: 
         TGT_ACCOUNT: $CI_AWS_ACCOUNT_STG
         TGT_ENV: stg
         POOL_ADDRESS: "//titan1.ecs-stg:@mining.pool.titan.io:4242" #no scheme for compat purposes
         CONTRACT_ADDRESS: "0xbF2A6EA18e2CF0846cE7FC9Fa9EB9bA22BF035fF"
-    script:
-        - echo $REVISION
-        - echo "Review Cluster Definition...."
-        - echo ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION
-        - echo "Review Service Definition...."
-        - echo svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION
-        - aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-$CI_AWS_ECR_REPO:$REVISION | grep serviceArn
-
+    script: echo "$TGT_ENV Updated"
 bedrock-04-PRD:
     stage: deploy
+    environment: lmn
     only:
         - main
     image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
     tags:
-        - devops 
-        - bedrock
         - titanio-lmn
-        - shell
     variables: 
         TGT_ACCOUNT: $CI_AWS_ACCOUNT_LMN
         TGT_ENV: lmn
         POOL_ADDRESS: "//titan1.ecs-lmn:@mining.pool.titan.io:4242" #no scheme for compat purposes
         CONTRACT_ADDRESS: "0x059cD152b4e9e6Ff222E8fB979197A739FC9Dd42"
-    script:
-        - echo "*****************************"
-        - echo "Logging in to Titanio-NET ECR ..."
-        - echo "*****************************"
-        - docker system prune -af
-        - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $CI_AWS_TitanIO_NET_ECR
-        - echo "*****************************"
-        - echo "Combined Repo and Tag....."
-        - echo "*****************************"
-        - IMAGE_TAG="$(echo $CI_COMMIT_SHA | head -c 8)" 
-        - echo $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG 
-        - echo "*****************************"       
-        - echo "Building image..."
-        - echo "*****************************"
-        - docker build -t $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:latest --no-cache .
-        - echo "Tagging image..."
-        - docker tag  $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:latest $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG
-        - echo "*****************************"        
-        - echo "Pushing image..."
-        - echo "*****************************"        
-        - docker push $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG
-        - docker push $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:latest
-        #### DEPLOYMENT TO LMN STEPS BELOW (must keep ECR LOGIN and TAG from prior steps)
-        - echo "*****************************"
-        - echo "Preparing deployment of $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG to $TGT_ACCOUNT, titanio-$TGT_ENV Environment..."
-        - echo "*****************************"        
-        - aws ecs describe-task-definition --region $AWS_DEFAULT_REGION --task-definition tsk-$CI_AWS_ECR_REPO > input.json
-        - echo $(cat input.json | jq '.taskDefinition.containerDefinitions[].image="'$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO'"') > input.json
-        - echo $(cat input.json | jq '.taskDefinition') > input.json
-        - echo $(cat input.json | jq  'del(.taskDefinitionArn)' | jq 'del(.revision)' | jq 'del(.status)' | jq 'del(.requiresAttributes)' | jq 'del(.compatibilities)' | jq 'del(.registeredBy)' | jq 'del(.registeredAt)') > input.json
-        - sed -i 's/'$CI_AWS_ACCOUNT_SBX'/'$TGT_ACCOUNT'/g' input.json
-        # - echo "Review input.json file...."
-        # - cat input.json
-        - echo "*****************************"        
-        - echo "Deploying new container definition..."
-        - echo "*****************************"        
-        - aws ecs register-task-definition --region $AWS_DEFAULT_REGION --cli-input-json file://input.json | grep taskDefinitionArn
-        - REVISION=$(aws ecs describe-task-definition --task-definition tsk-$CI_AWS_ECR_REPO --region $AWS_DEFAULT_REGION | egrep "revision" | tr "/" " " | awk '{print $2}' | sed 's/"$//' | cut -d "," -f 1)
-        - echo $REVISION
-        - echo "Review Cluster Definition...."
-        - echo ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION
-        - echo "Review Service Definition...."
-        - echo svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION
-        - aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-$CI_AWS_ECR_REPO:$REVISION | grep serviceArn
+    script: echo "$TGT_ENV Updated"
