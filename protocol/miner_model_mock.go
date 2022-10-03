@@ -45,7 +45,7 @@ func (m *MinerModelMock) GetHashRateGHS() int {
 	return m.HashrateGHS
 }
 func (m *MinerModelMock) GetHashRate() Hashrate {
-	return hashrate.NewHashrate(&lib.LoggerMock{}, time.Minute)
+	return hashrate.NewHashrate(&lib.LoggerMock{})
 }
 func (m *MinerModelMock) GetConnectedAt() time.Time {
 	return m.ConnectedAt
