@@ -2,7 +2,6 @@
 variables:
   WEB_ADDRESS: "0.0.0.0:8080"
   PROXY_ADDRESS: "0.0.0.0:3333"
-  ETH_NODE_ADDRESS: "wss://ropsten.infura.io/ws/v3/91fa8dea25fe4bf4b8ce1c6be8bb9eb3"
   IS_BUYER: "false"
   ENVIRONMENT: "production" # production makes logs in json and not panics when calling DPanic
   PROXY_LOG_STRATUM: "true"
@@ -59,10 +58,6 @@ test:
     - go test -v -p 1 $(go list ./... | grep -v /test) # skips the test folder for now
 default:
     image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
-    tags: 
-        - devops 
-        - bedrock
-        - shell
     before_script:
         - echo "*****************************"
         - echo "Logging in to Titanio-NET ECR ..."
@@ -78,7 +73,7 @@ default:
         - echo "Building image..."
         - echo "*****************************"
         -
-          docker build --progress=plain --build-arg api_url=$api_url 
+          docker build 
           --build-arg WEB_ADDRESS=$WEB_ADDRESS 
           --build-arg PROXY_ADDRESS=$PROXY_ADDRESS 
           --build-arg ETH_NODE_ADDRESS=$ETH_NODE_ADDRESS 
@@ -122,13 +117,15 @@ default:
         - echo "Review Service Definition...."
         - echo svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION
         - aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-$CI_AWS_ECR_REPO:$REVISION | grep serviceArn
-
 bedrock-02-DEV:
     stage: deploy
     environment: dev
     only:
         - dev
     tags:
+        - devops
+        - bedrock
+        - shell
         - titanio-dev
     variables:
         TGT_ACCOUNT: $CI_AWS_ACCOUNT_DEV
@@ -143,6 +140,9 @@ bedrock-03-STG:
         - stg
     image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
     tags:
+        - devops 
+        - bedrock
+        - shell
         - titanio-stg
     variables: 
         TGT_ACCOUNT: $CI_AWS_ACCOUNT_STG
@@ -157,6 +157,9 @@ bedrock-04-PRD:
         - main
     image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
     tags:
+        - devops 
+        - bedrock
+        - shell
         - titanio-lmn
     variables: 
         TGT_ACCOUNT: $CI_AWS_ACCOUNT_LMN
