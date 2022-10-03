@@ -32,8 +32,8 @@ type StratumV1PoolConn struct {
 	isReading          bool       // if false messages will not be availabe to read from outside, used for authentication handshake
 	mu                 sync.Mutex // guards isReading
 
-	lastRequestId *atomic.Uint32                 // stratum request id counter
-	resHandlers   map[int]StratumV1ResultHandler // allows to register callbacks for particular messages to simplify transaction flow
+	lastRequestId *atomic.Uint32 // stratum request id counter
+	resHandlers   sync.Map       // allows to register callbacks for particular messages to simplify transaction flow
 
 	log        interfaces.ILogger
 	logStratum bool
@@ -54,7 +54,7 @@ func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDe
 		customPriorityMsgs: make(chan stratumv1_message.MiningMessageGeneric, 100),
 
 		lastRequestId: atomic.NewUint32(0),
-		resHandlers:   make(map[int]StratumV1ResultHandler),
+		resHandlers:   sync.Map{},
 
 		log:        log,
 		logStratum: logStratum,
@@ -161,7 +161,7 @@ func (m *StratumV1PoolConn) SendPoolRequestWait(msg stratumv1_message.MiningMess
 	errCh := make(chan error)
 	resCh := make(chan stratumv1_message.MiningResult)
 
-	m.registerResultHandler(id, func(a stratumv1_message.MiningResult) stratumv1_message.MiningMessageGeneric {
+	m.RegisterResultHandler(id, func(a stratumv1_message.MiningResult) stratumv1_message.MiningMessageGeneric {
 		if a.IsError() {
 			errCh <- errors.New(a.GetError())
 		} else {
@@ -178,8 +178,8 @@ func (m *StratumV1PoolConn) SendPoolRequestWait(msg stratumv1_message.MiningMess
 	}
 }
 
-func (m *StratumV1PoolConn) registerResultHandler(id int, handler StratumV1ResultHandler) {
-	m.resHandlers[id] = handler
+func (m *StratumV1PoolConn) RegisterResultHandler(id int, handler StratumV1ResultHandler) {
+	m.resHandlers.Store(fmt.Sprint(id), handler)
 }
 
 // Pauses emitting any pool messages, then sends cached messages for a recent job, and then resumes pool message flow
@@ -268,9 +268,9 @@ func (s *StratumV1PoolConn) readInterceptor(m stratumv1_message.MiningMessageGen
 
 	case *stratumv1_message.MiningResult:
 		id := typedMessage.GetID()
-		handler, ok := s.resHandlers[id]
+		handler, ok := s.resHandlers.LoadAndDelete(fmt.Sprint(id))
 		if ok {
-			handledMsg := handler(*typedMessage.Copy())
+			handledMsg := handler.(StratumV1ResultHandler)(*typedMessage.Copy())
 			if handledMsg != nil {
 				m = handledMsg.(*stratumv1_message.MiningResult)
 			}
