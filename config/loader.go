@@ -78,7 +78,14 @@ func LoadConfig(cfg interface{}, osArgs *[]string) error {
 		return lib.WrapError(ErrFlagParse, err)
 	}
 
-	err = NewValidator().Struct(cfg)
+	validator, err := NewValidator()
+
+	if err != nil {
+		return lib.WrapError(ErrConfigValidation, err)
+	}
+
+	err = validator.Struct(cfg)
+
 	if err != nil {
 		return lib.WrapError(ErrConfigValidation, err)
 	}
@@ -86,9 +93,10 @@ func LoadConfig(cfg interface{}, osArgs *[]string) error {
 	return nil
 }
 
-func NewValidator() *validator.Validate {
+func NewValidator() (*validator.Validate, error) {
 	valid := validator.New()
-	valid.RegisterValidation("duration", func(fl validator.FieldLevel) bool {
+
+	err := valid.RegisterValidation("duration", func(fl validator.FieldLevel) bool {
 		kind := fl.Field().Kind()
 		if kind != reflect.Int64 {
 			return false
@@ -97,5 +105,10 @@ func NewValidator() *validator.Validate {
 		value := fl.Field().Int()
 		return value != 0
 	})
-	return valid
+
+	if err != nil {
+		return nil, err
+	}
+
+	return valid, nil
 }
