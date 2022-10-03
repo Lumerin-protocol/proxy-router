@@ -1,7 +1,8 @@
 FROM golang:1.18-alpine as builder
 WORKDIR /app 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" . && \
+    cp /app/hashrouter /usr/bin 
     # cp /bin/sh /app/sh && chmod +x /app/sh
 
 # FROM scratch
