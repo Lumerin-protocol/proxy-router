@@ -102,6 +102,7 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 	// contract is running already in buyer node
 	if c.data.State == blockchain.ContractBlockchainStateRunning {
 		go func() {
+			time.Sleep(constants.ValidationBufferPeriod)
 			err = c.fulfillContract(ctx, true)
 			if err != nil {
 				c.log.Error(err)
