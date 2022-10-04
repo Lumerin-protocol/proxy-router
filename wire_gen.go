@@ -22,7 +22,6 @@ import (
 	"gitlab.com/TitanInd/hashrouter/miner"
 	"gitlab.com/TitanInd/hashrouter/tcpserver"
 	"os"
-	"time"
 )
 
 // Injectors from main.go:
@@ -108,7 +107,7 @@ func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo inter
 		return nil, err
 	}
 
-	return miner.NewMinerController(destination, repo, l, cfg.Proxy.LogStratum, time.Duration(cfg.Miner.VettingDuration)*time.Second, cfg.Pool.MinDuration, cfg.Pool.MaxDuration), nil
+	return miner.NewMinerController(destination, repo, l, cfg.Proxy.LogStratum, cfg.Miner.VettingDuration, cfg.Pool.MinDuration, cfg.Pool.MaxDuration), nil
 }
 
 func provideApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerService) *gin.Engine {
