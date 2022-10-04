@@ -8,6 +8,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/blockchain"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/interop"
+	"gitlab.com/TitanInd/hashrouter/lib"
 )
 
 type ContractManager struct {
@@ -17,15 +18,17 @@ type ContractManager struct {
 	globalScheduler *GlobalSchedulerService
 
 	// configuration parameters
+	isBuyer          bool
 	claimFunds       bool
-	sellerAddr       interop.BlockchainAddress
-	sellerPrivateKey string
+	walletAddr       interop.BlockchainAddress
+	walletPrivateKey string
+	defaultDest      lib.Dest
 
 	// internal state
 	contracts interfaces.ICollection[IContractModel]
 }
 
-func NewContractManager(blockchain *blockchain.EthereumGateway, globalScheduler *GlobalSchedulerService, log interfaces.ILogger, contracts interfaces.ICollection[IContractModel], sellerAddr interop.BlockchainAddress, sellerPrivateKey string) *ContractManager {
+func NewContractManager(blockchain *blockchain.EthereumGateway, globalScheduler *GlobalSchedulerService, log interfaces.ILogger, contracts interfaces.ICollection[IContractModel], walletAddr interop.BlockchainAddress, walletPrivateKey string, isBuyer bool, defaultDest lib.Dest) *ContractManager {
 	return &ContractManager{
 		blockchain:      blockchain,
 		globalScheduler: globalScheduler,
@@ -33,8 +36,8 @@ func NewContractManager(blockchain *blockchain.EthereumGateway, globalScheduler 
 		log:             log,
 
 		claimFunds:       false,
-		sellerAddr:       sellerAddr,
-		sellerPrivateKey: sellerPrivateKey,
+		walletAddr:       walletAddr,
+		walletPrivateKey: walletPrivateKey,
 	}
 }
 
@@ -43,7 +46,7 @@ func (m *ContractManager) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	eventsCh, sub, err := m.blockchain.SubscribeToContractCreatedEvent(ctx)
+	eventsCh, sub, err := m.blockchain.SubscribeToCloneFactoryEvents(ctx)
 	if err != nil {
 		return err
 	}
@@ -56,10 +59,20 @@ func (m *ContractManager) Run(ctx context.Context) error {
 			switch eventHex {
 			case blockchain.ContractCreatedHex:
 				address := common.HexToAddress(payloadHex)
-				err := m.handleContract(ctx, address)
+
+				err = m.handleContract(ctx, address)
 				if err != nil {
-					m.log.Error("cannot handle created contract, skipping...", err)
+					m.log.Error("cannot handle contract, skipping...", err)
 				}
+
+			case blockchain.ClonefactoryContractPurchasedHex:
+				address := common.HexToAddress(payloadHex)
+
+				err = m.handleContract(ctx, address)
+				if err != nil {
+					m.log.Error("cannot handle purchased contract, skipping...", err)
+				}
+
 			default:
 				m.log.Debugf("ignored clonefactory event %s %s", eventHex, payloadHex)
 			}
@@ -69,14 +82,16 @@ func (m *ContractManager) Run(ctx context.Context) error {
 			return ctx.Err()
 
 		case err := <-sub.Err():
-			m.log.Error("contract created subscription error", err)
+			m.log.Error("clonefactory event subscription error", err)
 			return err
 		}
 	}
 }
 
 func (m *ContractManager) runExistingContracts() error {
-	existingContractsAddrs, err := m.blockchain.ReadContracts(m.sellerAddr)
+	var existingContractsAddrs []common.Address
+	var err error
+	existingContractsAddrs, err = m.blockchain.ReadContracts(m.walletAddr, m.isBuyer)
 	if err != nil {
 		m.log.Error("cannot read contracts", err)
 		return err
@@ -94,13 +109,20 @@ func (m *ContractManager) runExistingContracts() error {
 	return nil
 }
 
-func (m *ContractManager) handleContract(ctx context.Context, address interop.BlockchainAddress) error {
-	data, err := m.blockchain.ReadContract(address)
+func (m *ContractManager) handleContract(ctx context.Context, contractAddr common.Address) error {
+	data, err := m.blockchain.ReadContract(contractAddr)
 	if err != nil {
 		return fmt.Errorf("cannot read created contract %w", err)
 	}
 
-	contract := NewContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil)
+	contract := NewContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, m.isBuyer)
+
+	if contract.Ignore(m.walletAddr, m.defaultDest) {
+		// contract will be ignored by this node
+		return nil
+	}
+
+	m.log.Infof("handling contract \n%+v", data)
 
 	go func() {
 		err := contract.Run(ctx)

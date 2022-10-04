@@ -1,5 +1,9 @@
 package constants
 
+import (
+	"time"
+)
+
 const (
 	ContAvailableState string = "AvailableState"
 	ContRunningState   string = "RunningState"
@@ -12,4 +16,8 @@ const (
 	CloseoutTypeOnlyWithdraw CloseoutType = 1 // to be triggered by the seller to withdraw funds at any time during the smart contracts lifecycle (contract is not closing)
 	CloseoutTypeWithoutClaim CloseoutType = 2 // closeout without claiming funds
 	CloseoutTypeWithClaim    CloseoutType = 3 // closeout with claiming funds
+)
+
+const (
+	ValidationBufferPeriod time.Duration = 5 * time.Minute // buffer period before buyer node starts validating newly running contract
 )
