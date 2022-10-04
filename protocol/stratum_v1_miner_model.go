@@ -140,16 +140,23 @@ func (s *stratumV1MinerModel) Run(ctx context.Context, errCh chan error) {
 }
 
 func (s *stratumV1MinerModel) minerInterceptor(msg stratumv1_message.MiningMessageGeneric) {
-	switch msg.(type) {
+	switch typed := msg.(type) {
 	case *stratumv1_message.MiningSubmit:
-		s.validator.OnSubmit(s.difficulty)
+		s.poolConn.RegisterResultHandler(typed.GetID(), func(a stratumv1_message.MiningResult) stratumv1_message.MiningMessageGeneric {
+			if a.IsError() {
+				s.log.Warnf("error during submit: %s", a.GetError())
+				return &a
+			}
+			s.validator.OnSubmit(s.difficulty)
+			s.mutex.RLock()
+			defer s.mutex.RUnlock()
 
-		s.mutex.RLock()
-		defer s.mutex.RUnlock()
+			for _, handler := range s.onSubmit {
+				handler(uint64(s.difficulty), s.poolConn.GetDest())
+			}
+			return &a
+		})
 
-		for _, handler := range s.onSubmit {
-			handler(uint64(s.difficulty), s.poolConn.GetDest())
-		}
 	}
 }
 

@@ -96,12 +96,15 @@ func (m *ContractManager) runExistingContracts() error {
 		m.log.Error("cannot read contracts", err)
 		return err
 	}
+
 	for _, existingContractAddr := range existingContractsAddrs {
 		err := m.handleContract(context.TODO(), existingContractAddr)
 		if err != nil {
-			m.log.Errorf("cannot fulfill existing contact, skipping, addr: %s", existingContractAddr.Hash().Hex())
+			m.log.Errorf("cannot handle existing contact, skipping, addr: %s", existingContractAddr.Hash().Hex())
 		}
 	}
+
+	m.log.Infof("subscribed to (%d) existing contracts", len(existingContractsAddrs))
 
 	return nil
 }

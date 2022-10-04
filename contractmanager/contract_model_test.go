@@ -38,7 +38,7 @@ func TestListenContractEvents(t *testing.T) {
 	contract := &BTCHashrateContract{
 		log:             log,
 		blockchain:      blockchainGateway,
-		globalScheduler: NewGlobalScheduler(miner.NewMinerCollection(), log),
+		globalScheduler: NewGlobalScheduler(miner.NewMinerCollection(), log, 0, 0),
 	}
 
 	testContext := context.TODO()

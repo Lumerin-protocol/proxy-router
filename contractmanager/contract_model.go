@@ -45,7 +45,7 @@ type BTCHashrateContract struct {
 
 func NewContract(data blockchain.ContractData, blockchain interfaces.IBlockchainGateway, globalScheduler *GlobalSchedulerService, log interfaces.ILogger, hr *hashrate.Hashrate, isBuyer bool) *BTCHashrateContract {
 	if hr == nil {
-		hr = hashrate.NewHashrate(log, hashrate.EMA_INTERVAL)
+		hr = hashrate.NewHashrate(log)
 	}
 	return &BTCHashrateContract{
 		blockchain:      blockchain,
@@ -133,9 +133,13 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 				// use the same group to fail together with main goroutine
 				// seller node responds to purchase events off the contract
 				go func() {
-					err = c.fulfillContract(ctx)
+					err = c.FulfillContract(ctx)
 					if err != nil {
 						c.log.Error(err)
+						err := c.Close()
+						if err != nil {
+							c.log.Error(err)
+						}
 					}
 				}()
 				continue
@@ -180,23 +184,23 @@ func (c *BTCHashrateContract) fulfillBuyerContract(ctx context.Context) error {
 		return nil // not buyer in buyer case
 	}
 	time.Sleep(constants.ValidationBufferPeriod)
-	return c.fulfillContract(ctx)
+	return c.FulfillContract(ctx)
 }
 
-func (c *BTCHashrateContract) fulfillContract(ctx context.Context) error {
+func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 
 	c.state = ContractStatePurchased
 
 	if c.ContractIsExpired() {
 		c.log.Warn("contract is expired %s", c.GetID())
-		return nil
+		return fmt.Errorf("contract is expired")
 	}
 	//race condition here for some contract closeout scenarios
 	// initialization cycle waits for hashpower to be available
 	// for {
 	err := c.StartHashrateAllocation()
 	if err != nil {
-		return c.Close()
+		return err
 	}
 
 	// break
@@ -214,10 +218,7 @@ func (c *BTCHashrateContract) fulfillContract(ctx context.Context) error {
 
 		if c.ContractIsExpired() {
 			c.log.Info("contract time ended, or state is closed, closing...", c.GetID())
-
-			c.Close()
-
-			return nil
+			return fmt.Errorf("contract is expired")
 		}
 
 		// TODO hashrate monitoring
@@ -225,8 +226,7 @@ func (c *BTCHashrateContract) fulfillContract(ctx context.Context) error {
 
 		minerIDs, err := c.globalScheduler.UpdateCombination(ctx, c.minerIDs, c.GetHashrateGHS(), c.GetDest(), c.GetID())
 		if err != nil {
-			c.Close()
-			c.log.Warnf("error during combination update %s", err)
+			return fmt.Errorf("contract is expired")
 		} else {
 			c.minerIDs = minerIDs
 		}
@@ -329,7 +329,6 @@ func (c *BTCHashrateContract) GetStartTime() *time.Time {
 }
 
 func (c *BTCHashrateContract) GetEndTime() *time.Time {
-
 	endTime := c.GetStartTime().Add(c.GetDuration())
 	return &endTime
 }

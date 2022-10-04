@@ -52,8 +52,8 @@ func InitApp() (*app.App, error) {
 	return nil, nil
 }
 
-func provideGlobalScheduler(miners interfaces.ICollection[miner.MinerScheduler], log interfaces.ILogger) *contractmanager.GlobalSchedulerService {
-	return contractmanager.NewGlobalScheduler(miners, log)
+func provideGlobalScheduler(cfg *config.Config, miners interfaces.ICollection[miner.MinerScheduler], log interfaces.ILogger) *contractmanager.GlobalSchedulerService {
+	return contractmanager.NewGlobalScheduler(miners, log, cfg.Pool.MinDuration, cfg.Pool.MaxDuration)
 }
 
 func provideMinerCollection() interfaces.ICollection[miner.MinerScheduler] {
@@ -70,11 +70,11 @@ func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo inter
 		return nil, err
 	}
 
-	return miner.NewMinerController(destination, repo, l, cfg.Proxy.LogStratum, time.Duration(cfg.Miner.VettingPeriodSeconds)*time.Second), nil
+	return miner.NewMinerController(destination, repo, l, cfg.Proxy.LogStratum, time.Duration(cfg.Miner.VettingDuration)*time.Second, cfg.Pool.MinDuration, cfg.Pool.MaxDuration), nil
 }
 
-func provideApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel]) *gin.Engine {
-	return api.NewApiController(miners, contracts)
+func provideApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerService) *gin.Engine {
+	return api.NewApiController(miners, contracts, log, gs)
 }
 
 func provideTCPServer(cfg *config.Config, l interfaces.ILogger) *tcpserver.TCPServer {

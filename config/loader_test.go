@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 )
@@ -14,6 +15,7 @@ type TestConfig struct {
 	NestedStruct struct {
 		NestedVal string `env:"NESTED_VAL" flag:"nested-val"`
 	}
+	DurationVal time.Duration `env:"DURATION_VAL"`
 }
 
 type TestConfigRequired struct {
@@ -70,6 +72,21 @@ func TestEnvNestedVal(t *testing.T) {
 	}
 	if config.NestedStruct.NestedVal != val {
 		t.Fatal()
+	}
+}
+
+func TestEnvDuration(t *testing.T) {
+	expectedSeconds := 123
+	t.Setenv("DURATION_VAL", fmt.Sprintf("%ds", expectedSeconds))
+	var config TestConfig
+
+	err := LoadConfig(&config, &[]string{"cmd"})
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+	actualSeconds := int(config.DurationVal.Seconds())
+	if actualSeconds != expectedSeconds {
+		t.Fatalf("expected (%d) actual (%d)", expectedSeconds, actualSeconds)
 	}
 }
 
