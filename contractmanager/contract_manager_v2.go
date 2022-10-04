@@ -6,7 +6,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
-	"gitlab.com/TitanInd/hashrouter/constants"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/lib"
@@ -112,16 +111,10 @@ func (m *ContractManager) handleContract(ctx context.Context, contractAddr commo
 	if err != nil {
 		return fmt.Errorf("cannot read created contract %w", err)
 	}
-	var closeoutType constants.CloseoutType
-	switch m.isBuyer {
-	case true:
-		closeoutType = constants.CloseoutTypeCancel
-	case false:
-		closeoutType = constants.CloseoutTypeWithoutClaim
-	}
-	contract := NewContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, closeoutType)
 
-	if contract.Ignore(m.isBuyer, m.walletAddr, m.defaultDest) {
+	contract := NewContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, m.isBuyer)
+
+	if contract.Ignore(m.walletAddr, m.defaultDest) {
 		// contract will be ignored by this node
 		return nil
 	}

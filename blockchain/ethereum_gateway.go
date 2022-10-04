@@ -152,8 +152,7 @@ func (g *EthereumGateway) ReadContracts(walletAddr interop.BlockchainAddress, is
 			g.log.Error(err)
 			return nil, err
 		}
-		switch isBuyer {
-		case true:
+		if isBuyer {
 			hashrateContractBuyer, err := hashrateContractInstance.Buyer(nil)
 			if err != nil {
 				g.log.Error(err)
@@ -162,7 +161,7 @@ func (g *EthereumGateway) ReadContracts(walletAddr interop.BlockchainAddress, is
 			if hashrateContractBuyer == walletAddr {
 				walletContractAddresses = append(walletContractAddresses, hashrateContractAddresses[i])
 			}
-		case false:
+		} else {
 			hashrateContractSeller, err := hashrateContractInstance.Seller(nil)
 			if err != nil {
 				g.log.Error(err)
