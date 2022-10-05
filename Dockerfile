@@ -14,7 +14,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" . && \
 
 # SHELL ["/bin/sh", "-c"]
 
-ARG ETH_NODE_ADDRESS="wss://ropsten.infura.io/ws/v3/91fa8dea25fe4bf4b8ce1c6be8bb9eb3" 
+ARG ETH_NODE_ADDRESS
 ENV ETH_NODE_ADDRESS=$ETH_NODE_ADDRESS
 ARG WEB_ADDRESS 
 ENV WEB_ADDRESS=$WEB_ADDRESS
