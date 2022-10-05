@@ -20,24 +20,28 @@ type StratumV1PoolConnPool struct {
 	errCh      chan error
 }
 
-func NewStratumV1PoolPool(log interfaces.ILogger, logStratum bool, errCh chan error) *StratumV1PoolConnPool {
+func NewStratumV1PoolPool(log interfaces.ILogger, logStratum bool) *StratumV1PoolConnPool {
 	return &StratumV1PoolConnPool{
 		pool:       sync.Map{},
 		log:        log,
 		logStratum: logStratum,
-		errCh:      errCh,
+		errCh:      make(chan error),
 	}
 }
 
-func (p *StratumV1PoolConnPool) CloseAllPoolConn() {
+func (p *StratumV1PoolConnPool) ErrorChannel() chan error {
+	return p.errCh
+}
+
+func (p *StratumV1PoolConnPool) Close() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.pool.Range(func(key, value interface{}) bool {
 		poolConn := value.(*StratumV1PoolConn)
 		poolConn.conn.Close()
-		p.pool.Delete(key.(string))
 		return true
 	})
+	p.pool = sync.Map{}
 }
 
 func (p *StratumV1PoolConnPool) GetDest() interfaces.IDestination {

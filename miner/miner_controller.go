@@ -59,11 +59,10 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	}
 
 	incomingConn = buffered
-	errCh := make(chan error)
 
 	logMiner := p.log.Named(incomingConn.RemoteAddr().String())
 
-	poolPool := protocol.NewStratumV1PoolPool(logMiner, p.logStratum, errCh)
+	poolPool := protocol.NewStratumV1PoolPool(logMiner, p.logStratum)
 	err = poolPool.SetDest(p.defaultDest, nil)
 	if err != nil {
 		p.log.Error(err)
@@ -82,7 +81,8 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 
 	p.collection.Store(minerScheduler)
 	defer p.collection.Delete(minerScheduler.GetID())
-	defer poolPool.CloseAllPoolConn()
+	defer poolPool.Close()
+	errCh := poolPool.ErrorChannel()
 	go func() {
 		errCh <- minerScheduler.Run(ctx)
 	}()
