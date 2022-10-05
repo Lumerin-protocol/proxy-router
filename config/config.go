@@ -5,7 +5,7 @@ import "time"
 // Validation tags described here: https://github.com/go-playground/validator
 type Config struct {
 	Contract struct {
-		Address             string `env:"WALLET_ADDRESS" flag:"contract-address" validate:"required,eth_addr"`
+		Address             string `env:"CLONE_FACTORY_ADDRESS" flag:"contract-address" validate:"required,eth_addr"`
 		IsBuyer             bool   `env:"IS_BUYER" flag:"is-buyer"`
 		Mnemonic            string `env:"CONTRACT_MNEMONIC"`
 		AccountIndex        int    `env:"ACCOUNT_INDEX"`
