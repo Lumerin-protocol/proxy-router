@@ -19,15 +19,19 @@ type MinerController struct {
 	log                interfaces.ILogger
 	logStratum         bool
 	minerVettingPeriod time.Duration
+	poolMinDuration    time.Duration
+	poolMaxDuration    time.Duration
 }
 
-func NewMinerController(defaultDest interfaces.IDestination, collection interfaces.ICollection[MinerScheduler], log interfaces.ILogger, logStratum bool, minerVettingPeriod time.Duration) *MinerController {
+func NewMinerController(defaultDest interfaces.IDestination, collection interfaces.ICollection[MinerScheduler], log interfaces.ILogger, logStratum bool, minerVettingPeriod time.Duration, poolMinDuration, poolMaxDuration time.Duration) *MinerController {
 	return &MinerController{
 		defaultDest:        defaultDest,
 		log:                log,
 		collection:         collection,
 		logStratum:         logStratum,
 		minerVettingPeriod: minerVettingPeriod,
+		poolMinDuration:    poolMinDuration,
+		poolMaxDuration:    poolMaxDuration,
 	}
 }
 
@@ -57,7 +61,9 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	incomingConn = buffered
 	errCh := make(chan error)
 
-	poolPool := protocol.NewStratumV1PoolPool(p.log.Named(incomingConn.RemoteAddr().String()), p.logStratum, errCh)
+	logMiner := p.log.Named(incomingConn.RemoteAddr().String())
+
+	poolPool := protocol.NewStratumV1PoolPool(logMiner, p.logStratum, errCh)
 	err = poolPool.SetDest(p.defaultDest, nil)
 	if err != nil {
 		p.log.Error(err)
@@ -65,13 +71,13 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	}
 	extranonce, size := poolPool.GetExtranonce()
 	msg := stratumv1_message.NewMiningSubscribeResult(extranonce, size)
-	miner := protocol.NewStratumV1MinerConn(incomingConn, p.log, msg, p.logStratum, time.Now())
-	validator := hashrate.NewHashrate(p.log, hashrate.EMA_INTERVAL)
-	minerModel := protocol.NewStratumV1MinerModel(poolPool, miner, validator, p.log)
+	miner := protocol.NewStratumV1MinerConn(incomingConn, logMiner, msg, p.logStratum, time.Now())
+	validator := hashrate.NewHashrate(logMiner)
+	minerModel := protocol.NewStratumV1MinerModel(poolPool, miner, validator, logMiner)
 
 	destSplit := NewDestSplit()
 
-	minerScheduler := NewOnDemandMinerScheduler(minerModel, destSplit, p.log, p.defaultDest, p.minerVettingPeriod)
+	minerScheduler := NewOnDemandMinerScheduler(minerModel, destSplit, logMiner, p.defaultDest, p.minerVettingPeriod, p.poolMinDuration, p.poolMaxDuration)
 	// try to connect to dest before running
 
 	p.collection.Store(minerScheduler)

@@ -69,8 +69,8 @@ func NewEthereumGateway(ethClient *ethclient.Client, privateKeyString string, cl
 	return g, nil
 }
 
-// SubscribeToContractCreatedEvent returns channel with events like new contract creation
-func (g *EthereumGateway) SubscribeToContractCreatedEvent(ctx context.Context) (chan types.Log, interop.BlockchainEventSubscription, error) {
+// SubscribeToCloneFactoryEvents returns channel with events like new contract creation and contract purchasing
+func (g *EthereumGateway) SubscribeToCloneFactoryEvents(ctx context.Context) (chan types.Log, interop.BlockchainEventSubscription, error) {
 	return g.SubscribeToContractEvents(ctx, g.cloneFactoryAddr)
 }
 
@@ -136,33 +136,44 @@ func (g *EthereumGateway) ReadContract(contractAddress common.Address) (interfac
 	return contractData, nil
 }
 
-func (g *EthereumGateway) ReadContracts(sellerAccountAddr interop.BlockchainAddress) ([]interop.BlockchainAddress, error) {
+func (g *EthereumGateway) ReadContracts(walletAddr interop.BlockchainAddress, isBuyer bool) ([]interop.BlockchainAddress, error) {
 	hashrateContractAddresses, err := g.cloneFactory.GetContractList(&bind.CallOpts{})
 	if err != nil {
 		g.log.Error(err)
 		return nil, err
 	}
 
-	var sellerContractAddresses []common.Address
+	var walletContractAddresses []common.Address
 
-	// parse existing hashrate contracts for ones that belong to seller
+	// parse existing hashrate contracts for ones that belong to seller or buyer
 	for i := range hashrateContractAddresses {
 		hashrateContractInstance, err := implementation.NewImplementation(hashrateContractAddresses[i], g.client)
 		if err != nil {
 			g.log.Error(err)
 			return nil, err
 		}
-		hashrateContractSeller, err := hashrateContractInstance.Seller(nil)
-		if err != nil {
-			g.log.Error(err)
-			return nil, err
-		}
-		if hashrateContractSeller == sellerAccountAddr {
-			sellerContractAddresses = append(sellerContractAddresses, hashrateContractAddresses[i])
+		if isBuyer {
+			hashrateContractBuyer, err := hashrateContractInstance.Buyer(nil)
+			if err != nil {
+				g.log.Error(err)
+				return nil, err
+			}
+			if hashrateContractBuyer == walletAddr {
+				walletContractAddresses = append(walletContractAddresses, hashrateContractAddresses[i])
+			}
+		} else {
+			hashrateContractSeller, err := hashrateContractInstance.Seller(nil)
+			if err != nil {
+				g.log.Error(err)
+				return nil, err
+			}
+			if hashrateContractSeller == walletAddr {
+				walletContractAddresses = append(walletContractAddresses, hashrateContractAddresses[i])
+			}
 		}
 	}
 
-	return sellerContractAddresses, nil
+	return walletContractAddresses, nil
 }
 
 // SetContractCloseOut closes the contract with specified closeoutType

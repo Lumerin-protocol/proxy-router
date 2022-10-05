@@ -11,7 +11,7 @@ import (
 )
 
 type IBlockchainGateway interface {
-	SubscribeToContractCreatedEvent(ctx context.Context) (chan types.Log, interop.BlockchainEventSubscription, error)
+	SubscribeToCloneFactoryEvents(ctx context.Context) (chan types.Log, interop.BlockchainEventSubscription, error)
 
 	// SubscribeToContractEvents returns channel with events for particular contract
 	SubscribeToContractEvents(ctx context.Context, contractAddress common.Address) (chan types.Log, ethereum.Subscription, error)
@@ -19,7 +19,7 @@ type IBlockchainGateway interface {
 	// ReadContract reads contract information encoded in the blockchain
 	ReadContract(contractAddress common.Address) (interface{}, error)
 
-	ReadContracts(sellerAccountAddr interop.BlockchainAddress) ([]interop.BlockchainAddress, error)
+	ReadContracts(walletAddr interop.BlockchainAddress, isBuyer bool) ([]interop.BlockchainAddress, error)
 
 	// SetContractCloseOut closes the contract with specified closeoutType
 	SetContractCloseOut(fromAddress string, contractAddress string, closeoutType int64) error
