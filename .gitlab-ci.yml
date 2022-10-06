@@ -12,6 +12,15 @@ variables:
 stages:
   - test
   - deploy
+  - e2e-test
+
+e2e-test:
+  stage: e2e-test
+  trigger:
+    project: proxy/router-test
+    branch: $CI_COMMIT_BRANCH
+    strategy: depend
+
 lint:
   inherit:
       default: false
@@ -58,11 +67,6 @@ test:
     - go test -v -p 1 $(go list ./... | grep -v /test) # skips the test folder for now
 default:
     image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
-      trigger:
-        project: proxy/router-test
-        branch: $CI_COMMIT_BRANCH
-        strategy: depend
-
     before_script:
         - echo "*****************************"
         - echo "Logging in to Titanio-NET ECR ..."
