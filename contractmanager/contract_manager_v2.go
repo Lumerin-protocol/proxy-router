@@ -48,9 +48,10 @@ func NewContractManager(
 		contracts:       contracts,
 		log:             log,
 
-		claimFunds:             false,
+		isBuyer:                isBuyer,
 		hashrateDiffThreshold:  hashrateDiffThreshold,
 		validationBufferPeriod: validationBufferPeriod,
+		claimFunds:             false,
 		walletAddr:             walletAddr,
 		walletPrivateKey:       walletPrivateKey,
 	}
