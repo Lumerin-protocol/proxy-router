@@ -31,9 +31,11 @@ type BTCHashrateContract struct {
 	blockchain      interfaces.IBlockchainGateway
 	globalScheduler *GlobalSchedulerService
 
-	data                  blockchain.ContractData
-	FullfillmentStartTime *time.Time
-	isBuyer               bool
+	data                   blockchain.ContractData
+	FullfillmentStartTime  *time.Time
+	isBuyer                bool
+	hashrateDiffThreshold  float64 
+	validationBufferPeriod int
 
 	state ContractState // internal state of the contract (within hashrouter)
 
@@ -43,18 +45,29 @@ type BTCHashrateContract struct {
 	log interfaces.ILogger
 }
 
-func NewContract(data blockchain.ContractData, blockchain interfaces.IBlockchainGateway, globalScheduler *GlobalSchedulerService, log interfaces.ILogger, hr *hashrate.Hashrate, isBuyer bool) *BTCHashrateContract {
+func NewContract(
+	data blockchain.ContractData, 
+	blockchain interfaces.IBlockchainGateway, 
+	globalScheduler *GlobalSchedulerService, 
+	log interfaces.ILogger, 
+	hr *hashrate.Hashrate, 
+	isBuyer bool,
+	hashrateDiffThreshold  float64, 
+	validationBufferPeriod int,
+	) *BTCHashrateContract {
 	if hr == nil {
 		hr = hashrate.NewHashrate(log)
 	}
 	return &BTCHashrateContract{
-		blockchain:      blockchain,
-		data:            data,
-		hashrate:        hr,
-		log:             log,
-		isBuyer:         isBuyer,
-		globalScheduler: globalScheduler,
-		state:           ContractStateAvailable,
+		blockchain:             blockchain,
+		data:                   data,
+		hashrate:               hr,
+		log:                    log,
+		isBuyer:                isBuyer,
+		hashrateDiffThreshold:  hashrateDiffThreshold,
+		validationBufferPeriod: validationBufferPeriod,
+		globalScheduler:        globalScheduler,
+		state:                  ContractStateAvailable,
 	}
 }
 
@@ -183,7 +196,7 @@ func (c *BTCHashrateContract) fulfillBuyerContract(ctx context.Context) error {
 	if c.data.State != blockchain.ContractBlockchainStateRunning {
 		return nil // not buyer in buyer case
 	}
-	time.Sleep(constants.ValidationBufferPeriod)
+	time.Sleep(time.Second * time.Duration(c.validationBufferPeriod))
 	return c.FulfillContract(ctx)
 }
 
@@ -224,7 +237,7 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 		// TODO hashrate monitoring
 		c.log.Infof("contract (%s) is running for %.0f seconds", c.GetID(), time.Since(*c.GetStartTime()).Seconds())
 
-		minerIDs, err := c.globalScheduler.UpdateCombination(ctx, c.minerIDs, c.GetHashrateGHS(), c.GetDest(), c.GetID())
+		minerIDs, err := c.globalScheduler.UpdateCombination(ctx, c.minerIDs, c.GetHashrateGHS(), c.GetDest(), c.GetID(), c.hashrateDiffThreshold)
 		if err != nil {
 			return fmt.Errorf("contract is expired")
 		} else {

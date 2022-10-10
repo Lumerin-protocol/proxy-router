@@ -5,18 +5,19 @@ import "time"
 // Validation tags described here: https://github.com/go-playground/validator
 type Config struct {
 	Contract struct {
-		Address             string `env:"CLONE_FACTORY_ADDRESS" flag:"contract-address" validate:"required,eth_addr"`
-		IsBuyer             bool   `env:"IS_BUYER" flag:"is-buyer"`
-		Mnemonic            string `env:"CONTRACT_MNEMONIC"`
-		AccountIndex        int    `env:"ACCOUNT_INDEX"`
-		WalletPrivateKey    string `env:"WALLET_PRIVATE_KEY"`
-		WalletAddress       string `env:"WALLET_ADDRESS"`
-		EthNodeAddr         string
-		ClaimFunds          bool
-		TimeThreshold       int
-		LumerinTokenAddress string
-		ValidatorAddress    string
-		ProxyAddress        string
+		Address                string  `env:"CLONE_FACTORY_ADDRESS" flag:"contract-address" validate:"required,eth_addr"`
+		IsBuyer                bool    `env:"IS_BUYER" flag:"is-buyer"`
+		HashrateDiffThreshold  float64 `env:"HASHRATE_DIFF_THRESHOLD"`
+		ValidationBufferPeriod int     `env:"VALIDATION_BUFFER_PERIOD"`
+		Mnemonic               string  `env:"CONTRACT_MNEMONIC"`
+		AccountIndex           int     `env:"ACCOUNT_INDEX"`
+		WalletPrivateKey       string  `env:"WALLET_PRIVATE_KEY"`
+		WalletAddress          string  `env:"WALLET_ADDRESS"`
+		EthNodeAddr            string
+		ClaimFunds             bool
+		LumerinTokenAddress    string
+		ValidatorAddress       string
+		ProxyAddress           string
 	}
 	Environment string `env:"ENVIRONMENT" flag:"environment"`
 	EthNode     struct {

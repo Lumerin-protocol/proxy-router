@@ -161,7 +161,7 @@ func provideContractManager(
 		return nil, err
 	}
 
-	return contractmanager.NewContractManager(ethGateway, globalScheduler, log, contracts, ethWallet.GetAccountAddress(), ethWallet.GetPrivateKey(), cfg.Contract.IsBuyer, destination), nil
+	return contractmanager.NewContractManager(ethGateway, globalScheduler, log, contracts, ethWallet.GetAccountAddress(), ethWallet.GetPrivateKey(), cfg.Contract.IsBuyer, cfg.Contract.HashrateDiffThreshold, cfg.Contract.ValidationBufferPeriod, destination), nil
 }
 
 func provideLogger(cfg *config.Config) (interfaces.ILogger, error) {
