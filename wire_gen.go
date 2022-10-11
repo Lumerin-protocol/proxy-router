@@ -22,6 +22,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/miner"
 	"gitlab.com/TitanInd/hashrouter/tcpserver"
 	"os"
+	"time"
 )
 
 // Injectors from main.go:
@@ -134,7 +135,8 @@ func provideEthWallet(cfg *config.Config) (*blockchain.EthereumWallet, error) {
 }
 
 func provideEthGateway(cfg *config.Config, ethClient *ethclient.Client, ethWallet *blockchain.EthereumWallet, log interfaces.ILogger) (*blockchain.EthereumGateway, error) {
-	g, err := blockchain.NewEthereumGateway(ethClient, ethWallet.GetPrivateKey(), cfg.Contract.Address, log)
+	backoff := lib.NewLinearBackoff(2*time.Second, nil, lib.Of(15*time.Second))
+	g, err := blockchain.NewEthereumGateway(ethClient, ethWallet.GetPrivateKey(), cfg.Contract.Address, log, backoff)
 	if err != nil {
 		return nil, err
 	}
@@ -165,9 +167,7 @@ func provideContractManager(
 }
 
 func provideLogger(cfg *config.Config) (interfaces.ILogger, error) {
-	logger, err := lib.NewLogger(cfg.Environment == "production")
-
-	return logger, err
+	return lib.NewLogger(cfg.Environment == "production")
 }
 
 func provideConfig() (*config.Config, error) {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/hex"
 	"math/big"
-	"sync"
 	"time"
 
 	ethereum "github.com/ethereum/go-ethereum"
@@ -13,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/lib"
@@ -28,25 +26,24 @@ type closeout struct {
 }
 
 type EthereumGateway struct {
-	client                 *ethclient.Client
+	client                 EthereumClient
 	cloneFactory           *clonefactory.Clonefactory
 	sellerPrivateKeyString string
 	cloneFactoryAddr       common.Address
 	log                    interfaces.ILogger
-	mutex                  sync.Mutex
-	startCloseout          chan *closeout
-	endCloseout            chan error
+
+	startCloseout chan *closeout
+	endCloseout   chan error
+	retry         lib.RetryFn
 }
 
-func NewEthereumGateway(ethClient *ethclient.Client, privateKeyString string, cloneFactoryAddrStr string, log interfaces.ILogger) (*EthereumGateway, error) {
+func NewEthereumGateway(ethClient EthereumClient, privateKeyString string, cloneFactoryAddrStr string, log interfaces.ILogger, retry lib.RetryFn) (*EthereumGateway, error) {
 	// TODO: extract it to dependency injection, because we'll going to have only one cloneFactory per project
 	cloneFactoryAddr := common.HexToAddress(cloneFactoryAddrStr)
 	cloneFactory, err := clonefactory.NewClonefactory(cloneFactoryAddr, ethClient)
 	if err != nil {
 		return nil, err
 	}
-
-	// pendingNonce := PendingNonce{mutex: sync.Mutex{}}
 
 	g := &EthereumGateway{
 		client:                 ethClient,
@@ -56,12 +53,12 @@ func NewEthereumGateway(ethClient *ethclient.Client, privateKeyString string, cl
 		log:                    log,
 		startCloseout:          make(chan *closeout),
 		endCloseout:            make(chan error),
+		retry:                  retry,
 	}
 
 	go func() {
 		for {
 			closeout := <-g.startCloseout
-
 			g.endCloseout <- g.setContractCloseOut(closeout.fromAddress, closeout.contractAddress, closeout.closeoutType)
 		}
 	}()
@@ -80,25 +77,77 @@ func (g *EthereumGateway) SubscribeToContractEvents(ctx context.Context, contrac
 		Addresses: []common.Address{contractAddress},
 	}
 
-	timeoutContext, cancelFunc := context.WithTimeout(ctx, 15*time.Second)
+	// timeoutCtx, _ := context.WithTimeout(ctx, g.subscribeTimeout)
+	// defer cancelFunc()
 
-	logs := make(chan types.Log)
-
-	sub, err := g.client.SubscribeFilterLogs(timeoutContext, query, logs)
-
+	logs, sub, err := g.subscribeFilterLogsReconnect(ctx, query, g.retry)
 	if err != nil {
-		cancelFunc()
 		g.log.Error(err)
 		return logs, sub, err
 	}
 
-	go func() {
-		<-timeoutContext.Done()
+	return logs, sub, nil
+}
 
-		cancelFunc()
+func (g *EthereumGateway) subscribeFilterLogsReconnect(ctx context.Context, query ethereum.FilterQuery, retryFn lib.RetryFn) (chan types.Log, ethereum.Subscription, error) {
+	var sub ethereum.Subscription
+	logs := make(chan types.Log)
+	attempt := 0
+
+	go func() {
+		for {
+			g.log.Debugf("log subscription init")
+
+			// temporary channel to be used for each attempt to subscribe
+			channel := make(chan types.Log)
+
+			sub, err := g.client.SubscribeFilterLogs(ctx, query, channel)
+			if err != nil {
+				attempt++
+				if retryFn != nil {
+					duration, done := retryFn(attempt)
+					if done {
+						g.log.Error("retries exhaused")
+						return
+					}
+					g.log.Warnf("sleeping %.1f s attempt %d", duration.Seconds(), attempt)
+					time.Sleep(duration)
+				}
+				g.log.Errorf("error during log subscription init, reconnection... %s", err)
+				continue
+			}
+			attempt = 0
+
+		MSG_LOOP:
+			for {
+				select {
+				case msg := <-channel:
+					logs <- msg
+				case err := <-sub.Err():
+					if err != nil {
+						g.log.Errorf("error during log subscription read %s", err)
+						break MSG_LOOP
+					}
+					// if err==nil then unsubscribe was called
+					close(logs)
+					return
+				case <-ctx.Done():
+					g.log.Warnf("context closed in eth gateway %s", ctx.Err())
+					close(logs)
+					return
+				}
+			}
+		}
 	}()
 
-	return logs, sub, nil
+	errCh := make(chan error, 1)
+	wrappedSub := NewClientSubscription(errCh, func() {
+		if sub != nil {
+			sub.Unsubscribe()
+		}
+	})
+
+	return logs, wrappedSub, nil
 }
 
 // ReadContract reads contract information encoded in the blockchain
