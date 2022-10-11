@@ -34,7 +34,7 @@ type BTCHashrateContract struct {
 	data                   blockchain.ContractData
 	FullfillmentStartTime  *time.Time
 	isBuyer                bool
-	hashrateDiffThreshold  float64 
+	hashrateDiffThreshold  float64
 	validationBufferPeriod int
 
 	state ContractState // internal state of the contract (within hashrouter)
@@ -46,15 +46,15 @@ type BTCHashrateContract struct {
 }
 
 func NewContract(
-	data blockchain.ContractData, 
-	blockchain interfaces.IBlockchainGateway, 
-	globalScheduler *GlobalSchedulerService, 
-	log interfaces.ILogger, 
-	hr *hashrate.Hashrate, 
+	data blockchain.ContractData,
+	blockchain interfaces.IBlockchainGateway,
+	globalScheduler *GlobalSchedulerService,
+	log interfaces.ILogger,
+	hr *hashrate.Hashrate,
 	isBuyer bool,
-	hashrateDiffThreshold  float64, 
+	hashrateDiffThreshold float64,
 	validationBufferPeriod int,
-	) *BTCHashrateContract {
+) *BTCHashrateContract {
 	if hr == nil {
 		hr = hashrate.NewHashrate(log)
 	}

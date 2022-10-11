@@ -19,7 +19,7 @@ type ContractManager struct {
 
 	// configuration parameters
 	isBuyer                bool
-	hashrateDiffThreshold  float64 
+	hashrateDiffThreshold  float64
 	validationBufferPeriod int
 	claimFunds             bool
 	walletAddr             interop.BlockchainAddress
@@ -31,17 +31,17 @@ type ContractManager struct {
 }
 
 func NewContractManager(
-	blockchain *blockchain.EthereumGateway, 
-	globalScheduler *GlobalSchedulerService, 
-	log interfaces.ILogger, 
-	contracts interfaces.ICollection[IContractModel], 
-	walletAddr interop.BlockchainAddress, 
-	walletPrivateKey string, 
-	isBuyer bool, 
-	hashrateDiffThreshold float64, 
-	validationBufferPeriod int, 
+	blockchain *blockchain.EthereumGateway,
+	globalScheduler *GlobalSchedulerService,
+	log interfaces.ILogger,
+	contracts interfaces.ICollection[IContractModel],
+	walletAddr interop.BlockchainAddress,
+	walletPrivateKey string,
+	isBuyer bool,
+	hashrateDiffThreshold float64,
+	validationBufferPeriod int,
 	defaultDest lib.Dest,
-	) *ContractManager {
+) *ContractManager {
 	return &ContractManager{
 		blockchain:      blockchain,
 		globalScheduler: globalScheduler,
