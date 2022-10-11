@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"os"
+	"time"
 
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/gin-gonic/gin"
@@ -35,7 +36,7 @@ func main() {
 
 var networkSet = wire.NewSet(provideTCPServer, provideApiServer)
 var protocolSet = wire.NewSet(provideMinerCollection, provideMinerController, eventbus.NewEventBus)
-var contractsSet = wire.NewSet(provideGlobalScheduler, provideContractCollection, provideEthClient, provideEthWallet, provideEthGateway, provideSellerContractManager)
+var contractsSet = wire.NewSet(provideGlobalScheduler, provideContractCollection, provideEthClient, provideEthWallet, provideEthGateway, provideContractManager)
 
 // TODO: make sure all providers initialized
 func InitApp() (*app.App, error) {
@@ -93,7 +94,8 @@ func provideEthWallet(cfg *config.Config) (*blockchain.EthereumWallet, error) {
 }
 
 func provideEthGateway(cfg *config.Config, ethClient *ethclient.Client, ethWallet *blockchain.EthereumWallet, log interfaces.ILogger) (*blockchain.EthereumGateway, error) {
-	g, err := blockchain.NewEthereumGateway(ethClient, ethWallet.GetPrivateKey(), cfg.Contract.Address, log)
+	backoff := lib.NewLinearBackoff(2*time.Second, nil, lib.Of(15*time.Second))
+	g, err := blockchain.NewEthereumGateway(ethClient, ethWallet.GetPrivateKey(), cfg.Contract.Address, log, backoff)
 	if err != nil {
 		return nil, err
 	}
@@ -107,21 +109,24 @@ func provideEthGateway(cfg *config.Config, ethClient *ethclient.Client, ethWalle
 	return g, nil
 }
 
-func provideSellerContractManager(
+func provideContractManager(
 	cfg *config.Config,
 	ethGateway *blockchain.EthereumGateway,
 	ethWallet *blockchain.EthereumWallet,
 	globalScheduler *contractmanager.GlobalSchedulerService,
 	contracts interfaces.ICollection[contractmanager.IContractModel],
 	log interfaces.ILogger,
-) *contractmanager.ContractManager {
-	return contractmanager.NewContractManager(ethGateway, globalScheduler, log, contracts, ethWallet.GetAccountAddress(), ethWallet.GetPrivateKey())
+) (*contractmanager.ContractManager, error) {
+	destination, err := lib.ParseDest(cfg.Pool.Address)
+	if err != nil {
+		return nil, err
+	}
+
+	return contractmanager.NewContractManager(ethGateway, globalScheduler, log, contracts, ethWallet.GetAccountAddress(), ethWallet.GetPrivateKey(), cfg.Contract.IsBuyer, destination), nil
 }
 
 func provideLogger(cfg *config.Config) (interfaces.ILogger, error) {
-	logger, err := lib.NewLogger(cfg.Environment == "production")
-
-	return logger, err
+	return lib.NewLogger(cfg.Environment == "production")
 }
 
 func provideConfig() (*config.Config, error) {
