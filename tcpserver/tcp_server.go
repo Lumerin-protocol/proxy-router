@@ -2,7 +2,6 @@ package tcpserver
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -65,11 +64,9 @@ func (p *TCPServer) Run(ctx context.Context) error {
 func (p *TCPServer) startAccepting(ctx context.Context, listener *net.TCPListener) error {
 	for {
 		conn, err := listener.Accept()
-		if errors.Is(err, net.ErrClosed) {
-			return nil
-		}
 		if err != nil {
-			p.log.Errorf("incoming connection accept error: %w", err)
+			p.log.Errorf("incoming connection accept error: %s", err)
+			continue
 		}
 
 		if p.handler != nil {
