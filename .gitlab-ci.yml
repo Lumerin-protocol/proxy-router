@@ -92,10 +92,9 @@ default:
           --build-arg POOL_ADDRESS=$POOL_ADDRESS 
           --build-arg POOL_MIN_DURATION=$POOL_MIN_DURATION  
           --build-arg POOL_MAX_DURATION=$POOL_MAX_DURATION            
-          -t $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:latest --no-cache .
-        - echo "Tagging image..."
-        # - docker tag  $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:latest $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG
-        - docker tag  $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG
+          -t $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG --no-cache .
+        #- echo "Tagging image..."
+        #- docker tag  $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:latest $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG
         - echo "*****************************"        
         - echo "Pushing image..."
         - echo "*****************************"        
