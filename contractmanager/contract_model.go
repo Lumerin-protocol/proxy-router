@@ -202,7 +202,6 @@ func (c *BTCHashrateContract) fulfillBuyerContract(ctx context.Context) error {
 }
 
 func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
-
 	c.state = ContractStatePurchased
 
 	if c.ContractIsExpired() {
