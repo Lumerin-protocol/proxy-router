@@ -107,7 +107,7 @@ default:
         # - aws ecs describe-task-definition --region $AWS_DEFAULT_REGION --task-definition tsk-$CI_AWS_ECR_REPO > input.json
         - TASKDEF=$(aws ecs describe-task-definition --region $AWS_DEFAULT_REGION --task-definition tsk-$CI_AWS_ECR_REPO)
         - echo $TASKDEF | jq .
-        - echo $TASKDEF | jq '.containerDefinitions[0].image='\"$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG\" > task-def.json
+        - echo $TASKDEF | jq '.taskDefinition.containerDefinitions[0].image='\"$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG\" > task-def.json
 
         - cat task-def.json | jq .
         # - contents="$(jq '.image = "$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG"' input.json)"
