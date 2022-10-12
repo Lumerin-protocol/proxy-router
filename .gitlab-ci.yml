@@ -144,7 +144,6 @@ default:
         # Added Below for Seller services 
         - POOL_ADDRESS="//titan1.ecs-$TGT_ENV-seller:@mining.pool.titan.io:4242"
         - CONTRACT_ADDRESS=$SELLER_CONTRACT
-        - 
         - aws ecs describe-task-definition --region $AWS_DEFAULT_REGION --task-definition tsk-proxy-seller > seller.json
         - cat seller.json | jq .
         - echo $(cat seller.json | jq '.taskDefinition.containerDefinitions[].image='\"$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG\") > seller.json 
