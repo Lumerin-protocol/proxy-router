@@ -35,7 +35,7 @@ type BTCHashrateContract struct {
 	FullfillmentStartTime  *time.Time
 	isBuyer                bool
 	hashrateDiffThreshold  float64
-	validationBufferPeriod int
+	validationBufferPeriod time.Duration
 
 	state ContractState // internal state of the contract (within hashrouter)
 
@@ -53,7 +53,7 @@ func NewContract(
 	hr *hashrate.Hashrate,
 	isBuyer bool,
 	hashrateDiffThreshold float64,
-	validationBufferPeriod int,
+	validationBufferPeriod time.Duration,
 ) *BTCHashrateContract {
 	if hr == nil {
 		hr = hashrate.NewHashrate(log)
@@ -197,7 +197,7 @@ func (c *BTCHashrateContract) fulfillBuyerContract(ctx context.Context) error {
 	if c.data.State != blockchain.ContractBlockchainStateRunning {
 		return nil // not buyer in buyer case
 	}
-	time.Sleep(time.Second * time.Duration(c.validationBufferPeriod))
+	time.Sleep(c.validationBufferPeriod)
 	return c.FulfillContract(ctx)
 }
 

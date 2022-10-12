@@ -3,6 +3,7 @@ package contractmanager
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
@@ -20,7 +21,7 @@ type ContractManager struct {
 	// configuration parameters
 	isBuyer                bool
 	hashrateDiffThreshold  float64
-	validationBufferPeriod int
+	validationBufferPeriod time.Duration
 	claimFunds             bool
 	walletAddr             interop.BlockchainAddress
 	walletPrivateKey       string
@@ -39,7 +40,7 @@ func NewContractManager(
 	walletPrivateKey string,
 	isBuyer bool,
 	hashrateDiffThreshold float64,
-	validationBufferPeriod int,
+	validationBufferPeriod time.Duration,
 	defaultDest lib.Dest,
 ) *ContractManager {
 	return &ContractManager{
