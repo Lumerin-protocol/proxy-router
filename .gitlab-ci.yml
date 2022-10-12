@@ -14,7 +14,7 @@ stages:
   - deploy
 lint:
   inherit:
-      default: false
+    default: false
   variables:
     DOCKER_DRIVER: overlay2
     DOCKER_HOST: tcp://docker:2376
@@ -32,7 +32,6 @@ lint:
   image: golangci/golangci-lint:v1.49
   script:
     - golangci-lint run -v
-
 test:
   inherit:
       default: false
@@ -56,7 +55,6 @@ test:
     - go version
     - go mod download
     - go test -v -p 1 $(go list ./... | grep -v /test) # skips the test folder for now
-
 default:
     image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
     before_script:
@@ -105,7 +103,9 @@ default:
         # Review initial JSON Configuration
         - cat input.json | jq .
         # Change Task image reference to specific Built image tag
-        - echo $(cat input.json | jq '.taskDefinition.containerDefinitions[].image='\"$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG\") > input.json 
+        - echo $(cat input.json | jq '.taskDefinition.containerDefinitions[].image='\"$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG\") > input.json
+        # add ulimits
+        - echo $(cat input.json | jq '.taskDefinition.containerDefinitions[].ulimits=[{\"name\":\"nofile\",\"softLimit\":15000,\"hardLimit\":15000}]') > input.json
         - echo $(cat input.json | jq '.taskDefinition') > input.json  
         # Remove specific fields from image definition
         - echo $(cat input.json | jq  'del(.taskDefinitionArn)' | jq 'del(.revision)' | jq 'del(.status)' | jq 'del(.requiresAttributes)' | jq 'del(.compatibilities)' | jq 'del(.registeredBy)' | jq 'del(.registeredAt)') > input.json
