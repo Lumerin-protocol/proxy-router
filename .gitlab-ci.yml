@@ -124,38 +124,38 @@ default:
         - echo svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION
         - aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-$CI_AWS_ECR_REPO:$REVISION
         
-        # Added Below for Buyer services (Same as original Proxy-router steps ... just without heavy documentation)
-        - POOL_ADDRESS="//titan1.ecs-$TGT_ENV-buyer:@mining.pool.titan.io:4242"
-        - CONTRACT_ADDRESS=$BUYER_CONTRACT
-        - IS_BUYER="true"
-        - aws ecs describe-task-definition --region $AWS_DEFAULT_REGION --task-definition tsk-proxy-buyer > buyer.json
-        - cat buyer.json | jq .
-        - echo $(cat buyer.json | jq '.taskDefinition.containerDefinitions[].image='\"$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG\") > buyer.json 
-        - echo $(cat buyer.json | jq '.taskDefinition') > buyer.json  
-        - echo $(cat buyer.json | jq  'del(.taskDefinitionArn)' | jq 'del(.revision)' | jq 'del(.status)' | jq 'del(.requiresAttributes)' | jq 'del(.compatibilities)' | jq 'del(.registeredBy)' | jq 'del(.registeredAt)') > buyer.json
-        - echo $(cat buyer.json | jq '.containerDefinitions[].environment=[]') > buyer.json 
-        - sed -i 's/'$CI_AWS_ACCOUNT_SBX'/'$TGT_ACCOUNT'/g' buyer.json  
-        - cat buyer.json | jq .
-        - aws ecs register-task-definition --region $AWS_DEFAULT_REGION --cli-input-json file://buyer.json
-        - BUYERREV=$(aws ecs describe-task-definition --task-definition tsk-proxy-buyer --region $AWS_DEFAULT_REGION | egrep "revision" | tr "/" " " | awk '{print $2}' | sed 's/"$//' | cut -d "," -f 1)
-        - echo $BUYERREV
-        - aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-proxy-buyer-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-proxy-buyer:$BUYERREV
+        # # Added Below for Buyer services (Same as original Proxy-router steps ... just without heavy documentation)
+        # - POOL_ADDRESS="//titan1.ecs-$TGT_ENV-buyer:@mining.pool.titan.io:4242"
+        # - CONTRACT_ADDRESS=$BUYER_CONTRACT
+        # - IS_BUYER="true"
+        # - aws ecs describe-task-definition --region $AWS_DEFAULT_REGION --task-definition tsk-proxy-buyer > buyer.json
+        # - cat buyer.json | jq .
+        # - echo $(cat buyer.json | jq '.taskDefinition.containerDefinitions[].image='\"$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG\") > buyer.json 
+        # - echo $(cat buyer.json | jq '.taskDefinition') > buyer.json  
+        # - echo $(cat buyer.json | jq  'del(.taskDefinitionArn)' | jq 'del(.revision)' | jq 'del(.status)' | jq 'del(.requiresAttributes)' | jq 'del(.compatibilities)' | jq 'del(.registeredBy)' | jq 'del(.registeredAt)') > buyer.json
+        # - echo $(cat buyer.json | jq '.containerDefinitions[].environment=[]') > buyer.json 
+        # - sed -i 's/'$CI_AWS_ACCOUNT_SBX'/'$TGT_ACCOUNT'/g' buyer.json  
+        # - cat buyer.json | jq .
+        # - aws ecs register-task-definition --region $AWS_DEFAULT_REGION --cli-input-json file://buyer.json
+        # - BUYERREV=$(aws ecs describe-task-definition --task-definition tsk-proxy-buyer --region $AWS_DEFAULT_REGION | egrep "revision" | tr "/" " " | awk '{print $2}' | sed 's/"$//' | cut -d "," -f 1)
+        # - echo $BUYERREV
+        # - aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-proxy-buyer-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-proxy-buyer:$BUYERREV
 
-        # Added Below for Seller services 
-        - POOL_ADDRESS="//titan1.ecs-$TGT_ENV-seller:@mining.pool.titan.io:4242"
-        - CONTRACT_ADDRESS=$SELLER_CONTRACT
-        - aws ecs describe-task-definition --region $AWS_DEFAULT_REGION --task-definition tsk-proxy-seller > seller.json
-        - cat seller.json | jq .
-        - echo $(cat seller.json | jq '.taskDefinition.containerDefinitions[].image='\"$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG\") > seller.json 
-        - echo $(cat seller.json | jq '.taskDefinition') > seller.json  
-        - echo $(cat seller.json | jq  'del(.taskDefinitionArn)' | jq 'del(.revision)' | jq 'del(.status)' | jq 'del(.requiresAttributes)' | jq 'del(.compatibilities)' | jq 'del(.registeredBy)' | jq 'del(.registeredAt)') > seller.json
-        - echo $(cat seller.json | jq '.containerDefinitions[].environment=[]') > seller.json 
-        - sed -i 's/'$CI_AWS_ACCOUNT_SBX'/'$TGT_ACCOUNT'/g' seller.json  
-        - cat seller.json | jq .
-        - aws ecs register-task-definition --region $AWS_DEFAULT_REGION --cli-input-json file://seller.json
-        - SELLERREV=$(aws ecs describe-task-definition --task-definition tsk-proxy-seller --region $AWS_DEFAULT_REGION | egrep "revision" | tr "/" " " | awk '{print $2}' | sed 's/"$//' | cut -d "," -f 1)
-        - echo $SELLERREV
-        - aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-proxy-seller-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-proxy-seller:$SELLERRV
+        # # Added Below for Seller services 
+        # - POOL_ADDRESS="//titan1.ecs-$TGT_ENV-seller:@mining.pool.titan.io:4242"
+        # - CONTRACT_ADDRESS=$SELLER_CONTRACT
+        # - aws ecs describe-task-definition --region $AWS_DEFAULT_REGION --task-definition tsk-proxy-seller > seller.json
+        # - cat seller.json | jq .
+        # - echo $(cat seller.json | jq '.taskDefinition.containerDefinitions[].image='\"$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG\") > seller.json 
+        # - echo $(cat seller.json | jq '.taskDefinition') > seller.json  
+        # - echo $(cat seller.json | jq  'del(.taskDefinitionArn)' | jq 'del(.revision)' | jq 'del(.status)' | jq 'del(.requiresAttributes)' | jq 'del(.compatibilities)' | jq 'del(.registeredBy)' | jq 'del(.registeredAt)') > seller.json
+        # - echo $(cat seller.json | jq '.containerDefinitions[].environment=[]') > seller.json 
+        # - sed -i 's/'$CI_AWS_ACCOUNT_SBX'/'$TGT_ACCOUNT'/g' seller.json  
+        # - cat seller.json | jq .
+        # - aws ecs register-task-definition --region $AWS_DEFAULT_REGION --cli-input-json file://seller.json
+        # - SELLERREV=$(aws ecs describe-task-definition --task-definition tsk-proxy-seller --region $AWS_DEFAULT_REGION | egrep "revision" | tr "/" " " | awk '{print $2}' | sed 's/"$//' | cut -d "," -f 1)
+        # - echo $SELLERREV
+        # - aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-proxy-seller-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-proxy-seller:$SELLERRV
 
 bedrock-02-DEV:
     stage: deploy
@@ -174,7 +174,41 @@ bedrock-02-DEV:
         CONTRACT_ADDRESS: "0xbF2A6EA18e2CF0846cE7FC9Fa9EB9bA22BF035fF"
         BUYER_CONTRACT: ""
         SELLER_CONTRACT: ""
-    script: echo "$TGT_ENV Updated"
+    script: 
+      - echo "$TGT_ENV Updated"
+      # Added Below for Buyer services (Same as original Proxy-router steps ... just without heavy documentation)
+      - POOL_ADDRESS="//titan1.ecs-$TGT_ENV-buyer:@mining.pool.titan.io:4242"
+      - CONTRACT_ADDRESS=$BUYER_CONTRACT
+      - IS_BUYER="true"
+      - aws ecs describe-task-definition --region $AWS_DEFAULT_REGION --task-definition tsk-proxy-buyer > buyer.json
+      - cat buyer.json | jq .
+      - echo $(cat buyer.json | jq '.taskDefinition.containerDefinitions[].image='\"$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG\") > buyer.json 
+      - echo $(cat buyer.json | jq '.taskDefinition') > buyer.json  
+      - echo $(cat buyer.json | jq  'del(.taskDefinitionArn)' | jq 'del(.revision)' | jq 'del(.status)' | jq 'del(.requiresAttributes)' | jq 'del(.compatibilities)' | jq 'del(.registeredBy)' | jq 'del(.registeredAt)') > buyer.json
+      - echo $(cat buyer.json | jq '.containerDefinitions[].environment=[]') > buyer.json 
+      - sed -i 's/'$CI_AWS_ACCOUNT_SBX'/'$TGT_ACCOUNT'/g' buyer.json  
+      - cat buyer.json | jq .
+      - aws ecs register-task-definition --region $AWS_DEFAULT_REGION --cli-input-json file://buyer.json
+      - BUYERREV=$(aws ecs describe-task-definition --task-definition tsk-proxy-buyer --region $AWS_DEFAULT_REGION | egrep "revision" | tr "/" " " | awk '{print $2}' | sed 's/"$//' | cut -d "," -f 1)
+      - echo $BUYERREV
+      - aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-proxy-buyer-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-proxy-buyer:$BUYERREV
+
+      # Added Below for Seller services 
+      - POOL_ADDRESS="//titan1.ecs-$TGT_ENV-seller:@mining.pool.titan.io:4242"
+      - CONTRACT_ADDRESS=$SELLER_CONTRACT
+      - aws ecs describe-task-definition --region $AWS_DEFAULT_REGION --task-definition tsk-proxy-seller > seller.json
+      - cat seller.json | jq .
+      - echo $(cat seller.json | jq '.taskDefinition.containerDefinitions[].image='\"$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG\") > seller.json 
+      - echo $(cat seller.json | jq '.taskDefinition') > seller.json  
+      - echo $(cat seller.json | jq  'del(.taskDefinitionArn)' | jq 'del(.revision)' | jq 'del(.status)' | jq 'del(.requiresAttributes)' | jq 'del(.compatibilities)' | jq 'del(.registeredBy)' | jq 'del(.registeredAt)') > seller.json
+      - echo $(cat seller.json | jq '.containerDefinitions[].environment=[]') > seller.json 
+      - sed -i 's/'$CI_AWS_ACCOUNT_SBX'/'$TGT_ACCOUNT'/g' seller.json  
+      - cat seller.json | jq .
+      - aws ecs register-task-definition --region $AWS_DEFAULT_REGION --cli-input-json file://seller.json
+      - SELLERREV=$(aws ecs describe-task-definition --task-definition tsk-proxy-seller --region $AWS_DEFAULT_REGION | egrep "revision" | tr "/" " " | awk '{print $2}' | sed 's/"$//' | cut -d "," -f 1)
+      - echo $SELLERREV
+      - aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-proxy-seller-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-proxy-seller:$SELLERRV
+
 
 bedrock-03-STG:
     stage: deploy
