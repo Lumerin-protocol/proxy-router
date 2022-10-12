@@ -101,6 +101,7 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 	go func() {
 		err = c.fulfillBuyerContract(ctx)
 		if err != nil {
+			err := c.Close()
 			c.log.Error(err)
 		}
 	}()
@@ -188,7 +189,6 @@ func (c *BTCHashrateContract) fulfillBuyerContract(ctx context.Context) error {
 }
 
 func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
-
 	c.state = ContractStatePurchased
 
 	if c.ContractIsExpired() {

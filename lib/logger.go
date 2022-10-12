@@ -32,6 +32,24 @@ func NewLogger(isProduction bool) (*zap.SugaredLogger, error) {
 	return log.Sugar(), nil
 }
 
+// NewTestLogger logs only to stdout
+func NewTestLogger() (*zap.SugaredLogger, error) {
+	consoleEncoderCfg := zap.NewDevelopmentEncoderConfig()
+	consoleEncoderCfg.EncodeTime = zapcore.TimeEncoderOfLayout("2006-01-02 15:04:05")
+	consoleEncoderCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	consoleEncoder := zapcore.NewConsoleEncoder(consoleEncoderCfg)
+
+	core := zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), zap.DebugLevel)
+
+	opts := []zap.Option{
+		zap.Development(),
+		zap.AddCaller(),
+		zap.AddStacktrace(zap.ErrorLevel),
+	}
+
+	return zap.New(core, opts...).Sugar(), nil
+}
+
 func newDevelopmentLogger() (*zap.Logger, error) {
 	consoleEncoderCfg := zap.NewDevelopmentEncoderConfig()
 	consoleEncoderCfg.EncodeTime = zapcore.TimeEncoderOfLayout("2006-01-02 15:04:05")

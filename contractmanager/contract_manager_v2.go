@@ -35,6 +35,7 @@ func NewContractManager(blockchain *blockchain.EthereumGateway, globalScheduler 
 		contracts:       contracts,
 		log:             log,
 
+		isBuyer:          isBuyer,
 		claimFunds:       false,
 		walletAddr:       walletAddr,
 		walletPrivateKey: walletPrivateKey,
