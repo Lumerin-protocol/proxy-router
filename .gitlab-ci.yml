@@ -127,6 +127,7 @@ default:
         # Added Below for Buyer services (Same as original Proxy-router steps ... just without heavy documentation)
         - POOL_ADDRESS="//titan1.ecs-$TGT_ENV-buyer:@mining.pool.titan.io:4242"
         - CONTRACT_ADDRESS=$BUYER_CONTRACT
+        - IS_BUYER="true"
         - aws ecs describe-task-definition --region $AWS_DEFAULT_REGION --task-definition tsk-proxy-buyer > buyer.json
         - cat buyer.json | jq .
         - echo $(cat buyer.json | jq '.taskDefinition.containerDefinitions[].image='\"$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG\") > buyer.json 
@@ -143,6 +144,7 @@ default:
         # Added Below for Seller services 
         - POOL_ADDRESS="//titan1.ecs-$TGT_ENV-seller:@mining.pool.titan.io:4242"
         - CONTRACT_ADDRESS=$SELLER_CONTRACT
+        - 
         - aws ecs describe-task-definition --region $AWS_DEFAULT_REGION --task-definition tsk-proxy-seller > seller.json
         - cat seller.json | jq .
         - echo $(cat seller.json | jq '.taskDefinition.containerDefinitions[].image='\"$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG\") > seller.json 
@@ -191,6 +193,8 @@ bedrock-03-STG:
         TGT_ENV: stg
         POOL_ADDRESS: "//titan1.ecs-stg:@mining.pool.titan.io:4242" #no scheme for compat purposes
         CONTRACT_ADDRESS: "0xbF2A6EA18e2CF0846cE7FC9Fa9EB9bA22BF035fF"
+        BUYER_CONTRACT: ""
+        SELLER_CONTRACT: ""
     script: echo "$TGT_ENV Updated"
 
 bedrock-04-PRD:
@@ -209,4 +213,6 @@ bedrock-04-PRD:
         TGT_ENV: lmn
         POOL_ADDRESS: "//titan1.ecs-lmn:@mining.pool.titan.io:4242" #no scheme for compat purposes
         CONTRACT_ADDRESS: "0x059cD152b4e9e6Ff222E8fB979197A739FC9Dd42"
+        BUYER_CONTRACT: ""
+        SELLER_CONTRACT: ""
     script: echo "$TGT_ENV Updated"
