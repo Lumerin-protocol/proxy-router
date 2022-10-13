@@ -62,7 +62,7 @@ type Contract struct {
 	// Miners         []string
 }
 
-func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerService) *gin.Engine {
+func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerService, isBuyer bool, hashrateDiffThreshold float64, validationBufferPeriod time.Duration) *gin.Engine {
 	r := gin.Default()
 	controller := ApiController{
 		miners:    miners,
@@ -117,7 +117,7 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 			Length:                 int64(duration.Seconds()),
 			Dest:                   dest,
 			StartingBlockTimestamp: time.Now().Unix(),
-		}, nil, gs, log, hashrate.NewHashrate(log), false)
+		}, nil, gs, log, hashrate.NewHashrate(log), isBuyer, hashrateDiffThreshold, validationBufferPeriod)
 
 		go func() {
 			err := contract.FulfillContract(context.Background())

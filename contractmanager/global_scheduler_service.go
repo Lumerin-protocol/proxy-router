@@ -13,10 +13,6 @@ import (
 )
 
 const (
-	HASHRATE_DIFF_THRESHOLD = 0.1
-)
-
-const (
 	MIN_DEST_TIME = 2 * time.Minute // minimum time the miner can be pointed to the destination
 	MAX_DEST_TIME = 5 * time.Minute // maximum time the miner can be pointed to the destination
 )
@@ -163,7 +159,7 @@ func (s *GlobalSchedulerService) GetUnallocatedHashrateGHS() (int, HashrateList)
 	return unallocatedHashrate, minerHashrates
 }
 
-func (s *GlobalSchedulerService) UpdateCombination(ctx context.Context, minerIDs []string, targetHashrateGHS int, dest lib.Dest, contractID string) ([]string, error) {
+func (s *GlobalSchedulerService) UpdateCombination(ctx context.Context, minerIDs []string, targetHashrateGHS int, dest lib.Dest, contractID string, hashrateDiffThreshold float64) ([]string, error) {
 	snapshot := s.GetMinerSnapshot()
 	s.log.Info(snapshot.String())
 
@@ -181,7 +177,7 @@ func (s *GlobalSchedulerService) UpdateCombination(ctx context.Context, minerIDs
 	s.log.Debugf("target hashrate %d, actual hashrate %d, delta %d", targetHashrateGHS, actualHashrate, deltaGHS)
 	// check if hashrate increase is available in the system
 
-	if math.Abs(float64(deltaGHS))/float64(targetHashrateGHS) < HASHRATE_DIFF_THRESHOLD {
+	if math.Abs(float64(deltaGHS))/float64(targetHashrateGHS) < hashrateDiffThreshold {
 		s.log.Debugf("no need to adjust allocation")
 		return minerIDs, nil
 	}

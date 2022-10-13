@@ -45,7 +45,7 @@ func InitApp() (*app.App, error) {
 	}
 	interfacesICollection := provideContractCollection()
 	globalSchedulerService := provideGlobalScheduler(config, iCollection, iLogger)
-	engine := provideApiController(iCollection, interfacesICollection, iLogger, globalSchedulerService)
+	engine := provideApiController(config, iCollection, interfacesICollection, iLogger, globalSchedulerService)
 	server := provideApiServer(config, iLogger, engine)
 	client, err := provideEthClient(config, iLogger)
 	if err != nil {
@@ -114,8 +114,8 @@ func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo inter
 	return miner.NewMinerController(destination, repo, l, cfg.Proxy.LogStratum, cfg.Miner.VettingDuration, cfg.Pool.MinDuration, cfg.Pool.MaxDuration), nil
 }
 
-func provideApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerService) *gin.Engine {
-	return api.NewApiController(miners, contracts, log, gs)
+func provideApiController(cfg *config.Config, miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerService) *gin.Engine {
+	return api.NewApiController(miners, contracts, log, gs, cfg.Contract.IsBuyer, cfg.Contract.HashrateDiffThreshold, cfg.Contract.ValidationBufferPeriod)
 }
 
 func provideTCPServer(cfg *config.Config, l interfaces.ILogger) *tcpserver.TCPServer {
@@ -163,7 +163,7 @@ func provideContractManager(
 		return nil, err
 	}
 
-	return contractmanager.NewContractManager(ethGateway, globalScheduler, log, contracts, ethWallet.GetAccountAddress(), ethWallet.GetPrivateKey(), cfg.Contract.IsBuyer, destination), nil
+	return contractmanager.NewContractManager(ethGateway, globalScheduler, log, contracts, ethWallet.GetAccountAddress(), ethWallet.GetPrivateKey(), cfg.Contract.IsBuyer, cfg.Contract.HashrateDiffThreshold, cfg.Contract.ValidationBufferPeriod, destination), nil
 }
 
 func provideLogger(cfg *config.Config) (interfaces.ILogger, error) {
