@@ -3,6 +3,7 @@ package contractmanager
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
@@ -18,27 +19,42 @@ type ContractManager struct {
 	globalScheduler *GlobalSchedulerService
 
 	// configuration parameters
-	isBuyer          bool
-	claimFunds       bool
-	walletAddr       interop.BlockchainAddress
-	walletPrivateKey string
-	defaultDest      lib.Dest
+	isBuyer                bool
+	hashrateDiffThreshold  float64
+	validationBufferPeriod time.Duration
+	claimFunds             bool
+	walletAddr             interop.BlockchainAddress
+	walletPrivateKey       string
+	defaultDest            lib.Dest
 
 	// internal state
 	contracts interfaces.ICollection[IContractModel]
 }
 
-func NewContractManager(blockchain *blockchain.EthereumGateway, globalScheduler *GlobalSchedulerService, log interfaces.ILogger, contracts interfaces.ICollection[IContractModel], walletAddr interop.BlockchainAddress, walletPrivateKey string, isBuyer bool, defaultDest lib.Dest) *ContractManager {
+func NewContractManager(
+	blockchain *blockchain.EthereumGateway,
+	globalScheduler *GlobalSchedulerService,
+	log interfaces.ILogger,
+	contracts interfaces.ICollection[IContractModel],
+	walletAddr interop.BlockchainAddress,
+	walletPrivateKey string,
+	isBuyer bool,
+	hashrateDiffThreshold float64,
+	validationBufferPeriod time.Duration,
+	defaultDest lib.Dest,
+) *ContractManager {
 	return &ContractManager{
 		blockchain:      blockchain,
 		globalScheduler: globalScheduler,
 		contracts:       contracts,
 		log:             log,
 
-		isBuyer:          isBuyer,
-		claimFunds:       false,
-		walletAddr:       walletAddr,
-		walletPrivateKey: walletPrivateKey,
+		isBuyer:                isBuyer,
+		hashrateDiffThreshold:  hashrateDiffThreshold,
+		validationBufferPeriod: validationBufferPeriod,
+		claimFunds:             false,
+		walletAddr:             walletAddr,
+		walletPrivateKey:       walletPrivateKey,
 	}
 }
 
@@ -116,7 +132,7 @@ func (m *ContractManager) handleContract(ctx context.Context, contractAddr commo
 		return fmt.Errorf("cannot read created contract %w", err)
 	}
 
-	contract := NewContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, m.isBuyer)
+	contract := NewContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, m.isBuyer, m.hashrateDiffThreshold, m.validationBufferPeriod)
 
 	if contract.Ignore(m.walletAddr, m.defaultDest) {
 		// contract will be ignored by this node
