@@ -191,20 +191,8 @@ func (s *GlobalSchedulerService) UpdateCombination(ctx context.Context, minerIDs
 	}
 }
 
-func (s *GlobalSchedulerService) DeallocateContract(minerIDs []string, contractID string) {
-	for _, minerID := range minerIDs {
-		miner, ok := s.minerCollection.Load(minerID)
-		if !ok {
-			s.log.Warnf("deallocation error: miner (%s) not found (%s)", minerID, contractID)
-			continue
-		}
-
-		ok = miner.Deallocate(contractID)
-		if !ok {
-			s.log.Warnf("deallocation error: miner (%s) is not fulfilling this contract (%s)", minerID, contractID)
-		}
-
-	}
+func (s *GlobalSchedulerService) DeallocateContract(ctx context.Context, minerIDs []string, contractID string) {
+	s.UpdateCombination(ctx, minerIDs, 0, lib.Dest{}, contractID, 0)
 }
 
 // incAllocation increases allocation hashrate prioritizing allocation of existing miners

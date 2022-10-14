@@ -114,7 +114,7 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 	go func() {
 		err = c.fulfillBuyerContract(ctx)
 		if err != nil {
-			err := c.Close()
+			err := c.Close(ctx)
 			c.log.Error(err)
 		}
 	}()
@@ -150,7 +150,7 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 					err = c.FulfillContract(ctx)
 					if err != nil {
 						c.log.Error(err)
-						err := c.Close()
+						err := c.Close(ctx)
 						if err != nil {
 							c.log.Error(err)
 						}
@@ -168,7 +168,7 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 
 			case blockchain.ContractClosedSigHex:
 				c.log.Info("received contract closed event", c.data.Addr)
-				c.Stop()
+				c.Stop(ctx)
 				continue
 			}
 
@@ -281,9 +281,9 @@ func (c *BTCHashrateContract) ContractIsExpired() bool {
 	return time.Now().After(*endTime)
 }
 
-func (c *BTCHashrateContract) Close() error {
+func (c *BTCHashrateContract) Close(ctx context.Context) error {
 	c.log.Debugf("closing contract %v", c.GetID())
-	c.Stop()
+	c.Stop(ctx)
 
 	closeoutAccount := c.GetCloseoutAccount()
 
@@ -298,17 +298,21 @@ func (c *BTCHashrateContract) Close() error {
 }
 
 // Stops fulfilling the contract by miners
-func (c *BTCHashrateContract) Stop() {
+func (c *BTCHashrateContract) Stop(ctx context.Context) {
 
 	c.log.Infof("Attempting to stop contract %v; with state %v", c.GetID(), c.state)
-	if c.state == ContractStateRunning || c.state == ContractStatePurchased {
+	if c.ContractIsStoppable() {
 
 		c.log.Infof("Stopping contract %v", c.GetID())
 		c.state = ContractStateAvailable
-		c.globalScheduler.DeallocateContract(c.minerIDs, c.GetID())
+		c.globalScheduler.DeallocateContract(ctx, c.minerIDs, c.GetID())
 	} else {
 		c.log.Warnf("contract (%s) is not running", c.GetID())
 	}
+}
+
+func (c *BTCHashrateContract) ContractIsStoppable() bool {
+	return c.state == ContractStateRunning || c.state == ContractStatePurchased
 }
 
 func (c *BTCHashrateContract) GetBuyerAddress() string {
