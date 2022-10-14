@@ -191,8 +191,8 @@ func (s *GlobalSchedulerService) UpdateCombination(ctx context.Context, minerIDs
 	}
 }
 
-func (s *GlobalSchedulerService) DeallocateContract(ctx context.Context, minerIDs []string, contractID string) {
-	s.UpdateCombination(ctx, minerIDs, 0, lib.Dest{}, contractID, 0)
+func (s *GlobalSchedulerService) DeallocateContract(ctx context.Context, minerIDs []string, contractID string) ([]string, error) {
+	return s.UpdateCombination(ctx, minerIDs, 0, lib.Dest{}, contractID, 0)
 }
 
 // incAllocation increases allocation hashrate prioritizing allocation of existing miners

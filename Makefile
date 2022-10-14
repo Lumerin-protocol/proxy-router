@@ -10,5 +10,9 @@ test:
 fmt:
 	go fmt ./...
 
+lint:
+	go fmt ./...
+	go vet ./...
+
 tidy:
 	go mod tidy

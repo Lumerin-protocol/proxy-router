@@ -305,7 +305,15 @@ func (c *BTCHashrateContract) Stop(ctx context.Context) {
 
 		c.log.Infof("Stopping contract %v", c.GetID())
 		c.state = ContractStateAvailable
-		c.globalScheduler.DeallocateContract(ctx, c.minerIDs, c.GetID())
+
+		minerIDs, err := c.globalScheduler.DeallocateContract(ctx, c.minerIDs, c.GetID())
+
+		if err != nil {
+			c.log.Errorf("Failed to deallocate miners for contracts %v; internal error: %v\n", c.GetID(), err)
+		} else {
+			c.minerIDs = minerIDs
+		}
+
 	} else {
 		c.log.Warnf("contract (%s) is not running", c.GetID())
 	}
