@@ -9,7 +9,7 @@ import (
 
 type IContractModel interface {
 	Run(ctx context.Context) error
-	Stop()
+	Stop(ctx context.Context)
 	GetBuyerAddress() string
 	GetSellerAddress() string
 	GetID() string
