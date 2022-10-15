@@ -10,7 +10,7 @@ import (
 )
 
 type Server struct {
-	server http.Server
+	server *http.Server
 
 	address         string
 	shutdownTimeout time.Duration
@@ -28,7 +28,7 @@ func NewServer(address string, log interfaces.ILogger, router *gin.Engine) *Serv
 	// 	w.Write([]byte("success"))
 	// })
 
-	server := http.Server{Addr: address, Handler: router}
+	server := &http.Server{Addr: address, Handler: router}
 
 	return &Server{
 		address:         address,
