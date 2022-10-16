@@ -42,7 +42,8 @@ type BTCHashrateContract struct {
 	hashrate *hashrate.Hashrate // the counter of single contract
 	minerIDs []string           // miners involved in fulfilling this contract
 
-	log interfaces.ILogger
+	log              interfaces.ILogger
+	stopFullfillment chan struct{}
 }
 
 func NewContract(
@@ -189,7 +190,7 @@ func (c *BTCHashrateContract) LoadBlockchainContract() error {
 	}
 
 	c.data = contractData
-
+	c.log.Debugf("Loaded contract: %v - %v \n", c.GetID(), c.data)
 	return nil
 }
 
@@ -248,6 +249,8 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 		case <-ctx.Done():
 			c.log.Errorf("contract context done while waiting for running contract to finish: %v", ctx.Err().Error())
 			return ctx.Err()
+		case <-c.stopFullfillment:
+			return nil
 		case <-time.After(30 * time.Second):
 		}
 	}
@@ -312,6 +315,7 @@ func (c *BTCHashrateContract) Stop(ctx context.Context) {
 			c.log.Errorf("Failed to deallocate miners for contracts %v; internal error: %v\n", c.GetID(), err)
 		} else {
 			c.minerIDs = minerIDs
+			c.stopFullfillment <- struct{}{}
 		}
 
 	} else {
