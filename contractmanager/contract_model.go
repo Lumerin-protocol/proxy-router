@@ -235,6 +235,8 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 			return fmt.Errorf("contract is expired")
 		}
 
+		c.log.Debugf("Should the contract continue? %v", c.ShouldContractContinue())
+
 		if c.ShouldContractContinue() {
 
 			// TODO hashrate monitoring
@@ -304,14 +306,15 @@ func (c *BTCHashrateContract) Stop(ctx context.Context) {
 	if c.ContractIsNotAvailable() {
 
 		c.log.Infof("Stopping contract %v", c.GetID())
-		c.state = ContractStateAvailable
 
 		minerIDs, err := c.globalScheduler.DeallocateContract(ctx, c.minerIDs, c.GetID())
 
 		if err != nil {
 			c.log.Errorf("Failed to deallocate miners for contracts %v; internal error: %v\n", c.GetID(), err)
 		} else {
+			c.state = ContractStateAvailable
 			c.minerIDs = minerIDs
+
 			c.stopFullfillment <- struct{}{}
 		}
 
@@ -329,6 +332,8 @@ func (c *BTCHashrateContract) ContractIsExpired() bool {
 }
 
 func (c *BTCHashrateContract) ShouldContractContinue() bool {
+	c.log.Infof("is the contract expired? %v", c.ContractIsExpired())
+	c.log.Infof("is the contract available? %v", !c.ContractIsNotAvailable())
 	return !c.ContractIsExpired() && !c.ContractIsNotAvailable()
 }
 
