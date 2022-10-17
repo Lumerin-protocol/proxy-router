@@ -172,6 +172,6 @@ bedrock-04-PRD:
     variables: 
         TGT_ACCOUNT: $CI_AWS_ACCOUNT_LMN
         TGT_ENV: lmn
-        PROXY_LOG_STRATUM: false
+        PROXY_LOG_STRATUM: "false"
         POOL_ADDRESS: "//titan1.ecs-lmn:@mining.pool.titan.io:4242" #no scheme for compat purposes
     script: echo "$TGT_ENV Updated"
