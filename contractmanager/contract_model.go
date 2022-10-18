@@ -334,7 +334,7 @@ func (c *BTCHashrateContract) ContractIsExpired() bool {
 func (c *BTCHashrateContract) ShouldContractContinue() bool {
 	c.log.Infof("is the contract expired? %v", c.ContractIsExpired())
 	c.log.Infof("is the contract available? %v", !c.ContractIsNotAvailable())
-	return !c.ContractIsExpired() && !c.ContractIsNotAvailable()
+	return !c.ContractIsExpired() && c.ContractIsNotAvailable()
 }
 
 func (c *BTCHashrateContract) ContractIsNotAvailable() bool {
