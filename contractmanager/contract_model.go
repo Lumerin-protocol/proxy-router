@@ -217,7 +217,7 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
+	c.stopFullfillment = make(chan struct{})
 	// break
 	// select {
 	// case <-ctx.Done():
@@ -315,6 +315,10 @@ func (c *BTCHashrateContract) Stop(ctx context.Context) {
 		} else {
 			c.state = ContractStateAvailable
 			c.minerIDs = minerIDs
+
+			if c.stopFullfillment != nil {
+				c.stopFullfillment <- struct{}{}
+			}
 		}
 
 	} else {
