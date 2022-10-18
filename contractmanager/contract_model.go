@@ -42,7 +42,8 @@ type BTCHashrateContract struct {
 	hashrate *hashrate.Hashrate // the counter of single contract
 	minerIDs []string           // miners involved in fulfilling this contract
 
-	log interfaces.ILogger
+	log              interfaces.ILogger
+	stopFullfillment chan struct{}
 }
 
 func NewContract(
@@ -114,7 +115,7 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 	go func() {
 		err = c.fulfillBuyerContract(ctx)
 		if err != nil {
-			err := c.Close()
+			err := c.Close(ctx)
 			c.log.Error(err)
 		}
 	}()
@@ -150,7 +151,7 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 					err = c.FulfillContract(ctx)
 					if err != nil {
 						c.log.Error(err)
-						err := c.Close()
+						err := c.Close(ctx)
 						if err != nil {
 							c.log.Error(err)
 						}
@@ -168,7 +169,7 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 
 			case blockchain.ContractClosedSigHex:
 				c.log.Info("received contract closed event", c.data.Addr)
-				c.Stop()
+				c.Stop(ctx)
 				continue
 			}
 
@@ -189,7 +190,7 @@ func (c *BTCHashrateContract) LoadBlockchainContract() error {
 	}
 
 	c.data = contractData
-
+	c.log.Debugf("Loaded contract: %v - %v \n", c.GetID(), c.data)
 	return nil
 }
 
@@ -234,27 +235,36 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 			return fmt.Errorf("contract is expired")
 		}
 
-		// TODO hashrate monitoring
-		c.log.Infof("contract (%s) is running for %.0f seconds", c.GetID(), time.Since(*c.GetStartTime()).Seconds())
+		c.log.Debugf("Should the contract continue? %v", c.ShouldContractContinue())
 
-		minerIDs, err := c.globalScheduler.UpdateCombination(ctx, c.minerIDs, c.GetHashrateGHS(), c.GetDest(), c.GetID(), c.hashrateDiffThreshold)
-		if err != nil {
-			return fmt.Errorf("contract is expired")
-		} else {
-			c.minerIDs = minerIDs
+		if c.ShouldContractContinue() {
+
+			// TODO hashrate monitoring
+			c.log.Infof("contract (%s) is running for %.0f seconds", c.GetID(), time.Since(*c.GetStartTime()).Seconds())
+
+			minerIDs, err := c.globalScheduler.UpdateCombination(ctx, c.minerIDs, c.GetHashrateGHS(), c.GetDest(), c.GetID(), c.hashrateDiffThreshold)
+			if err != nil {
+				return fmt.Errorf("contract is expired")
+			} else {
+				c.minerIDs = minerIDs
+			}
+
+			select {
+			case <-ctx.Done():
+				c.log.Errorf("contract context done while waiting for running contract to finish: %v", ctx.Err().Error())
+				return ctx.Err()
+			case <-c.stopFullfillment:
+				c.log.Infof("Done fullfilling contract %v", c.GetID())
+				return nil
+			case <-time.After(30 * time.Second):
+				continue
+			}
 		}
 
-		select {
-		case <-ctx.Done():
-			c.log.Errorf("contract context done while waiting for running contract to finish: %v", ctx.Err().Error())
-			return ctx.Err()
-		case <-time.After(30 * time.Second):
-		}
+		c.log.Debugf("Discontinuing Contract %v", c.GetID())
+
+		return nil
 	}
-}
-
-func (c *BTCHashrateContract) ContractIsReady() bool {
-	return !c.ContractIsExpired()
 }
 
 func (c *BTCHashrateContract) StartHashrateAllocation() error {
@@ -273,17 +283,9 @@ func (c *BTCHashrateContract) StartHashrateAllocation() error {
 	return nil
 }
 
-func (c *BTCHashrateContract) ContractIsExpired() bool {
-	endTime := c.GetEndTime()
-	if endTime == nil {
-		return false
-	}
-	return time.Now().After(*endTime)
-}
-
-func (c *BTCHashrateContract) Close() error {
+func (c *BTCHashrateContract) Close(ctx context.Context) error {
 	c.log.Debugf("closing contract %v", c.GetID())
-	c.Stop()
+	c.Stop(ctx)
 
 	closeoutAccount := c.GetCloseoutAccount()
 
@@ -298,17 +300,45 @@ func (c *BTCHashrateContract) Close() error {
 }
 
 // Stops fulfilling the contract by miners
-func (c *BTCHashrateContract) Stop() {
+func (c *BTCHashrateContract) Stop(ctx context.Context) {
 
 	c.log.Infof("Attempting to stop contract %v; with state %v", c.GetID(), c.state)
-	if c.state == ContractStateRunning || c.state == ContractStatePurchased {
+	if c.ContractIsNotAvailable() {
 
 		c.log.Infof("Stopping contract %v", c.GetID())
-		c.state = ContractStateAvailable
-		c.globalScheduler.DeallocateContract(c.minerIDs, c.GetID())
+
+		minerIDs, err := c.globalScheduler.DeallocateContract(ctx, c.minerIDs, c.GetID())
+
+		if err != nil {
+			c.log.Errorf("Failed to deallocate miners for contracts %v; internal error: %v\n", c.GetID(), err)
+		} else {
+			c.state = ContractStateAvailable
+			c.minerIDs = minerIDs
+
+			c.stopFullfillment <- struct{}{}
+		}
+
 	} else {
 		c.log.Warnf("contract (%s) is not running", c.GetID())
 	}
+}
+
+func (c *BTCHashrateContract) ContractIsExpired() bool {
+	endTime := c.GetEndTime()
+	if endTime == nil {
+		return false
+	}
+	return time.Now().After(*endTime)
+}
+
+func (c *BTCHashrateContract) ShouldContractContinue() bool {
+	c.log.Infof("is the contract expired? %v", c.ContractIsExpired())
+	c.log.Infof("is the contract available? %v", !c.ContractIsNotAvailable())
+	return !c.ContractIsExpired() && c.ContractIsNotAvailable()
+}
+
+func (c *BTCHashrateContract) ContractIsNotAvailable() bool {
+	return c.state == ContractStateRunning || c.state == ContractStatePurchased
 }
 
 func (c *BTCHashrateContract) GetBuyerAddress() string {
