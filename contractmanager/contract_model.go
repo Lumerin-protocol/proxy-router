@@ -170,6 +170,7 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 			case blockchain.ContractClosedSigHex:
 				c.log.Info("received contract closed event", c.data.Addr)
 				c.Stop(ctx)
+				c.stopFullfillment <- struct{}{}
 				continue
 			}
 
@@ -216,7 +217,7 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
+	c.stopFullfillment = make(chan struct{})
 	// break
 	// select {
 	// case <-ctx.Done():
@@ -315,7 +316,9 @@ func (c *BTCHashrateContract) Stop(ctx context.Context) {
 			c.state = ContractStateAvailable
 			c.minerIDs = minerIDs
 
-			c.stopFullfillment <- struct{}{}
+			if c.stopFullfillment != nil {
+				c.stopFullfillment <- struct{}{}
+			}
 		}
 
 	} else {
