@@ -125,7 +125,7 @@ test:
 .deploy_new_task_definition: &deploy_new_task_definition | 
   echo "****************************************************"
   echo "*** Update Task: "
-  echo "*** - Image:      $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG\"
+  echo "*** - Image:      $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG"
   echo "*** - Task:       tsk-$CI_AWS_TASK:$REVISION"
   echo "*** - Service:    svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION"
   echo "*** - Cluster:    ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION"
