@@ -28,11 +28,11 @@ lint:
     DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
 
   stage: test
-  tags:
-    - devops 
-    - bedrock
-    - titanio-dev
-    - docker
+ # tags:
+    #- devops 
+    #- bedrock
+    #- titanio-dev
+    #- docker
   only: 
     - branches
   image: golangci/golangci-lint:v1.49
@@ -49,11 +49,11 @@ test:
     DOCKER_TLS_VERIFY: 1
     DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
   stage: test
-  tags:
-    - devops 
-    - bedrock
-    - titanio-dev
-    - docker
+  #tags:
+   # - devops 
+    #- bedrock
+    #- titanio-dev
+    #- docker
   only: 
     - branches
   image: golang:1.18-alpine
