@@ -11,6 +11,7 @@ variables:
   POOL_MAX_DURATION: 5m
   VALIDATION_BUFFER_PERIOD: 20m
   NODE_DEF: "prt"
+  CI_AWS_TASK: "proxy-router"
 
 stages:
   - test
@@ -106,7 +107,7 @@ test:
   echo "**************************"
   echo "*** Update Task Definition"
   echo "**************************"
-  aws ecs describe-task-definition --region $AWS_DEFAULT_REGION --task-definition tsk-$CI_AWS_ECR_REPO > input.json
+  aws ecs describe-task-definition --region $AWS_DEFAULT_REGION --task-definition tsk-$CI_AWS_TASK > input.json
   echo "**************************"
   echo "*** Old Task Definition"
   echo "**************************"
@@ -125,17 +126,15 @@ test:
   echo "****************************************************"
   echo "*** Update Task: "
   echo "*** - Image:      $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG\"
-  echo "*** - Task:       tsk-$CI_AWS_ECR_REPO:$REVISION"
+  echo "*** - Task:       tsk-$CI_AWS_TASK:$REVISION"
   echo "*** - Service:    svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION"
   echo "*** - Cluster:    ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION"
   echo "*** - AWS Account: Titanio-$TGT_ENV"
   echo "****************************************************"
   aws ecs register-task-definition --region $AWS_DEFAULT_REGION --cli-input-json file://input.json
-  REVISION=$(aws ecs describe-task-definition --task-definition tsk-$CI_AWS_ECR_REPO --region $AWS_DEFAULT_REGION | egrep "revision" | tr "/" " " | awk '{print $2}' | sed 's/"$//' | cut -d "," -f 1)
+  REVISION=$(aws ecs describe-task-definition --task-definition tsk-$CI_AWS_TASK --region $AWS_DEFAULT_REGION | egrep "revision" | tr "/" " " | awk '{print $2}' | sed 's/"$//' | cut -d "," -f 1)
   echo $REVISION
-  echo ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION
-  echo svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION
-  aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-$CI_AWS_ECR_REPO:$REVISION
+  aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-$CI_AWS_TASK:$REVISION
 
 default:
     image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
@@ -167,6 +166,7 @@ bedrock-02-DEV:
         - WALLET_PRIVATE_KEY=$BUYER_PRIVATEKEY
         - IS_BUYER="true"
         - NODE_DEF="buy"
+        - CI_AWS_TASK="proxy-buyer"
         - *create_image_tag
         - *build_image_script
         - *update_task_definition
@@ -178,6 +178,7 @@ bedrock-02-DEV:
         - WALLET_PRIVATE_KEY=$SELLER_PRIVATEKEY
         - IS_BUYER="false"
         - NODE_DEF="sel"
+        - CI_AWS_TASK="proxy-seller"
         - *create_image_tag
         - *build_image_script
         - *update_task_definition
