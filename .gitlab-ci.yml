@@ -112,7 +112,7 @@ test:
   echo "*** Old Task Definition"
   echo "**************************"
   cat input.json | jq .
-  echo $(cat input.json | jq '.taskDefinition.containerDefinitions[].image='\"$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG\") > input.json 
+  echo $(cat input.json | jq '.taskDefinition.containerDefinitions[].image="$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG"') > input.json 
   echo $(cat input.json | jq '.taskDefinition.containerDefinitions[].ulimits=[{"name":"nofile","softLimit":15000,"hardLimit":15000}]') > input.json
   echo $(cat input.json | jq '.taskDefinition') > input.json  
   echo $(cat input.json | jq  'del(.taskDefinitionArn)' | jq 'del(.revision)' | jq 'del(.status)' | jq 'del(.requiresAttributes)' | jq 'del(.compatibilities)' | jq 'del(.registeredBy)' | jq 'del(.registeredAt)') > input.json
