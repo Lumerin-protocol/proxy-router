@@ -67,7 +67,7 @@ test:
   aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $CI_AWS_TitanIO_NET_ECR
 
 .create_image_tag: &create_image_tag |   
-  IMAGE_TAG="$(echo $CI_COMMIT_SHA | head -c 8)_$TGT_ENV_$NODE_DEF" 
+  IMAGE_TAG="$(echo $CI_COMMIT_SHA | head -c 8)-$TGT_ENV-$NODE_DEF" 
   echo $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG 
 
 .build_image_script: &build_image_script |
@@ -150,7 +150,7 @@ bedrock-02-DEV:
         - IS_BUYER="false"
         - NODE_DEF="sel"
         - *create_image_tag
-        # - *build_image_script
+        - *build_image_script
         # - *update_task_definition
         # - *deploy_new_task_definition
         - echo "$TGT_ENV Updated"
