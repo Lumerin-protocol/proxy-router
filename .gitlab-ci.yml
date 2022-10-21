@@ -124,12 +124,14 @@ test:
 
 .deploy_new_task_definition: &deploy_new_task_definition | 
   echo "****************************************************"
+  echo "****************************************************"
   echo "*** Update Task: "
-  echo "*** - Image:      $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG"
-  echo "*** - Task:       tsk-$CI_AWS_TASK:$REVISION"
-  echo "*** - Service:    svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION"
-  echo "*** - Cluster:    ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION"
   echo "*** - AWS Account: Titanio-$TGT_ENV"
+  echo "*** - Cluster:    ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION"
+  echo "*** - Service:    svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION"
+  echo "*** - Task:       tsk-$CI_AWS_TASK:$REVISION"
+  echo "*** - Image:      $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG"
+  echo "****************************************************"
   echo "****************************************************"
   aws ecs register-task-definition --region $AWS_DEFAULT_REGION --cli-input-json file://input.json
   REVISION=$(aws ecs describe-task-definition --task-definition tsk-$CI_AWS_TASK --region $AWS_DEFAULT_REGION | egrep "revision" | tr "/" " " | awk '{print $2}' | sed 's/"$//' | cut -d "," -f 1)
@@ -160,29 +162,29 @@ bedrock-02-DEV:
         TGT_ENV: dev
         POOL_ADDRESS: "//titan1.ecs-dev:@mining.pool.titan.io:4242" #no scheme for compat purposes
     script: 
-        # # Added Below for Buyer services only in DEV (for now)
-        # - POOL_ADDRESS="//titan1.ecs-$TGT_ENV-buyer:@mining.pool.titan.io:4242"
-        # - WALLET_ADDRESS=$BUYER_WALLET_ADDRESS
-        # - WALLET_PRIVATE_KEY=$BUYER_PRIVATEKEY
-        # - IS_BUYER="true"
-        # - NODE_DEF="buy"
-        # - CI_AWS_TASK="proxy-buyer"
-        # - *create_image_tag
-        # - *build_image_script
-        # - *update_task_definition
-        # - *deploy_new_task_definition
+        # Added Below for Buyer services only in DEV (for now)
+        - POOL_ADDRESS="//titan1.ecs-$TGT_ENV-buyer:@mining.pool.titan.io:4242"
+        - WALLET_ADDRESS=$BUYER_WALLET_ADDRESS
+        - WALLET_PRIVATE_KEY=$BUYER_PRIVATEKEY
+        - IS_BUYER="true"
+        - NODE_DEF="buy"
+        - CI_AWS_TASK="proxy-buyer"
+        - *create_image_tag
+        - *build_image_script
+        - *update_task_definition
+        - *deploy_new_task_definition
         
-        # # Added Below for Seller services only in DEV (for now) 
-        # - POOL_ADDRESS="//titan1.ecs-$TGT_ENV-seller:@mining.pool.titan.io:4242"
-        # - WALLET_ADDRESS=$SELLER_WALLET_ADDRESS
-        # - WALLET_PRIVATE_KEY=$SELLER_PRIVATEKEY
-        # - IS_BUYER="false"
-        # - NODE_DEF="sel"
-        # - CI_AWS_TASK="proxy-seller"
-        # - *create_image_tag
-        # - *build_image_script
-        # - *update_task_definition
-        # - *deploy_new_task_definition
+        # Added Below for Seller services only in DEV (for now) 
+        - POOL_ADDRESS="//titan1.ecs-$TGT_ENV-seller:@mining.pool.titan.io:4242"
+        - WALLET_ADDRESS=$SELLER_WALLET_ADDRESS
+        - WALLET_PRIVATE_KEY=$SELLER_PRIVATEKEY
+        - IS_BUYER="false"
+        - NODE_DEF="sel"
+        - CI_AWS_TASK="proxy-seller"
+        - *create_image_tag
+        - *build_image_script
+        - *update_task_definition
+        - *deploy_new_task_definition
         - echo "$TGT_ENV Updated"
       
 bedrock-03-STG:
