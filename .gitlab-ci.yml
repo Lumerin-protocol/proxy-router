@@ -173,17 +173,17 @@ bedrock-02-DEV:
         - *update_task_definition
         - *deploy_new_task_definition
         
-        # Added Below for Seller services only in DEV (for now) 
-        - POOL_ADDRESS="//titan1.ecs-$TGT_ENV-seller:@mining.pool.titan.io:4242"
-        - WALLET_ADDRESS=$SELLER_WALLET_ADDRESS
-        - WALLET_PRIVATE_KEY=$SELLER_PRIVATEKEY
-        - IS_BUYER="false"
-        - NODE_DEF="sel"
-        - CI_AWS_TASK="proxy-seller"
-        - *create_image_tag
-        - *build_image_script
-        - *update_task_definition
-        - *deploy_new_task_definition
+        # # Added Below for Seller services only in DEV (for now) 
+        # - POOL_ADDRESS="//titan1.ecs-$TGT_ENV-seller:@mining.pool.titan.io:4242"
+        # - WALLET_ADDRESS=$SELLER_WALLET_ADDRESS
+        # - WALLET_PRIVATE_KEY=$SELLER_PRIVATEKEY
+        # - IS_BUYER="false"
+        # - NODE_DEF="sel"
+        # - CI_AWS_TASK="proxy-seller"
+        # - *create_image_tag
+        # - *build_image_script
+        # - *update_task_definition
+        # - *deploy_new_task_definition
         - echo "$TGT_ENV Updated"
       
 bedrock-03-STG:
