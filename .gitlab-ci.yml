@@ -123,6 +123,8 @@ test:
   cat input.json | jq .
 
 .deploy_new_task_definition: &deploy_new_task_definition | 
+  aws ecs register-task-definition --region $AWS_DEFAULT_REGION --cli-input-json file://input.json
+  REVISION=$(aws ecs describe-task-definition --task-definition tsk-$CI_AWS_TASK --region $AWS_DEFAULT_REGION | egrep "revision" | tr "/" " " | awk '{print $2}' | sed 's/"$//' | cut -d "," -f 1)
   echo "****************************************************"
   echo "****************************************************"
   echo "*** Update Task: "
@@ -133,13 +135,14 @@ test:
   echo "*** - Image:      $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG"
   echo "****************************************************"
   echo "****************************************************"
-  aws ecs register-task-definition --region $AWS_DEFAULT_REGION --cli-input-json file://input.json
-  REVISION=$(aws ecs describe-task-definition --task-definition tsk-$CI_AWS_TASK --region $AWS_DEFAULT_REGION | egrep "revision" | tr "/" " " | awk '{print $2}' | sed 's/"$//' | cut -d "," -f 1)
-  echo $REVISION
-  aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-$CI_AWS_TASK:$REVISION
+  aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-$CI_AWS_TASK:$REVISION --output json > output/tsk-$CI_AWS_TASK:$REVISION.json
 
 default:
     image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
+    artifacts:
+      expose_as: 'task-update-details'
+      expire_in: 7 days
+      paths: ['output/']
     before_script:
         - *ecr_login_script
         - *create_image_tag
