@@ -130,12 +130,12 @@ test:
   echo "*** Update Task: "
   echo "*** - AWS Account: Titanio-$TGT_ENV"
   echo "*** - Cluster:    ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION"
-  echo "*** - Service:    svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION"
+  echo "*** - Service:    svc-$CI_AWS_TASK-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION"
   echo "*** - Task:       tsk-$CI_AWS_TASK:$REVISION"
   echo "*** - Image:      $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG"
   echo "****************************************************"
   echo "****************************************************"
-  aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-$CI_AWS_TASK:$REVISION 
+  aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-$CI_AWS_TASK-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-$CI_AWS_TASK:$REVISION 
 
 default:
     image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
