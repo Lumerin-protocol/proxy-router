@@ -10,9 +10,13 @@ variables:
   POOL_MIN_DURATION: 2m
   POOL_MAX_DURATION: 5m
   VALIDATION_BUFFER_PERIOD: 20m
+  NODE_DEF: "prt"
+  CI_AWS_TASK: "proxy-router"
+
 stages:
   - test
   - deploy
+
 lint:
   inherit:
     default: false
@@ -22,17 +26,19 @@ lint:
     DOCKER_TLS_CERTDIR: "/certs"
     DOCKER_TLS_VERIFY: 1
     DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
+
   stage: test
-  tags:
-    - devops 
-    - bedrock
-    - titanio-dev
-    - docker
+ # tags:
+    #- devops 
+    #- bedrock
+    #- titanio-dev
+    #- docker
   only: 
     - branches
   image: golangci/golangci-lint:v1.49
   script:
     - golangci-lint run -v
+
 test:
   inherit:
       default: false
@@ -43,11 +49,11 @@ test:
     DOCKER_TLS_VERIFY: 1
     DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
   stage: test
-  tags:
-    - devops 
-    - bedrock
-    - titanio-dev
-    - docker
+  #tags:
+   # - devops 
+    #- bedrock
+    #- titanio-dev
+    #- docker
   only: 
     - branches
   image: golang:1.18-alpine
@@ -56,77 +62,101 @@ test:
     - go version
     - go mod download
     - go test -v -p 1 $(go list ./... | grep -v /test) # skips the test folder for now
+
+.ecr_login_script: &ecr_login_script |
+  echo "**************************"
+  echo "*** ECR Login to Shared Titanio-NET Repo in USE-1"
+  echo "**************************"
+  docker system prune -af
+  aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $CI_AWS_TitanIO_NET_ECR
+
+.create_image_tag: &create_image_tag |   
+  echo "**************************"
+  echo "*** Tag Image "
+  echo "**************************"
+  IMAGE_TAG="$(echo $CI_COMMIT_SHA | head -c 8)-$TGT_ENV-$NODE_DEF" 
+  echo $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG 
+
+.build_image_script: &build_image_script |
+  echo "**************************"
+  echo "*** Build Image "
+  echo "**************************"
+  docker build \
+  -t $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG --no-cache . \
+  --build-arg WEB_ADDRESS=$WEB_ADDRESS \
+  --build-arg PROXY_ADDRESS=$PROXY_ADDRESS \
+  --build-arg ETH_NODE_ADDRESS=$ETH_NODE_ADDRESS \
+  --build-arg IS_BUYER=$IS_BUYER \
+  --build-arg ENVIRONMENT=$ENVIRONMENT \
+  --build-arg CLONE_FACTORY_ADDRESS=$CLONE_FACTORY_ADDRESS \
+  --build-arg WALLET_ADDRESS=$WALLET_ADDRESS \
+  --build-arg WALLET_PRIVATE_KEY=$WALLET_PRIVATE_KEY \
+  --build-arg PROXY_LOG_STRATUM=$PROXY_LOG_STRATUM \
+  --build-arg MINER_VETTING_PERIOD_SECONDS=$MINER_VETTING_PERIOD_SECONDS \
+  --build-arg MINER_VETTING_DURATION=$MINER_VETTING_DURATION \
+  --build-arg POOL_ADDRESS=$POOL_ADDRESS \
+  --build-arg POOL_MIN_DURATION=$POOL_MIN_DURATION \
+  --build-arg POOL_MAX_DURATION=$POOL_MAX_DURATION \
+  --build-arg VALIDATION_BUFFER_PERIOD=$VALIDATION_BUFFER_PERIOD 
+  echo "**************************"
+  echo "*** Push Image"
+  echo "**************************"
+  docker push $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG
+
+.update_task_definition: &update_task_definition |
+  echo "**************************"
+  echo "*** Update Task Definition"
+  echo "**************************"
+  aws ecs describe-task-definition --region $AWS_DEFAULT_REGION --task-definition tsk-$CI_AWS_TASK > input.json
+  echo "**************************"
+  echo "*** Old Task Definition"
+  echo "**************************"
+  cat input.json | jq .
+  echo $(cat input.json | jq '.taskDefinition.containerDefinitions[].image='\"$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG\") > input.json 
+  echo $(cat input.json | jq '.taskDefinition.containerDefinitions[].ulimits=[{"name":"nofile","softLimit":15000,"hardLimit":15000}]') > input.json
+  echo $(cat input.json | jq '.taskDefinition') > input.json  
+  echo $(cat input.json | jq  'del(.taskDefinitionArn)' | jq 'del(.revision)' | jq 'del(.status)' | jq 'del(.requiresAttributes)' | jq 'del(.compatibilities)' | jq 'del(.registeredBy)' | jq 'del(.registeredAt)') > input.json
+  sed -i 's/'$CI_AWS_ACCOUNT_SBX'/'$TGT_ACCOUNT'/g' input.json  
+  echo "**************************"
+  echo "*** New Task Definition"
+  echo "**************************"
+  cat input.json | jq .
+
+.deploy_new_task_definition: &deploy_new_task_definition | 
+  aws ecs register-task-definition --region $AWS_DEFAULT_REGION --cli-input-json file://input.json
+  REVISION=$(aws ecs describe-task-definition --task-definition tsk-$CI_AWS_TASK --region $AWS_DEFAULT_REGION | egrep "revision" | tr "/" " " | awk '{print $2}' | sed 's/"$//' | cut -d "," -f 1)
+  echo "****************************************************"
+  echo "****************************************************"
+  echo "*** Update Task: "
+  echo "*** - AWS Account: Titanio-$TGT_ENV"
+  echo "*** - Cluster:    ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION"
+  echo "*** - Service:    svc-$CI_AWS_TASK-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION"
+  echo "*** - Task:       tsk-$CI_AWS_TASK:$REVISION"
+  echo "*** - Image:      $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG"
+  echo "****************************************************"
+  echo "****************************************************"
+  aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-$CI_AWS_TASK-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-$CI_AWS_TASK:$REVISION 
+
 default:
     image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
     before_script:
-        - echo "*****************************"
-        - echo "Logging in to Titanio-NET ECR ..."
-        - echo "*****************************"
-        - docker system prune -af
-        - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $CI_AWS_TitanIO_NET_ECR
-        - echo "*****************************"
-        - echo "Combined Repo and Tag....."
-        - echo "*****************************"
-        - IMAGE_TAG="$(echo $CI_COMMIT_SHA | head -c 8)" 
-        - echo $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG 
-        - echo "*****************************"       
-        - echo "Building image..."
-        - echo "*****************************"
-        -
-          docker build 
-          --build-arg WEB_ADDRESS=$WEB_ADDRESS 
-          --build-arg PROXY_ADDRESS=$PROXY_ADDRESS 
-          --build-arg ETH_NODE_ADDRESS=$ETH_NODE_ADDRESS 
-          --build-arg IS_BUYER=$IS_BUYER 
-          --build-arg ENVIRONMENT=$ENVIRONMENT
-          --build-arg CLONE_FACTORY_ADDRESS=$CLONE_FACTORY_ADDRESS
-          --build-arg WALLET_ADDRESS=$WALLET_ADDRESS
-          --build-arg WALLET_PRIVATE_KEY=$WALLET_PRIVATE_KEY
-          --build-arg PROXY_LOG_STRATUM=$PROXY_LOG_STRATUM
-          --build-arg MINER_VETTING_PERIOD_SECONDS=$MINER_VETTING_PERIOD_SECONDS 
-          --build-arg MINER_VETTING_DURATION=$MINER_VETTING_DURATION  
-          --build-arg POOL_ADDRESS=$POOL_ADDRESS 
-          --build-arg POOL_MIN_DURATION=$POOL_MIN_DURATION  
-          --build-arg POOL_MAX_DURATION=$POOL_MAX_DURATION
-          --build-arg VALIDATION_BUFFER_PERIOD=$VALIDATION_BUFFER_PERIOD            
-          -t $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG --no-cache .
-        #- echo "Tagging image..."
-        #- docker tag  $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:latest $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG
-        - echo "*****************************"        
-        - echo "Pushing image..."
-        - echo "*****************************"        
-        - docker push $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG
-        # - docker push $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:latest
-        #### DEPLOYMENT TO DEV STEPS BELOW (must keep ECR LOGIN and TAG from prior steps)
-        - echo "*****************************"
-        - echo "Preparing deployment of $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG to $TGT_ACCOUNT, titanio-$TGT_ENV Environment..."
-        - echo "*****************************"        
-        - aws ecs describe-task-definition --region $AWS_DEFAULT_REGION --task-definition tsk-$CI_AWS_ECR_REPO > input.json
-        # Review initial JSON Configuration
-        - cat input.json | jq .
-        # Change Task image reference to specific Built image tag
-        - echo $(cat input.json | jq '.taskDefinition.containerDefinitions[].image='\"$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG\") > input.json
-        # add ulimits
-        - echo $(cat input.json | jq '.taskDefinition.containerDefinitions[].ulimits=[{"name":"nofile","softLimit":15000,"hardLimit":15000}]') > input.json
-        - echo $(cat input.json | jq '.taskDefinition') > input.json  
-        # Remove specific fields from image definition
-        - echo $(cat input.json | jq  'del(.taskDefinitionArn)' | jq 'del(.revision)' | jq 'del(.status)' | jq 'del(.requiresAttributes)' | jq 'del(.compatibilities)' | jq 'del(.registeredBy)' | jq 'del(.registeredAt)') > input.json
-        # Remove any run-time environment definitions (using build args)
-        # - echo $(cat input.json | jq '.containerDefinitions[].environment=[]') > input.json #NOT NEEDED ANYMORE - ABS 
-        - sed -i 's/'$CI_AWS_ACCOUNT_SBX'/'$TGT_ACCOUNT'/g' input.json  
-        - echo "Review input.json file...."
-        - cat input.json | jq .
-        - echo "*****************************"        
-        - echo "Deploying new container definition..."
-        - echo "*****************************"        
-        - aws ecs register-task-definition --region $AWS_DEFAULT_REGION --cli-input-json file://input.json
-        - REVISION=$(aws ecs describe-task-definition --task-definition tsk-$CI_AWS_ECR_REPO --region $AWS_DEFAULT_REGION | egrep "revision" | tr "/" " " | awk '{print $2}' | sed 's/"$//' | cut -d "," -f 1)
-        - echo $REVISION
-        - echo "Review Cluster Definition...."
-        - echo ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION
-        - echo "Review Service Definition...."
-        - echo svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION
-        - aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-$CI_AWS_ECR_REPO:$REVISION
+        - *ecr_login_script
+        - *create_image_tag
+        - *build_image_script
+        - *update_task_definition
+        - *deploy_new_task_definition
+        # Added Below for Buyer services in all environments
+        - POOL_ADDRESS="//titan1.ecs-$TGT_ENV-buyer:@mining.pool.titan.io:4242"
+        - WALLET_ADDRESS=$BUYER_WALLET_ADDRESS
+        - WALLET_PRIVATE_KEY=$BUYER_PRIVATEKEY
+        - IS_BUYER="true"
+        - NODE_DEF="buy"
+        - CI_AWS_TASK="proxy-buyer"
+        - *create_image_tag
+        - *build_image_script
+        - *update_task_definition
+        - *deploy_new_task_definition
+
 bedrock-02-DEV:
     stage: deploy
     environment: dev
@@ -142,6 +172,7 @@ bedrock-02-DEV:
         TGT_ENV: dev
         POOL_ADDRESS: "//titan1.ecs-dev:@mining.pool.titan.io:4242" #no scheme for compat purposes
     script: echo "$TGT_ENV Updated"
+      
 bedrock-03-STG:
     stage: deploy
     environment: stg
@@ -158,6 +189,7 @@ bedrock-03-STG:
         TGT_ENV: stg
         POOL_ADDRESS: "//titan1.ecs-stg:@mining.pool.titan.io:4242" #no scheme for compat purposes
     script: echo "$TGT_ENV Updated"
+
 bedrock-04-PRD:
     stage: deploy
     environment: lmn
