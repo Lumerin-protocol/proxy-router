@@ -19,5 +19,6 @@ type IContractModel interface {
 	GetDuration() time.Duration
 	GetEndTime() *time.Time
 	GetState() ContractState
+	GetStatusInternal() string
 	GetDest() lib.Dest
 }
