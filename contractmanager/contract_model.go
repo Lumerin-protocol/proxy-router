@@ -400,4 +400,8 @@ func (c *BTCHashrateContract) GetCloseoutAccount() string {
 	return c.GetSellerAddress()
 }
 
+func (c *BTCHashrateContract) GetStatusInternal() string {
+	return c.data.State.String()
+}
+
 var _ interfaces.IModel = (*BTCHashrateContract)(nil)

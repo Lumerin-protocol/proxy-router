@@ -50,15 +50,16 @@ type DestItem struct {
 }
 
 type Contract struct {
-	ID              string
-	BuyerAddr       string
-	SellerAddr      string
-	HashrateGHS     int
-	DurationSeconds int
-	StartTimestamp  *string
-	EndTimestamp    *string
-	State           string
-	Dest            string
+	ID                string
+	BuyerAddr         string
+	SellerAddr        string
+	HashrateGHS       int
+	DurationSeconds   int
+	StartTimestamp    *string
+	EndTimestamp      *string
+	ApplicationStatus string
+	BlockchainStatus  string
+	Dest              string
 	// Miners         []string
 }
 
@@ -189,15 +190,16 @@ func (c *ApiController) GetContracts() []Contract {
 	data := []Contract{}
 	c.contracts.Range(func(item contractmanager.IContractModel) bool {
 		data = append(data, Contract{
-			ID:              item.GetID(),
-			BuyerAddr:       item.GetBuyerAddress(),
-			SellerAddr:      item.GetSellerAddress(),
-			HashrateGHS:     item.GetHashrateGHS(),
-			DurationSeconds: int(item.GetDuration().Seconds()),
-			StartTimestamp:  TimePtrToStringPtr(item.GetStartTime()),
-			EndTimestamp:    TimePtrToStringPtr(item.GetEndTime()),
-			State:           MapContractState(item.GetState()),
-			Dest:            item.GetDest().String(),
+			ID:                item.GetID(),
+			BuyerAddr:         item.GetBuyerAddress(),
+			SellerAddr:        item.GetSellerAddress(),
+			HashrateGHS:       item.GetHashrateGHS(),
+			DurationSeconds:   int(item.GetDuration().Seconds()),
+			StartTimestamp:    TimePtrToStringPtr(item.GetStartTime()),
+			EndTimestamp:      TimePtrToStringPtr(item.GetEndTime()),
+			ApplicationStatus: MapContractState(item.GetState()),
+			BlockchainStatus:  item.GetStatusInternal(),
+			Dest:              item.GetDest().String(),
 		})
 		return true
 	})
