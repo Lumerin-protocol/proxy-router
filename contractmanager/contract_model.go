@@ -316,7 +316,7 @@ func (c *BTCHashrateContract) Stop(ctx context.Context) {
 			c.minerIDs = minerIDs
 
 			if c.stopFullfillment != nil {
-				go func() { c.stopFullfillment <- struct{}{} }()
+				c.stopFullfillment <- struct{}{}
 			}
 		}
 
