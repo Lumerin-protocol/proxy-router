@@ -2,6 +2,8 @@ package tcpserver
 
 import "fmt"
 
+// PeekNewLine overcomes limitation of bufio.Peek method, waits until buffer reaches newline char
+// and returns buffer without advancing the reader
 func PeekNewLine(b bufferedConn) ([]byte, error) {
 	var NewLine = byte('\n')
 
@@ -26,6 +28,8 @@ func PeekNewLine(b bufferedConn) ([]byte, error) {
 	return peeked, nil
 }
 
+// PeekJSON overcomes limitation of bufio.Peek method, waits until buffer contains full JSON message
+// and returns it without advancing the reader. If the message is invalid error is returned
 func PeekJSON(b bufferedConn) ([]byte, error) {
 	counter := 0
 	var CurlyOpen = byte('{')
