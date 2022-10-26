@@ -74,7 +74,7 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener *net.TCPListene
 
 				// removed logging for each of the incoming connections (healthchecks etc)
 				// HandleConnection will log errors for connections which are established from miner
-				p.handler.HandleConnection(ctx, conn)
+				_ = p.handler.HandleConnection(ctx, conn)
 
 				err = conn.Close()
 				if err != nil {
