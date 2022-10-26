@@ -70,6 +70,10 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 		contracts: contracts,
 	}
 
+	r.GET("/healthcheck", func(ctx *gin.Context) {
+		ctx.JSON(http.StatusOK, map[string]string{"status": "healthy"})
+	})
+
 	r.GET("/miners", func(ctx *gin.Context) {
 		data := controller.GetMiners()
 		ctx.JSON(http.StatusOK, data)
@@ -124,6 +128,7 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 			err := contract.FulfillContract(context.Background())
 			if err != nil {
 				log.Errorf("error during fulfillment of the test contract: %s", err)
+				contract.Stop(context.Background())
 			}
 		}()
 
