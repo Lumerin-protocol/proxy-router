@@ -17,3 +17,4 @@ Usage:
         On true adapt log to out in syslog, hide date and colors
   -web.addr string
         Address and port for api web server (default "0.0.0.0:8080")
+        test
