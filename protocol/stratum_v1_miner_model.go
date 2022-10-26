@@ -122,7 +122,7 @@ func (s *stratumV1MinerModel) Run(ctx context.Context, errCh chan error) {
 		for {
 			msg, err := s.minerConn.Read(ctx)
 			if err != nil {
-				s.log.Error(err)
+				s.log.Warn(err)
 				errCh <- err
 				return
 			}
@@ -131,7 +131,7 @@ func (s *stratumV1MinerModel) Run(ctx context.Context, errCh chan error) {
 
 			err = s.poolConn.Write(ctx, msg)
 			if err != nil {
-				s.log.Error(err)
+				s.log.Warn(err)
 				errCh <- err
 				return
 			}

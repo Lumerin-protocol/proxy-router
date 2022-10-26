@@ -1,7 +1,5 @@
 package tcpserver
 
-import "fmt"
-
 // PeekNewLine overcomes limitation of bufio.Peek method, waits until buffer reaches newline char
 // and returns buffer without advancing the reader
 func PeekNewLine(b bufferedConn) ([]byte, error) {
@@ -17,10 +15,8 @@ func PeekNewLine(b bufferedConn) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		fmt.Println(peeked)
 		char := peeked[len(peeked)-1]
 		if char == NewLine {
-			fmt.Println("yay")
 			break
 		}
 	}

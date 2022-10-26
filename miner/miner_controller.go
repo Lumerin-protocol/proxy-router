@@ -36,9 +36,6 @@ func NewMinerController(defaultDest interfaces.IDestination, collection interfac
 }
 
 func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net.Conn) error {
-	p.log.Infof("incoming miner connection: %s", incomingConn.RemoteAddr().String())
-	// TODO: peek if incoming connection is stratum connection
-
 	buffered := tcpserver.NewBufferedConn(incomingConn)
 	bytes, err := tcpserver.PeekNewLine(buffered)
 	if err != nil {
@@ -55,6 +52,9 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	}
 
 	incomingConn = buffered
+
+	p.log.Warnf("Miner connected %s", incomingConn.RemoteAddr())
+
 	logMiner := p.log.Named(incomingConn.RemoteAddr().String())
 
 	poolPool := protocol.NewStratumV1PoolPool(logMiner, p.logStratum)
@@ -75,6 +75,8 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	// try to connect to dest before running
 
 	p.collection.Store(minerScheduler)
+
+	defer p.log.Warnf("Miner disconnected %s", incomingConn.RemoteAddr())
 	defer p.collection.Delete(minerScheduler.GetID())
 
 	return minerScheduler.Run(ctx)
