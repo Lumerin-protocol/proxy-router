@@ -2,8 +2,8 @@ package miner
 
 import (
 	"context"
+	"fmt"
 	"net"
-	"strings"
 	"time"
 
 	"gitlab.com/TitanInd/hashrouter/hashrate"
@@ -40,26 +40,21 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	// TODO: peek if incoming connection is stratum connection
 
 	buffered := tcpserver.NewBufferedConn(incomingConn)
-	bytes, err := tcpserver.PeekJSON(buffered)
+	bytes, err := tcpserver.PeekNewLine(buffered)
 	if err != nil {
-		err2 := buffered.Close()
-		if err2 != nil {
-			return err2
-		}
+		// connection is closed in the invoking function
 		return err
 	}
-	peakedMsg := strings.ToLower(string(bytes))
 
-	if !(strings.Contains(peakedMsg, "id") &&
-		strings.Contains(peakedMsg, "mining") &&
-		strings.Contains(peakedMsg, "params")) {
-		p.log.Infof("invalid incoming message: %s", peakedMsg)
-		err := buffered.Close()
-		return err
+	m, err := stratumv1_message.ParseMessageToPool(bytes)
+	if err != nil {
+		return fmt.Errorf("invalid incoming message %s", string(bytes))
+	}
+	if _, ok := m.(*stratumv1_message.MiningUnknown); ok {
+		return fmt.Errorf("invalid incoming message %s", string(bytes))
 	}
 
 	incomingConn = buffered
-
 	logMiner := p.log.Named(incomingConn.RemoteAddr().String())
 
 	poolPool := protocol.NewStratumV1PoolPool(logMiner, p.logStratum)
