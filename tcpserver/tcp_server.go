@@ -71,19 +71,16 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener *net.TCPListene
 
 		if p.handler != nil {
 			go func(conn net.Conn) {
-				err := p.handler.HandleConnection(ctx, conn)
-				if err != nil {
-					p.log.Warnf("connection handler error: %s", err)
-				}
+
+				// removed logging for each of the incoming connections (healthchecks etc)
+				// HandleConnection will log errors for connections which are established from miner
+				_ = p.handler.HandleConnection(ctx, conn)
 
 				err = conn.Close()
 				if err != nil {
 					p.log.Warnf("error during closing connection: %s", err)
 					return
 				}
-
-				p.log.Debugf("connection closed: %s", conn.RemoteAddr())
-
 			}(conn)
 		}
 	}
