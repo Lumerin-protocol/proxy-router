@@ -1,6 +1,31 @@
 package tcpserver
 
-// PeekJSON overcomes limitation of bufio.Peek method, allowing to peek json message of unknown length
+import "fmt"
+
+func PeekNewLine(b bufferedConn) ([]byte, error) {
+	var NewLine = byte('\n')
+
+	var (
+		peeked []byte
+		err    error
+	)
+
+	for i := 1; true; i++ {
+		peeked, err = b.r.Peek(i)
+		if err != nil {
+			return nil, err
+		}
+		fmt.Println(peeked)
+		char := peeked[len(peeked)-1]
+		if char == NewLine {
+			fmt.Println("yay")
+			break
+		}
+	}
+
+	return peeked, nil
+}
+
 func PeekJSON(b bufferedConn) ([]byte, error) {
 	counter := 0
 	var CurlyOpen = byte('{')
