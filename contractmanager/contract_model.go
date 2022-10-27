@@ -59,7 +59,7 @@ func NewContract(
 	if hr == nil {
 		hr = hashrate.NewHashrate(log)
 	}
-	return &BTCHashrateContract{
+	contract := &BTCHashrateContract{
 		blockchain:             blockchain,
 		data:                   data,
 		hashrate:               hr,
@@ -68,7 +68,20 @@ func NewContract(
 		hashrateDiffThreshold:  hashrateDiffThreshold,
 		validationBufferPeriod: validationBufferPeriod,
 		globalScheduler:        globalScheduler,
-		state:                  ContractStateAvailable,
+		state:                  convertBlockchainStatusToApplicationStatus(data.State),
+	}
+
+	return contract
+}
+
+func convertBlockchainStatusToApplicationStatus(status blockchain.ContractBlockchainState) ContractState {
+	switch status {
+	case blockchain.ContractBlockchainStateRunning:
+		return ContractStateRunning
+	case blockchain.ContractBlockchainStateAvailable:
+		return ContractStateAvailable
+	default:
+		return ContractStateAvailable
 	}
 }
 
