@@ -13,7 +13,6 @@ type Config struct {
 		AccountIndex           int           `env:"ACCOUNT_INDEX"`
 		WalletPrivateKey       string        `env:"WALLET_PRIVATE_KEY"`
 		WalletAddress          string        `env:"WALLET_ADDRESS"`
-		EthNodeAddr            string
 		ClaimFunds             bool
 		LumerinTokenAddress    string
 		ValidatorAddress       string
