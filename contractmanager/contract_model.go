@@ -208,7 +208,7 @@ func (c *BTCHashrateContract) LoadBlockchainContract() error {
 }
 
 func (c *BTCHashrateContract) tryFulfillContract(ctx context.Context) error {
-	if c.data.State != blockchain.ContractBlockchainStateRunning || c.ContractIsExpired() {
+	if c.data.State != blockchain.ContractBlockchainStateRunning {
 		return nil // not buyer in buyer case
 	}
 
@@ -221,6 +221,7 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 
 	if c.ContractIsExpired() {
 		c.log.Warn("contract is expired %s", c.GetID())
+		c.Close(ctx)
 		return fmt.Errorf("contract is expired")
 	}
 	//race condition here for some contract closeout scenarios
