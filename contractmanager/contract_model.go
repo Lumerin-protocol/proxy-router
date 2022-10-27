@@ -86,7 +86,7 @@ func (c *BTCHashrateContract) Run(ctx context.Context) error {
 // Ignore checks if contract should be ignored by the node
 func (c *BTCHashrateContract) Ignore(walletAddress common.Address, defaultDest lib.Dest) bool {
 	if c.isBuyer {
-		if c.data.State == blockchain.ContractBlockchainStateAvailable || c.data.Buyer != walletAddress {
+		if c.data.Buyer != walletAddress {
 			return true
 		}
 		// buyer node points contracts to default
@@ -94,7 +94,7 @@ func (c *BTCHashrateContract) Ignore(walletAddress common.Address, defaultDest l
 		return false
 	}
 
-	if c.data.State == blockchain.ContractBlockchainStateRunning || c.data.Seller != walletAddress {
+	if c.data.Seller != walletAddress {
 		return true
 	}
 	return false
@@ -113,7 +113,7 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 	}
 
 	go func() {
-		err = c.fulfillBuyerContract(ctx)
+		err = c.tryFulfillContract(ctx)
 		if err != nil {
 			err := c.Close(ctx)
 			c.log.Error(err)
@@ -168,7 +168,7 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 				}
 
 			case blockchain.ContractClosedSigHex:
-				c.log.Info("received contract closed event", c.data.Addr)
+				c.log.Info("received contract closed event ", c.data.Addr)
 				c.Stop(ctx)
 				continue
 			}
@@ -194,10 +194,11 @@ func (c *BTCHashrateContract) LoadBlockchainContract() error {
 	return nil
 }
 
-func (c *BTCHashrateContract) fulfillBuyerContract(ctx context.Context) error {
-	if c.data.State != blockchain.ContractBlockchainStateRunning {
+func (c *BTCHashrateContract) tryFulfillContract(ctx context.Context) error {
+	if c.data.State != blockchain.ContractBlockchainStateRunning || c.ContractIsExpired() {
 		return nil // not buyer in buyer case
 	}
+
 	time.Sleep(c.validationBufferPeriod)
 	return c.FulfillContract(ctx)
 }
