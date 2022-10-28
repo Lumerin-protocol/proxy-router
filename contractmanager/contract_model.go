@@ -129,7 +129,9 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 		err = c.tryFulfillContract(ctx)
 		if err != nil {
 			err := c.Close(ctx)
-			c.log.Error(err)
+			if err != nil {
+				c.log.Error(err)
+			}
 		}
 	}()
 
@@ -173,12 +175,37 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 				continue
 
 			case blockchain.ContractCipherTextUpdatedHex:
+				c.log.Info("received contract ContractCipherTextUpdated event", c.data.Addr)
+				err := c.LoadBlockchainContract()
+				if err != nil {
+					c.log.Error(err)
+					continue
+				}
+				c.log.Info("NEW DEST:", c.GetDest())
+
+				_, err = c.globalScheduler.DeallocateContract(ctx, c.minerIDs, c.GetID())
+				if err != nil {
+					c.log.Error(err)
+					continue
+				}
+
+				err = c.StartHashrateAllocation()
+				if err != nil {
+					c.log.Error(err)
+					continue
+				}
+
+				continue
+
 			case blockchain.ContractPurchaseInfoUpdatedHex:
+				c.log.Info("received contract ContractPurchaseInfoUpdated event", c.data.Addr)
+
 				err := c.LoadBlockchainContract()
 
 				if err != nil {
-					continue
+					c.log.Error(err)
 				}
+				continue
 
 			case blockchain.ContractClosedSigHex:
 				c.log.Info("received contract closed event ", c.data.Addr)
@@ -192,14 +219,13 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 func (c *BTCHashrateContract) LoadBlockchainContract() error {
 	data, err := c.blockchain.ReadContract(c.data.Addr)
 	if err != nil {
-		c.log.Error("cannot read contract", err)
-		return err
+		return fmt.Errorf("cannot read contract: %s, address (%s)", err, c.data.Addr)
 	}
 	// TODO guard it
 	contractData, ok := data.(blockchain.ContractData)
 
 	if !ok {
-		return fmt.Errorf("failed to load blockhain data: %#+v", c.data.Addr)
+		return fmt.Errorf("failed to load blockhain data, address (%s)", c.data.Addr)
 	}
 
 	c.data = contractData
