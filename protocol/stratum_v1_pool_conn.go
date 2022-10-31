@@ -48,7 +48,7 @@ func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDe
 		notifyMsgs:   make([]*stratumv1_message.MiningNotify, 100),
 		configureMsg: configureMsg,
 
-		msgCh:     make(chan stratumv1_message.MiningMessageGeneric, 10),
+		msgCh:     make(chan stratumv1_message.MiningMessageGeneric, 100),
 		isReading: false, // hold on emitting messages to destination, until handshake
 
 		lastRequestId: atomic.NewUint32(0),
