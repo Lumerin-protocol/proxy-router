@@ -305,9 +305,7 @@ func (s *StratumV1PoolConn) getIsReading() bool {
 // PauseReading should be invoked when there is no miner connected.
 // It stops storing each message into the s.msg channel
 func (s *StratumV1PoolConn) PauseReading() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.isReading = false
+	s.setIsReading(false)
 	s.clearMsgCh()
 }
 
