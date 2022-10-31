@@ -185,7 +185,7 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 
 				_, err = c.globalScheduler.DeallocateContract(ctx, c.minerIDs, c.GetID())
 				if err != nil {
-					c.log.Error(err)
+					c.log.Errorf("cannot perform deallocation for ContractCipherTextUpdated event: %s", err)
 					continue
 				}
 
