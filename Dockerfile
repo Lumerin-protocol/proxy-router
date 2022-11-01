@@ -68,4 +68,4 @@ RUN echo "ETH_NODE_ADDRESS=$ETH_NODE_ADDRESS" \
 
 EXPOSE 3333 8081
 
-ENTRYPOINT ["hashrouter"]
+CMD ["/bin/sh","-c", "ulimit", "-a", "&&", "./hashrouter"]
