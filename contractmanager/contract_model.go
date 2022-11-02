@@ -291,7 +291,7 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 
 			minerIDs, err := c.globalScheduler.UpdateCombination(ctx, c.minerIDs, c.GetHashrateGHS(), c.GetDest(), c.GetID(), c.hashrateDiffThreshold)
 			if err != nil {
-				return fmt.Errorf("contract is expired")
+				c.log.Errorf("cannot update combination %s", err)
 			} else {
 				c.minerIDs = minerIDs
 			}
