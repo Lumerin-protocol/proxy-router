@@ -209,6 +209,12 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 
 			case blockchain.ContractClosedSigHex:
 				c.log.Info("received contract closed event ", c.data.Addr)
+
+				err := c.LoadBlockchainContract()
+				if err != nil {
+					continue
+				}
+
 				c.Stop(ctx)
 				continue
 			}
