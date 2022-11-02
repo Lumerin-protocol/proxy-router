@@ -238,6 +238,7 @@ func (m *StratumV1PoolConn) Write(ctx context.Context, msg stratumv1_message.Min
 
 	b := fmt.Sprintf("%s\n", msg.Serialize())
 	_, err := m.conn.Write([]byte(b))
+	m.conn.SetWriteDeadline(time.Now().Add(10 * time.Minute))
 	return err
 }
 
