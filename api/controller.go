@@ -25,6 +25,19 @@ type ApiController struct {
 	contracts interfaces.ICollection[contractmanager.IContractModel]
 }
 
+type MinersResponse struct {
+	TotalHashrateGHS     int
+	UsedHashrateGHS      int
+	AvailableHashrateGHS int
+
+	TotalMiners   int
+	BusyMiners    int
+	FreeMiners    int
+	VettingMiners int
+
+	Miners []Miner
+}
+
 type Miner struct {
 	ID                 string
 	Status             string
@@ -45,8 +58,9 @@ type HashrateAvgGHS struct {
 }
 
 type DestItem struct {
-	URI      string
-	Fraction float64
+	URI         string
+	Fraction    float64
+	HashrateGHS int
 }
 
 type Contract struct {
@@ -138,43 +152,83 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 	return r
 }
 
-func (c *ApiController) GetMiners() []Miner {
-	data := []Miner{}
-	c.miners.Range(func(miner miner.MinerScheduler) bool {
+func (c *ApiController) GetMiners() *MinersResponse {
+	Miners := []Miner{}
+
+	var (
+		TotalHashrateGHS int
+		UsedHashrateGHS  int
+
+		TotalMiners   int
+		BusyMiners    int
+		FreeMiners    int
+		VettingMiners int
+	)
+
+	c.miners.Range(func(m miner.MinerScheduler) bool {
 		destItems := []DestItem{}
-		dest := miner.GetDestSplit()
+		dest := m.GetDestSplit()
 		for _, item := range dest.Iter() {
+			HashrateGHS := int(item.Percentage * float64(m.GetHashRateGHS()))
+
 			destItems = append(destItems, DestItem{
-				URI:      item.Dest.String(),
-				Fraction: item.Percentage,
+				URI:         item.Dest.String(),
+				Fraction:    item.Percentage,
+				HashrateGHS: HashrateGHS,
 			})
+
+			UsedHashrateGHS += HashrateGHS
 		}
 
-		hashrate := miner.GetHashRate()
-		data = append(data, Miner{
-			ID:                miner.GetID(),
-			Status:            miner.GetStatus().String(),
-			TotalHashrateGHS:  miner.GetHashRateGHS(),
-			CurrentDifficulty: miner.GetCurrentDifficulty(),
+		hashrate := m.GetHashRate()
+
+		TotalHashrateGHS += hashrate.GetHashrate5minAvgGHS()
+		TotalMiners += 1
+
+		switch m.GetStatus() {
+		case miner.MinerStatusFree:
+			FreeMiners += 1
+		case miner.MinerStatusVetting:
+			VettingMiners += 1
+		case miner.MinerStatusBusy:
+			BusyMiners += 1
+		}
+
+		Miners = append(Miners, Miner{
+			ID:                m.GetID(),
+			Status:            m.GetStatus().String(),
+			TotalHashrateGHS:  m.GetHashRateGHS(),
+			CurrentDifficulty: m.GetCurrentDifficulty(),
 			Destinations:      destItems,
 			HashrateAvgGHS: HashrateAvgGHS{
 				T5m:  hashrate.GetHashrate5minAvgGHS(),
 				T30m: hashrate.GetHashrate30minAvgGHS(),
 				T1h:  hashrate.GetHashrate1hAvgGHS(),
 			},
-			CurrentDestination: miner.GetCurrentDest().String(),
-			WorkerName:         miner.GetWorkerName(),
-			ConnectedAt:        miner.GetConnectedAt().Format(time.RFC3339),
-			UptimeSeconds:      int(miner.GetUptime().Seconds()),
+			CurrentDestination: m.GetCurrentDest().String(),
+			WorkerName:         m.GetWorkerName(),
+			ConnectedAt:        m.GetConnectedAt().Format(time.RFC3339),
+			UptimeSeconds:      int(m.GetUptime().Seconds()),
 		})
 		return true
 	})
 
-	slices.SortStableFunc(data, func(a Miner, b Miner) bool {
+	slices.SortStableFunc(Miners, func(a Miner, b Miner) bool {
 		return a.ID < b.ID
 	})
 
-	return data
+	return &MinersResponse{
+		TotalMiners:   TotalMiners,
+		BusyMiners:    BusyMiners,
+		FreeMiners:    FreeMiners,
+		VettingMiners: VettingMiners,
+
+		TotalHashrateGHS:     TotalHashrateGHS,
+		AvailableHashrateGHS: TotalHashrateGHS - UsedHashrateGHS,
+		UsedHashrateGHS:      UsedHashrateGHS,
+
+		Miners: Miners,
+	}
 }
 
 func (c *ApiController) changeDestAll(destStr string) error {
