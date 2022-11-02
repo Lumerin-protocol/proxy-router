@@ -1,17 +1,18 @@
 # image: golang:1.18
 variables:
-  WEB_ADDRESS: "0.0.0.0:8080"
-  PROXY_ADDRESS: "0.0.0.0:3333"
-  IS_BUYER: "false"
+  CI_AWS_TASK: "proxy-router"
   ENVIRONMENT: "production" # production makes logs in json and not panics when calling DPanic
-  PROXY_LOG_STRATUM: "false"
+  HASHRATE_DIFF_THRESHOLD: 0.1
+  IS_BUYER: "false"
   MINER_VETTING_PERIOD_SECONDS: "30" # miner will not serve contracts for this period after connecing to proxy
   MINER_VETTING_DURATION: 1m
+  NODE_DEF: "prt"
   POOL_MIN_DURATION: 2m
   POOL_MAX_DURATION: 5m
+  PROXY_ADDRESS: "0.0.0.0:3333"
+  PROXY_LOG_STRATUM: "false"
   VALIDATION_BUFFER_PERIOD: 20m
-  NODE_DEF: "prt"
-  CI_AWS_TASK: "proxy-router"
+  WEB_ADDRESS: "0.0.0.0:8080"
 
 stages:
   - test
