@@ -25,7 +25,7 @@ import (
 // var sellerAddress = common.HexToAddress("0xa7af817696d307495ee9efa2ED40fa3Fb9279748")
 // var sellerPrivateKey = "b9d76e399dec6f9ba620270a1434236ffdfb37cce2acb32258b1337d3b224a1e"
 
-// Daffy
+// Dev
 var sellerAddress = common.HexToAddress("0x7525960Bb65713E0A0e226EF93A19a1440f1116d")
 var sellerPrivateKey = "3b6bdee2016d0803a11bbb0e3d3b8b5f776f3cf0239b2e5bb53bda317b8a2e20"
 
@@ -33,8 +33,8 @@ var buyerAddress = common.HexToAddress("0xd525F2D9762708f997062b2d283eBd57d54B11
 var buyerPrivateKey = "6de6530124edca0dcc48cf99f9a88a14bf5041d2bfb8ac103eb14b80078618b7"
 var gethNodeAddress = "wss://goerli.infura.io/ws/v3/4b68229d56fe496e899f07c3d41cb08a"
 
-var clonefactoryAddress common.Address = common.HexToAddress("0x6372689Fd4A94AE550da5Db7B13B9289F4855dDc") // - local testing
-// var clonefactoryAddress common.Address = common.HexToAddress("0xbF2A6EA18e2CF0846cE7FC9Fa9EB9bA22BF035fF") // - daffy environment
+// var clonefactoryAddress common.Address = common.HexToAddress("0x6372689Fd4A94AE550da5Db7B13B9289F4855dDc") // - local testing
+var clonefactoryAddress common.Address = common.HexToAddress("0x29e60000Cf9eD28C1B17bebebf3FEE93B8b2612f") // - dev environment
 // var clonefactoryAddress common.Address = common.HexToAddress("0x702B0b76235b1DAc489094184B7790cAA9A39Aa4") // - staging environment
 // var clonefactoryAddress common.Address = common.HexToAddress("0x78347C1b83BE212c63dcF163091Bb402eB05be9E") // - my test clonefactory
 
@@ -78,6 +78,7 @@ func TestHashrateContractCreation(t *testing.T) {
 			if event.Topics[0].Hex() == blockchain.ContractCreatedHex {
 				hashrateContractAddress = common.HexToAddress(event.Topics[1].Hex())
 				fmt.Printf("Address of created Hashrate Contract: %v\n\n", hashrateContractAddress.Hex())
+				return
 			}
 		}
 	}
@@ -97,7 +98,7 @@ func TestHashrateContractPurchase(t *testing.T) {
 
 	logs := make(chan types.Log)
 	sub, err := client.SubscribeFilterLogs(context.Background(), ethereum.FilterQuery{
-		Addresses: []common.Address{clonefactoryAddress},
+		Addresses: []common.Address{hashrateContractAddress},
 	}, logs)
 	if err != nil {
 		t.Fatal(err)
@@ -112,6 +113,7 @@ func TestHashrateContractPurchase(t *testing.T) {
 			if event.Topics[0].Hex() == blockchain.ContractPurchasedHex {
 				hashrateContractAddress := common.HexToAddress(event.Topics[1].Hex())
 				fmt.Printf("Address of purchased Hashrate Contract: %v\n\n", hashrateContractAddress.Hex())
+				return
 			}
 		}
 	}
