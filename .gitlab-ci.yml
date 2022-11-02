@@ -162,8 +162,13 @@ default:
 bedrock-02-DEV:
   stage: deploy
   environment: dev
-  only:
-    - dev
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+      when: always
+    - if: $CI_COMMIT_BRANCH != "dev"
+      when: manual
+    - if: $CI_MERGE_REQUEST_ID
+      when: never
   tags:
     - devops
     - bedrock
