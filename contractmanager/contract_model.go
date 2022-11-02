@@ -89,6 +89,8 @@ func convertBlockchainStatusToApplicationStatus(status blockchain.ContractBlockc
 func (c *BTCHashrateContract) Run(ctx context.Context) error {
 	g, subCtx := errgroup.WithContext(ctx)
 
+	c.tryFulfillContractAsBuyer(subCtx)
+
 	g.Go(func() error {
 		return c.listenContractEvents(subCtx)
 	})
@@ -124,16 +126,6 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("cannot subscribe for contract events %w", err)
 	}
-
-	go func() {
-		err = c.tryFulfillContract(ctx)
-		if err != nil {
-			err := c.Close(ctx)
-			if err != nil {
-				c.log.Error(err)
-			}
-		}
-	}()
 
 	for {
 		select {
@@ -239,13 +231,26 @@ func (c *BTCHashrateContract) LoadBlockchainContract() error {
 	return nil
 }
 
-func (c *BTCHashrateContract) tryFulfillContract(ctx context.Context) error {
-	if c.data.State != blockchain.ContractBlockchainStateRunning {
-		return nil // not buyer in buyer case
+func (c *BTCHashrateContract) tryFulfillContractAsBuyer(ctx context.Context) {
+	if !c.isBuyer {
+		return // not buyer
 	}
 
-	time.Sleep(c.validationBufferPeriod)
-	return c.FulfillContract(ctx)
+	if c.data.State != blockchain.ContractBlockchainStateRunning {
+		return // contract not running
+	}
+
+	go func() {
+		time.Sleep(c.validationBufferPeriod)
+
+		err := c.FulfillContract(ctx)
+		if err != nil {
+			err := c.Close(ctx)
+			if err != nil {
+				c.log.Error(err)
+			}
+		}
+	}()
 }
 
 func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
