@@ -30,9 +30,12 @@ type MinersResponse struct {
 	UsedHashrateGHS      int
 	AvailableHashrateGHS int
 
-	TotalMiners     int
-	UsedMiners      int
-	AvailableMiners int
+	TotalMiners   int
+	BusyMiners    int
+	FreeMiners    int
+	VettingMiners int
+
+	Miners []Miner
 }
 
 type Miner struct {
@@ -149,13 +152,12 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 	return r
 }
 
-func (c *ApiController) GetMiners() []Miner {
-	data := []Miner{}
+func (c *ApiController) GetMiners() *MinersResponse {
+	Miners := []Miner{}
 
 	var (
-		TotalHashrateGHS     int
-		UsedHashrateGHS      int
-		AvailableHashrateGHS int
+		TotalHashrateGHS int
+		UsedHashrateGHS  int
 
 		TotalMiners   int
 		BusyMiners    int
@@ -175,22 +177,24 @@ func (c *ApiController) GetMiners() []Miner {
 				HashrateGHS: HashrateGHS,
 			})
 
-			TotalHashrateGHS += m.GetHashRateGHS()
 			UsedHashrateGHS += HashrateGHS
-			TotalMiners += 1
-
-			switch m.GetStatus() {
-			case miner.MinerStatusFree:
-				FreeMiners += 1
-			case miner.MinerStatusVetting:
-				VettingMiners += 1
-			case miner.MinerStatusBusy:
-				BusyMiners += 1
-			}
 		}
 
 		hashrate := m.GetHashRate()
-		data = append(data, Miner{
+
+		TotalHashrateGHS += hashrate.GetHashrate5minAvgGHS()
+		TotalMiners += 1
+
+		switch m.GetStatus() {
+		case miner.MinerStatusFree:
+			FreeMiners += 1
+		case miner.MinerStatusVetting:
+			VettingMiners += 1
+		case miner.MinerStatusBusy:
+			BusyMiners += 1
+		}
+
+		Miners = append(Miners, Miner{
 			ID:                m.GetID(),
 			Status:            m.GetStatus().String(),
 			TotalHashrateGHS:  m.GetHashRateGHS(),
@@ -209,11 +213,22 @@ func (c *ApiController) GetMiners() []Miner {
 		return true
 	})
 
-	slices.SortStableFunc(data, func(a Miner, b Miner) bool {
+	slices.SortStableFunc(Miners, func(a Miner, b Miner) bool {
 		return a.ID < b.ID
 	})
 
-	return data
+	return &MinersResponse{
+		TotalMiners:   TotalMiners,
+		BusyMiners:    BusyMiners,
+		FreeMiners:    FreeMiners,
+		VettingMiners: VettingMiners,
+
+		TotalHashrateGHS:     TotalHashrateGHS,
+		AvailableHashrateGHS: TotalHashrateGHS - UsedHashrateGHS,
+		UsedHashrateGHS:      UsedHashrateGHS,
+
+		Miners: Miners,
+	}
 }
 
 func (c *ApiController) changeDestAll(destStr string) error {
