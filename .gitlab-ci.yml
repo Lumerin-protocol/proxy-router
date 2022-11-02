@@ -98,7 +98,8 @@ test:
   --build-arg POOL_ADDRESS=$POOL_ADDRESS \
   --build-arg POOL_MIN_DURATION=$POOL_MIN_DURATION \
   --build-arg POOL_MAX_DURATION=$POOL_MAX_DURATION \
-  --build-arg VALIDATION_BUFFER_PERIOD=$VALIDATION_BUFFER_PERIOD 
+  --build-arg VALIDATION_BUFFER_PERIOD=$VALIDATION_BUFFER_PERIOD \
+  --build-arg HASHRATE_DIFF_THRESHOLD=$HASHRATE_DIFF_THRESHOLD
   echo "**************************"
   echo "*** Push Image"
   echo "**************************"
