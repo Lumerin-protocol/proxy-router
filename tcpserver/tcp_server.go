@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/netip"
 	"syscall"
-	"time"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
