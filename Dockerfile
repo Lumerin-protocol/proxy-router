@@ -3,7 +3,7 @@ WORKDIR /app
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s -race" . && \
     cp /app/hashrouter /usr/bin 
-    # cp /bin/sh /app/sh && chmod +x /app/sh
+# cp /bin/sh /app/sh && chmod +x /app/sh
 
 # FROM scratch
 # WORKDIR /app
@@ -64,8 +64,8 @@ RUN echo "ETH_NODE_ADDRESS=$ETH_NODE_ADDRESS" \
     echo "POOL_MAX_DURATION=$POOL_MAX_DURATION" \
     echo "ACCOUNT_INDEX=$ACCOUNT_INDEX" \
     echo "VALIDATION_BUFFER_PERIOD=$VALIDATION_BUFFER_PERIOD"
-    
+
 
 EXPOSE 3333 8081
 
-CMD ["/bin/sh","-c", "ulimit", "-a", "&&", "./hashrouter"]
+ENTRYPOINT ["hashrouter"]
