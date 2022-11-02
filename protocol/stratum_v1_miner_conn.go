@@ -65,6 +65,9 @@ func (m *StratumV1Miner) write(ctx context.Context, msg stratumv1_message.Mining
 func (s *StratumV1Miner) Read(ctx context.Context) (stratumv1_message.MiningMessageGeneric, error) {
 	for {
 		line, isPrefix, err := s.reader.ReadLine()
+
+		s.conn.SetReadDeadline(time.Now().Add(5 * time.Minute))
+
 		if isPrefix {
 			return nil, fmt.Errorf("line is too long")
 		}
