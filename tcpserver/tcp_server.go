@@ -102,8 +102,19 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener net.Listener) e
 
 		if p.handler != nil {
 			go func(conn net.Conn) {
-				conn.(*net.TCPConn).SetReadBuffer(p.connectionBufferSize)
-				conn.(*net.TCPConn).SetWriteBuffer(p.connectionBufferSize)
+				err = conn.(*net.TCPConn).SetReadBuffer(p.connectionBufferSize)
+
+				if err != nil {
+					p.log.Warnf("error setting connection read buffer: %s", err)
+					return
+				}
+
+				err = conn.(*net.TCPConn).SetWriteBuffer(p.connectionBufferSize)
+
+				if err != nil {
+					p.log.Warnf("error setting connection write buffer: %s", err)
+					return
+				}
 
 				// removed logging for each of the incoming connections (healthchecks etc)
 				// HandleConnection will log errors for connections which are established from miner
