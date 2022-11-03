@@ -43,12 +43,18 @@ func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination, configure 
 			p.mu.Unlock()
 			return nil
 		}
+
 	}
 	p.mu.Unlock()
+
+	if p.conn != nil {
+		p.conn.PauseReading()
+	}
 
 	// try to reuse connection from cache
 	conn, ok := p.load(dest.String())
 	if ok {
+
 		p.mu.Lock()
 		p.conn = conn
 		p.mu.Unlock()
