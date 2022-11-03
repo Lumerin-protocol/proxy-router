@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"syscall"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
@@ -30,28 +29,11 @@ func (p *TCPServer) SetConnectionHandler(handler ConnectionHandler) {
 	p.handler = handler
 }
 
-func control(network, address string, c syscall.RawConn) error {
-	_ = c.Control(func(fd uintptr) {
-		if err := syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_RCVBUF, 3*1024); err != nil {
-			fmt.Printf("Set socket receive buffer size failed: %v\n", err)
-		}
-		fmt.Printf("Set socket send buffer size\n")
-		if err := syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_SNDBUF, 3*1024); err != nil {
-			fmt.Printf("Set socket send buffer size failed: %v\n", err)
-		}
-		fmt.Printf("Set socket receive buffer size\n")
-	})
-
-	return nil
-}
-
 func (p *TCPServer) Run(ctx context.Context) error {
 	add, err := netip.ParseAddrPort(p.serverAddr)
 	if err != nil {
 		return fmt.Errorf("invalid server address %s %w", p.serverAddr, err)
 	}
-
-	// lc := &net.ListenConfig{Control: control}
 
 	listener, err := net.ListenTCP("tcp", net.TCPAddrFromAddrPort(add))
 
