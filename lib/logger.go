@@ -2,6 +2,7 @@ package lib
 
 import (
 	"os"
+	"runtime"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"go.uber.org/zap"
@@ -14,7 +15,26 @@ const green = "\u001b[32m"
 const red = "\u001b[31m"
 const reset = "\u001b[0m"
 */
-func NewLogger(isProduction bool) (*zap.SugaredLogger, error) {
+
+type Logger struct {
+	*zap.SugaredLogger
+}
+
+func (l *Logger) LogMemoryUsage() {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
+	l.Debugf("\tAlloc = %v MiB", bToMb(m.Alloc))
+	l.Debugf("\tTotalAlloc = %v MiB", bToMb(m.TotalAlloc))
+	l.Debugf("\tSys = %v MiB", bToMb(m.Sys))
+	l.Debugf("\tNumGC = %v\n", m.NumGC)
+}
+
+func bToMb(b uint64) uint64 {
+	return b / 1024 / 1024
+}
+
+func NewLogger(isProduction bool) (*Logger, error) {
 	var (
 		log *zap.Logger
 		err error
@@ -29,7 +49,7 @@ func NewLogger(isProduction bool) (*zap.SugaredLogger, error) {
 		return nil, err
 	}
 
-	return log.Sugar(), nil
+	return &Logger{SugaredLogger: log.Sugar()}, nil
 }
 
 // NewTestLogger logs only to stdout
