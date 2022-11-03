@@ -30,7 +30,7 @@ func (p *TCPServer) SetConnectionHandler(handler ConnectionHandler) {
 }
 
 func control(network, address string, c syscall.RawConn) error {
-	c.Control(func(fd uintptr) {
+	_ = c.Control(func(fd uintptr) {
 		if err := syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_RCVBUF, 3*1024); err != nil {
 			fmt.Printf("Set socket receive buffer size failed: %v\n", err)
 		}
@@ -40,6 +40,7 @@ func control(network, address string, c syscall.RawConn) error {
 		}
 		fmt.Printf("Set socket receive buffer size\n")
 	})
+
 	return nil
 }
 
