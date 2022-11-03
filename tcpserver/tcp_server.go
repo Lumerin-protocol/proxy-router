@@ -11,16 +11,17 @@ import (
 )
 
 type TCPServer struct {
-	serverAddr string
-	handler    ConnectionHandler
-
-	log interfaces.ILogger
+	serverAddr           string
+	handler              ConnectionHandler
+	connectionBufferSize int
+	log                  interfaces.ILogger
 }
 
-func NewTCPServer(serverAddr string, log interfaces.ILogger) *TCPServer {
+func NewTCPServer(serverAddr string, connectionBufferSize int, log interfaces.ILogger) *TCPServer {
 	return &TCPServer{
-		serverAddr: serverAddr,
-		log:        log,
+		serverAddr:           serverAddr,
+		log:                  log,
+		connectionBufferSize: connectionBufferSize,
 	}
 }
 
@@ -49,9 +50,9 @@ func (p *TCPServer) Run(ctx context.Context) error {
 		return fmt.Errorf("invalid server address %s %w", p.serverAddr, err)
 	}
 
-	lc := &net.ListenConfig{Control: control}
+	// lc := &net.ListenConfig{Control: control}
 
-	listener, err := lc.Listen(context.Background(), "tcp", add.String())
+	listener, err := net.ListenTCP("tcp", net.TCPAddrFromAddrPort(add))
 
 	if err != nil {
 		return fmt.Errorf("listener error %s %w", p.serverAddr, err)
@@ -92,6 +93,8 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener net.Listener) e
 
 		if p.handler != nil {
 			go func(conn net.Conn) {
+				conn.(*net.TCPConn).SetReadBuffer(p.connectionBufferSize)
+				conn.(*net.TCPConn).SetWriteBuffer(p.connectionBufferSize)
 
 				// removed logging for each of the incoming connections (healthchecks etc)
 				// HandleConnection will log errors for connections which are established from miner
@@ -103,6 +106,8 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener net.Listener) e
 					return
 				}
 			}(conn)
+		} else {
+			conn.Close()
 		}
 	}
 }
