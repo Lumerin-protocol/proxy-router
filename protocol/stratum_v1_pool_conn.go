@@ -27,10 +27,10 @@ type StratumV1PoolConn struct {
 	configureMsg  *stratumv1_message.MiningConfigure
 	// TODO: handle pool setExtranonce message
 
-	msgCh              chan stratumv1_message.MiningMessageGeneric // auxillary channel to relay messages
-	customPriorityMsgs chan stratumv1_message.MiningMessageGeneric
-	isReading          bool       // if false messages will not be availabe to read from outside, used for authentication handshake
-	mu                 sync.Mutex // guards isReading
+	msgCh chan stratumv1_message.MiningMessageGeneric // auxillary channel to relay messages
+
+	isReading bool       // if false messages will not be availabe to read from outside, used for authentication handshake
+	mu        sync.Mutex // guards isReading
 
 	lastRequestId *atomic.Uint32 // stratum request id counter
 	resHandlers   sync.Map       // allows to register callbacks for particular messages to simplify transaction flow
@@ -50,8 +50,6 @@ func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDe
 
 		msgCh:     make(chan stratumv1_message.MiningMessageGeneric, 100),
 		isReading: false, // hold on emitting messages to destination, until handshake
-
-		customPriorityMsgs: make(chan stratumv1_message.MiningMessageGeneric, 100),
 
 		lastRequestId: atomic.NewUint32(0),
 		resHandlers:   sync.Map{},
@@ -96,8 +94,6 @@ func (s *StratumV1PoolConn) run(ctx context.Context) error {
 
 		if s.getIsReading() {
 			s.sendToReadCh(m)
-		} else {
-			s.log.Debugf("pool message was cached but not emitted (%s)", s.GetDest().String())
 		}
 
 	}
@@ -238,7 +234,12 @@ func (m *StratumV1PoolConn) Write(ctx context.Context, msg stratumv1_message.Min
 
 	b := fmt.Sprintf("%s\n", msg.Serialize())
 	_, err := m.conn.Write([]byte(b))
-	return err
+
+	if err != nil {
+		return err
+	}
+
+	return m.conn.SetWriteDeadline(time.Now().Add(10 * time.Minute))
 }
 
 // Returns current extranonce values
@@ -304,4 +305,21 @@ func (s *StratumV1PoolConn) getIsReading() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.isReading
+}
+
+// PauseReading should be invoked when there is no miner connected.
+// It stops storing each message into the s.msg channel
+func (s *StratumV1PoolConn) PauseReading() {
+	s.setIsReading(false)
+	s.clearMsgCh()
+}
+
+func (s *StratumV1PoolConn) clearMsgCh() {
+	for {
+		select {
+		case <-s.msgCh:
+		default:
+			return
+		}
+	}
 }
