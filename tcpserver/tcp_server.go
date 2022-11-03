@@ -2,9 +2,11 @@ package tcpserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
+	"syscall"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
@@ -27,13 +29,31 @@ func (p *TCPServer) SetConnectionHandler(handler ConnectionHandler) {
 	p.handler = handler
 }
 
+func control(network, address string, c syscall.RawConn) error {
+	_ = c.Control(func(fd uintptr) {
+		if err := syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_RCVBUF, 3*1024); err != nil {
+			fmt.Printf("Set socket receive buffer size failed: %v\n", err)
+		}
+		fmt.Printf("Set socket send buffer size\n")
+		if err := syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_SNDBUF, 3*1024); err != nil {
+			fmt.Printf("Set socket send buffer size failed: %v\n", err)
+		}
+		fmt.Printf("Set socket receive buffer size\n")
+	})
+
+	return nil
+}
+
 func (p *TCPServer) Run(ctx context.Context) error {
 	add, err := netip.ParseAddrPort(p.serverAddr)
 	if err != nil {
 		return fmt.Errorf("invalid server address %s %w", p.serverAddr, err)
 	}
 
-	listener, err := net.ListenTCP("tcp", net.TCPAddrFromAddrPort(add))
+	lc := &net.ListenConfig{Control: control}
+
+	listener, err := lc.Listen(context.Background(), "tcp", add.String())
+
 	if err != nil {
 		return fmt.Errorf("listener error %s %w", p.serverAddr, err)
 	}
@@ -61,9 +81,19 @@ func (p *TCPServer) Run(ctx context.Context) error {
 	return err
 }
 
-func (p *TCPServer) startAccepting(ctx context.Context, listener *net.TCPListener) error {
+func (p *TCPServer) startAccepting(ctx context.Context, listener net.Listener) error {
+
 	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
 		conn, err := listener.Accept()
+		if errors.Is(err, net.ErrClosed) {
+			return errors.New("incoming connection listener was closed")
+		}
 		if err != nil {
 			p.log.Errorf("incoming connection accept error: %s", err)
 			continue
