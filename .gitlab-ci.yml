@@ -11,6 +11,7 @@ variables:
   POOL_MAX_DURATION: 5m
   PROXY_ADDRESS: "0.0.0.0:3333"
   PROXY_LOG_STRATUM: "false"
+  WEB_ADDRESS: "0.0.0.0:8080"
   VALIDATION_BUFFER_PERIOD: 20m
   NODE_DEF: "prt"
   CI_AWS_TASK: "proxy-router"
