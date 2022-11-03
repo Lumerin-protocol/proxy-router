@@ -59,7 +59,7 @@ func NewContract(
 	if hr == nil {
 		hr = hashrate.NewHashrate(log)
 	}
-	return &BTCHashrateContract{
+	contract := &BTCHashrateContract{
 		blockchain:             blockchain,
 		data:                   data,
 		hashrate:               hr,
@@ -68,7 +68,20 @@ func NewContract(
 		hashrateDiffThreshold:  hashrateDiffThreshold,
 		validationBufferPeriod: validationBufferPeriod,
 		globalScheduler:        globalScheduler,
-		state:                  ContractStateAvailable,
+		state:                  convertBlockchainStatusToApplicationStatus(data.State),
+	}
+
+	return contract
+}
+
+func convertBlockchainStatusToApplicationStatus(status blockchain.ContractBlockchainState) ContractState {
+	switch status {
+	case blockchain.ContractBlockchainStateRunning:
+		return ContractStateRunning
+	case blockchain.ContractBlockchainStateAvailable:
+		return ContractStateAvailable
+	default:
+		return ContractStateAvailable
 	}
 }
 
@@ -116,7 +129,9 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 		err = c.tryFulfillContract(ctx)
 		if err != nil {
 			err := c.Close(ctx)
-			c.log.Error(err)
+			if err != nil {
+				c.log.Error(err)
+			}
 		}
 	}()
 
@@ -160,15 +175,46 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 				continue
 
 			case blockchain.ContractCipherTextUpdatedHex:
+				c.log.Info("received contract ContractCipherTextUpdated event", c.data.Addr)
+				err := c.LoadBlockchainContract()
+				if err != nil {
+					c.log.Error(err)
+					continue
+				}
+				c.log.Info("NEW DEST:", c.GetDest())
+
+				_, err = c.globalScheduler.DeallocateContract(ctx, c.minerIDs, c.GetID())
+				if err != nil {
+					c.log.Errorf("cannot perform deallocation for ContractCipherTextUpdated event: %s", err)
+					continue
+				}
+
+				err = c.StartHashrateAllocation()
+				if err != nil {
+					c.log.Error(err)
+					continue
+				}
+
+				continue
+
 			case blockchain.ContractPurchaseInfoUpdatedHex:
+				c.log.Info("received contract ContractPurchaseInfoUpdated event", c.data.Addr)
+
 				err := c.LoadBlockchainContract()
 
+				if err != nil {
+					c.log.Error(err)
+				}
+				continue
+
+			case blockchain.ContractClosedSigHex:
+				c.log.Info("received contract closed event ", c.data.Addr)
+
+				err := c.LoadBlockchainContract()
 				if err != nil {
 					continue
 				}
 
-			case blockchain.ContractClosedSigHex:
-				c.log.Info("received contract closed event ", c.data.Addr)
 				c.Stop(ctx)
 				continue
 			}
@@ -179,14 +225,13 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 func (c *BTCHashrateContract) LoadBlockchainContract() error {
 	data, err := c.blockchain.ReadContract(c.data.Addr)
 	if err != nil {
-		c.log.Error("cannot read contract", err)
-		return err
+		return fmt.Errorf("cannot read contract: %s, address (%s)", err, c.data.Addr)
 	}
 	// TODO guard it
 	contractData, ok := data.(blockchain.ContractData)
 
 	if !ok {
-		return fmt.Errorf("failed to load blockhain data: %#+v", c.data.Addr)
+		return fmt.Errorf("failed to load blockhain data, address (%s)", c.data.Addr)
 	}
 
 	c.data = contractData
@@ -195,7 +240,7 @@ func (c *BTCHashrateContract) LoadBlockchainContract() error {
 }
 
 func (c *BTCHashrateContract) tryFulfillContract(ctx context.Context) error {
-	if c.data.State != blockchain.ContractBlockchainStateRunning || c.ContractIsExpired() {
+	if c.data.State != blockchain.ContractBlockchainStateRunning {
 		return nil // not buyer in buyer case
 	}
 
@@ -208,6 +253,7 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 
 	if c.ContractIsExpired() {
 		c.log.Warn("contract is expired %s", c.GetID())
+		c.Close(ctx)
 		return fmt.Errorf("contract is expired")
 	}
 	//race condition here for some contract closeout scenarios
@@ -245,7 +291,7 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 
 			minerIDs, err := c.globalScheduler.UpdateCombination(ctx, c.minerIDs, c.GetHashrateGHS(), c.GetDest(), c.GetID(), c.hashrateDiffThreshold)
 			if err != nil {
-				return fmt.Errorf("contract is expired")
+				c.log.Errorf("cannot update combination %s", err)
 			} else {
 				c.minerIDs = minerIDs
 			}
