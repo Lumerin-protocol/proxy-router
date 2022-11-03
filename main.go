@@ -78,7 +78,7 @@ func provideApiController(cfg *config.Config, miners interfaces.ICollection[mine
 }
 
 func provideTCPServer(cfg *config.Config, l interfaces.ILogger) *tcpserver.TCPServer {
-	return tcpserver.NewTCPServer(cfg.Proxy.Address, l)
+	return tcpserver.NewTCPServer(cfg.Proxy.Address, cfg.Proxy.ConnectionBufferSize, l)
 }
 
 func provideApiServer(cfg *config.Config, l interfaces.ILogger, controller *gin.Engine) *api.Server {
