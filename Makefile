@@ -1,6 +1,9 @@
 install:
 	go mod download
 
+build:
+	wire && go build
+	
 run:
 	wire && go run .
 
