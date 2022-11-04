@@ -72,6 +72,12 @@ func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination, configure 
 	}
 	p.log.Infof("dialed dest %s", dest)
 
+	err = c.(*net.TCPConn).SetLinger(60)
+
+	if err != nil {
+		return err
+	}
+
 	conn = NewStratumV1Pool(c, p.log, dest, configure, p.logStratum)
 	err = conn.Connect()
 	if err != nil {
