@@ -15,7 +15,7 @@ variables:
   VALIDATION_BUFFER_PERIOD: 20m
   NODE_DEF: "prt"
   CI_AWS_TASK: "proxy-router"
-  STRATUM_SOCKET_BUFFER_SIZE: 5
+  STRATUM_SOCKET_BUFFER_SIZE: 10
 
 stages:
   - test
