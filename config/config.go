@@ -29,8 +29,9 @@ type Config struct {
 		Syslog bool `env:"LOG_SYSLOG" flag:"log-syslog"`
 	}
 	Proxy struct {
-		Address    string `env:"PROXY_ADDRESS" flag:"proxy-address" validate:"required,hostname_port"`
-		LogStratum bool   `env:"PROXY_LOG_STRATUM"`
+		Address              string `env:"PROXY_ADDRESS" flag:"proxy-address" validate:"required,hostname_port"`
+		LogStratum           bool   `env:"PROXY_LOG_STRATUM"`
+		ConnectionBufferSize int    `env:"STRATUM_SOCKET_BUFFER_SIZE" flag:"stratum-socket-buffer" validate:"required,numeric"`
 	}
 	Pool struct {
 		Address     string        `env:"POOL_ADDRESS" flag:"pool-address" validate:"required,uri"`
