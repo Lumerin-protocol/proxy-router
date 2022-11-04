@@ -81,6 +81,7 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener net.Listener) e
 		}
 		if err != nil {
 			p.log.Errorf("incoming connection accept error: %s", err)
+
 			continue
 		}
 
