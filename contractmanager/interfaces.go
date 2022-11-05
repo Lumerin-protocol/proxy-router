@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"gitlab.com/TitanInd/hashrouter/lib"
+	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
 
 type IContractModel interface {
@@ -20,5 +20,5 @@ type IContractModel interface {
 	GetEndTime() *time.Time
 	GetState() ContractState
 	GetStatusInternal() string
-	GetDest() lib.Dest
+	GetDest() interfaces.IDestination
 }
