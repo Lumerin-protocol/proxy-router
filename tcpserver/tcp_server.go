@@ -101,6 +101,13 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener net.Listener) e
 					return
 				}
 
+				err = conn.(*net.TCPConn).SetLinger(0)
+
+				if err != nil {
+					p.log.Warnf("error updating connection linger setting: %s", err)
+					return
+				}
+
 				// removed logging for each of the incoming connections (healthchecks etc)
 				// HandleConnection will log errors for connections which are established from miner
 				_ = p.handler.HandleConnection(ctx, conn)
