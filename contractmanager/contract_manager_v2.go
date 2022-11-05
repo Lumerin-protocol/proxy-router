@@ -14,7 +14,7 @@ import (
 
 type ContractManager struct {
 	// dependencies
-	blockchain      *blockchain.EthereumGateway
+	blockchain      interfaces.IBlockchainGateway
 	log             interfaces.ILogger
 	globalScheduler *GlobalSchedulerService
 
@@ -32,7 +32,7 @@ type ContractManager struct {
 }
 
 func NewContractManager(
-	blockchain *blockchain.EthereumGateway,
+	blockchain interfaces.IBlockchainGateway,
 	globalScheduler *GlobalSchedulerService,
 	log interfaces.ILogger,
 	contracts interfaces.ICollection[IContractModel],
@@ -126,26 +126,48 @@ func (m *ContractManager) runExistingContracts() error {
 	return nil
 }
 
+func (m *ContractManager) ContractExists(contractAddr common.Address) bool {
+	exists := false
+
+	existsResult := &exists
+	fmt.Printf("contracts: %+v\n", m.contracts)
+	m.contracts.Range(func(item IContractModel) bool {
+		fmt.Printf("item id: %v", item.GetID())
+		fmt.Printf("contract hex: %v", contractAddr.Hex())
+		exists = item.GetID() == contractAddr.Hex()
+
+		existsResult = &exists
+
+		return !exists
+	})
+
+	return *existsResult
+}
+
 func (m *ContractManager) handleContract(ctx context.Context, contractAddr common.Address) error {
-	data, err := m.blockchain.ReadContract(contractAddr)
-	if err != nil {
-		return fmt.Errorf("cannot read created contract %w", err)
+
+	if !m.ContractExists(contractAddr) {
+
+		data, err := m.blockchain.ReadContract(contractAddr)
+		if err != nil {
+			return fmt.Errorf("cannot read created contract %w", err)
+		}
+
+		contract := NewContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, m.isBuyer, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest)
+
+		if contract.IsValidWallet(m.walletAddr) {
+			// contract will be ignored by this node
+			return nil
+		}
+
+		m.log.Infof("handling contract \n%+v", data)
+
+		go func() {
+			err := contract.Run(ctx)
+			m.log.Warn("contract error: ", err)
+		}()
+		m.contracts.Store(contract)
 	}
-
-	contract := NewContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, m.isBuyer, m.hashrateDiffThreshold, m.validationBufferPeriod)
-
-	if contract.Ignore(m.walletAddr, m.defaultDest) {
-		// contract will be ignored by this node
-		return nil
-	}
-
-	m.log.Infof("handling contract \n%+v", data)
-
-	go func() {
-		err := contract.Run(ctx)
-		m.log.Warn("contract error: ", err)
-	}()
-	m.contracts.Store(contract)
 
 	return nil
 }
