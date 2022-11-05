@@ -10,7 +10,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
 
-const kb = 1024
+// const kb = 1024
 
 type TCPServer struct {
 	serverAddr           string
