@@ -2,11 +2,10 @@ package protocol
 
 import (
 	"context"
-	"net"
-	"sync"
-
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
+	"net"
+	"sync"
 )
 
 // Wraps the stratum miner pool connection to reuse multiple pool connections without handshake
@@ -18,6 +17,7 @@ type StratumV1PoolConnPool struct {
 
 	log        interfaces.ILogger
 	logStratum bool
+	errCh      chan error
 }
 
 func NewStratumV1PoolPool(log interfaces.ILogger, logStratum bool) *StratumV1PoolConnPool {
@@ -25,7 +25,23 @@ func NewStratumV1PoolPool(log interfaces.ILogger, logStratum bool) *StratumV1Poo
 		pool:       sync.Map{},
 		log:        log,
 		logStratum: logStratum,
+		errCh:      make(chan error),
 	}
+}
+
+func (p *StratumV1PoolConnPool) ErrorChannel() chan error {
+	return p.errCh
+}
+
+func (p *StratumV1PoolConnPool) Close() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.pool.Range(func(key, value interface{}) bool {
+		poolConn := value.(*StratumV1PoolConn)
+		poolConn.conn.Close()
+		return true
+	})
+	p.pool = sync.Map{}
 }
 
 func (p *StratumV1PoolConnPool) GetDest() interfaces.IDestination {
@@ -75,10 +91,7 @@ func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination, configure 
 	c.(*net.TCPConn).SetLinger(60)
 
 	conn = NewStratumV1Pool(c, p.log, dest, configure, p.logStratum)
-	err = conn.Connect()
-	if err != nil {
-		return err
-	}
+	conn.Connect(p.errCh)
 
 	conn.ResendRelevantNotifications(context.TODO())
 

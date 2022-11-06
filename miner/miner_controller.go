@@ -78,8 +78,15 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 
 	defer p.log.Warnf("Miner disconnected %s", incomingConn.RemoteAddr())
 	defer p.collection.Delete(minerScheduler.GetID())
-
-	return minerScheduler.Run(ctx)
+	defer poolPool.Close()
+	errCh := poolPool.ErrorChannel()
+	go func() {
+		errCh <- minerScheduler.Run(ctx)
+	}()
+	select {
+	case err := <-errCh:
+		return err
+	}
 }
 
 func (p *MinerController) ChangeDestAll(dest interfaces.IDestination) error {

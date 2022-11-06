@@ -59,12 +59,13 @@ func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDe
 	}
 }
 
-func (s *StratumV1PoolConn) Run(ctx context.Context) error {
+func (s *StratumV1PoolConn) Run(ctx context.Context, errCh chan error) {
 	go func() {
 		err := s.run(ctx)
 		s.log.Error(err)
+		errCh <- err
 	}()
-	return nil
+	return
 }
 
 func (s *StratumV1PoolConn) run(ctx context.Context) error {
@@ -100,32 +101,33 @@ func (s *StratumV1PoolConn) run(ctx context.Context) error {
 }
 
 // Allows to connect to a new pool
-func (m *StratumV1PoolConn) Connect() error {
-	err := m.Run(context.Background())
-	if err != nil {
-		return err
-	}
+func (m *StratumV1PoolConn) Connect(errCh chan error) {
+	m.Run(context.Background(), errCh)
 
 	if m.configureMsg != nil {
 		_, err := m.SendPoolRequestWait(m.configureMsg)
 		if err != nil {
-			return err
+			errCh <- err
+			return
 		}
 	}
 
 	subscribeRes, err := m.SendPoolRequestWait(stratumv1_message.NewMiningSubscribe(1, "miner", ""))
 	if err != nil {
 		// TODO: on error fallback to previous pool
-		return err
+		errCh <- err
+		return
 	}
 	if subscribeRes.IsError() {
-		return fmt.Errorf("invalid subscribe response %s", subscribeRes.Serialize())
+		errCh <- fmt.Errorf("invalid subscribe response %s", subscribeRes.Serialize())
+		return
 	}
 	m.log.Debug("connect: subscribe sent")
 
 	extranonce, extranonceSize, err := stratumv1_message.ParseExtranonceSubscribeResult(subscribeRes)
 	if err != nil {
-		return err
+		errCh <- err
+		return
 	}
 
 	m.extraNonceMsg = stratumv1_message.NewMiningSetExtranonceV2(extranonce, extranonceSize)
@@ -136,13 +138,13 @@ func (m *StratumV1PoolConn) Connect() error {
 		m.log.Debugf("reconnect: error sent subscribe %w", err)
 
 		// TODO: on error fallback to previous pool
-		return err
+		errCh <- err
+		return
 	}
 	m.log.Debug("connect: authorize sent")
 
 	m.setIsReading(true)
-
-	return nil
+	return
 }
 
 // SendPoolRequestWait sends a message and awaits for the response
