@@ -16,6 +16,7 @@ variables:
   NODE_DEF: "prt"
   CI_AWS_TASK: "proxy-router"
   STRATUM_SOCKET_BUFFER_SIZE: 20
+  SOCKET_MINER_CONNECTION_LIMIT: 1000
 
 stages:
   - test

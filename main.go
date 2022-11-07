@@ -84,8 +84,16 @@ func provideApiController(cfg *config.Config, miners interfaces.ICollection[mine
 	return api.NewApiController(miners, contracts, log, gs, cfg.Contract.IsBuyer, cfg.Contract.HashrateDiffThreshold, cfg.Contract.ValidationBufferPeriod, dest), nil
 }
 
-func provideTCPServer(cfg *config.Config, l interfaces.ILogger) *tcpserver.TCPServer {
-	return tcpserver.NewTCPServer(cfg.Proxy.Address, cfg.Proxy.ConnectionBufferSize, l)
+func provideTCPServer(cfg *config.Config, l interfaces.ILogger, connectionPoolListener interfaces.IConnectionPoolListener) *tcpserver.TCPServer {
+	return tcpserver.NewTCPServer(cfg.Proxy.Address, cfg.Proxy.ConnectionBufferSize, l, connectionPoolListener)
+}
+
+func provideConnectionPoolListener(cfg *config.Config, l interfaces.ILogger, resourcePool tcpserver.ResourcePool) interfaces.IConnectionPoolListener {
+	return tcpserver.NewConnectionPool(cfg.Proxy.SourceConnectionLimit, l, resourcePool)
+}
+
+func provideResourcePool() tcpserver.ResourcePool {
+	return tcpserver.NewSimpleResourcePool()
 }
 
 func provideApiServer(cfg *config.Config, l interfaces.ILogger, controller *gin.Engine) *api.Server {

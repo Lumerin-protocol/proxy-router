@@ -17,13 +17,15 @@ type TCPServer struct {
 	handler              ConnectionHandler
 	connectionBufferSize int
 	log                  interfaces.ILogger
+	connectionPool       interfaces.IConnectionPoolListener
 }
 
-func NewTCPServer(serverAddr string, connectionBufferSize int, log interfaces.ILogger) *TCPServer {
+func NewTCPServer(serverAddr string, connectionBufferSize int, log interfaces.ILogger, connectionPool interfaces.IConnectionPoolListener) *TCPServer {
 	return &TCPServer{
 		serverAddr:           serverAddr,
 		log:                  log,
 		connectionBufferSize: connectionBufferSize,
+		connectionPool:       connectionPool,
 	}
 }
 
@@ -37,7 +39,7 @@ func (p *TCPServer) Run(ctx context.Context) error {
 		return fmt.Errorf("invalid server address %s %w", p.serverAddr, err)
 	}
 
-	listener, err := net.ListenTCP("tcp", net.TCPAddrFromAddrPort(add))
+	listener, err := net.Listen("tcp", add.String())
 
 	if err != nil {
 		return fmt.Errorf("listener error %s %w", p.serverAddr, err)
@@ -76,6 +78,7 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener net.Listener) e
 		}
 
 		conn, err := listener.Accept()
+
 		if errors.Is(err, net.ErrClosed) {
 			return errors.New("incoming connection listener was closed")
 		}
