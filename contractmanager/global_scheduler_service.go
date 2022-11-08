@@ -203,7 +203,7 @@ func (s *GlobalSchedulerService) DeallocateContract(ctx context.Context, contrac
 		return
 	}
 
-	for minerID, _ := range minersSnap.GetItems() {
+	for minerID := range minersSnap.GetItems() {
 		miner, ok := s.minerCollection.Load(minerID)
 		if !ok {
 			s.log.Warnf("miner (%s) is not found", minerID)

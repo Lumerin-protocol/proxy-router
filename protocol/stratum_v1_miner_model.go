@@ -262,14 +262,15 @@ func (s *stratumV1MinerModel) RangeDestConn(f func(key any, value any) bool) {
 	s.poolConn.RangeConn(f)
 }
 
-func (s *stratumV1MinerModel) Cleanup() error {
-	var err error = nil
+func (s *stratumV1MinerModel) Cleanup() {
 	if s.poolConn != nil {
-		err = s.poolConn.Close()
+		err := s.poolConn.Close()
+		if err != nil {
+			s.log.Errorf("cannot close pool connection %s", err)
+		}
 	}
 	s.poolConn = nil
 	s.minerConn = nil
 	s.validator = nil
 	s.onSubmit = nil
-	return err
 }
