@@ -4,7 +4,7 @@ variables:
   ENVIRONMENT: "production" # production makes logs in json and not panics when calling DPanic
   HASHRATE_DIFF_THRESHOLD: "0.1"
   IS_BUYER: "false"
-  MINER_VETTING_DURATION: 1m
+  MINER_VETTING_DURATION: 5m
   NODE_DEF: "prt"
   POOL_MIN_DURATION: 2m
   POOL_MAX_DURATION: 5m
@@ -12,7 +12,7 @@ variables:
   PROXY_ADDRESS: "0.0.0.0:3333"
   PROXY_LOG_STRATUM: "false"
   WEB_ADDRESS: "0.0.0.0:8080"
-  VALIDATION_BUFFER_PERIOD: 20m
+  VALIDATION_BUFFER_PERIOD: 5m
   STRATUM_SOCKET_BUFFER_SIZE: 5
 
 stages:

@@ -90,9 +90,7 @@ func (c *BTCHashrateContract) Run(ctx context.Context) error {
 	// contract was purchased before the node started, may be result of the restart
 	if c.data.State == blockchain.ContractBlockchainStateRunning {
 		go func() {
-			if c.isBuyer {
-				time.Sleep(c.validationBufferPeriod)
-			}
+			time.Sleep(c.validationBufferPeriod)
 			c.FulfillAndClose(ctx)
 		}()
 	}
