@@ -6,41 +6,29 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"syscall"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
 
-type TCPServer struct {
-	serverAddr string
-	handler    ConnectionHandler
+const kb = 1024
 
-	log interfaces.ILogger
+type TCPServer struct {
+	serverAddr           string
+	handler              ConnectionHandler
+	connectionBufferSize int
+	log                  interfaces.ILogger
 }
 
-func NewTCPServer(serverAddr string, log interfaces.ILogger) *TCPServer {
+func NewTCPServer(serverAddr string, connectionBufferSize int, log interfaces.ILogger) *TCPServer {
 	return &TCPServer{
-		serverAddr: serverAddr,
-		log:        log,
+		serverAddr:           serverAddr,
+		log:                  log,
+		connectionBufferSize: connectionBufferSize,
 	}
 }
 
 func (p *TCPServer) SetConnectionHandler(handler ConnectionHandler) {
 	p.handler = handler
-}
-
-func control(network, address string, c syscall.RawConn) error {
-	_ = c.Control(func(fd uintptr) {
-		if err := syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_RCVBUF, 3*1024); err != nil {
-			fmt.Printf("Set socket receive buffer size failed: %v\n", err)
-		}
-		fmt.Printf("Set socket send buffer size\n")
-		if err := syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_SNDBUF, 3*1024); err != nil {
-			fmt.Printf("Set socket send buffer size failed: %v\n", err)
-		}
-		fmt.Printf("Set socket receive buffer size\n")
-	})
-	return nil
 }
 
 func (p *TCPServer) Run(ctx context.Context) error {
@@ -49,9 +37,7 @@ func (p *TCPServer) Run(ctx context.Context) error {
 		return fmt.Errorf("invalid server address %s %w", p.serverAddr, err)
 	}
 
-	lc := &net.ListenConfig{Control: control}
-
-	listener, err := lc.Listen(context.Background(), "tcp", add.String())
+	listener, err := net.ListenTCP("tcp", net.TCPAddrFromAddrPort(add))
 
 	if err != nil {
 		return fmt.Errorf("listener error %s %w", p.serverAddr, err)
@@ -95,11 +81,25 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener net.Listener) e
 		}
 		if err != nil {
 			p.log.Errorf("incoming connection accept error: %s", err)
+
 			continue
 		}
 
 		if p.handler != nil {
 			go func(conn net.Conn) {
+				err = conn.(*net.TCPConn).SetReadBuffer(p.connectionBufferSize * kb)
+
+				if err != nil {
+					p.log.Warnf("error setting connection read buffer: %s", err)
+					return
+				}
+
+				err = conn.(*net.TCPConn).SetWriteBuffer(p.connectionBufferSize * kb)
+
+				if err != nil {
+					p.log.Warnf("error setting connection write buffer: %s", err)
+					return
+				}
 
 				// removed logging for each of the incoming connections (healthchecks etc)
 				// HandleConnection will log errors for connections which are established from miner
@@ -111,6 +111,8 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener net.Listener) e
 					return
 				}
 			}(conn)
+		} else {
+			conn.Close()
 		}
 	}
 }
