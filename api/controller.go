@@ -17,6 +17,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/miner"
+	"gitlab.com/TitanInd/hashrouter/protocol"
 	"golang.org/x/exp/slices"
 )
 
@@ -39,16 +40,17 @@ type MinersResponse struct {
 }
 
 type Miner struct {
-	ID                 string
-	Status             string
-	TotalHashrateGHS   int
-	HashrateAvgGHS     HashrateAvgGHS
-	Destinations       []DestItem
-	CurrentDestination string
-	CurrentDifficulty  int
-	WorkerName         string
-	ConnectedAt        string
-	UptimeSeconds      int
+	ID                    string
+	Status                string
+	TotalHashrateGHS      int
+	HashrateAvgGHS        HashrateAvgGHS
+	Destinations          []DestItem
+	CurrentDestination    string
+	CurrentDifficulty     int
+	WorkerName            string
+	ConnectedAt           string
+	UptimeSeconds         int
+	ActivePoolConnections map[string]string
 }
 
 type HashrateAvgGHS struct {
@@ -194,6 +196,14 @@ func (c *ApiController) GetMiners() *MinersResponse {
 			BusyMiners += 1
 		}
 
+		ActivePoolConnections := make(map[string]string)
+
+		m.RangeDestConn(func(key, value any) bool {
+			k := value.(*protocol.StratumV1PoolConn)
+			ActivePoolConnections[key.(string)] = k.RemoteAddr()
+			return true
+		})
+
 		Miners = append(Miners, Miner{
 			ID:                m.GetID(),
 			Status:            m.GetStatus().String(),
@@ -205,10 +215,11 @@ func (c *ApiController) GetMiners() *MinersResponse {
 				T30m: hashrate.GetHashrate30minAvgGHS(),
 				T1h:  hashrate.GetHashrate1hAvgGHS(),
 			},
-			CurrentDestination: m.GetCurrentDest().String(),
-			WorkerName:         m.GetWorkerName(),
-			ConnectedAt:        m.GetConnectedAt().Format(time.RFC3339),
-			UptimeSeconds:      int(m.GetUptime().Seconds()),
+			CurrentDestination:    m.GetCurrentDest().String(),
+			WorkerName:            m.GetWorkerName(),
+			ConnectedAt:           m.GetConnectedAt().Format(time.RFC3339),
+			UptimeSeconds:         int(m.GetUptime().Seconds()),
+			ActivePoolConnections: ActivePoolConnections,
 		})
 		return true
 	})

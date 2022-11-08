@@ -86,4 +86,6 @@ func (s *MinerSchedulerMock) GetUptime() time.Duration {
 	return time.Hour
 }
 
+func (s *MinerSchedulerMock) RangeDestConn(f func(a, b any) bool) {}
+
 var _ MinerScheduler = new(MinerSchedulerMock)

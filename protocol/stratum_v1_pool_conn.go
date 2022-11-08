@@ -59,12 +59,13 @@ func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDe
 	}
 }
 
+// Run enables proxying and handling pool messages
 func (s *StratumV1PoolConn) Run(ctx context.Context) error {
-	go func() {
-		err := s.run(ctx)
+	err := s.run(ctx)
+	if err != nil {
 		s.log.Error(err)
-	}()
-	return nil
+	}
+	return err
 }
 
 func (s *StratumV1PoolConn) run(ctx context.Context) error {
@@ -92,20 +93,17 @@ func (s *StratumV1PoolConn) run(ctx context.Context) error {
 
 		m = s.readInterceptor(m)
 
-		if s.getIsReading() {
+		_, isResult := m.(*stratumv1_message.MiningResult)
+
+		// result should be always sent to miner, otherwise it will close connection
+		if s.getIsReading() || isResult {
 			s.sendToReadCh(m)
 		}
-
 	}
 }
 
-// Allows to connect to a new pool
+// Connect initiates connection handshake. Make sure m.Run was called
 func (m *StratumV1PoolConn) Connect() error {
-	err := m.Run(context.Background())
-	if err != nil {
-		return err
-	}
-
 	if m.configureMsg != nil {
 		_, err := m.SendPoolRequestWait(m.configureMsg)
 		if err != nil {
@@ -189,17 +187,17 @@ func (m *StratumV1PoolConn) ResendRelevantNotifications(ctx context.Context) {
 // useful after changing miner's destinations
 func (m *StratumV1PoolConn) resendRelevantNotifications(ctx context.Context) {
 	m.sendToReadCh(m.extraNonceMsg)
-	m.log.Infof("extranonce was resent")
+	// m.log.Infof("extranonce was resent")
 
 	if m.setDiffMsg != nil {
 		m.sendToReadCh(m.setDiffMsg)
-		m.log.Infof("set-difficulty was resent")
+		// m.log.Infof("set-difficulty was resent")
 	}
 
 	for _, msg := range m.notifyMsgs {
 		if msg != nil {
 			m.sendToReadCh(msg)
-			m.log.Infof("notify was resent")
+			// m.log.Infof("notify was resent")
 		}
 	}
 }
@@ -211,7 +209,7 @@ func (s *StratumV1PoolConn) sendToReadCh(msg stratumv1_message.MiningMessageGene
 		case s.msgCh <- msg:
 			return
 		case <-time.After(timeoutAlert):
-			s.log.Warnf("sendToReadCh is blocked for %.1f seconds, pending message %s", timeoutAlert.Seconds()*float64(n), string(msg.Serialize()))
+			s.log.Warnf("sendToReadCh is blocked for %.1f seconds", timeoutAlert.Seconds())
 		}
 	}
 }
@@ -293,11 +291,6 @@ func (s *StratumV1PoolConn) writeInterceptor(m stratumv1_message.MiningMessageGe
 func (s *StratumV1PoolConn) setIsReading(b bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if b {
-		s.log.Debugf("reading from pool released (%s)", s.dest)
-	} else {
-		s.log.Debugf("reading from pool in on hold (%s)", s.dest)
-	}
 	s.isReading = b
 }
 
@@ -311,7 +304,6 @@ func (s *StratumV1PoolConn) getIsReading() bool {
 // It stops storing each message into the s.msg channel
 func (s *StratumV1PoolConn) PauseReading() {
 	s.setIsReading(false)
-	s.clearMsgCh()
 }
 
 func (s *StratumV1PoolConn) clearMsgCh() {
@@ -322,4 +314,12 @@ func (s *StratumV1PoolConn) clearMsgCh() {
 			return
 		}
 	}
+}
+
+func (s *StratumV1PoolConn) Close() error {
+	err := s.conn.Close()
+	s.clearMsgCh()
+	s.resHandlers = sync.Map{}
+	s.notifyMsgs = nil
+	return err
 }
