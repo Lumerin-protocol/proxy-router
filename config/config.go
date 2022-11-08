@@ -37,6 +37,7 @@ type Config struct {
 		Address     string        `env:"POOL_ADDRESS" flag:"pool-address" validate:"required,uri"`
 		MinDuration time.Duration `env:"POOL_MIN_DURATION" validate:"duration"`
 		MaxDuration time.Duration `env:"POOL_MAX_DURATION" validate:"duration"`
+		ConnTimeout time.Duration `env:"POOL_CONN_TIMEOUT" validate:"duration"`
 	}
 	Web struct {
 		Address string `env:"WEB_ADDRESS" flag:"web-address" desc:"http server address host:port" validate:"required,hostname_port"`

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"sync"
+	"time"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
@@ -13,18 +14,20 @@ import (
 type StratumV1PoolConnPool struct {
 	pool sync.Map
 
-	conn *StratumV1PoolConn
-	mu   sync.Mutex // guards conn
+	conn        *StratumV1PoolConn
+	mu          sync.Mutex // guards conn
+	connTimeout time.Duration
 
 	log        interfaces.ILogger
 	logStratum bool
 }
 
-func NewStratumV1PoolPool(log interfaces.ILogger, logStratum bool) *StratumV1PoolConnPool {
+func NewStratumV1PoolPool(log interfaces.ILogger, connTimeout time.Duration, logStratum bool) *StratumV1PoolConnPool {
 	return &StratumV1PoolConnPool{
-		pool:       sync.Map{},
-		log:        log,
-		logStratum: logStratum,
+		pool:        sync.Map{},
+		connTimeout: connTimeout,
+		log:         log,
+		logStratum:  logStratum,
 	}
 }
 
@@ -71,7 +74,7 @@ func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination, configure 
 
 	_ = c.(*net.TCPConn).SetLinger(60)
 
-	conn = NewStratumV1Pool(c, p.log, dest, configure, p.logStratum)
+	conn = NewStratumV1Pool(c, p.log, dest, configure, p.connTimeout, p.logStratum)
 
 	go func() {
 		err := conn.Run(context.TODO())
@@ -84,6 +87,12 @@ func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination, configure 
 		}
 		p.pool.Delete(dest.String())
 	}()
+
+	ID := conn.GetDest().String()
+	conn.Deadline(func() {
+		p.pool.Delete(ID)
+		p.log.Debugf("connection was cleaned %s", ID)
+	})
 
 	err = conn.Connect()
 	if err != nil {

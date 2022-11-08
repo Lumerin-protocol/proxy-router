@@ -35,11 +35,16 @@ type StratumV1PoolConn struct {
 	lastRequestId *atomic.Uint32 // stratum request id counter
 	resHandlers   sync.Map       // allows to register callbacks for particular messages to simplify transaction flow
 
+	newDeadline chan time.Time // channel with newly set deadlines
+	deadline    time.Time      // last set deadline
+
+	connTimeout time.Duration // how long to extend deadline on each write
+
 	log        interfaces.ILogger
 	logStratum bool
 }
 
-func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDestination, configureMsg *stratumv1_message.MiningConfigure, logStratum bool) *StratumV1PoolConn {
+func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDestination, configureMsg *stratumv1_message.MiningConfigure, connTimeout time.Duration, logStratum bool) *StratumV1PoolConn {
 	return &StratumV1PoolConn{
 
 		dest: dest,
@@ -53,6 +58,8 @@ func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDe
 
 		lastRequestId: atomic.NewUint32(0),
 		resHandlers:   sync.Map{},
+
+		connTimeout: connTimeout,
 
 		log:        log,
 		logStratum: logStratum,
@@ -237,7 +244,8 @@ func (m *StratumV1PoolConn) Write(ctx context.Context, msg stratumv1_message.Min
 		return err
 	}
 
-	return m.conn.SetWriteDeadline(time.Now().Add(10 * time.Minute))
+	m.SetDeadline(time.Now().Add(m.connTimeout))
+	return m.conn.SetWriteDeadline(time.Now().Add(m.connTimeout))
 }
 
 // Returns current extranonce values
@@ -317,9 +325,54 @@ func (s *StratumV1PoolConn) clearMsgCh() {
 }
 
 func (s *StratumV1PoolConn) Close() error {
+	s.SetDeadline(time.Time{})
+	return s.close()
+}
+
+func (s *StratumV1PoolConn) close() error {
 	err := s.conn.Close()
 	s.clearMsgCh()
 	s.resHandlers = sync.Map{}
 	s.notifyMsgs = nil
 	return err
+}
+
+func (s *StratumV1PoolConn) Deadline(cleanupCb func()) {
+	s.newDeadline = make(chan time.Time)
+
+	go func() {
+		var deadlineChan <-chan time.Time
+
+		for {
+			select {
+			case <-deadlineChan:
+				close(s.newDeadline)
+				s.newDeadline = nil
+				err := s.close()
+				if err != nil {
+					s.log.Errorf("deadline connection closeout error %s", err)
+				}
+				cleanupCb()
+				return
+			case deadline := <-s.newDeadline:
+				if deadline.IsZero() {
+					return
+				}
+				duration := deadline.Sub(time.Now())
+				deadlineChan = time.After(duration)
+			}
+		}
+
+	}()
+}
+
+func (s *StratumV1PoolConn) SetDeadline(deadline time.Time) {
+	if s.newDeadline != nil {
+		s.newDeadline <- deadline
+		s.deadline = deadline
+	}
+}
+
+func (s *StratumV1PoolConn) GetDeadline() time.Time {
+	return s.deadline
 }

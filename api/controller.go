@@ -200,7 +200,7 @@ func (c *ApiController) GetMiners() *MinersResponse {
 
 		m.RangeDestConn(func(key, value any) bool {
 			k := value.(*protocol.StratumV1PoolConn)
-			ActivePoolConnections[key.(string)] = k.RemoteAddr()
+			ActivePoolConnections[key.(string)] = k.GetDeadline().Format(time.RFC3339)
 			return true
 		})
 
