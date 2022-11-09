@@ -9,10 +9,10 @@ type Config struct {
 		IsBuyer                bool          `env:"IS_BUYER" flag:"is-buyer"`
 		HashrateDiffThreshold  float64       `env:"HASHRATE_DIFF_THRESHOLD"`
 		ValidationBufferPeriod time.Duration `env:"VALIDATION_BUFFER_PERIOD" validate:"duration"`
-		Mnemonic               string        `env:"CONTRACT_MNEMONIC"`
+		Mnemonic               string        `env:"CONTRACT_MNEMONIC" validate:"required_without=WalletPrivateKey"`
 		AccountIndex           int           `env:"ACCOUNT_INDEX"`
-		WalletPrivateKey       string        `env:"WALLET_PRIVATE_KEY"`
-		WalletAddress          string        `env:"WALLET_ADDRESS"`
+		WalletPrivateKey       string        `env:"WALLET_PRIVATE_KEY" validate:"required_without=Mnemonic"`
+		WalletAddress          string        `env:"WALLET_ADDRESS" validate:"required_without=Mnemonic"`
 		ClaimFunds             bool
 		LumerinTokenAddress    string
 		ValidatorAddress       string

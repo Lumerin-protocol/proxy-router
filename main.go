@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"time"
 
@@ -90,7 +91,15 @@ func provideEthClient(cfg *config.Config, log interfaces.ILogger) (*ethclient.Cl
 }
 
 func provideEthWallet(cfg *config.Config) (*blockchain.EthereumWallet, error) {
-	return blockchain.NewEthereumWallet(cfg.Contract.Mnemonic, cfg.Contract.AccountIndex, cfg.Contract.WalletPrivateKey, cfg.Contract.WalletAddress)
+	if cfg.Contract.WalletAddress != "" && cfg.Contract.WalletPrivateKey != "" {
+		return blockchain.NewEthereumWalletFromPrivateKey(cfg.Contract.WalletAddress, cfg.Contract.WalletPrivateKey)
+	}
+
+	if cfg.Contract.Mnemonic != "" {
+		return blockchain.NewEthereumWalletFromMnemonic(cfg.Contract.Mnemonic, cfg.Contract.AccountIndex)
+	}
+
+	return nil, fmt.Errorf("cannot create eth wallet, provide either mnemonic or private key")
 }
 
 func provideEthGateway(cfg *config.Config, ethClient *ethclient.Client, ethWallet *blockchain.EthereumWallet, log interfaces.ILogger) (*blockchain.EthereumGateway, error) {
