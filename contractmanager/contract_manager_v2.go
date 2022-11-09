@@ -127,21 +127,9 @@ func (m *ContractManager) runExistingContracts() error {
 }
 
 func (m *ContractManager) ContractExists(contractAddr common.Address) bool {
-	exists := false
+	_, ok := m.contracts.Load(contractAddr.Hex())
 
-	existsResult := &exists
-	fmt.Printf("contracts: %+v\n", m.contracts)
-	m.contracts.Range(func(item IContractModel) bool {
-		fmt.Printf("item id: %v", item.GetID())
-		fmt.Printf("contract hex: %v", contractAddr.Hex())
-		exists = item.GetID() == contractAddr.Hex()
-
-		existsResult = &exists
-
-		return !exists
-	})
-
-	return *existsResult
+	return ok
 }
 
 func (m *ContractManager) handleContract(ctx context.Context, contractAddr common.Address) error {
@@ -155,7 +143,7 @@ func (m *ContractManager) handleContract(ctx context.Context, contractAddr commo
 
 		contract := NewContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, m.isBuyer, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest)
 
-		if contract.IsValidWallet(m.walletAddr) {
+		if !contract.IsValidWallet(m.walletAddr) {
 			// contract will be ignored by this node
 			return nil
 		}

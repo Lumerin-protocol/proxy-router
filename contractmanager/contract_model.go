@@ -108,17 +108,10 @@ func (c *BTCHashrateContract) Run(ctx context.Context) error {
 // Ignore checks if contract should be ignored by the node
 func (c *BTCHashrateContract) IsValidWallet(walletAddress common.Address) bool {
 	if c.isBuyer {
-		if c.data.Buyer != walletAddress {
-			return true
-		}
-
-		return false
+		return c.data.Buyer == walletAddress
 	}
 
-	if c.data.Seller != walletAddress {
-		return true
-	}
-	return false
+	return c.data.Seller == walletAddress
 }
 
 // Sets contract dest to default dest for buyer node
