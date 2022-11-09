@@ -211,13 +211,14 @@ func (m *StratumV1PoolConn) resendRelevantNotifications(ctx context.Context) {
 }
 
 func (s *StratumV1PoolConn) sendToReadCh(msg stratumv1_message.MiningMessageGeneric) {
-	timeoutAlert := 30 * time.Second
+	cycleTime := 30 * time.Second
 	for n := 0; true; n++ {
 		select {
 		case s.msgCh <- msg:
 			return
-		case <-time.After(timeoutAlert):
-			s.log.Warnf("sendToReadCh is blocked for %.1f seconds", timeoutAlert.Seconds())
+		case <-time.After(cycleTime):
+			totalTime := cycleTime.Seconds() * float64(n)
+			s.log.Warnf("sendToReadCh is blocked for %.1f seconds", totalTime)
 		}
 	}
 }
