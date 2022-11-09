@@ -35,8 +35,9 @@ type StratumV1PoolConn struct {
 	lastRequestId *atomic.Uint32 // stratum request id counter
 	resHandlers   sync.Map       // allows to register callbacks for particular messages to simplify transaction flow
 
-	newDeadline chan time.Time // channel with newly set deadlines
-	deadline    time.Time      // last set deadline
+	newDeadline      chan time.Time // channel with newly set deadlines, nil means deadline not set or already expired
+	newDeadlineMutex sync.Mutex     // guards newDeadline
+	deadline         time.Time      // last set deadline
 
 	connTimeout time.Duration // how long to extend deadline on each write
 
@@ -346,8 +347,13 @@ func (s *StratumV1PoolConn) Deadline(cleanupCb func()) {
 		for {
 			select {
 			case <-deadlineChan:
-				close(s.newDeadline)
+
+				s.newDeadlineMutex.Lock()
+				newDeadlineRef := s.newDeadline
 				s.newDeadline = nil
+				s.newDeadlineMutex.Unlock()
+
+				close(newDeadlineRef)
 				err := s.close()
 				if err != nil {
 					s.log.Errorf("deadline connection closeout error %s", err)
@@ -358,7 +364,8 @@ func (s *StratumV1PoolConn) Deadline(cleanupCb func()) {
 				if deadline.IsZero() {
 					return
 				}
-				duration := deadline.Sub(time.Now())
+				duration := time.Until(deadline)
+				s.deadline = deadline
 				deadlineChan = time.After(duration)
 			}
 		}
@@ -367,9 +374,11 @@ func (s *StratumV1PoolConn) Deadline(cleanupCb func()) {
 }
 
 func (s *StratumV1PoolConn) SetDeadline(deadline time.Time) {
+	s.newDeadlineMutex.Lock()
+	defer s.newDeadlineMutex.Unlock()
+
 	if s.newDeadline != nil {
 		s.newDeadline <- deadline
-		s.deadline = deadline
 	}
 }
 
