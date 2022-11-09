@@ -159,7 +159,7 @@ func (s *GlobalSchedulerService) GetUnallocatedHashrateGHS() (int, HashrateList)
 	return unallocatedHashrate, minerHashrates
 }
 
-func (s *GlobalSchedulerService) UpdateCombination(ctx context.Context, minerIDs []string, targetHashrateGHS int, dest lib.Dest, contractID string, hashrateDiffThreshold float64) ([]string, error) {
+func (s *GlobalSchedulerService) UpdateCombination(ctx context.Context, minerIDs []string, targetHashrateGHS int, dest interfaces.IDestination, contractID string, hashrateDiffThreshold float64) ([]string, error) {
 	snapshot := s.GetMinerSnapshot()
 	s.log.Info(snapshot.String())
 
@@ -196,7 +196,7 @@ func (s *GlobalSchedulerService) DeallocateContract(ctx context.Context, minerID
 }
 
 // incAllocation increases allocation hashrate prioritizing allocation of existing miners
-func (s *GlobalSchedulerService) incAllocation(ctx context.Context, snapshot AllocSnap, addGHS int, dest lib.Dest, contractID string) ([]string, error) {
+func (s *GlobalSchedulerService) incAllocation(ctx context.Context, snapshot AllocSnap, addGHS int, dest interfaces.IDestination, contractID string) ([]string, error) {
 	remainingToAddGHS := addGHS
 	minerIDs := []string{}
 
