@@ -1,4 +1,3 @@
-# image: golang:1.18
 variables:
   CI_AWS_TASK: "proxy-router"
   ENVIRONMENT: "production" # production makes logs in json and not panics when calling DPanic
@@ -13,13 +12,12 @@ variables:
   PROXY_LOG_STRATUM: "false"
   WEB_ADDRESS: "0.0.0.0:8080"
   VALIDATION_BUFFER_PERIOD: 20m
-  NODE_DEF: "prt"
-  CI_AWS_TASK: "proxy-router"
   STRATUM_SOCKET_BUFFER_SIZE: 5
 
 stages:
   - test
   - deploy
+  - release
 
 lint:
   inherit:
@@ -30,7 +28,6 @@ lint:
     DOCKER_TLS_CERTDIR: "/certs"
     DOCKER_TLS_VERIFY: 1
     DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
-
   stage: test
   # tags:
   #- devops
@@ -39,6 +36,7 @@ lint:
   #- docker
   only:
     - branches
+    - tags
   image: golangci/golangci-lint:v1.49
   script:
     - golangci-lint run -v
@@ -60,6 +58,7 @@ test:
   #- docker
   only:
     - branches
+    - tags
   image: golang:1.18-alpine
   script:
     - apk add --no-cache git make musl-dev gcc
@@ -212,3 +211,18 @@ bedrock-04-PRD:
     PROXY_LOG_STRATUM: "false"
     POOL_ADDRESS: "//titan1.ecs-lmn:@mining.pool.titan.io:4242" #no scheme for compat purposes
   script: echo "$TGT_ENV Updated"
+
+release:
+  stage: release
+  needs: ["test", "lint"]
+  image:
+    name: goreleaser/goreleaser
+    entrypoint: [""]
+  only:
+    - tags # runs only on tag push
+  variables:
+    # Disable shallow cloning so that goreleaser can diff between tags to
+    # generate a changelog.
+    GIT_DEPTH: 0
+  script:
+    - goreleaser release --rm-dist
