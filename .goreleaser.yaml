@@ -1,6 +1,7 @@
 before:
   hooks:
     - go mod tidy
+
 builds:
   - env:
       - CGO_ENABLED=0
@@ -16,6 +17,9 @@ builds:
         goarch: arm64
     no_unique_dist_dir: true
     binary: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+
 archives:
   - format: binary
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
@@ -24,10 +28,13 @@ archives:
       linux: Linux
       windows: Windows
       amd64: x86_64
+
 checksum:
   name_template: "checksums.txt"
+
 snapshot:
   name_template: "{{ incpatch .Version }}-next"
+
 changelog:
   sort: asc
   filters:
@@ -40,12 +47,12 @@ release:
   # Default is extracted from the origin remote URL or empty if its private hosted.
   github:
     owner: Lumerin-protocol
-    name: proxy-router
+    name: hash-router
 
   # If set to true, will not auto-publish the release.
   # Available only for GitHub and Gitea.
   # Default is false.
-  # draft: false
+  draft: false
 
   # Whether to remove existing draft releases with the same name before creating
   # a new one.
@@ -54,7 +61,7 @@ release:
   #
   # Default: false.
   # Since: v1.11.
-  # replace_existing_draft: true
+  replace_existing_draft: true
 
   # Useful if you want to delay the creation of the tag in the remote.
   # You can create the tag locally, but not push it, and run GoReleaser.
@@ -64,7 +71,7 @@ release:
   #
   # Default: empty.
   # Since: v1.11.
-  target_commitish: "{{ .Commit }}"
+  target_commitish: ""
 
   # If set, will create a release discussion in the category specified.
   #
@@ -72,7 +79,7 @@ release:
   #  Check https://github.com/goreleaser/goreleaser/issues/2304 for more info.
   #
   # Default is empty.
-  discussion_category_name: General
+  discussion_category_name: ""
 
   # If set to auto, will mark the release as not ready for production
   # in case there is an indicator for this in the tag e.g. v1.0.0-rc1
@@ -89,12 +96,12 @@ release:
   # - `replace`: replace existing notes
   #
   # Default is `keep-existing`.
-  mode: append
+  mode: replace
 
   # Header template for the release body.
   # Defaults to empty.
   header: |
-    ## Some title ({{ .Date }})
+    ## Proxyrouter ({{ .Date }})
 
     Welcome to this new release!
 
@@ -107,7 +114,7 @@ release:
 
   # You can change the name of the release.
   # Default is `{{.Tag}}` on OSS and `{{.PrefixedTag}}` on Pro.
-  name_template: "{{.ProjectName}}-v{{.Version}} {{.Env.USER}}"
+  name_template: "{{.ProjectName}}-v{{.Version}}"
 
   # You can disable this pipe in order to not create the release on any SCM.
   # Keep in mind that this might also break things that depend on the release
@@ -122,7 +129,7 @@ release:
   #
   # Default: false.
   # Since: v1.11.
-  skip_upload: true
+  skip_upload: false
 # modelines, feel free to remove those if you don't want/use them:
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 # vim: set ts=2 sw=2 tw=0 fo=cnqoj
