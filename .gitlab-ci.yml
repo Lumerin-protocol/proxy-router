@@ -18,6 +18,7 @@ variables:
 stages:
   - test
   - deploy
+  - release
 
 lint:
   inherit:
@@ -223,3 +224,17 @@ bedrock-04-PRD:
     PROXY_LOG_STRATUM: "false"
     POOL_ADDRESS: "//titan1.ecs-lmn:@mining.pool.titan.io:4242" #no scheme for compat purposes
   script: echo "$TGT_ENV Updated"
+
+release:
+  stage: release
+  image:
+    name: goreleaser/goreleaser
+    entrypoint: [""]
+  only:
+    - tags
+  variables:
+    # Disable shallow cloning so that goreleaser can diff between tags to
+    # generate a changelog.
+    GIT_DEPTH: 0
+  script:
+    - goreleaser release --rm-dist
