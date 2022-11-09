@@ -213,6 +213,8 @@ bedrock-04-PRD:
   script: echo "$TGT_ENV Updated"
 
 release:
+  inherit:
+    default: false
   stage: release
   needs: ["test", "lint"]
   image:
