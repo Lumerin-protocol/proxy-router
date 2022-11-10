@@ -269,8 +269,5 @@ func (s *stratumV1MinerModel) Cleanup() {
 			s.log.Errorf("cannot close pool connection %s", err)
 		}
 	}
-	s.poolConn = nil
-	s.minerConn = nil
-	s.validator = nil
 	s.onSubmit = nil
 }

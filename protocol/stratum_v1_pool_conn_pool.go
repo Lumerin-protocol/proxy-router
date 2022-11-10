@@ -34,6 +34,9 @@ func NewStratumV1PoolPool(log interfaces.ILogger, connTimeout time.Duration, log
 func (p *StratumV1PoolConnPool) GetDest() interfaces.IDestination {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.conn == nil {
+		return nil
+	}
 	return p.conn.GetDest()
 }
 
@@ -173,7 +176,6 @@ func (p *StratumV1PoolConnPool) Close() error {
 	})
 
 	p.pool = sync.Map{}
-	p.conn = nil
 
 	return nil
 }
