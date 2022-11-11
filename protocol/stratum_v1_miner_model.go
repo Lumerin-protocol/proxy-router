@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -20,7 +21,6 @@ type stratumV1MinerModel struct {
 	mutex      sync.RWMutex // guards onSubmit
 
 	configureMsgReq *stratumv1_message.MiningConfigure
-	configureMsgRes *stratumv1_message.MiningConfigureResult
 
 	workerName string
 
@@ -59,7 +59,6 @@ func (s *stratumV1MinerModel) Connect() error {
 			}
 
 			confRes.SetID(id)
-			s.configureMsgRes = confRes
 			err = s.minerConn.Write(context.TODO(), confRes)
 			if err != nil {
 				return err
@@ -86,33 +85,55 @@ func (s *stratumV1MinerModel) Connect() error {
 			}
 			// auth successful
 			return nil
-
 		}
 	}
 }
 
-func (s *stratumV1MinerModel) Run(ctx context.Context, errCh chan error) {
+func (s *stratumV1MinerModel) Run(ctx context.Context) error {
+	defer s.Cleanup()
+
 	err := s.Connect()
 	if err != nil {
 		s.log.Error(err)
-		errCh <- err
-		return
+		return err
 	}
+
 	s.poolConn.ResendRelevantNotifications(ctx)
+
+	subCtx, cancel := context.WithCancel(ctx)
+	errCh := make(chan error)
+	sendError := func(ctx context.Context, err error) {
+		select {
+		case errCh <- err:
+		case <-subCtx.Done():
+		}
+	}
+
 	go func() {
 		for {
-			msg, err := s.poolConn.Read(ctx)
+			select {
+			case <-subCtx.Done():
+				return
+			default:
+			}
+
+			msg, err := s.poolConn.Read(subCtx)
 			if err != nil {
-				s.log.Error(err)
-				errCh <- err
+				sendError(subCtx, fmt.Errorf("pool read err: %w", err))
 				return
 			}
+
 			s.poolInterceptor(msg)
 
-			err = s.minerConn.Write(ctx, msg)
+			select {
+			case <-subCtx.Done():
+				return
+			default:
+			}
+
+			err = s.minerConn.Write(subCtx, msg)
 			if err != nil {
-				s.log.Error(err)
-				errCh <- err
+				sendError(subCtx, fmt.Errorf("miner write err: %w", err))
 				return
 			}
 		}
@@ -120,23 +141,41 @@ func (s *stratumV1MinerModel) Run(ctx context.Context, errCh chan error) {
 
 	go func() {
 		for {
-			msg, err := s.minerConn.Read(ctx)
+			select {
+			case <-subCtx.Done():
+				return
+			default:
+			}
+
+			msg, err := s.minerConn.Read(subCtx)
 			if err != nil {
-				s.log.Warn(err)
-				errCh <- err
+				sendError(subCtx, fmt.Errorf("miner read err: %w", err))
 				return
 			}
 
 			s.minerInterceptor(msg)
 
-			err = s.poolConn.Write(ctx, msg)
+			select {
+			case <-subCtx.Done():
+				return
+			default:
+			}
+
+			err = s.poolConn.Write(subCtx, msg)
 			if err != nil {
-				s.log.Warn(err)
-				errCh <- err
+				sendError(subCtx, fmt.Errorf("pool write err: %w", err))
 				return
 			}
 		}
 	}()
+
+	err = <-errCh
+	cancel()
+	close(errCh)
+
+	err = fmt.Errorf("miner model error: %w", err)
+	s.log.Error(err)
+	return err
 }
 
 func (s *stratumV1MinerModel) minerInterceptor(msg stratumv1_message.MiningMessageGeneric) {
@@ -144,7 +183,7 @@ func (s *stratumV1MinerModel) minerInterceptor(msg stratumv1_message.MiningMessa
 	case *stratumv1_message.MiningSubmit:
 		s.poolConn.RegisterResultHandler(typed.GetID(), func(a stratumv1_message.MiningResult) stratumv1_message.MiningMessageGeneric {
 			if a.IsError() {
-				s.log.Warnf("error during submit: %s", a.GetError())
+				s.log.Warnf("error during submit: %s msg ID %d", a.GetError(), a.ID)
 				return &a
 			}
 			s.validator.OnSubmit(s.difficulty)
@@ -217,4 +256,18 @@ func (s *stratumV1MinerModel) GetConnectedAt() time.Time {
 
 func (s *stratumV1MinerModel) setWorkerName(name string) {
 	s.workerName = name
+}
+
+func (s *stratumV1MinerModel) RangeDestConn(f func(key any, value any) bool) {
+	s.poolConn.RangeConn(f)
+}
+
+func (s *stratumV1MinerModel) Cleanup() {
+	if s.poolConn != nil {
+		err := s.poolConn.Close()
+		if err != nil {
+			s.log.Errorf("cannot close pool connection %s", err)
+		}
+	}
+	s.onSubmit = nil
 }
