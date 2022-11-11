@@ -4,18 +4,18 @@ variables:
   ENVIRONMENT: "production" # production makes logs in json and not panics when calling DPanic
   HASHRATE_DIFF_THRESHOLD: "0.1"
   IS_BUYER: "false"
-  MINER_VETTING_PERIOD_SECONDS: "30" # miner will not serve contracts for this period after connecing to proxy
-  MINER_VETTING_DURATION: 1m
+  MINER_VETTING_DURATION: 5m
   NODE_DEF: "prt"
   POOL_MIN_DURATION: 2m
   POOL_MAX_DURATION: 5m
+  POOL_CONN_TIMEOUT: 10m
   PROXY_ADDRESS: "0.0.0.0:3333"
   PROXY_LOG_STRATUM: "false"
   WEB_ADDRESS: "0.0.0.0:8080"
   VALIDATION_BUFFER_PERIOD: 20m
   NODE_DEF: "prt"
   CI_AWS_TASK: "proxy-router"
-  STRATUM_SOCKET_BUFFER_SIZE: 20
+  STRATUM_SOCKET_BUFFER_SIZE: 5
   SOCKET_MINER_CONNECTION_LIMIT: 1000
 
 stages:
@@ -97,13 +97,14 @@ test:
   --build-arg WALLET_ADDRESS=$WALLET_ADDRESS \
   --build-arg WALLET_PRIVATE_KEY=$WALLET_PRIVATE_KEY \
   --build-arg PROXY_LOG_STRATUM=$PROXY_LOG_STRATUM \
-  --build-arg MINER_VETTING_PERIOD_SECONDS=$MINER_VETTING_PERIOD_SECONDS \
   --build-arg MINER_VETTING_DURATION=$MINER_VETTING_DURATION \
   --build-arg POOL_ADDRESS=$POOL_ADDRESS \
+  --build-arg POOL_CONN_TIMEOUT=$POOL_CONN_TIMEOUT \
   --build-arg POOL_MIN_DURATION=$POOL_MIN_DURATION \
   --build-arg POOL_MAX_DURATION=$POOL_MAX_DURATION \
-  --build-arg VALIDATION_BUFFER_PERIOD=$VALIDATION_BUFFER_PERIOD  \
-  --build-arg STRATUM_SOCKET_BUFFER_SIZE=$STRATUM_SOCKET_BUFFER_SIZE  
+  --build-arg VALIDATION_BUFFER_PERIOD=$VALIDATION_BUFFER_PERIOD \
+  --build-arg HASHRATE_DIFF_THRESHOLD=$HASHRATE_DIFF_THRESHOLD \
+  --build-arg STRATUM_SOCKET_BUFFER_SIZE=$STRATUM_SOCKET_BUFFER_SIZE
   echo "**************************"
   echo "*** Push Image"
   echo "**************************"
@@ -166,8 +167,13 @@ default:
 bedrock-02-DEV:
   stage: deploy
   environment: dev
-  only:
-    - dev
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+      when: always
+    - if: $CI_COMMIT_BRANCH != "dev"
+      when: manual
+    - if: $CI_MERGE_REQUEST_ID
+      when: never
   tags:
     - devops
     - bedrock

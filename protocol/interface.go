@@ -31,6 +31,8 @@ type StratumV1DestConn interface {
 	Read(ctx context.Context) (stratumv1_message.MiningMessageGeneric, error)
 	Write(ctx context.Context, msg stratumv1_message.MiningMessageGeneric) error
 	GetExtranonce() (string, int)
+	RangeConn(f func(key any, value any) bool)
+	Close() error
 }
 
 type StratumV1ResultHandler = func(a stratumv1_message.MiningResult) stratumv1_message.MiningMessageGeneric

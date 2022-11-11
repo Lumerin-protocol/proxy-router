@@ -17,15 +17,13 @@ type TCPServer struct {
 	handler              ConnectionHandler
 	connectionBufferSize int
 	log                  interfaces.ILogger
-	connectionPool       interfaces.IConnectionPoolListener
 }
 
-func NewTCPServer(serverAddr string, connectionBufferSize int, log interfaces.ILogger, connectionPool interfaces.IConnectionPoolListener) *TCPServer {
+func NewTCPServer(serverAddr string, connectionBufferSize int, log interfaces.ILogger) *TCPServer {
 	return &TCPServer{
 		serverAddr:           serverAddr,
 		log:                  log,
 		connectionBufferSize: connectionBufferSize,
-		connectionPool:       connectionPool,
 	}
 }
 
