@@ -12,6 +12,8 @@ import (
 func TestSetReadDeadline(t *testing.T) {
 	server, client := net.Pipe()
 	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+
 	go func() {
 		// Do some stuff
 	LOOP:
@@ -20,8 +22,9 @@ func TestSetReadDeadline(t *testing.T) {
 			_, err := server.Read(bytes)
 			if err != nil {
 				t.Log(err)
+				break
 			}
-			t.Log(string(bytes))
+			t.Logf("%s\n\n", string(bytes))
 			select {
 			case <-ctx.Done():
 				break LOOP
@@ -29,6 +32,7 @@ func TestSetReadDeadline(t *testing.T) {
 			}
 		}
 		server.Close()
+		close(done)
 	}()
 
 	// Do some stuff
@@ -49,4 +53,5 @@ func TestSetReadDeadline(t *testing.T) {
 
 	client.Close()
 	cancel()
+	<-done
 }
