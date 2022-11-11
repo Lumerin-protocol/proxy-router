@@ -319,20 +319,22 @@ func (c *BTCHashrateContract) Close(ctx context.Context) error {
 // Stops fulfilling the contract by miners
 func (c *BTCHashrateContract) Stop(ctx context.Context) {
 	c.log.Infof("Attempting to stop contract %v; with state %v", c.GetID(), c.state)
-	if !c.ContractIsNotAvailable() {
-		c.log.Warnf("contract (%s) is not running", c.GetID())
+	if c.ContractIsNotAvailable() {
+
+		c.log.Infof("Stopping contract %v", c.GetID())
+
+		c.globalScheduler.DeallocateContract(ctx, c.GetID())
+
+		c.state = ContractStateAvailable
+		c.minerIDs = []string{}
+
+		if c.stopFullfillment != nil {
+			c.stopFullfillment <- struct{}{}
+		}
+		return
 	}
 
-	c.log.Infof("Stopping contract %v", c.GetID())
-
-	c.globalScheduler.DeallocateContract(ctx, c.GetID())
-
-	c.state = ContractStateAvailable
-	c.minerIDs = []string{}
-
-	if c.stopFullfillment != nil {
-		c.stopFullfillment <- struct{}{}
-	}
+	c.log.Warnf("contract (%s) is not running", c.GetID())
 }
 
 func (c *BTCHashrateContract) ContractIsExpired() bool {
