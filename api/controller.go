@@ -21,8 +21,9 @@ import (
 )
 
 type ApiController struct {
-	miners    interfaces.ICollection[miner.MinerScheduler]
-	contracts interfaces.ICollection[contractmanager.IContractModel]
+	miners             interfaces.ICollection[miner.MinerScheduler]
+	contracts          interfaces.ICollection[contractmanager.IContractModel]
+	defaultDestination interfaces.IDestination
 }
 
 type MinersResponse struct {
@@ -77,11 +78,12 @@ type Contract struct {
 	// Miners         []string
 }
 
-func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerService, isBuyer bool, hashrateDiffThreshold float64, validationBufferPeriod time.Duration) *gin.Engine {
+func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerService, isBuyer bool, hashrateDiffThreshold float64, validationBufferPeriod time.Duration, defaultDestination interfaces.IDestination) *gin.Engine {
 	r := gin.Default()
 	controller := ApiController{
-		miners:    miners,
-		contracts: contracts,
+		miners:             miners,
+		contracts:          contracts,
+		defaultDestination: defaultDestination,
 	}
 
 	r.GET("/healthcheck", func(ctx *gin.Context) {
@@ -136,7 +138,7 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 			Length:                 int64(duration.Seconds()),
 			Dest:                   dest,
 			StartingBlockTimestamp: time.Now().Unix(),
-		}, nil, gs, log, hashrate.NewHashrate(log), isBuyer, hashrateDiffThreshold, validationBufferPeriod)
+		}, nil, gs, log, hashrate.NewHashrate(log), isBuyer, hashrateDiffThreshold, validationBufferPeriod, controller.defaultDestination)
 
 		go func() {
 			err := contract.FulfillContract(context.Background())

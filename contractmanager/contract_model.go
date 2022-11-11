@@ -11,7 +11,6 @@ import (
 	"gitlab.com/TitanInd/hashrouter/constants"
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
-	"gitlab.com/TitanInd/hashrouter/lib"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -42,8 +41,9 @@ type BTCHashrateContract struct {
 	hashrate *hashrate.Hashrate // the counter of single contract
 	minerIDs []string           // miners involved in fulfilling this contract
 
-	log              interfaces.ILogger
-	stopFullfillment chan struct{}
+	log                interfaces.ILogger
+	stopFullfillment   chan struct{}
+	defaultDestination interfaces.IDestination
 }
 
 func NewContract(
@@ -55,10 +55,13 @@ func NewContract(
 	isBuyer bool,
 	hashrateDiffThreshold float64,
 	validationBufferPeriod time.Duration,
+	defaultDestination interfaces.IDestination,
 ) *BTCHashrateContract {
+
 	if hr == nil {
 		hr = hashrate.NewHashrate(log)
 	}
+
 	contract := &BTCHashrateContract{
 		blockchain:             blockchain,
 		data:                   data,
@@ -69,6 +72,7 @@ func NewContract(
 		validationBufferPeriod: validationBufferPeriod,
 		globalScheduler:        globalScheduler,
 		state:                  convertBlockchainStatusToApplicationStatus(data.State),
+		defaultDestination:     defaultDestination,
 	}
 
 	return contract
@@ -89,6 +93,11 @@ func convertBlockchainStatusToApplicationStatus(status blockchain.ContractBlockc
 func (c *BTCHashrateContract) Run(ctx context.Context) error {
 	g, subCtx := errgroup.WithContext(ctx)
 
+	if c.isBuyer {
+		// buyer node points contracts to default
+		c.setDestToDefault(c.defaultDestination)
+	}
+
 	g.Go(func() error {
 		return c.listenContractEvents(subCtx)
 	})
@@ -97,24 +106,16 @@ func (c *BTCHashrateContract) Run(ctx context.Context) error {
 }
 
 // Ignore checks if contract should be ignored by the node
-func (c *BTCHashrateContract) Ignore(walletAddress common.Address, defaultDest lib.Dest) bool {
+func (c *BTCHashrateContract) IsValidWallet(walletAddress common.Address) bool {
 	if c.isBuyer {
-		if c.data.Buyer != walletAddress {
-			return true
-		}
-		// buyer node points contracts to default
-		c.setDestToDefault(defaultDest)
-		return false
+		return c.data.Buyer == walletAddress
 	}
 
-	if c.data.Seller != walletAddress {
-		return true
-	}
-	return false
+	return c.data.Seller == walletAddress
 }
 
 // Sets contract dest to default dest for buyer node
-func (c *BTCHashrateContract) setDestToDefault(defaultDest lib.Dest) {
+func (c *BTCHashrateContract) setDestToDefault(defaultDest interfaces.IDestination) {
 	c.data.Dest = defaultDest
 }
 
@@ -152,6 +153,7 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 
 			switch eventHex {
 			case blockchain.ContractPurchasedHex:
+				c.log.Info("received ContractPurchased event for contract - ", c.data.Addr)
 				// buyerAddr := common.HexToAddress(payloadHex)
 				// get updated contract information fields: buyer and dest
 				err := c.LoadBlockchainContract()
@@ -429,7 +431,7 @@ func (c *BTCHashrateContract) GetState() ContractState {
 	return c.state
 }
 
-func (c *BTCHashrateContract) GetDest() lib.Dest {
+func (c *BTCHashrateContract) GetDest() interfaces.IDestination {
 	return c.data.Dest
 }
 
