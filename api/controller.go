@@ -17,12 +17,14 @@ import (
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/miner"
+	"gitlab.com/TitanInd/hashrouter/protocol"
 	"golang.org/x/exp/slices"
 )
 
 type ApiController struct {
-	miners    interfaces.ICollection[miner.MinerScheduler]
-	contracts interfaces.ICollection[contractmanager.IContractModel]
+	miners             interfaces.ICollection[miner.MinerScheduler]
+	contracts          interfaces.ICollection[contractmanager.IContractModel]
+	defaultDestination interfaces.IDestination
 }
 
 type MinersResponse struct {
@@ -39,16 +41,17 @@ type MinersResponse struct {
 }
 
 type Miner struct {
-	ID                 string
-	Status             string
-	TotalHashrateGHS   int
-	HashrateAvgGHS     HashrateAvgGHS
-	Destinations       []DestItem
-	CurrentDestination string
-	CurrentDifficulty  int
-	WorkerName         string
-	ConnectedAt        string
-	UptimeSeconds      int
+	ID                    string
+	Status                string
+	TotalHashrateGHS      int
+	HashrateAvgGHS        HashrateAvgGHS
+	Destinations          []DestItem
+	CurrentDestination    string
+	CurrentDifficulty     int
+	WorkerName            string
+	ConnectedAt           string
+	UptimeSeconds         int
+	ActivePoolConnections map[string]string
 }
 
 type HashrateAvgGHS struct {
@@ -77,11 +80,12 @@ type Contract struct {
 	// Miners         []string
 }
 
-func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerService, isBuyer bool, hashrateDiffThreshold float64, validationBufferPeriod time.Duration) *gin.Engine {
+func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerService, isBuyer bool, hashrateDiffThreshold float64, validationBufferPeriod time.Duration, defaultDestination interfaces.IDestination) *gin.Engine {
 	r := gin.Default()
 	controller := ApiController{
-		miners:    miners,
-		contracts: contracts,
+		miners:             miners,
+		contracts:          contracts,
+		defaultDestination: defaultDestination,
 	}
 
 	r.GET("/healthcheck", func(ctx *gin.Context) {
@@ -136,7 +140,7 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 			Length:                 int64(duration.Seconds()),
 			Dest:                   dest,
 			StartingBlockTimestamp: time.Now().Unix(),
-		}, nil, gs, log, hashrate.NewHashrate(log), isBuyer, hashrateDiffThreshold, validationBufferPeriod)
+		}, nil, gs, log, hashrate.NewHashrate(log), isBuyer, hashrateDiffThreshold, validationBufferPeriod, controller.defaultDestination)
 
 		go func() {
 			err := contract.FulfillContract(context.Background())
@@ -194,6 +198,14 @@ func (c *ApiController) GetMiners() *MinersResponse {
 			BusyMiners += 1
 		}
 
+		ActivePoolConnections := make(map[string]string)
+
+		m.RangeDestConn(func(key, value any) bool {
+			k := value.(*protocol.StratumV1PoolConn)
+			ActivePoolConnections[key.(string)] = k.GetDeadline().Format(time.RFC3339)
+			return true
+		})
+
 		Miners = append(Miners, Miner{
 			ID:                m.GetID(),
 			Status:            m.GetStatus().String(),
@@ -205,10 +217,11 @@ func (c *ApiController) GetMiners() *MinersResponse {
 				T30m: hashrate.GetHashrate30minAvgGHS(),
 				T1h:  hashrate.GetHashrate1hAvgGHS(),
 			},
-			CurrentDestination: m.GetCurrentDest().String(),
-			WorkerName:         m.GetWorkerName(),
-			ConnectedAt:        m.GetConnectedAt().Format(time.RFC3339),
-			UptimeSeconds:      int(m.GetUptime().Seconds()),
+			CurrentDestination:    m.GetCurrentDest().String(),
+			WorkerName:            m.GetWorkerName(),
+			ConnectedAt:           m.GetConnectedAt().Format(time.RFC3339),
+			UptimeSeconds:         int(m.GetUptime().Seconds()),
+			ActivePoolConnections: ActivePoolConnections,
 		})
 		return true
 	})

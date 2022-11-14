@@ -15,8 +15,8 @@ type Hashrate interface {
 }
 
 type MinerModel interface {
-	Run(ctx context.Context, errCh chan error) // shouldn't be available as public method, should be called when new miner announced
-	GetID() string                             // get miner unique id (host:port for example)
+	Run(ctx context.Context) error // shouldn't be available as public method, should be called when new miner announced
+	GetID() string                 // get miner unique id (host:port for example)
 
 	GetDest() interfaces.IDestination
 	ChangeDest(dest interfaces.IDestination) error
@@ -28,6 +28,7 @@ type MinerModel interface {
 	GetConnectedAt() time.Time
 
 	OnSubmit(cb protocol.OnSubmitHandler) protocol.ListenerHandle
+	RangeDestConn(f func(key any, value any) bool)
 }
 
 type MinerScheduler interface {
@@ -49,4 +50,6 @@ type MinerScheduler interface {
 
 	Allocate(ID string, percentage float64, dest interfaces.IDestination) (*Split, error) // allocates available miner resources
 	Deallocate(ID string) (ok bool)
+
+	RangeDestConn(f func(key any, value any) bool)
 }

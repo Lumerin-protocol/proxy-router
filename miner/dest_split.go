@@ -68,15 +68,20 @@ func (d *DestSplit) allocate(ID string, percentage float64, dest interfaces.IDes
 
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
-	newSplit := []Split{{
+
+	newSplit := make([]Split, len(d.split))
+	copy(newSplit, d.split)
+
+	sp := Split{
 		ID:         ID,
 		Percentage: percentage,
-		Dest:       dest},
+		Dest:       dest,
 	}
-	// TODO: check if already allocated to this destination
-	d.split = append(newSplit, d.split...)
 
-	return &(newSplit[0]), nil // returning pointer to be used for further deletion
+	// TODO: check if already allocated to this destination
+	d.split = append(newSplit, sp)
+
+	return &sp, nil // returning pointer to be used for further deletion
 }
 
 func (d *DestSplit) AllocateRemaining(ID string, dest interfaces.IDestination) {

@@ -9,10 +9,10 @@ type Config struct {
 		IsBuyer                bool          `env:"IS_BUYER" flag:"is-buyer"`
 		HashrateDiffThreshold  float64       `env:"HASHRATE_DIFF_THRESHOLD"`
 		ValidationBufferPeriod time.Duration `env:"VALIDATION_BUFFER_PERIOD" validate:"duration"`
-		Mnemonic               string        `env:"CONTRACT_MNEMONIC"`
+		Mnemonic               string        `env:"CONTRACT_MNEMONIC" validate:"required_without=WalletPrivateKey"`
 		AccountIndex           int           `env:"ACCOUNT_INDEX"`
-		WalletPrivateKey       string        `env:"WALLET_PRIVATE_KEY"`
-		WalletAddress          string        `env:"WALLET_ADDRESS"`
+		WalletPrivateKey       string        `env:"WALLET_PRIVATE_KEY" validate:"required_without=Mnemonic"`
+		WalletAddress          string        `env:"WALLET_ADDRESS" validate:"required_without=Mnemonic"`
 		ClaimFunds             bool
 		LumerinTokenAddress    string
 		ValidatorAddress       string
@@ -29,14 +29,16 @@ type Config struct {
 		Syslog bool `env:"LOG_SYSLOG" flag:"log-syslog"`
 	}
 	Proxy struct {
-		Address              string `env:"PROXY_ADDRESS" flag:"proxy-address" validate:"required,hostname_port"`
-		LogStratum           bool   `env:"PROXY_LOG_STRATUM"`
-		ConnectionBufferSize int    `env:"STRATUM_SOCKET_BUFFER_SIZE" flag:"stratum-socket-buffer" validate:"required,numeric"`
+		Address               string `env:"PROXY_ADDRESS" flag:"proxy-address" validate:"required,hostname_port"`
+		LogStratum            bool   `env:"PROXY_LOG_STRATUM"`
+		ConnectionBufferSize  int    `env:"STRATUM_SOCKET_BUFFER_SIZE" flag:"stratum-socket-buffer" validate:"required,numeric"`
+		SourceConnectionLimit int    `env:"SOCKET_MINER_CONNECTION_LIMIT" flag:"stratum-socket-buffer" validate:"required,numeric"`
 	}
 	Pool struct {
 		Address     string        `env:"POOL_ADDRESS" flag:"pool-address" validate:"required,uri"`
 		MinDuration time.Duration `env:"POOL_MIN_DURATION" validate:"duration"`
 		MaxDuration time.Duration `env:"POOL_MAX_DURATION" validate:"duration"`
+		ConnTimeout time.Duration `env:"POOL_CONN_TIMEOUT" validate:"duration"`
 	}
 	Web struct {
 		Address string `env:"WEB_ADDRESS" flag:"web-address" desc:"http server address host:port" validate:"required,hostname_port"`

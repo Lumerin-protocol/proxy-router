@@ -10,7 +10,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
 
-const kb = 1024
+// const kb = 1024 //temp
 
 type TCPServer struct {
 	serverAddr           string
@@ -37,7 +37,7 @@ func (p *TCPServer) Run(ctx context.Context) error {
 		return fmt.Errorf("invalid server address %s %w", p.serverAddr, err)
 	}
 
-	listener, err := net.ListenTCP("tcp", net.TCPAddrFromAddrPort(add))
+	listener, err := net.Listen("tcp", add.String())
 
 	if err != nil {
 		return fmt.Errorf("listener error %s %w", p.serverAddr, err)
@@ -76,6 +76,7 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener net.Listener) e
 		}
 
 		conn, err := listener.Accept()
+
 		if errors.Is(err, net.ErrClosed) {
 			return errors.New("incoming connection listener was closed")
 		}
@@ -87,17 +88,24 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener net.Listener) e
 
 		if p.handler != nil {
 			go func(conn net.Conn) {
-				err = conn.(*net.TCPConn).SetReadBuffer(p.connectionBufferSize * kb)
+				// err = conn.(*net.TCPConn).SetReadBuffer(p.connectionBufferSize * kb)
+
+				// if err != nil {
+				// 	p.log.Warnf("error setting connection read buffer: %s", err)
+				// 	return
+				// }
+
+				// err = conn.(*net.TCPConn).SetWriteBuffer(p.connectionBufferSize * kb)
+
+				// if err != nil {
+				// 	p.log.Warnf("error setting connection write buffer: %s", err)
+				// 	return
+				// }
+
+				err = conn.(*net.TCPConn).SetLinger(0)
 
 				if err != nil {
-					p.log.Warnf("error setting connection read buffer: %s", err)
-					return
-				}
-
-				err = conn.(*net.TCPConn).SetWriteBuffer(p.connectionBufferSize * kb)
-
-				if err != nil {
-					p.log.Warnf("error setting connection write buffer: %s", err)
+					p.log.Warnf("error updating connection linger setting: %s", err)
 					return
 				}
 
