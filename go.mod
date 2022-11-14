@@ -4,7 +4,6 @@ go 1.18
 
 require (
 	github.com/btcsuite/btcd v0.21.0-beta
-	github.com/dropbox/godropbox v0.0.0-20220817175148-f0626942059b
 	github.com/ethereum/go-ethereum v1.10.17
 	github.com/gin-gonic/gin v1.8.1
 	github.com/go-playground/validator/v10 v10.11.0
