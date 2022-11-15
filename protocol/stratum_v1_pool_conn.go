@@ -35,11 +35,17 @@ type StratumV1PoolConn struct {
 	lastRequestId *atomic.Uint32 // stratum request id counter
 	resHandlers   sync.Map       // allows to register callbacks for particular messages to simplify transaction flow
 
+	newDeadline      chan time.Time // channel with newly set deadlines, nil means deadline not set or already expired
+	newDeadlineMutex sync.Mutex     // guards newDeadline
+	deadline         time.Time      // last set deadline
+
+	connTimeout time.Duration // how long to extend deadline on each write
+
 	log        interfaces.ILogger
 	logStratum bool
 }
 
-func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDestination, configureMsg *stratumv1_message.MiningConfigure, logStratum bool) *StratumV1PoolConn {
+func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDestination, configureMsg *stratumv1_message.MiningConfigure, connTimeout time.Duration, logStratum bool) *StratumV1PoolConn {
 	return &StratumV1PoolConn{
 
 		dest: dest,
@@ -54,17 +60,20 @@ func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDe
 		lastRequestId: atomic.NewUint32(0),
 		resHandlers:   sync.Map{},
 
+		connTimeout: connTimeout,
+
 		log:        log,
 		logStratum: logStratum,
 	}
 }
 
+// Run enables proxying and handling pool messages
 func (s *StratumV1PoolConn) Run(ctx context.Context) error {
-	go func() {
-		err := s.run(ctx)
+	err := s.run(ctx)
+	if err != nil {
 		s.log.Error(err)
-	}()
-	return nil
+	}
+	return err
 }
 
 func (s *StratumV1PoolConn) run(ctx context.Context) error {
@@ -92,20 +101,17 @@ func (s *StratumV1PoolConn) run(ctx context.Context) error {
 
 		m = s.readInterceptor(m)
 
-		if s.getIsReading() {
+		_, isResult := m.(*stratumv1_message.MiningResult)
+
+		// result should be always sent to miner, otherwise it will close connection
+		if s.getIsReading() || isResult {
 			s.sendToReadCh(m)
 		}
-
 	}
 }
 
-// Allows to connect to a new pool
+// Connect initiates connection handshake. Make sure m.Run was called
 func (m *StratumV1PoolConn) Connect() error {
-	err := m.Run(context.Background())
-	if err != nil {
-		return err
-	}
-
 	if m.configureMsg != nil {
 		_, err := m.SendPoolRequestWait(m.configureMsg)
 		if err != nil {
@@ -189,29 +195,30 @@ func (m *StratumV1PoolConn) ResendRelevantNotifications(ctx context.Context) {
 // useful after changing miner's destinations
 func (m *StratumV1PoolConn) resendRelevantNotifications(ctx context.Context) {
 	m.sendToReadCh(m.extraNonceMsg)
-	m.log.Infof("extranonce was resent")
+	// m.log.Infof("extranonce was resent")
 
 	if m.setDiffMsg != nil {
 		m.sendToReadCh(m.setDiffMsg)
-		m.log.Infof("set-difficulty was resent")
+		// m.log.Infof("set-difficulty was resent")
 	}
 
 	for _, msg := range m.notifyMsgs {
 		if msg != nil {
 			m.sendToReadCh(msg)
-			m.log.Infof("notify was resent")
+			// m.log.Infof("notify was resent")
 		}
 	}
 }
 
 func (s *StratumV1PoolConn) sendToReadCh(msg stratumv1_message.MiningMessageGeneric) {
-	timeoutAlert := 30 * time.Second
+	cycleTime := 30 * time.Second
 	for n := 0; true; n++ {
 		select {
 		case s.msgCh <- msg:
 			return
-		case <-time.After(timeoutAlert):
-			s.log.Warnf("sendToReadCh is blocked for %.1f seconds, pending message %s", timeoutAlert.Seconds()*float64(n), string(msg.Serialize()))
+		case <-time.After(cycleTime):
+			totalTime := cycleTime.Seconds() * float64(n)
+			s.log.Warnf("sendToReadCh is blocked for %.1f seconds", totalTime)
 		}
 	}
 }
@@ -239,7 +246,8 @@ func (m *StratumV1PoolConn) Write(ctx context.Context, msg stratumv1_message.Min
 		return err
 	}
 
-	return m.conn.SetWriteDeadline(time.Now().Add(10 * time.Minute))
+	m.SetDeadline(time.Now().Add(m.connTimeout))
+	return m.conn.SetWriteDeadline(time.Now().Add(m.connTimeout)) // consider removing this, as it is not closing connection after deadline, it only errors the following writes
 }
 
 // Returns current extranonce values
@@ -293,11 +301,6 @@ func (s *StratumV1PoolConn) writeInterceptor(m stratumv1_message.MiningMessageGe
 func (s *StratumV1PoolConn) setIsReading(b bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if b {
-		s.log.Debugf("reading from pool released (%s)", s.dest)
-	} else {
-		s.log.Debugf("reading from pool in on hold (%s)", s.dest)
-	}
 	s.isReading = b
 }
 
@@ -311,7 +314,6 @@ func (s *StratumV1PoolConn) getIsReading() bool {
 // It stops storing each message into the s.msg channel
 func (s *StratumV1PoolConn) PauseReading() {
 	s.setIsReading(false)
-	s.clearMsgCh()
 }
 
 func (s *StratumV1PoolConn) clearMsgCh() {
@@ -322,4 +324,65 @@ func (s *StratumV1PoolConn) clearMsgCh() {
 			return
 		}
 	}
+}
+
+func (s *StratumV1PoolConn) Close() error {
+	s.SetDeadline(time.Time{})
+	return s.close()
+}
+
+func (s *StratumV1PoolConn) close() error {
+	err := s.conn.Close()
+	s.clearMsgCh()
+	s.resHandlers = sync.Map{}
+	s.notifyMsgs = nil
+	return err
+}
+
+func (s *StratumV1PoolConn) Deadline(cleanupCb func()) {
+	s.newDeadline = make(chan time.Time)
+
+	go func() {
+		var deadlineChan <-chan time.Time
+
+		for {
+			select {
+			case <-deadlineChan:
+
+				s.newDeadlineMutex.Lock()
+				newDeadlineRef := s.newDeadline
+				s.newDeadline = nil
+				s.newDeadlineMutex.Unlock()
+
+				close(newDeadlineRef)
+				err := s.close()
+				if err != nil {
+					s.log.Errorf("deadline connection closeout error %s", err)
+				}
+				cleanupCb()
+				return
+			case deadline := <-s.newDeadline:
+				if deadline.IsZero() {
+					return
+				}
+				duration := time.Until(deadline)
+				s.deadline = deadline
+				deadlineChan = time.After(duration)
+			}
+		}
+
+	}()
+}
+
+func (s *StratumV1PoolConn) SetDeadline(deadline time.Time) {
+	s.newDeadlineMutex.Lock()
+	defer s.newDeadlineMutex.Unlock()
+
+	if s.newDeadline != nil {
+		s.newDeadline <- deadline
+	}
+}
+
+func (s *StratumV1PoolConn) GetDeadline() time.Time {
+	return s.deadline
 }

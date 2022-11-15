@@ -8,6 +8,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
@@ -45,7 +46,10 @@ func InitApp() (*app.App, error) {
 	}
 	interfacesICollection := provideContractCollection()
 	globalSchedulerService := provideGlobalScheduler(config, iCollection, iLogger)
-	engine := provideApiController(config, iCollection, interfacesICollection, iLogger, globalSchedulerService)
+	engine, err := provideApiController(config, iCollection, interfacesICollection, iLogger, globalSchedulerService)
+	if err != nil {
+		return nil, err
+	}
 	server := provideApiServer(config, iLogger, engine)
 	client, err := provideEthClient(config, iLogger)
 	if err != nil {
@@ -111,11 +115,18 @@ func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo inter
 		return nil, err
 	}
 
-	return miner.NewMinerController(destination, repo, l, cfg.Proxy.LogStratum, cfg.Miner.VettingDuration, cfg.Pool.MinDuration, cfg.Pool.MaxDuration), nil
+	return miner.NewMinerController(destination, repo, l, cfg.Proxy.LogStratum, cfg.Miner.VettingDuration, cfg.Pool.MinDuration, cfg.Pool.MaxDuration, cfg.Pool.ConnTimeout), nil
 }
 
-func provideApiController(cfg *config.Config, miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerService) *gin.Engine {
-	return api.NewApiController(miners, contracts, log, gs, cfg.Contract.IsBuyer, cfg.Contract.HashrateDiffThreshold, cfg.Contract.ValidationBufferPeriod)
+func provideApiController(cfg *config.Config, miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerService) (*gin.Engine, error) {
+
+	dest, err := lib.ParseDest(cfg.Pool.Address)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return api.NewApiController(miners, contracts, log, gs, cfg.Contract.IsBuyer, cfg.Contract.HashrateDiffThreshold, cfg.Contract.ValidationBufferPeriod, dest), nil
 }
 
 func provideTCPServer(cfg *config.Config, l interfaces.ILogger) *tcpserver.TCPServer {
@@ -131,7 +142,15 @@ func provideEthClient(cfg *config.Config, log interfaces.ILogger) (*ethclient.Cl
 }
 
 func provideEthWallet(cfg *config.Config) (*blockchain.EthereumWallet, error) {
-	return blockchain.NewEthereumWallet(cfg.Contract.Mnemonic, cfg.Contract.AccountIndex, cfg.Contract.WalletPrivateKey, cfg.Contract.WalletAddress)
+	if cfg.Contract.WalletAddress != "" && cfg.Contract.WalletPrivateKey != "" {
+		return blockchain.NewEthereumWalletFromPrivateKey(cfg.Contract.WalletAddress, cfg.Contract.WalletPrivateKey)
+	}
+
+	if cfg.Contract.Mnemonic != "" {
+		return blockchain.NewEthereumWalletFromMnemonic(cfg.Contract.Mnemonic, cfg.Contract.AccountIndex)
+	}
+
+	return nil, fmt.Errorf("cannot create eth wallet, provide either mnemonic or private key")
 }
 
 func provideEthGateway(cfg *config.Config, ethClient *ethclient.Client, ethWallet *blockchain.EthereumWallet, log interfaces.ILogger) (*blockchain.EthereumGateway, error) {

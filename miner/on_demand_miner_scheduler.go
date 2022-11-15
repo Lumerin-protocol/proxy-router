@@ -41,11 +41,12 @@ func NewOnDemandMinerScheduler(minerModel MinerModel, destSplit *DestSplit, log 
 
 func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 	minerModelErr := make(chan error)
-	go m.minerModel.Run(ctx, minerModelErr)
+	go func() {
+		minerModelErr <- m.minerModel.Run(ctx)
+	}()
 
 	for {
 		destinations := m.getDest().Iter()
-		m.log.Infof("new scheduler cycle for miner(%s), destinations(%d)", m.GetID(), len(destinations))
 
 	DEST_CYCLE:
 		for _, splitItem := range destinations {
@@ -67,6 +68,7 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 			case err := <-minerModelErr:
 				return err
 			case <-m.restartDestCycle:
+				m.log.Infof("destination cycle restarted")
 				break DEST_CYCLE
 			case <-time.After(splitDuration):
 			}
@@ -106,28 +108,18 @@ func (m *OnDemandMinerScheduler) Allocate(ID string, percentage float64, dest in
 	if err != nil {
 		return nil, err
 	}
+
 	// if miner was pointing only to default pool
 	if len(oldDestSplit.Iter()) == 0 {
 		m.restartDestCycle <- struct{}{}
 	}
+
+	m.log.Infof("new destination split: %s", m.destSplit.String())
 	return split, nil
 }
 
 func (m *OnDemandMinerScheduler) Deallocate(ID string) (ok bool) {
-	ok = false
-
-	for i, item := range m.destSplit.Iter() {
-		if item.ID == ID {
-			newSplit := append(m.destSplit.split[:i], m.destSplit.split[i+1:]...)
-			m.destSplit.mutex.Lock()
-			m.destSplit.split = newSplit
-			m.destSplit.mutex.Unlock()
-
-			ok = true
-		}
-	}
-
-	return ok
+	return m.GetDestSplit().RemoveByID(ID)
 }
 
 // ChangeDest forcefully change destination
@@ -187,6 +179,10 @@ func (s *OnDemandMinerScheduler) GetStatus() MinerStatus {
 		return MinerStatusFree
 	}
 	return MinerStatusBusy
+}
+
+func (s *OnDemandMinerScheduler) RangeDestConn(f func(key any, value any) bool) {
+	s.minerModel.RangeDestConn(f)
 }
 
 var _ MinerScheduler = new(OnDemandMinerScheduler)
