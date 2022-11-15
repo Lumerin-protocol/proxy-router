@@ -1,6 +1,7 @@
 package miner
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"sync"
@@ -148,7 +149,11 @@ func (d *DestSplit) Iter() []Split {
 }
 
 func (d *DestSplit) Copy() *DestSplit {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+
 	newSplit := make([]Split, len(d.split))
+
 	for i, v := range d.split {
 		newSplit[i] = Split{
 			Percentage: v.Percentage,
@@ -160,4 +165,16 @@ func (d *DestSplit) Copy() *DestSplit {
 		split: newSplit,
 		mutex: *new(sync.RWMutex),
 	}
+}
+
+func (d *DestSplit) String() string {
+	var b = new(bytes.Buffer)
+
+	fmt.Fprintf(b, "\nN\tDestination\tPercentage")
+
+	for i, item := range d.split {
+		fmt.Fprintf(b, "\n%d\t%s\t%.2f", i, item.Dest.String(), item.Percentage)
+	}
+
+	return b.String()
 }
