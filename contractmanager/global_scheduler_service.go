@@ -192,7 +192,7 @@ func (s *GlobalSchedulerService) UpdateCombination(ctx context.Context, minerIDs
 }
 
 func (s *GlobalSchedulerService) DeallocateContract(ctx context.Context, contractID string) {
-	s.log.Info("Deallocating contract %s", contractID)
+	s.log.Infof("deallocating contract %s", contractID)
 
 	snapshot := s.GetMinerSnapshot()
 	s.log.Info(snapshot.String())

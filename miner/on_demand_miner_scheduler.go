@@ -108,10 +108,13 @@ func (m *OnDemandMinerScheduler) Allocate(ID string, percentage float64, dest in
 	if err != nil {
 		return nil, err
 	}
+
 	// if miner was pointing only to default pool
 	if len(oldDestSplit.Iter()) == 0 {
 		m.restartDestCycle <- struct{}{}
 	}
+
+	m.log.Infof("new destination split: %s", m.destSplit.String())
 	return split, nil
 }
 
