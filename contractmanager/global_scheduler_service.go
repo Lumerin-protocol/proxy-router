@@ -85,7 +85,7 @@ func (s *GlobalSchedulerService) Allocate(contractID string, hashrateGHS int, de
 
 func (s *GlobalSchedulerService) getAllocateComb(minerHashrates *AllocCollection, hashrateGHS int) (col *AllocCollection, isAccurate bool) {
 	combination, delta := FindCombinations(minerHashrates, hashrateGHS)
-	s.log.Debug(combination.String())
+	s.log.Debugf("target: %s delta: %d combination: %s", hashrateGHS, delta, combination.String())
 
 	if delta > 0 {
 		// now we need to reduce allocation for the amount of delta

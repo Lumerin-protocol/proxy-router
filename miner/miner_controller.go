@@ -47,7 +47,7 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 		return err
 	}
 
-	m, err := stratumv1_message.ParseMessageToPool(bytes)
+	m, err := stratumv1_message.ParseMessageToPool(bytes, p.log)
 	if err != nil {
 		return fmt.Errorf("invalid incoming message %s", string(bytes))
 	}
@@ -80,10 +80,12 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 
 	p.collection.Store(minerScheduler)
 
-	defer p.log.Warnf("Miner disconnected %s", incomingConn.RemoteAddr())
-	defer p.collection.Delete(minerScheduler.GetID())
+	err = minerScheduler.Run(ctx)
 
-	return minerScheduler.Run(ctx)
+	p.log.Errorf("Miner disconnected %s", incomingConn.RemoteAddr(), err)
+	p.collection.Delete(minerScheduler.GetID())
+
+	return err
 }
 
 func (p *MinerController) ChangeDestAll(dest interfaces.IDestination) error {
