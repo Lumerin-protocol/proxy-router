@@ -23,8 +23,8 @@ type MinerModelMock struct {
 	ChangeDestErr error
 }
 
-func (m *MinerModelMock) Run(ctx context.Context, errCh chan error) {
-	// <- m.RunErr
+func (m *MinerModelMock) Run(ctx context.Context) error {
+	return nil
 }
 func (m *MinerModelMock) GetID() string {
 	return m.ID
@@ -53,3 +53,4 @@ func (m *MinerModelMock) GetConnectedAt() time.Time {
 func (m *MinerModelMock) OnSubmit(cb OnSubmitHandler) ListenerHandle {
 	return ListenerHandle(m.OnSubmitListenerHandle)
 }
+func (m *MinerModelMock) RangeDestConn(f func(key any, value any) bool) {}

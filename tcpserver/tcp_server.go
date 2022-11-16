@@ -37,7 +37,7 @@ func (p *TCPServer) Run(ctx context.Context) error {
 		return fmt.Errorf("invalid server address %s %w", p.serverAddr, err)
 	}
 
-	listener, err := net.ListenTCP("tcp", net.TCPAddrFromAddrPort(add))
+	listener, err := net.Listen("tcp", add.String())
 
 	if err != nil {
 		return fmt.Errorf("listener error %s %w", p.serverAddr, err)
@@ -76,6 +76,7 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener net.Listener) e
 		}
 
 		conn, err := listener.Accept()
+
 		if errors.Is(err, net.ErrClosed) {
 			return errors.New("incoming connection listener was closed")
 		}
