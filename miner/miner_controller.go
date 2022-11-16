@@ -47,7 +47,7 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 		return err
 	}
 
-	m, err := stratumv1_message.ParseMessageToPool(bytes)
+	m, err := stratumv1_message.ParseMessageToPool(bytes, p.log)
 	if err != nil {
 		return fmt.Errorf("invalid incoming message %s", string(bytes))
 	}

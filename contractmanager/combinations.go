@@ -1,7 +1,6 @@
 package contractmanager
 
 import (
-	"fmt"
 	"sort"
 )
 
@@ -9,7 +8,6 @@ import (
 func FindCombinations(list *AllocCollection, targetHashrate int) (*AllocCollection, int) {
 
 	combination, delta := FindClosestMinerCombination(list, targetHashrate)
-	fmt.Printf("target %d delta %d", targetHashrate, delta)
 
 	return combination, delta
 }
