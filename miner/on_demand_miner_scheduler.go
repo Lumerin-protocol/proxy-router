@@ -54,7 +54,13 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 				m.log.Infof("changing destination to %s", splitItem.Dest)
 				err := m.minerModel.ChangeDest(splitItem.Dest)
 				if err != nil {
-					return err
+					// if change dest fails then it is likely something wrong with the dest pool
+					m.log.Errorf("cannot change dest to %s %s", splitItem.Dest, err)
+					m.log.Warnf("falling back to default dest for current split item")
+					err := m.minerModel.ChangeDest(m.defaultDest)
+					if err != nil {
+						return err
+					}
 				}
 				m.lastDestChangeAt = time.Now()
 			}
@@ -66,6 +72,7 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 			case <-ctx.Done():
 				return ctx.Err()
 			case err := <-minerModelErr:
+				m.log.Errorf("miner scheduler error %s", err)
 				return err
 			case <-m.restartDestCycle:
 				m.log.Infof("destination cycle restarted")
