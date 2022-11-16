@@ -14,16 +14,19 @@ import (
 )
 
 type MinerController struct {
-	defaultDest        interfaces.IDestination
-	collection         interfaces.ICollection[MinerScheduler]
-	log                interfaces.ILogger
-	logStratum         bool
+	defaultDest interfaces.IDestination
+	collection  interfaces.ICollection[MinerScheduler]
+
 	minerVettingPeriod time.Duration
 	poolMinDuration    time.Duration
 	poolMaxDuration    time.Duration
+	poolConnTimeout    time.Duration
+
+	log        interfaces.ILogger
+	logStratum bool
 }
 
-func NewMinerController(defaultDest interfaces.IDestination, collection interfaces.ICollection[MinerScheduler], log interfaces.ILogger, logStratum bool, minerVettingPeriod time.Duration, poolMinDuration, poolMaxDuration time.Duration) *MinerController {
+func NewMinerController(defaultDest interfaces.IDestination, collection interfaces.ICollection[MinerScheduler], log interfaces.ILogger, logStratum bool, minerVettingPeriod time.Duration, poolMinDuration, poolMaxDuration time.Duration, poolConnTimeout time.Duration) *MinerController {
 	return &MinerController{
 		defaultDest:        defaultDest,
 		log:                log,
@@ -32,6 +35,7 @@ func NewMinerController(defaultDest interfaces.IDestination, collection interfac
 		minerVettingPeriod: minerVettingPeriod,
 		poolMinDuration:    poolMinDuration,
 		poolMaxDuration:    poolMaxDuration,
+		poolConnTimeout:    poolConnTimeout,
 	}
 }
 
@@ -43,7 +47,7 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 		return err
 	}
 
-	m, err := stratumv1_message.ParseMessageToPool(bytes)
+	m, err := stratumv1_message.ParseMessageToPool(bytes, p.log)
 	if err != nil {
 		return fmt.Errorf("invalid incoming message %s", string(bytes))
 	}
@@ -57,7 +61,7 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 
 	logMiner := p.log.Named(incomingConn.RemoteAddr().String())
 
-	poolPool := protocol.NewStratumV1PoolPool(logMiner, p.logStratum)
+	poolPool := protocol.NewStratumV1PoolPool(logMiner, p.poolConnTimeout, p.logStratum)
 	err = poolPool.SetDest(p.defaultDest, nil)
 	if err != nil {
 		p.log.Error(err)
@@ -76,10 +80,12 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 
 	p.collection.Store(minerScheduler)
 
-	defer p.log.Warnf("Miner disconnected %s", incomingConn.RemoteAddr())
-	defer p.collection.Delete(minerScheduler.GetID())
+	err = minerScheduler.Run(ctx)
 
-	return minerScheduler.Run(ctx)
+	p.log.Errorf("Miner disconnected %s", incomingConn.RemoteAddr(), err)
+	p.collection.Delete(minerScheduler.GetID())
+
+	return err
 }
 
 func (p *MinerController) ChangeDestAll(dest interfaces.IDestination) error {

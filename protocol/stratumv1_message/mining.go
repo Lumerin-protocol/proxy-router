@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
 )
 
@@ -13,7 +14,7 @@ var (
 	ErrStratumV1Unknown   = errors.New("unknown stratumv1 message")
 )
 
-func ParseMessageToPool(raw []byte) (MiningMessageToPool, error) {
+func ParseMessageToPool(raw []byte, log interfaces.ILogger) (MiningMessageToPool, error) {
 	msg := &MiningGeneric{}
 	err := json.Unmarshal(raw, msg)
 	if err != nil {
@@ -37,7 +38,7 @@ func ParseMessageToPool(raw []byte) (MiningMessageToPool, error) {
 		return ParseMiningConfigure(raw)
 
 	default:
-		fmt.Printf("unknown message to pool: %s", raw)
+		log.Debugf("unknown message to pool: %s", raw)
 		return ParseMiningUnknown(raw)
 	}
 }

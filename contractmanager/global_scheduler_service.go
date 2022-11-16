@@ -85,7 +85,7 @@ func (s *GlobalSchedulerService) Allocate(contractID string, hashrateGHS int, de
 
 func (s *GlobalSchedulerService) getAllocateComb(minerHashrates *AllocCollection, hashrateGHS int) (col *AllocCollection, isAccurate bool) {
 	combination, delta := FindCombinations(minerHashrates, hashrateGHS)
-	s.log.Debug(combination.String())
+	s.log.Debugf("target: %s delta: %d combination: %s", hashrateGHS, delta, combination.String())
 
 	if delta > 0 {
 		// now we need to reduce allocation for the amount of delta
@@ -191,8 +191,30 @@ func (s *GlobalSchedulerService) UpdateCombination(ctx context.Context, minerIDs
 	}
 }
 
-func (s *GlobalSchedulerService) DeallocateContract(ctx context.Context, minerIDs []string, contractID string) ([]string, error) {
-	return s.UpdateCombination(ctx, minerIDs, 0, lib.Dest{}, contractID, 0)
+func (s *GlobalSchedulerService) DeallocateContract(ctx context.Context, contractID string) {
+	s.log.Infof("deallocating contract %s", contractID)
+
+	snapshot := s.GetMinerSnapshot()
+	s.log.Info(snapshot.String())
+
+	minersSnap, ok := snapshot.Contract(contractID)
+	if !ok {
+		s.log.Warnf("contract (%s) not found", contractID)
+		return
+	}
+
+	for minerID := range minersSnap.GetItems() {
+		miner, ok := s.minerCollection.Load(minerID)
+		if !ok {
+			s.log.Warnf("miner (%s) is not found", minerID)
+			continue
+		}
+
+		ok = miner.Deallocate(contractID)
+		if !ok {
+			s.log.Warnf("split (%s) not found", contractID)
+		}
+	}
 }
 
 // incAllocation increases allocation hashrate prioritizing allocation of existing miners
@@ -202,7 +224,7 @@ func (s *GlobalSchedulerService) incAllocation(ctx context.Context, snapshot All
 
 	minersSnap, ok := snapshot.Contract(contractID)
 	if !ok {
-		s.log.Errorf("contract (%s) not found", contractID)
+		s.log.Warnf("contract (%s) not found", contractID)
 	} else {
 
 		// try to increase allocation in the miners that already serve the contract

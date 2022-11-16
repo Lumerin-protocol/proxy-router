@@ -84,7 +84,7 @@ func (s *StratumV1Miner) Read(ctx context.Context) (stratumv1_message.MiningMess
 			lib.LogMsg(true, true, s.conn.RemoteAddr().String(), line, s.log)
 		}
 
-		m, err := stratumv1_message.ParseMessageToPool(line)
+		m, err := stratumv1_message.ParseMessageToPool(line, s.log)
 
 		if err != nil {
 			s.log.Errorf("unknown miner message: %s", string(line))
