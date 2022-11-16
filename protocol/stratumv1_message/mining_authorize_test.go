@@ -65,7 +65,7 @@ func TestMiningAuthorizeSetters(t *testing.T) {
 }
 
 func newMiningAuthorize(t *testing.T) *MiningAuthorize {
-	msg, err := ParseMessageToPool(messageRaw)
+	msg, err := ParseMessageToPool(messageRaw, lib.NewTestLogger())
 	if err != nil {
 		t.FailNow()
 	}
