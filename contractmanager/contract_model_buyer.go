@@ -74,8 +74,8 @@ func (c *BTCHashrateContract) FulfillBuyerContract(ctx context.Context) error {
 			err := c.globalScheduler.CheckContractHashrate(ctx, c.GetHashrateGHS(), c.GetDest(), c.hashrateDiffThreshold)
 			if err != nil {
 				// cancel
-				c.log.Errorf("Contract %s %s", c.GetAddress() ,err)
-			} 
+				c.log.Errorf("Contract %s %s", c.GetAddress(), err)
+			}
 
 			select {
 			case <-ctx.Done():

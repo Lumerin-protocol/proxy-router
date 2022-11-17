@@ -194,14 +194,14 @@ func (s *GlobalSchedulerService) UpdateCombination(ctx context.Context, minerIDs
 
 func (s *GlobalSchedulerService) CheckContractHashrate(ctx context.Context, targetHashrateGHS int, dest interfaces.IDestination, hashrateDiffThreshold float64) error {
 	var actualHashrate int
-	
+
 	s.minerCollection.Range(func(miner miner.MinerScheduler) bool {
 		if miner.GetWorkerName() == dest.Username() {
 			actualHashrate += miner.GetHashRateGHS()
 		}
 		return true
 	})
-	
+
 	deltaGHS := targetHashrateGHS - actualHashrate
 	s.log.Debugf("target hashrate %d, actual hashrate %d, delta %d", targetHashrateGHS, actualHashrate, deltaGHS)
 
