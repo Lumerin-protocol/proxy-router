@@ -140,7 +140,7 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 			Length:                 int64(duration.Seconds()),
 			Dest:                   dest,
 			StartingBlockTimestamp: time.Now().Unix(),
-		}, nil, gs, log, hashrate.NewHashrate(log), isBuyer, hashrateDiffThreshold, validationBufferPeriod, controller.defaultDestination)
+		}, nil, gs, log, hashrate.NewHashrate(log), hashrateDiffThreshold, validationBufferPeriod, controller.defaultDestination)
 
 		go func() {
 			err := contract.FulfillContract(context.Background())
