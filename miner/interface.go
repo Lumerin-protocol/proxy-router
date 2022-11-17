@@ -39,7 +39,7 @@ type MinerScheduler interface {
 	GetStatus() MinerStatus
 	GetDestSplit() *DestSplit
 	GetCurrentDest() interfaces.IDestination // get miner total hashrate in GH/s
-	ChangeDest(dest interfaces.IDestination) error
+	ChangeDest(dest interfaces.IDestination, ID string) error
 	GetCurrentDifficulty() int
 	GetWorkerName() string
 	GetHashRateGHS() int
@@ -52,4 +52,6 @@ type MinerScheduler interface {
 	Deallocate(ID string) (ok bool)
 
 	RangeDestConn(f func(key any, value any) bool)
+	RangeHistory(f func(item HistoryItem) bool)
+	RangeHistoryContractID(contractID string, f func(item HistoryItem) bool)
 }

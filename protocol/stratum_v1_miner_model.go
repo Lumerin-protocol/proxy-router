@@ -27,10 +27,10 @@ type stratumV1MinerModel struct {
 	log interfaces.ILogger
 }
 
-func NewStratumV1MinerModel(poolPool StratumV1DestConn, miner StratumV1SourceConn, validator *hashrate.Hashrate, log interfaces.ILogger) *stratumV1MinerModel {
+func NewStratumV1MinerModel(poolPool StratumV1DestConn, minerConn StratumV1SourceConn, validator *hashrate.Hashrate, log interfaces.ILogger) *stratumV1MinerModel {
 	return &stratumV1MinerModel{
 		poolConn:  poolPool,
-		minerConn: miner,
+		minerConn: minerConn,
 		validator: validator,
 		log:       log,
 	}

@@ -22,11 +22,15 @@ type OnDemandMinerScheduler struct {
 	minerVettingPeriod time.Duration
 	destMinUptime      time.Duration
 	destMaxUptime      time.Duration
+	history            *StratumV1MinerModelHistory
 
 	restartDestCycle chan struct{}
 }
 
 func NewOnDemandMinerScheduler(minerModel MinerModel, destSplit *DestSplit, log interfaces.ILogger, defaultDest interfaces.IDestination, minerVettingPeriod, destMinUptime, destMaxUptime time.Duration) *OnDemandMinerScheduler {
+	history := NewStratumV1MinerModelHistory(2048)
+	history.Add(defaultDest, DefaultDestID, nil)
+
 	return &OnDemandMinerScheduler{
 		minerModel:         minerModel,
 		destSplit:          destSplit,
@@ -35,6 +39,7 @@ func NewOnDemandMinerScheduler(minerModel MinerModel, destSplit *DestSplit, log 
 		minerVettingPeriod: minerVettingPeriod,
 		destMinUptime:      destMinUptime,
 		destMaxUptime:      destMaxUptime,
+		history:            history,
 		restartDestCycle:   make(chan struct{}, 1),
 	}
 }
@@ -52,12 +57,12 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 		for _, splitItem := range destinations {
 			if !m.minerModel.GetDest().IsEqual(splitItem.Dest) {
 				m.log.Infof("changing destination to %s", splitItem.Dest)
-				err := m.minerModel.ChangeDest(splitItem.Dest)
+				err := m.ChangeDest(splitItem.Dest, splitItem.ID)
 				if err != nil {
 					// if change dest fails then it is likely something wrong with the dest pool
 					m.log.Errorf("cannot change dest to %s %s", splitItem.Dest, err)
 					m.log.Warnf("falling back to default dest for current split item")
-					err := m.minerModel.ChangeDest(m.defaultDest)
+					err := m.ChangeDest(m.defaultDest, splitItem.ID)
 					if err != nil {
 						return err
 					}
@@ -131,7 +136,8 @@ func (m *OnDemandMinerScheduler) Deallocate(ID string) (ok bool) {
 
 // ChangeDest forcefully change destination
 // may cause issues when split is enabled
-func (m *OnDemandMinerScheduler) ChangeDest(dest interfaces.IDestination) error {
+func (m *OnDemandMinerScheduler) ChangeDest(dest interfaces.IDestination, ID string) error {
+	m.history.Add(dest, ID, nil)
 	return m.minerModel.ChangeDest(dest)
 }
 
@@ -190,6 +196,14 @@ func (s *OnDemandMinerScheduler) GetStatus() MinerStatus {
 
 func (s *OnDemandMinerScheduler) RangeDestConn(f func(key any, value any) bool) {
 	s.minerModel.RangeDestConn(f)
+}
+
+func (s *OnDemandMinerScheduler) RangeHistory(f func(item HistoryItem) bool) {
+	s.history.Range(f)
+}
+
+func (s *OnDemandMinerScheduler) RangeHistoryContractID(contractID string, f func(item HistoryItem) bool) {
+	s.history.RangeContractID(contractID, f)
 }
 
 var _ MinerScheduler = new(OnDemandMinerScheduler)

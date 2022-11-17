@@ -47,7 +47,7 @@ func (s *MinerSchedulerMock) GetDestSplit() *DestSplit {
 func (s *MinerSchedulerMock) GetCurrentDest() interfaces.IDestination {
 	return s.Dest
 }
-func (s *MinerSchedulerMock) ChangeDest(dest interfaces.IDestination) error {
+func (s *MinerSchedulerMock) ChangeDest(dest interfaces.IDestination, contractID string) error {
 	return nil
 }
 
@@ -87,5 +87,9 @@ func (s *MinerSchedulerMock) GetUptime() time.Duration {
 }
 
 func (s *MinerSchedulerMock) RangeDestConn(f func(a, b any) bool) {}
+
+func (s *MinerSchedulerMock) RangeHistory(f func(a HistoryItem) bool) {}
+
+func (s *MinerSchedulerMock) RangeHistoryContractID(ID string, f func(a HistoryItem) bool) {}
 
 var _ MinerScheduler = new(MinerSchedulerMock)

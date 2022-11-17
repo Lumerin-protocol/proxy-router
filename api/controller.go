@@ -2,14 +2,12 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"math"
-	"math/big"
-	"math/rand"
 	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/gin-gonic/gin"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
@@ -52,6 +50,7 @@ type Miner struct {
 	ConnectedAt           string
 	UptimeSeconds         int
 	ActivePoolConnections map[string]string
+	History               *[]HistoryItem `json:",omitempty"`
 }
 
 type HashrateAvgGHS struct {
@@ -77,7 +76,17 @@ type Contract struct {
 	ApplicationStatus string
 	BlockchainStatus  string
 	Dest              string
-	// Miners         []string
+	History           *[]HistoryItem `json:",omitempty"`
+	Miners            []Miner
+}
+
+type HistoryItem struct {
+	ContractID      string
+	Dest            string
+	DurationMs      int64
+	DurationString  string
+	TimestampUnixMs int64
+	TimestampString string
 }
 
 func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerService, isBuyer bool, hashrateDiffThreshold float64, validationBufferPeriod time.Duration, defaultDestination interfaces.IDestination) *gin.Engine {
@@ -97,8 +106,26 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 		ctx.JSON(http.StatusOK, data)
 	})
 
+	r.GET("/miners/:id", func(ctx *gin.Context) {
+		data, ok := controller.GetMiner(ctx.Param("id"))
+		if !ok {
+			ctx.Status(http.StatusNotFound)
+			return
+		}
+		ctx.JSON(http.StatusOK, data)
+	})
+
 	r.GET("/contracts", func(ctx *gin.Context) {
 		data := controller.GetContracts()
+		ctx.JSON(http.StatusOK, data)
+	})
+
+	r.GET("/contracts/:id", func(ctx *gin.Context) {
+		data, ok := controller.GetContract(ctx.Param("id"))
+		if !ok {
+			ctx.Status(http.StatusNotFound)
+			return
+		}
 		ctx.JSON(http.StatusOK, data)
 	})
 
@@ -133,7 +160,7 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 			ctx.AbortWithStatus(http.StatusBadRequest)
 		}
 		contract := contractmanager.NewContract(blockchain.ContractData{
-			Addr:                   common.BigToAddress(big.NewInt(rand.Int63())),
+			Addr:                   lib.GetRandomAddr(),
 			State:                  blockchain.ContractBlockchainStateRunning,
 			Price:                  0,
 			Speed:                  hrGHS * int64(math.Pow10(9)),
@@ -170,22 +197,10 @@ func (c *ApiController) GetMiners() *MinersResponse {
 	)
 
 	c.miners.Range(func(m miner.MinerScheduler) bool {
-		destItems := []DestItem{}
-		dest := m.GetDestSplit()
-		for _, item := range dest.Iter() {
-			HashrateGHS := int(item.Percentage * float64(m.GetHashRateGHS()))
-
-			destItems = append(destItems, DestItem{
-				URI:         item.Dest.String(),
-				Fraction:    item.Percentage,
-				HashrateGHS: HashrateGHS,
-			})
-
-			UsedHashrateGHS += HashrateGHS
-		}
+		destItems, usedHR := c.mapDestItems(m)
+		UsedHashrateGHS += usedHR
 
 		hashrate := m.GetHashRate()
-
 		TotalHashrateGHS += hashrate.GetHashrate5minAvgGHS()
 		TotalMiners += 1
 
@@ -198,13 +213,7 @@ func (c *ApiController) GetMiners() *MinersResponse {
 			BusyMiners += 1
 		}
 
-		ActivePoolConnections := make(map[string]string)
-
-		m.RangeDestConn(func(key, value any) bool {
-			k := value.(*protocol.StratumV1PoolConn)
-			ActivePoolConnections[key.(string)] = k.GetDeadline().Format(time.RFC3339)
-			return true
-		})
+		ActivePoolConnections := c.mapPoolConnection(m)
 
 		Miners = append(Miners, Miner{
 			ID:                m.GetID(),
@@ -244,6 +253,80 @@ func (c *ApiController) GetMiners() *MinersResponse {
 	}
 }
 
+func (*ApiController) mapPoolConnection(m miner.MinerScheduler) map[string]string {
+	ActivePoolConnections := make(map[string]string)
+
+	m.RangeDestConn(func(key, value any) bool {
+		k := value.(*protocol.StratumV1PoolConn)
+		ActivePoolConnections[key.(string)] = k.GetDeadline().Format(time.RFC3339)
+		return true
+	})
+
+	return ActivePoolConnections
+}
+
+func (*ApiController) mapDestItems(m miner.MinerScheduler) ([]DestItem, int) {
+	destItems := []DestItem{}
+	UsedHashrateGHS := 0
+	dest := m.GetDestSplit()
+	for _, item := range dest.Iter() {
+		HashrateGHS := int(item.Percentage * float64(m.GetHashRateGHS()))
+
+		destItems = append(destItems, DestItem{
+			URI:         item.Dest.String(),
+			Fraction:    item.Percentage,
+			HashrateGHS: HashrateGHS,
+		})
+
+		UsedHashrateGHS += HashrateGHS
+	}
+	return destItems, UsedHashrateGHS
+}
+
+func (c *ApiController) GetMiner(ID string) (*Miner, bool) {
+	m, ok := c.miners.Load(ID)
+	if !ok {
+		return nil, false
+	}
+
+	hashrate := m.GetHashRate()
+	destItems, _ := c.mapDestItems(m)
+	ActivePoolConnections := c.mapPoolConnection(m)
+
+	var history []HistoryItem
+
+	m.RangeHistory(func(item miner.HistoryItem) bool {
+		history = append(history, HistoryItem{
+			ContractID:      item.ContractID,
+			Dest:            item.Dest.String(),
+			DurationMs:      item.Duration.Milliseconds(),
+			DurationString:  item.Duration.String(),
+			TimestampUnixMs: item.Timestamp.UnixMilli(),
+			TimestampString: item.Timestamp.Format(time.RFC3339Nano),
+		})
+		return true
+	})
+
+	return &Miner{
+		ID:                m.GetID(),
+		Status:            m.GetStatus().String(),
+		TotalHashrateGHS:  m.GetHashRateGHS(),
+		CurrentDifficulty: m.GetCurrentDifficulty(),
+		Destinations:      destItems,
+		HashrateAvgGHS: HashrateAvgGHS{
+			T5m:  hashrate.GetHashrate5minAvgGHS(),
+			T30m: hashrate.GetHashrate30minAvgGHS(),
+			T1h:  hashrate.GetHashrate1hAvgGHS(),
+		},
+		CurrentDestination:    m.GetCurrentDest().String(),
+		WorkerName:            m.GetWorkerName(),
+		ConnectedAt:           m.GetConnectedAt().Format(time.RFC3339),
+		UptimeSeconds:         int(m.GetUptime().Seconds()),
+		ActivePoolConnections: ActivePoolConnections,
+		History:               &history,
+	}, true
+}
+
 func (c *ApiController) changeDestAll(destStr string) error {
 	dest, err := lib.ParseDest(destStr)
 	if err != nil {
@@ -251,7 +334,7 @@ func (c *ApiController) changeDestAll(destStr string) error {
 	}
 
 	c.miners.Range(func(miner miner.MinerScheduler) bool {
-		err = miner.ChangeDest(dest)
+		err = miner.ChangeDest(dest, fmt.Sprintf("api-change-dest-all-%s", lib.GetRandomAddr()))
 		return err == nil
 	})
 
@@ -259,8 +342,43 @@ func (c *ApiController) changeDestAll(destStr string) error {
 }
 
 func (c *ApiController) GetContracts() []Contract {
+	snap := contractmanager.CreateMinerSnapshot(c.miners)
+
 	data := []Contract{}
 	c.contracts.Range(func(item contractmanager.IContractModel) bool {
+		minerIDs := []string{}
+		m, ok := snap.Contract(item.GetID())
+		if ok {
+			minerIDs = m.IDs()
+		}
+
+		var miners []Miner
+
+		for _, k := range minerIDs {
+			m, ok := c.miners.Load(k)
+			if !ok {
+				continue
+			}
+			hashrate := m.GetHashRate()
+			destItems, _ := c.mapDestItems(m)
+			miners = append(miners, Miner{
+				ID:                m.GetID(),
+				Status:            m.GetStatus().String(),
+				TotalHashrateGHS:  m.GetHashRateGHS(),
+				CurrentDifficulty: m.GetCurrentDifficulty(),
+				Destinations:      destItems,
+				HashrateAvgGHS: HashrateAvgGHS{
+					T5m:  hashrate.GetHashrate5minAvgGHS(),
+					T30m: hashrate.GetHashrate30minAvgGHS(),
+					T1h:  hashrate.GetHashrate1hAvgGHS(),
+				},
+				CurrentDestination: m.GetCurrentDest().String(),
+				WorkerName:         m.GetWorkerName(),
+				ConnectedAt:        m.GetConnectedAt().Format(time.RFC3339),
+				UptimeSeconds:      int(m.GetUptime().Seconds()),
+			})
+		}
+
 		data = append(data, Contract{
 			ID:                item.GetID(),
 			BuyerAddr:         item.GetBuyerAddress(),
@@ -272,6 +390,7 @@ func (c *ApiController) GetContracts() []Contract {
 			ApplicationStatus: MapContractState(item.GetState()),
 			BlockchainStatus:  item.GetStatusInternal(),
 			Dest:              item.GetDest().String(),
+			Miners:            miners,
 		})
 		return true
 	})
@@ -280,6 +399,44 @@ func (c *ApiController) GetContracts() []Contract {
 		return a.ID < b.ID
 	})
 	return data
+}
+
+func (c *ApiController) GetContract(ID string) (*Contract, bool) {
+	contract, ok := c.contracts.Load(ID)
+	if !ok {
+		return nil, false
+	}
+
+	var history []HistoryItem
+
+	c.miners.Range(func(mn miner.MinerScheduler) bool {
+		mn.RangeHistoryContractID(ID, func(item miner.HistoryItem) bool {
+			history = append(history, HistoryItem{
+				ContractID:      item.ContractID,
+				Dest:            item.Dest.String(),
+				DurationMs:      item.Duration.Milliseconds(),
+				DurationString:  item.Duration.String(),
+				TimestampUnixMs: item.Timestamp.UnixMilli(),
+				TimestampString: item.Timestamp.Format(time.RFC3339Nano),
+			})
+			return true
+		})
+		return true
+	})
+
+	return &Contract{
+		ID:                contract.GetID(),
+		BuyerAddr:         contract.GetBuyerAddress(),
+		SellerAddr:        contract.GetSellerAddress(),
+		HashrateGHS:       contract.GetHashrateGHS(),
+		DurationSeconds:   int(contract.GetDuration().Seconds()),
+		StartTimestamp:    TimePtrToStringPtr(contract.GetStartTime()),
+		EndTimestamp:      TimePtrToStringPtr(contract.GetEndTime()),
+		ApplicationStatus: MapContractState(contract.GetState()),
+		BlockchainStatus:  contract.GetStatusInternal(),
+		Dest:              contract.GetDest().String(),
+		History:           &history,
+	}, true
 }
 
 func MapContractState(state contractmanager.ContractState) string {
