@@ -16,7 +16,7 @@ type AllocItem struct {
 	TotalGHS   int
 }
 
-func (m *AllocItem) GetSourceId() string {
+func (m *AllocItem) GetSourceID() string {
 	return m.MinerID
 }
 
@@ -230,6 +230,31 @@ func (m *AllocSnap) String() string {
 	return b.String()
 }
 
+// CreateCurrentMinerSnapshot returns current state of the miners
+func CreateCurrentMinerSnapshot(minerCollection interfaces.ICollection[miner.MinerScheduler]) AllocSnap {
+	snapshot := NewAllocSnap()
+
+	minerCollection.Range(func(miner miner.MinerScheduler) bool {
+		if !miner.IsVetted() {
+			return true
+		}
+
+		hashrateGHS := miner.GetHashRateGHS()
+		minerID := miner.GetID()
+
+		snapshot.SetMiner(minerID, hashrateGHS)
+
+		for _, splitItem := range miner.GetCurrentDestSplit().Iter() {
+			snapshot.Set(minerID, splitItem.ID, splitItem.Percentage, hashrateGHS)
+		}
+
+		return true
+	})
+
+	return snapshot
+}
+
+// CreateCurrentMinerSnapshot returns current or upcoming state of the miners is available
 func CreateMinerSnapshot(minerCollection interfaces.ICollection[miner.MinerScheduler]) AllocSnap {
 	snapshot := NewAllocSnap()
 
@@ -243,11 +268,12 @@ func CreateMinerSnapshot(minerCollection interfaces.ICollection[miner.MinerSched
 
 		snapshot.SetMiner(minerID, hashrateGHS)
 
-		for _, splitItem := range miner.GetDestSplit().Iter() {
+		for _, splitItem := range miner.GetCurrentDestSplit().Iter() {
 			snapshot.Set(minerID, splitItem.ID, splitItem.Percentage, hashrateGHS)
 		}
 
 		return true
 	})
+
 	return snapshot
 }

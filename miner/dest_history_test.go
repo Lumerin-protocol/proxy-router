@@ -10,7 +10,7 @@ import (
 
 func TestHistory(t *testing.T) {
 	cap := 8
-	history := NewStratumV1MinerModelHistory(cap)
+	history := NewDestHistory(cap)
 
 	// t.Logf("%d, %d", dq.Len(), dq.Cap())
 

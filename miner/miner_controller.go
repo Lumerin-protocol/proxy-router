@@ -76,7 +76,6 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	destSplit := NewDestSplit()
 
 	minerScheduler := NewOnDemandMinerScheduler(minerModel, destSplit, logMiner, p.defaultDest, p.minerVettingPeriod, p.poolMinDuration, p.poolMaxDuration)
-	// try to connect to dest before running
 
 	p.collection.Store(minerScheduler)
 
@@ -92,9 +91,11 @@ func (p *MinerController) ChangeDestAll(dest interfaces.IDestination) error {
 	p.collection.Range(func(miner MinerScheduler) bool {
 		p.log.Infof("changing pool to %s for minerID %s", dest.GetHost(), miner.GetID())
 
-		_, err := miner.Allocate("API_TEST", 1, dest)
+		split := NewDestSplit()
+		split, _ = split.Allocate("API_TEST", 1, dest)
+		miner.SetDestSplit(split)
 
-		return err == nil
+		return true
 	})
 
 	return nil

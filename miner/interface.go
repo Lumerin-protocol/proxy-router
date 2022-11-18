@@ -37,7 +37,12 @@ type MinerScheduler interface {
 
 	IsVetted() bool
 	GetStatus() MinerStatus
+
+	GetCurrentDestSplit() *DestSplit
 	GetDestSplit() *DestSplit
+	GetUpcomingDestSplit() *DestSplit
+	SetDestSplit(*DestSplit)
+
 	GetCurrentDest() interfaces.IDestination // get miner total hashrate in GH/s
 	ChangeDest(dest interfaces.IDestination, ID string) error
 	GetCurrentDifficulty() int
@@ -47,9 +52,6 @@ type MinerScheduler interface {
 	GetUnallocatedHashrateGHS() int // get hashrate which is directed to default pool in GH/s
 	GetConnectedAt() time.Time
 	GetUptime() time.Duration
-
-	Allocate(ID string, percentage float64, dest interfaces.IDestination) (*Split, error) // allocates available miner resources
-	Deallocate(ID string) (ok bool)
 
 	RangeDestConn(f func(key any, value any) bool)
 	RangeHistory(f func(item HistoryItem) bool)

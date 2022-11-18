@@ -66,17 +66,19 @@ func (s *GlobalSchedulerService) Allocate(contractID string, hashrateGHS int, de
 	}
 
 	for _, item := range combination.GetItems() {
-		miner, ok := s.minerCollection.Load(item.GetSourceId())
+		miner, ok := s.minerCollection.Load(item.GetSourceID())
 		if !ok {
-			//just logging error message because the miner might disconnect
-			s.log.Warnf("unknown miner: %v, skipping", item.GetSourceId())
+			s.log.Warnf("unknown miner: %v, skipping", item.GetSourceID())
 			continue
 		}
-		_, err := miner.Allocate(contractID, item.Fraction, dest)
+
+		destSplit, err := miner.GetDestSplit().Allocate(contractID, item.Fraction, dest)
 		if err != nil {
-			s.log.Warnf("failed to allocate miner: %v, skipping...; %w", item.GetSourceId(), err)
+			s.log.Warnf("failed to allocate miner: %v, skipping...; %w", item.GetSourceID(), err)
 			continue
 		}
+
+		miner.SetDestSplit(destSplit)
 	}
 
 	// pass returnErr whether nil or not;  this way we can attach errors without crashing
@@ -125,7 +127,7 @@ func (s *GlobalSchedulerService) getBestMinerToReduceHashrate(combination *Alloc
 			if fraction > s.poolMinFraction &&
 				fraction < s.poolMaxFraction &&
 				fractionDelta < bestMinerFractionDelta {
-				bestMinerID = item.GetSourceId()
+				bestMinerID = item.GetSourceID()
 				bestMinerFractionDelta = fractionDelta
 			}
 		}
@@ -159,7 +161,7 @@ func (s *GlobalSchedulerService) GetUnallocatedHashrateGHS() (int, HashrateList)
 	return unallocatedHashrate, minerHashrates
 }
 
-func (s *GlobalSchedulerService) UpdateCombination(ctx context.Context, minerIDs []string, targetHashrateGHS int, dest interfaces.IDestination, contractID string, hashrateDiffThreshold float64) ([]string, error) {
+func (s *GlobalSchedulerService) UpdateCombination(ctx context.Context, targetHashrateGHS int, dest interfaces.IDestination, contractID string, hashrateDiffThreshold float64) error {
 	snapshot := s.GetMinerSnapshot()
 	s.log.Info(snapshot.String())
 
@@ -179,7 +181,7 @@ func (s *GlobalSchedulerService) UpdateCombination(ctx context.Context, minerIDs
 
 	if math.Abs(float64(deltaGHS))/float64(targetHashrateGHS) < hashrateDiffThreshold {
 		s.log.Debugf("no need to adjust allocation")
-		return minerIDs, nil
+		return nil
 	}
 
 	if deltaGHS > 0 {
@@ -210,15 +212,18 @@ func (s *GlobalSchedulerService) DeallocateContract(ctx context.Context, contrac
 			continue
 		}
 
-		ok = miner.Deallocate(contractID)
+		destSplit, ok := miner.GetDestSplit().RemoveByID(contractID)
 		if !ok {
 			s.log.Warnf("split (%s) not found", contractID)
+			continue
 		}
+
+		miner.SetDestSplit(destSplit)
 	}
 }
 
 // incAllocation increases allocation hashrate prioritizing allocation of existing miners
-func (s *GlobalSchedulerService) incAllocation(ctx context.Context, snapshot AllocSnap, addGHS int, dest interfaces.IDestination, contractID string) ([]string, error) {
+func (s *GlobalSchedulerService) incAllocation(ctx context.Context, snapshot AllocSnap, addGHS int, dest interfaces.IDestination, contractID string) error {
 	remainingToAddGHS := addGHS
 	minerIDs := []string{}
 
@@ -242,11 +247,12 @@ func (s *GlobalSchedulerService) incAllocation(ctx context.Context, snapshot All
 
 			minerAlloc, ok := snapshot.Miner(minerID)
 			if !ok {
-				s.log.DPanicf("miner (%s) not found")
+				s.log.Warnf("miner (%s) not found")
+				continue
 			}
-			_, allocItem := minerAlloc.GetUnallocatedGHS()
-			allocItem.TotalGHS = snapshot.minerIDHashrateGHS[minerID]
-			toAllocateGHS := lib.MinInt(remainingToAddGHS, allocItem.AllocatedGHS())
+			_, unallocatedItem := minerAlloc.GetUnallocatedGHS()
+			unallocatedItem.TotalGHS = snapshot.minerIDHashrateGHS[minerID]
+			toAllocateGHS := lib.MinInt(remainingToAddGHS, unallocatedItem.AllocatedGHS())
 			if toAllocateGHS == 0 {
 				continue
 			}
@@ -260,90 +266,89 @@ func (s *GlobalSchedulerService) incAllocation(ctx context.Context, snapshot All
 			}
 
 			if newFraction > s.poolMaxFraction && newFraction < 1 {
-				fractionToAdd = s.poolMaxFraction - allocationItem.Fraction
+				newFraction = 0.5
+				fractionToAdd = newFraction - (1 - unallocatedItem.Fraction)
 			}
 
-			miner.GetDestSplit().IncreaseAllocation(contractID, fractionToAdd)
+			split, ok := miner.GetDestSplit().SetFractionByID(contractID, newFraction)
+			if !ok {
+				s.log.Warnf("split item for contract (%s) not found in miner (%s)", contractID, minerID)
+				continue
+			}
+
+			miner.SetDestSplit(split)
 			remainingToAddGHS -= int(fractionToAdd * float64(minerSnap.TotalGHS))
 		}
 	}
 
 	if remainingToAddGHS == 0 {
-		return minerIDs, nil
+		return nil
 	}
 
-	newHashrateList, err := s.Allocate(contractID, remainingToAddGHS, dest)
+	_, err := s.Allocate(contractID, remainingToAddGHS, dest)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	addMinerIDs := newHashrateList.IDs()
 
-	newCombination := append(minerIDs, addMinerIDs...)
-	return newCombination, nil
+	return nil
 }
 
-func (s *GlobalSchedulerService) decrAllocation(ctx context.Context, snapshot AllocSnap, removeGHS int, contractID string) ([]string, error) {
+func (s *GlobalSchedulerService) decrAllocation(ctx context.Context, snapshot AllocSnap, removeGHS int, contractID string) error {
 	allocSnap, ok := snapshot.Contract(contractID)
 	if !ok {
 		s.log.Errorf("contract (%s) not found in snap", contractID)
-		return nil, nil
+		return nil
 	}
 
-	minerIDs := []string{}
 	remainingGHS := removeGHS
 	for _, item := range allocSnap.SortByAllocatedGHS() {
 		if remainingGHS <= 0 {
 			break
 		}
 
-		miner, ok := s.minerCollection.Load(item.GetSourceId())
+		miner, ok := s.minerCollection.Load(item.GetSourceID())
 		if !ok {
-			s.log.Warnf("miner (%s) not found", item.GetSourceId())
+			s.log.Warnf("miner (%s) not found", item.GetSourceID())
 			continue
 		}
 
 		split := miner.GetDestSplit()
-		removeMinerGHS := 0
+		deallocatedGHS := 0
 
 		if remainingGHS >= item.AllocatedGHS() {
 			// remove miner totally
-			ok := split.RemoveByID(contractID)
+			split, ok = split.RemoveByID(contractID)
 			if !ok {
 				s.log.Warnf("split (%s) not found", contractID)
 			}
-			removeMinerGHS = item.AllocatedGHS()
 
+			deallocatedGHS = item.AllocatedGHS()
 		} else {
-			removeMinerFraction := float64(remainingGHS) / float64(item.TotalGHS)
-
-			newFraction := item.Fraction - removeMinerFraction
-			removeMinerGHS = remainingGHS
+			newFraction := item.Fraction - float64(remainingGHS)/float64(item.TotalGHS)
+			deallocatedGHS = remainingGHS
 
 			if newFraction < s.poolMinFraction {
-				ok := split.RemoveByID(contractID)
+				split, ok = split.RemoveByID(contractID)
 				if !ok {
 					s.log.Warnf("split (%s) not found", contractID)
 				}
-				removeMinerGHS = item.AllocatedGHS()
-			}
+				deallocatedGHS = item.AllocatedGHS()
+			} else {
+				if newFraction > s.poolMaxFraction {
+					newFraction = 0.5
+					deallocatedGHS = int(float64(item.TotalGHS) * newFraction)
+				}
 
-			if newFraction > s.poolMaxFraction {
-				newFraction = 0.5
-				removeMinerGHS = int(float64(item.TotalGHS) * newFraction)
+				split, ok = split.SetFractionByID(contractID, newFraction)
+				if !ok {
+					s.log.Warnf("split (%s) not found", contractID)
+				}
 			}
-
-			split.SetFractionByID(contractID, newFraction)
-			minerIDs = append(minerIDs, item.GetSourceId())
 		}
 
-		remainingGHS -= removeMinerGHS
+		miner.SetDestSplit(split)
+		remainingGHS -= deallocatedGHS
 	}
 
-	// if remainingGHS != 0 {
-	// 	err := fmt.Errorf("deallocation fault, remainingGHS %d, allocSnap %+v", remainingGHS, allocSnap)
-	// 	s.log.DPanic(err)
-	// 	return nil, err
-	// }
-
-	return minerIDs, nil
+	return nil
 }

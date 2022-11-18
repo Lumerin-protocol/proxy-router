@@ -52,7 +52,8 @@ type Miner struct {
 	Status                string
 	TotalHashrateGHS      int
 	HashrateAvgGHS        HashrateAvgGHS
-	Destinations          []DestItem
+	Destinations          *[]DestItem
+	UpcomingDestinations  *[]DestItem
 	CurrentDestination    string
 	CurrentDifficulty     int
 	WorkerName            string
@@ -214,7 +215,7 @@ func (c *ApiController) GetMiners() *MinersResponse {
 	)
 
 	c.miners.Range(func(m miner.MinerScheduler) bool {
-		_, usedHR := mapDestItems(m)
+		_, usedHR := mapDestItems(m.GetCurrentDestSplit(), m.GetHashRateGHS())
 		UsedHashrateGHS += usedHR
 
 		hashrate := m.GetHashRate()
@@ -267,12 +268,16 @@ func (*ApiController) mapPoolConnection(m miner.MinerScheduler) map[string]strin
 	return ActivePoolConnections
 }
 
-func mapDestItems(m miner.MinerScheduler) ([]DestItem, int) {
+func mapDestItems(dest *miner.DestSplit, hrGHS int) (*[]DestItem, int) {
 	destItems := []DestItem{}
 	UsedHashrateGHS := 0
-	dest := m.GetDestSplit()
+
+	if dest == nil {
+		return nil, 0
+	}
+
 	for _, item := range dest.Iter() {
-		HashrateGHS := int(item.Percentage * float64(m.GetHashRateGHS()))
+		HashrateGHS := int(item.Percentage * float64(hrGHS))
 
 		destItems = append(destItems, DestItem{
 			ContractID:  item.ID,
@@ -283,7 +288,7 @@ func mapDestItems(m miner.MinerScheduler) ([]DestItem, int) {
 
 		UsedHashrateGHS += HashrateGHS
 	}
-	return destItems, UsedHashrateGHS
+	return &destItems, UsedHashrateGHS
 }
 
 func (c *ApiController) GetMiner(ID string) (*Miner, bool) {
@@ -309,6 +314,7 @@ func (c *ApiController) GetMiner(ID string) (*Miner, bool) {
 
 	miner := c.MapMiner(m)
 
+	miner.UpcomingDestinations, _ = mapDestItems(m.GetUpcomingDestSplit(), m.GetHashRateGHS())
 	miner.ActivePoolConnections = c.mapPoolConnection(m)
 	miner.History = &history
 
@@ -330,7 +336,7 @@ func (c *ApiController) changeDestAll(destStr string) error {
 }
 
 func (c *ApiController) GetContracts() []Contract {
-	snap := contractmanager.CreateMinerSnapshot(c.miners)
+	snap := contractmanager.CreateCurrentMinerSnapshot(c.miners)
 
 	data := []Contract{}
 	c.contracts.Range(func(item contractmanager.IContractModel) bool {
@@ -403,7 +409,7 @@ func (c *ApiController) GetContract(ID string) (*Contract, bool) {
 
 func (c *ApiController) MapMiner(m miner.MinerScheduler) *Miner {
 	hashrate := m.GetHashRate()
-	destItems, _ := mapDestItems(m)
+	destItems, _ := mapDestItems(m.GetCurrentDestSplit(), m.GetHashRateGHS())
 	return &Miner{
 		Resource: Resource{
 			Self: c.apiAddrPort.JoinPath(fmt.Sprintf("/miners/%s", m.GetID())).String(),

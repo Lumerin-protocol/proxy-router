@@ -129,7 +129,7 @@ func TestIncAllocation(t *testing.T) {
 	globalScheduler := NewGlobalScheduler(miners, &lib.LoggerMock{}, 0, 0)
 	snapshot := globalScheduler.GetMinerSnapshot()
 
-	_, err := globalScheduler.incAllocation(context.Background(), snapshot, addGHS, dest, contractID)
+	err := globalScheduler.incAllocation(context.Background(), snapshot, addGHS, dest, contractID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func TestIncAllocationAddMiner(t *testing.T) {
 	globalScheduler := NewGlobalScheduler(miners, &lib.LoggerMock{}, 0, 0)
 	snapshot := globalScheduler.GetMinerSnapshot()
 
-	_, err := globalScheduler.incAllocation(context.Background(), snapshot, addGHS, dest, contractID)
+	err := globalScheduler.incAllocation(context.Background(), snapshot, addGHS, dest, contractID)
 	if err != nil {
 		t.Fatal(err)
 		return
@@ -196,7 +196,7 @@ func TestDecrAllocation(t *testing.T) {
 	globalScheduler := NewGlobalScheduler(miners, &lib.LoggerMock{}, 0, 0)
 	snapshot := globalScheduler.GetMinerSnapshot()
 
-	_, err := globalScheduler.decrAllocation(context.Background(), snapshot, removeGHS, contractID)
+	err := globalScheduler.decrAllocation(context.Background(), snapshot, removeGHS, contractID)
 	if err != nil {
 		t.Fatal(err)
 		return
@@ -225,7 +225,7 @@ func TestDecrAllocationRemoveMiner(t *testing.T) {
 	globalScheduler := NewGlobalScheduler(miners, &lib.LoggerMock{}, 0, 0)
 	snapshot := globalScheduler.GetMinerSnapshot()
 
-	_, err := globalScheduler.decrAllocation(context.Background(), snapshot, removeGHS, contractID)
+	err := globalScheduler.decrAllocation(context.Background(), snapshot, removeGHS, contractID)
 	if err != nil {
 		t.Fatal(err)
 		return

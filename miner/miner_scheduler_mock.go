@@ -24,7 +24,7 @@ func NewMinerSchedulerMock() MinerSchedulerMock {
 	return MinerSchedulerMock{}
 }
 
-func (s *MinerSchedulerMock) Allocate(ID string, percentage float64, dest interfaces.IDestination) (*Split, error) {
+func (s *MinerSchedulerMock) Allocate(ID string, percentage float64, dest interfaces.IDestination) (*SplitItem, error) {
 	return nil, nil
 }
 
@@ -38,11 +38,21 @@ func (s *MinerSchedulerMock) Run(context.Context) error {
 
 func (s *MinerSchedulerMock) GetID() string {
 	return s.ID
-} // get miner unique id (host:port for example)
+}
+
+func (s *MinerSchedulerMock) GetCurrentDestSplit() *DestSplit {
+	return &s.DestSplit
+}
 
 func (s *MinerSchedulerMock) GetDestSplit() *DestSplit {
 	return &s.DestSplit
 }
+
+func (s *MinerSchedulerMock) GetUpcomingDestSplit() *DestSplit {
+	return nil
+}
+
+func (S *MinerSchedulerMock) SetDestSplit(*DestSplit) {}
 
 func (s *MinerSchedulerMock) GetCurrentDest() interfaces.IDestination {
 	return s.Dest

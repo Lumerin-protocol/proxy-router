@@ -38,7 +38,6 @@ type BTCHashrateContract struct {
 	state ContractState // internal state of the contract (within hashrouter)
 
 	hashrate *hashrate.Hashrate // the counter of single contract
-	minerIDs []string           // miners involved in fulfilling this contract
 
 	log                interfaces.ILogger
 	stopFullfillment   chan struct{}
@@ -261,11 +260,9 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 			// TODO hashrate monitoring
 			c.log.Infof("contract (%s) is running for %.0f seconds", c.GetID(), time.Since(*c.GetStartTime()).Seconds())
 
-			minerIDs, err := c.globalScheduler.UpdateCombination(ctx, c.minerIDs, c.GetHashrateGHS(), c.GetDest(), c.GetID(), c.hashrateDiffThreshold)
+			err := c.globalScheduler.UpdateCombination(ctx, c.GetHashrateGHS(), c.GetDest(), c.GetID(), c.hashrateDiffThreshold)
 			if err != nil {
 				c.log.Errorf("cannot update combination %s", err)
-			} else {
-				c.minerIDs = minerIDs
 			}
 
 			select {
@@ -289,12 +286,10 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 func (c *BTCHashrateContract) StartHashrateAllocation() error {
 	c.state = ContractStateRunning
 
-	minerList, err := c.globalScheduler.Allocate(c.GetID(), c.GetHashrateGHS(), c.data.Dest)
+	_, err := c.globalScheduler.Allocate(c.GetID(), c.GetHashrateGHS(), c.data.Dest)
 	if err != nil {
 		return err
 	}
-
-	c.minerIDs = minerList.IDs()
 
 	c.log.Infof("fulfilling contract %s; expires at %v", c.GetID(), c.GetEndTime())
 
@@ -326,7 +321,6 @@ func (c *BTCHashrateContract) Stop(ctx context.Context) {
 		c.globalScheduler.DeallocateContract(ctx, c.GetID())
 
 		c.state = ContractStateAvailable
-		c.minerIDs = []string{}
 
 		if c.stopFullfillment != nil {
 			c.stopFullfillment <- struct{}{}
