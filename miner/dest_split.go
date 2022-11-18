@@ -156,6 +156,7 @@ func (d *DestSplit) Copy() *DestSplit {
 
 	for i, v := range d.split {
 		newSplit[i] = Split{
+			ID:         v.ID,
 			Percentage: v.Percentage,
 			Dest:       v.Dest,
 		}

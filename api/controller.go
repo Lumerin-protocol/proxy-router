@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -19,10 +20,16 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+type Resource struct {
+	Self string
+}
+
 type ApiController struct {
 	miners             interfaces.ICollection[miner.MinerScheduler]
 	contracts          interfaces.ICollection[contractmanager.IContractModel]
 	defaultDestination interfaces.IDestination
+
+	apiAddrPort *url.URL
 }
 
 type MinersResponse struct {
@@ -39,6 +46,8 @@ type MinersResponse struct {
 }
 
 type Miner struct {
+	Resource
+
 	ID                    string
 	Status                string
 	TotalHashrateGHS      int
@@ -49,8 +58,8 @@ type Miner struct {
 	WorkerName            string
 	ConnectedAt           string
 	UptimeSeconds         int
-	ActivePoolConnections map[string]string
-	History               *[]HistoryItem `json:",omitempty"`
+	ActivePoolConnections map[string]string `json:",omitempty"`
+	History               *[]HistoryItem    `json:",omitempty"`
 }
 
 type HashrateAvgGHS struct {
@@ -60,12 +69,15 @@ type HashrateAvgGHS struct {
 }
 
 type DestItem struct {
+	ContractID  string
 	URI         string
 	Fraction    float64
 	HashrateGHS int
 }
 
 type Contract struct {
+	Resource
+
 	ID                string
 	BuyerAddr         string
 	SellerAddr        string
@@ -81,6 +93,7 @@ type Contract struct {
 }
 
 type HistoryItem struct {
+	MinerID         string
 	ContractID      string
 	Dest            string
 	DurationMs      int64
@@ -89,12 +102,16 @@ type HistoryItem struct {
 	TimestampString string
 }
 
-func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerService, isBuyer bool, hashrateDiffThreshold float64, validationBufferPeriod time.Duration, defaultDestination interfaces.IDestination) *gin.Engine {
+func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerService, isBuyer bool, hashrateDiffThreshold float64, validationBufferPeriod time.Duration, defaultDestination interfaces.IDestination, apiAddrPort string) *gin.Engine {
+	apiAddrPortUrl, _ := url.Parse(fmt.Sprintf("//%s", apiAddrPort))
+	apiAddrPortUrl.Scheme = "http"
+
 	r := gin.Default()
 	controller := ApiController{
 		miners:             miners,
 		contracts:          contracts,
 		defaultDestination: defaultDestination,
+		apiAddrPort:        apiAddrPortUrl,
 	}
 
 	r.GET("/healthcheck", func(ctx *gin.Context) {
@@ -197,7 +214,7 @@ func (c *ApiController) GetMiners() *MinersResponse {
 	)
 
 	c.miners.Range(func(m miner.MinerScheduler) bool {
-		destItems, usedHR := c.mapDestItems(m)
+		_, usedHR := mapDestItems(m)
 		UsedHashrateGHS += usedHR
 
 		hashrate := m.GetHashRate()
@@ -213,25 +230,10 @@ func (c *ApiController) GetMiners() *MinersResponse {
 			BusyMiners += 1
 		}
 
-		ActivePoolConnections := c.mapPoolConnection(m)
+		miner := c.MapMiner(m)
+		miner.ActivePoolConnections = c.mapPoolConnection(m)
+		Miners = append(Miners, *miner)
 
-		Miners = append(Miners, Miner{
-			ID:                m.GetID(),
-			Status:            m.GetStatus().String(),
-			TotalHashrateGHS:  m.GetHashRateGHS(),
-			CurrentDifficulty: m.GetCurrentDifficulty(),
-			Destinations:      destItems,
-			HashrateAvgGHS: HashrateAvgGHS{
-				T5m:  hashrate.GetHashrate5minAvgGHS(),
-				T30m: hashrate.GetHashrate30minAvgGHS(),
-				T1h:  hashrate.GetHashrate1hAvgGHS(),
-			},
-			CurrentDestination:    m.GetCurrentDest().String(),
-			WorkerName:            m.GetWorkerName(),
-			ConnectedAt:           m.GetConnectedAt().Format(time.RFC3339),
-			UptimeSeconds:         int(m.GetUptime().Seconds()),
-			ActivePoolConnections: ActivePoolConnections,
-		})
 		return true
 	})
 
@@ -265,7 +267,7 @@ func (*ApiController) mapPoolConnection(m miner.MinerScheduler) map[string]strin
 	return ActivePoolConnections
 }
 
-func (*ApiController) mapDestItems(m miner.MinerScheduler) ([]DestItem, int) {
+func mapDestItems(m miner.MinerScheduler) ([]DestItem, int) {
 	destItems := []DestItem{}
 	UsedHashrateGHS := 0
 	dest := m.GetDestSplit()
@@ -273,6 +275,7 @@ func (*ApiController) mapDestItems(m miner.MinerScheduler) ([]DestItem, int) {
 		HashrateGHS := int(item.Percentage * float64(m.GetHashRateGHS()))
 
 		destItems = append(destItems, DestItem{
+			ContractID:  item.ID,
 			URI:         item.Dest.String(),
 			Fraction:    item.Percentage,
 			HashrateGHS: HashrateGHS,
@@ -289,14 +292,11 @@ func (c *ApiController) GetMiner(ID string) (*Miner, bool) {
 		return nil, false
 	}
 
-	hashrate := m.GetHashRate()
-	destItems, _ := c.mapDestItems(m)
-	ActivePoolConnections := c.mapPoolConnection(m)
-
 	var history []HistoryItem
 
 	m.RangeHistory(func(item miner.HistoryItem) bool {
 		history = append(history, HistoryItem{
+			MinerID:         m.GetID(),
 			ContractID:      item.ContractID,
 			Dest:            item.Dest.String(),
 			DurationMs:      item.Duration.Milliseconds(),
@@ -307,24 +307,12 @@ func (c *ApiController) GetMiner(ID string) (*Miner, bool) {
 		return true
 	})
 
-	return &Miner{
-		ID:                m.GetID(),
-		Status:            m.GetStatus().String(),
-		TotalHashrateGHS:  m.GetHashRateGHS(),
-		CurrentDifficulty: m.GetCurrentDifficulty(),
-		Destinations:      destItems,
-		HashrateAvgGHS: HashrateAvgGHS{
-			T5m:  hashrate.GetHashrate5minAvgGHS(),
-			T30m: hashrate.GetHashrate30minAvgGHS(),
-			T1h:  hashrate.GetHashrate1hAvgGHS(),
-		},
-		CurrentDestination:    m.GetCurrentDest().String(),
-		WorkerName:            m.GetWorkerName(),
-		ConnectedAt:           m.GetConnectedAt().Format(time.RFC3339),
-		UptimeSeconds:         int(m.GetUptime().Seconds()),
-		ActivePoolConnections: ActivePoolConnections,
-		History:               &history,
-	}, true
+	miner := c.MapMiner(m)
+
+	miner.ActivePoolConnections = c.mapPoolConnection(m)
+	miner.History = &history
+
+	return miner, true
 }
 
 func (c *ApiController) changeDestAll(destStr string) error {
@@ -359,39 +347,14 @@ func (c *ApiController) GetContracts() []Contract {
 			if !ok {
 				continue
 			}
-			hashrate := m.GetHashRate()
-			destItems, _ := c.mapDestItems(m)
-			miners = append(miners, Miner{
-				ID:                m.GetID(),
-				Status:            m.GetStatus().String(),
-				TotalHashrateGHS:  m.GetHashRateGHS(),
-				CurrentDifficulty: m.GetCurrentDifficulty(),
-				Destinations:      destItems,
-				HashrateAvgGHS: HashrateAvgGHS{
-					T5m:  hashrate.GetHashrate5minAvgGHS(),
-					T30m: hashrate.GetHashrate30minAvgGHS(),
-					T1h:  hashrate.GetHashrate1hAvgGHS(),
-				},
-				CurrentDestination: m.GetCurrentDest().String(),
-				WorkerName:         m.GetWorkerName(),
-				ConnectedAt:        m.GetConnectedAt().Format(time.RFC3339),
-				UptimeSeconds:      int(m.GetUptime().Seconds()),
-			})
+
+			miners = append(miners, *c.MapMiner(m))
 		}
 
-		data = append(data, Contract{
-			ID:                item.GetID(),
-			BuyerAddr:         item.GetBuyerAddress(),
-			SellerAddr:        item.GetSellerAddress(),
-			HashrateGHS:       item.GetHashrateGHS(),
-			DurationSeconds:   int(item.GetDuration().Seconds()),
-			StartTimestamp:    TimePtrToStringPtr(item.GetStartTime()),
-			EndTimestamp:      TimePtrToStringPtr(item.GetEndTime()),
-			ApplicationStatus: MapContractState(item.GetState()),
-			BlockchainStatus:  item.GetStatusInternal(),
-			Dest:              item.GetDest().String(),
-			Miners:            miners,
-		})
+		contract := c.MapContract(item)
+		contract.Miners = miners
+
+		data = append(data, *contract)
 		return true
 	})
 
@@ -408,10 +371,14 @@ func (c *ApiController) GetContract(ID string) (*Contract, bool) {
 	}
 
 	var history []HistoryItem
+	var miners []Miner
 
 	c.miners.Range(func(mn miner.MinerScheduler) bool {
+		miners = append(miners, *c.MapMiner(mn))
+
 		mn.RangeHistoryContractID(ID, func(item miner.HistoryItem) bool {
 			history = append(history, HistoryItem{
+				MinerID:         mn.GetID(),
 				ContractID:      item.ContractID,
 				Dest:            item.Dest.String(),
 				DurationMs:      item.Duration.Milliseconds(),
@@ -424,19 +391,56 @@ func (c *ApiController) GetContract(ID string) (*Contract, bool) {
 		return true
 	})
 
+	slices.SortFunc(history, func(a, b HistoryItem) bool {
+		return a.TimestampUnixMs < b.TimestampUnixMs
+	})
+
+	item := c.MapContract(contract)
+	item.History = &history
+
+	return item, true
+}
+
+func (c *ApiController) MapMiner(m miner.MinerScheduler) *Miner {
+	hashrate := m.GetHashRate()
+	destItems, _ := mapDestItems(m)
+	return &Miner{
+		Resource: Resource{
+			Self: c.apiAddrPort.JoinPath(fmt.Sprintf("/miners/%s", m.GetID())).String(),
+		},
+		ID:                m.GetID(),
+		Status:            m.GetStatus().String(),
+		TotalHashrateGHS:  m.GetHashRateGHS(),
+		CurrentDifficulty: m.GetCurrentDifficulty(),
+		Destinations:      destItems,
+		HashrateAvgGHS: HashrateAvgGHS{
+			T5m:  hashrate.GetHashrate5minAvgGHS(),
+			T30m: hashrate.GetHashrate30minAvgGHS(),
+			T1h:  hashrate.GetHashrate1hAvgGHS(),
+		},
+		CurrentDestination: m.GetCurrentDest().String(),
+		WorkerName:         m.GetWorkerName(),
+		ConnectedAt:        m.GetConnectedAt().Format(time.RFC3339),
+		UptimeSeconds:      int(m.GetUptime().Seconds()),
+	}
+}
+
+func (c *ApiController) MapContract(item contractmanager.IContractModel) *Contract {
 	return &Contract{
-		ID:                contract.GetID(),
-		BuyerAddr:         contract.GetBuyerAddress(),
-		SellerAddr:        contract.GetSellerAddress(),
-		HashrateGHS:       contract.GetHashrateGHS(),
-		DurationSeconds:   int(contract.GetDuration().Seconds()),
-		StartTimestamp:    TimePtrToStringPtr(contract.GetStartTime()),
-		EndTimestamp:      TimePtrToStringPtr(contract.GetEndTime()),
-		ApplicationStatus: MapContractState(contract.GetState()),
-		BlockchainStatus:  contract.GetStatusInternal(),
-		Dest:              contract.GetDest().String(),
-		History:           &history,
-	}, true
+		Resource: Resource{
+			Self: c.apiAddrPort.JoinPath(fmt.Sprintf("/contracts/%s", item.GetID())).String(),
+		},
+		ID:                item.GetID(),
+		BuyerAddr:         item.GetBuyerAddress(),
+		SellerAddr:        item.GetSellerAddress(),
+		HashrateGHS:       item.GetHashrateGHS(),
+		DurationSeconds:   int(item.GetDuration().Seconds()),
+		StartTimestamp:    TimePtrToStringPtr(item.GetStartTime()),
+		EndTimestamp:      TimePtrToStringPtr(item.GetEndTime()),
+		ApplicationStatus: MapContractState(item.GetState()),
+		BlockchainStatus:  item.GetStatusInternal(),
+		Dest:              item.GetDest().String(),
+	}
 }
 
 func MapContractState(state contractmanager.ContractState) string {

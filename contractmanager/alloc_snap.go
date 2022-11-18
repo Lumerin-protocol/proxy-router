@@ -90,6 +90,7 @@ func (m AllocCollection) IDs() []string {
 		minerIDs[i] = item.MinerID
 		i++
 	}
+	slices.Sort(minerIDs)
 	return minerIDs
 }
 
