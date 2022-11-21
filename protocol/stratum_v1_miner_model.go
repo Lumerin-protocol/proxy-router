@@ -207,8 +207,8 @@ func (s *stratumV1MinerModel) poolInterceptor(msg stratumv1_message.MiningMessag
 	}
 }
 
-func (s *stratumV1MinerModel) ChangeDest(dest interfaces.IDestination) error {
-	return s.poolConn.SetDest(dest, s.configureMsgReq)
+func (s *stratumV1MinerModel) ChangeDest(ctx context.Context, dest interfaces.IDestination) error {
+	return s.poolConn.SetDest(ctx, dest, s.configureMsgReq)
 }
 
 func (s *stratumV1MinerModel) GetDest() interfaces.IDestination {

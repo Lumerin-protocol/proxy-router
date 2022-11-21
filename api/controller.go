@@ -59,8 +59,8 @@ type Miner struct {
 	WorkerName            string
 	ConnectedAt           string
 	UptimeSeconds         int
-	ActivePoolConnections map[string]string `json:",omitempty"`
-	History               *[]HistoryItem    `json:",omitempty"`
+	ActivePoolConnections *map[string]string `json:",omitempty"`
+	History               *[]HistoryItem     `json:",omitempty"`
 }
 
 type HashrateAvgGHS struct {
@@ -256,7 +256,7 @@ func (c *ApiController) GetMiners() *MinersResponse {
 	}
 }
 
-func (*ApiController) mapPoolConnection(m miner.MinerScheduler) map[string]string {
+func (*ApiController) mapPoolConnection(m miner.MinerScheduler) *map[string]string {
 	ActivePoolConnections := make(map[string]string)
 
 	m.RangeDestConn(func(key, value any) bool {
@@ -265,7 +265,7 @@ func (*ApiController) mapPoolConnection(m miner.MinerScheduler) map[string]strin
 		return true
 	})
 
-	return ActivePoolConnections
+	return &ActivePoolConnections
 }
 
 func mapDestItems(dest *miner.DestSplit, hrGHS int) (*[]DestItem, int) {
@@ -328,7 +328,7 @@ func (c *ApiController) changeDestAll(destStr string) error {
 	}
 
 	c.miners.Range(func(miner miner.MinerScheduler) bool {
-		err = miner.ChangeDest(dest, fmt.Sprintf("api-change-dest-all-%s", lib.GetRandomAddr()))
+		err = miner.ChangeDest(context.TODO(), dest, fmt.Sprintf("api-change-dest-all-%s", lib.GetRandomAddr()))
 		return err == nil
 	})
 

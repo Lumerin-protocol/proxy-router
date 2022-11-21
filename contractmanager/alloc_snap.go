@@ -254,7 +254,7 @@ func CreateCurrentMinerSnapshot(minerCollection interfaces.ICollection[miner.Min
 	return snapshot
 }
 
-// CreateCurrentMinerSnapshot returns current or upcoming state of the miners is available
+// CreateMinerSnapshot returns current or upcoming state of the miners is available
 func CreateMinerSnapshot(minerCollection interfaces.ICollection[miner.MinerScheduler]) AllocSnap {
 	snapshot := NewAllocSnap()
 
@@ -268,7 +268,7 @@ func CreateMinerSnapshot(minerCollection interfaces.ICollection[miner.MinerSched
 
 		snapshot.SetMiner(minerID, hashrateGHS)
 
-		for _, splitItem := range miner.GetCurrentDestSplit().Iter() {
+		for _, splitItem := range miner.GetDestSplit().Iter() {
 			snapshot.Set(minerID, splitItem.ID, splitItem.Percentage, hashrateGHS)
 		}
 

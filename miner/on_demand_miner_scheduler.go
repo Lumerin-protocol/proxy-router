@@ -54,21 +54,30 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 	}()
 
 	for {
-		destinations := m.getUpdatedDestSplitWithDefault().Iter()
+		destinations := m.getUpdatedDestSplitWithDefault()
 
 	DEST_CYCLE:
-		for _, splitItem := range destinations {
+		for _, splitItem := range destinations.Iter() {
+			m.log.Debugf(`
+			New dest cycle for miner %s 
+			All destinations: %s
+			current dest %s upcoming dest %s
+			`, m.minerModel.GetID(), destinations.String(), m.minerModel.GetDest(), splitItem.Dest)
+
 			if !m.minerModel.GetDest().IsEqual(splitItem.Dest) {
-				err := m.ChangeDest(splitItem.Dest, splitItem.ID)
+				m.log.Debugf("changing dest to %s", m.minerModel.GetDest())
+
+				err := m.ChangeDest(context.TODO(), splitItem.Dest, splitItem.ID)
 				if err != nil {
 					// if change dest fails then it is likely something wrong with the dest pool
 					m.log.Errorf("cannot change dest to %s %s", splitItem.Dest, err)
 					m.log.Warnf("falling back to default dest for current split item")
-					err := m.ChangeDest(m.defaultDest, splitItem.ID)
+					err := m.ChangeDest(context.TODO(), m.defaultDest, splitItem.ID)
 					if err != nil {
 						return err
 					}
 				}
+				m.log.Debugf("miner %s dest changed to %s", m.minerModel.GetID(), m.minerModel.GetDest())
 				m.lastDestChangeAt = time.Now()
 			}
 
@@ -137,9 +146,9 @@ func (m *OnDemandMinerScheduler) SetDestSplit(destSplit *DestSplit) {
 }
 
 // ChangeDest forcefully change destination regardless of the split. The destination will be overrided back on next split item
-func (m *OnDemandMinerScheduler) ChangeDest(dest interfaces.IDestination, ID string) error {
+func (m *OnDemandMinerScheduler) ChangeDest(ctx context.Context, dest interfaces.IDestination, ID string) error {
 	m.history.Add(dest, ID, nil)
-	return m.minerModel.ChangeDest(dest)
+	return m.minerModel.ChangeDest(ctx, dest)
 }
 
 func (m *OnDemandMinerScheduler) GetHashRateGHS() int {
@@ -157,9 +166,7 @@ func (m *OnDemandMinerScheduler) getUpdatedDestSplitWithDefault() *DestSplit {
 		m.upcomingDestSplit = nil
 	}
 
-	dest := m.destSplit.Copy()
-	dest.AllocateRemaining(DefaultDestID, m.defaultDest)
-	return dest
+	return m.destSplit.AllocateRemaining(DefaultDestID, m.defaultDest)
 }
 
 func (m *OnDemandMinerScheduler) OnSubmit(cb protocol.OnSubmitHandler) protocol.ListenerHandle {

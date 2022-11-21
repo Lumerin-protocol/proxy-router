@@ -19,7 +19,7 @@ type MinerModel interface {
 	GetID() string                 // get miner unique id (host:port for example)
 
 	GetDest() interfaces.IDestination
-	ChangeDest(dest interfaces.IDestination) error
+	ChangeDest(context.Context, interfaces.IDestination) error
 	GetCurrentDifficulty() int
 
 	GetWorkerName() string
@@ -44,7 +44,7 @@ type MinerScheduler interface {
 	SetDestSplit(*DestSplit)
 
 	GetCurrentDest() interfaces.IDestination // get miner total hashrate in GH/s
-	ChangeDest(dest interfaces.IDestination, ID string) error
+	ChangeDest(ctx context.Context, dest interfaces.IDestination, ID string) error
 	GetCurrentDifficulty() int
 	GetWorkerName() string
 	GetHashRateGHS() int

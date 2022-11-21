@@ -57,7 +57,7 @@ func (S *MinerSchedulerMock) SetDestSplit(*DestSplit) {}
 func (s *MinerSchedulerMock) GetCurrentDest() interfaces.IDestination {
 	return s.Dest
 }
-func (s *MinerSchedulerMock) ChangeDest(dest interfaces.IDestination, contractID string) error {
+func (s *MinerSchedulerMock) ChangeDest(ctx context.Context, dest interfaces.IDestination, contractID string) error {
 	return nil
 }
 

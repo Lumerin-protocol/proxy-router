@@ -86,8 +86,9 @@ func (s *GlobalSchedulerService) Allocate(contractID string, hashrateGHS int, de
 }
 
 func (s *GlobalSchedulerService) getAllocateComb(minerHashrates *AllocCollection, hashrateGHS int) (col *AllocCollection, isAccurate bool) {
+	isAccurate = true
+
 	combination, delta := FindCombinations(minerHashrates, hashrateGHS)
-	s.log.Debugf("target: %s delta: %d combination: %s", hashrateGHS, delta, combination.String())
 
 	if delta > 0 {
 		// now we need to reduce allocation for the amount of delta
@@ -101,17 +102,16 @@ func (s *GlobalSchedulerService) getAllocateComb(minerHashrates *AllocCollection
 
 		if !ok {
 			s.log.Warnf("couldn't find accurate combination")
-			// TODO: consider replacing the largest alloc item with a new miner
-			// items := combination.SortByAllocatedGHS()
-			// largestAllocItem := items[len(items)-1]
-			// items[largestAllocItem.GetSourceId()] =
-			return combination, false
+			isAccurate = false
+			bestMinerID, delta = s.getBestMinerToReduceHashrateNotAccurate(combination, delta)
 		}
 
 		combination.ReduceMinerAllocation(bestMinerID, delta)
 	}
 
-	return combination, true
+	s.log.Debugf("target to reduce: %d, actual reduced: %d, combination:\n %s", hashrateGHS, delta, combination.String())
+
+	return combination, isAccurate
 }
 
 func (s *GlobalSchedulerService) getBestMinerToReduceHashrate(combination *AllocCollection, hrToReduceGHS int) (minerID string, ok bool) {
@@ -134,6 +134,42 @@ func (s *GlobalSchedulerService) getBestMinerToReduceHashrate(combination *Alloc
 	}
 
 	return bestMinerID, bestMinerID != ""
+}
+
+// getBestMinerToReduceHashrateNotAccurate finds best miner fraction of which could be reduced but not exactly by targetHRToReduceGHS
+func (s *GlobalSchedulerService) getBestMinerToReduceHashrateNotAccurate(combination *AllocCollection, targetHRToReduceGHS int) (minerID string, bestHRToReduceGHS int) {
+	var (
+		bestMinerID       string
+		bestHrToReduceGHS int // reduced hashrate of particular miner
+		bestDeltaGHS      int // delta between reduced HR of particular miner and targetHRToReduceGHS
+	)
+
+	for _, item := range combination.GetItems() {
+		if item.Fraction == 1 {
+			targetHrGHS := item.TotalGHS - targetHRToReduceGHS
+			fraction := float64(targetHrGHS) / float64(item.TotalGHS)
+			if fraction < s.poolMinFraction {
+				fraction = s.poolMinFraction
+			}
+			if fraction == 1 {
+				fraction = 1
+			}
+			if fraction > s.poolMaxFraction {
+				fraction = s.poolMaxFraction
+			}
+			actualHrGHS := int(fraction * float64(item.TotalGHS))
+			currentHrToReduceGHS := item.TotalGHS - actualHrGHS
+			currentDelta := int(math.Abs(float64(currentHrToReduceGHS - targetHRToReduceGHS)))
+
+			if currentDelta < bestDeltaGHS {
+				bestDeltaGHS = currentDelta
+				bestHrToReduceGHS = currentHrToReduceGHS
+				bestMinerID = item.MinerID
+			}
+		}
+	}
+
+	return bestMinerID, bestHrToReduceGHS
 }
 
 func (s *GlobalSchedulerService) GetMinerSnapshot() AllocSnap {
@@ -319,6 +355,7 @@ func (s *GlobalSchedulerService) decrAllocation(ctx context.Context, snapshot Al
 			// remove miner totally
 			split, ok = split.RemoveByID(contractID)
 			if !ok {
+				s.log.Debug("%s", split.String())
 				s.log.Warnf("split (%s) not found", contractID)
 			}
 
@@ -330,6 +367,7 @@ func (s *GlobalSchedulerService) decrAllocation(ctx context.Context, snapshot Al
 			if newFraction < s.poolMinFraction {
 				split, ok = split.RemoveByID(contractID)
 				if !ok {
+					s.log.Debugf("Splits:\n%s", split.String())
 					s.log.Warnf("split (%s) not found", contractID)
 				}
 				deallocatedGHS = item.AllocatedGHS()

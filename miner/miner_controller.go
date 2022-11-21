@@ -62,7 +62,7 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	logMiner := p.log.Named(incomingConn.RemoteAddr().String())
 
 	poolPool := protocol.NewStratumV1PoolPool(logMiner, p.poolConnTimeout, p.logStratum)
-	err = poolPool.SetDest(p.defaultDest, nil)
+	err = poolPool.SetDest(context.TODO(), p.defaultDest, nil)
 	if err != nil {
 		p.log.Error(err)
 		return err

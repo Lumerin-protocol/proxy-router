@@ -75,19 +75,17 @@ func (d *DestSplit) SetFractionByID(ID string, fraction float64) (*DestSplit, bo
 	return newDestSplit, false
 }
 
-func (d *DestSplit) AllocateRemaining(ID string, dest interfaces.IDestination) (*DestSplit, error) {
+func (d *DestSplit) AllocateRemaining(ID string, dest interfaces.IDestination) *DestSplit {
 	newDestSplit := d.Copy()
 	remaining := newDestSplit.GetUnallocated()
 	if remaining == 0 {
-		return newDestSplit, nil
+		return newDestSplit
 	}
 
-	destSplit, err := newDestSplit.Allocate(ID, remaining, dest)
-	if err != nil {
-		return nil, fmt.Errorf("allocateRemaining failed: %s", err)
-	}
+	// skipping error check because Allocate validates fraction value, which is always correct in this case
+	destSplit, _ := newDestSplit.Allocate(ID, remaining, dest)
 
-	return destSplit, nil
+	return destSplit
 }
 
 func (d *DestSplit) RemoveByID(ID string) (*DestSplit, bool) {
@@ -137,10 +135,10 @@ func (d *DestSplit) IsEmpty() bool {
 func (d *DestSplit) String() string {
 	var b = new(bytes.Buffer)
 
-	fmt.Fprintf(b, "\nN\tDestination\tPercentage")
+	fmt.Fprintf(b, "\nN\tContractID\nDestination\tPercentage")
 
 	for i, item := range d.split {
-		fmt.Fprintf(b, "\n%d\t%s\t%.2f", i, item.Dest.String(), item.Percentage)
+		fmt.Fprintf(b, "\n%d\t%s\t%s\t%.2f", i, item.ID, item.Dest.String(), item.Percentage)
 	}
 
 	return b.String()
