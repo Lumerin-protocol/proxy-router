@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"math/rand"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -19,13 +18,19 @@ type StratumV1ResultHandler = func(a stratumv1_message.MiningResult)
 
 const NEWLINE = '\n'
 
+const (
+	INIT_TIMEOUT            = 5 * time.Second
+	DEFAULT_SUBMIT_INTERVAL = 5 * time.Second
+)
+
 type MinerMock struct {
 	dest interfaces.IDestination
 	id   atomic.Uint64 // message counter
 
-	conn        net.Conn
-	resHandlers sync.Map // map of ID to handler functions
-	diff        float64  // current difficulty
+	conn           net.Conn
+	resHandlers    sync.Map // map of ID to handler functions
+	diff           float64  // current difficulty
+	submitInterval time.Duration
 
 	log interfaces.ILogger
 }
@@ -35,13 +40,20 @@ func NewMinerMock(dest interfaces.IDestination) *MinerMock {
 	id.Store(0)
 
 	return &MinerMock{
-		dest: dest,
-		id:   id,
-		log:  lib.NewTestLogger(),
+		dest:           dest,
+		id:             id,
+		log:            lib.NewTestLogger(),
+		submitInterval: DEFAULT_SUBMIT_INTERVAL,
 	}
 }
 
-func (m *MinerMock) Run() error {
+func (m *MinerMock) SetSubmitInterval(interval time.Duration) {
+	m.submitInterval = interval
+}
+
+// func (m *MinerMock)SetHashrateGHS(hrGHS int){}
+
+func (m *MinerMock) Run(ctx context.Context) error {
 	conn, err := net.Dial("tcp", m.dest.GetHost())
 	if err != nil {
 		return err
@@ -49,10 +61,8 @@ func (m *MinerMock) Run() error {
 
 	m.conn = conn
 
-	ctx := context.Background()
 	errCh := make(chan error)
 	doneCh := make(chan struct{})
-
 	handshakeDone := make(chan struct{})
 
 	go func() {
@@ -72,18 +82,18 @@ func (m *MinerMock) Run() error {
 	}()
 
 	go func() {
-		<-handshakeDone
-		<-time.After(5 * time.Second)
-
-		for {
-			msg := stratumv1_message.NewMiningSubmit(m.dest.Username(), "620daf25f", "0000000000000000", "62cea7a6", "f9b40000")
-			err := m.sendAndAwait(context.Background(), msg)
-			if err != nil {
-				m.log.Warnf("submit error %s", err)
-			}
-			delay := rand.Float32() * 5 * float32(time.Second)
-			<-time.After(time.Duration(delay))
+		select {
+		case <-ctx.Done():
+			errCh <- ctx.Err()
+			return
+		case <-handshakeDone:
 		}
+
+		err := m.mine(ctx)
+		if err != nil {
+			errCh <- err
+		}
+		close(doneCh)
 	}()
 
 	select {
@@ -91,6 +101,21 @@ func (m *MinerMock) Run() error {
 		return err
 	case <-doneCh:
 		return nil
+	}
+}
+
+func (m *MinerMock) mine(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(m.submitInterval):
+		}
+
+		err := m.submit(ctx)
+		if err != nil {
+			return err
+		}
 	}
 }
 
@@ -134,6 +159,11 @@ func (m *MinerMock) configure(ctx context.Context) error {
 	return m.sendAndAwait(ctx, msg)
 }
 
+func (m *MinerMock) submit(ctx context.Context) error {
+	msg := stratumv1_message.NewMiningSubmit(m.dest.Username(), "620daf25f", "0000000000000000", "62cea7a6", "f9b40000")
+	return m.sendAndAwait(ctx, msg)
+}
+
 func (m *MinerMock) sendAndAwait(ctx context.Context, msg stratumv1_message.MiningMessageToPool) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -147,6 +177,8 @@ func (m *MinerMock) sendAndAwait(ctx context.Context, msg stratumv1_message.Mini
 	if err != nil {
 		return err
 	}
+
+	m.log.Infof("sent msg %d %s", ID, string(msg.Serialize()))
 
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -190,7 +222,7 @@ func (m *MinerMock) readMessages(ctx context.Context) error {
 
 		case *stratumv1_message.MiningResult:
 			id := typedMessage.GetID()
-			m.log.Infof("received Result %d", id)
+			m.log.Infof("received Result %d %s %s", id, typedMessage.Result, typedMessage.GetError())
 			handler, ok := m.resHandlers.LoadAndDelete(id)
 			if ok {
 				handler.(StratumV1ResultHandler)(*typedMessage)
