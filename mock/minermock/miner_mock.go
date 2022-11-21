@@ -16,8 +16,6 @@ import (
 
 type StratumV1ResultHandler = func(a stratumv1_message.MiningResult)
 
-const NEWLINE = '\n'
-
 const (
 	INIT_TIMEOUT            = 5 * time.Second
 	DEFAULT_SUBMIT_INTERVAL = 5 * time.Second
@@ -172,7 +170,7 @@ func (m *MinerMock) sendAndAwait(ctx context.Context, msg stratumv1_message.Mini
 	ID := m.acquireID()
 	msg.SetID(ID)
 
-	bytes := append(msg.Serialize(), byte(NEWLINE))
+	bytes := append(msg.Serialize(), lib.CharNewLine)
 	_, err := m.conn.Write(bytes)
 	if err != nil {
 		return err

@@ -10,10 +10,9 @@ import (
 	"time"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
 )
-
-const NEWLINE = '\n'
 
 const (
 	INIT_DIFF        = 8096.0
@@ -295,7 +294,7 @@ func (c *PoolMockConn) registerHandler(method string, f StratumV1MsgHandler) {
 }
 
 func (c *PoolMockConn) send(ctx context.Context, msg stratumv1_message.MiningMessageGeneric) error {
-	bytes := append(msg.Serialize(), byte(NEWLINE))
+	bytes := append(msg.Serialize(), lib.CharNewLine)
 	_, err := c.conn.Write(bytes)
 	if err != nil {
 		return err
