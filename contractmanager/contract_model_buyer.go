@@ -66,29 +66,26 @@ func (c *BTCHashrateContract) FulfillBuyerContract(ctx context.Context) error {
 
 		c.log.Debugf("Should the contract continue? %v", c.ShouldContractContinue())
 
-		if c.ShouldContractContinue() {
-
-			// TODO hashrate monitoring
-			c.log.Infof("contract (%s) is running for %.0f seconds", c.GetID(), time.Since(*c.GetStartTime()).Seconds())
-
-			err := c.globalScheduler.CheckContractHashrate(ctx, c.GetHashrateGHS(), c.GetDest(), c.hashrateDiffThreshold)
-			if err != nil {
-				// cancel
-				c.log.Info("Contract %s %s", c.GetAddress(), err)
-				return err
-			}
-
-			select {
-			case <-ctx.Done():
-				c.log.Errorf("contract context done while waiting for running contract to finish: %v", ctx.Err().Error())
-				return ctx.Err()
-			case <-time.After(30 * time.Second):
-				continue
-			}
+		if !c.ShouldContractContinue() {
+			c.log.Debugf("Discontinuing Contract %v", c.GetID())
+			return nil
 		}
 
-		c.log.Debugf("Discontinuing Contract %v", c.GetID())
+		// TODO hashrate monitoring
+		c.log.Infof("contract (%s) is running for %.0f seconds", c.GetID(), time.Since(*c.GetStartTime()).Seconds())
 
-		return nil
+		if !c.globalScheduler.IsDeliveringAdequateHashrate(ctx, c.GetHashrateGHS(), c.GetDest(), c.hashrateDiffThreshold) {
+			// cancel
+			c.log.Info("Contract %s not delivering adequete hashrate", c.GetAddress())
+			return fmt.Errorf("contract under delivering hashrate")
+		}
+
+		select {
+		case <-ctx.Done():
+			c.log.Errorf("contract context done while waiting for running contract to finish: %v", ctx.Err().Error())
+			return ctx.Err()
+		case <-time.After(30 * time.Second):
+			continue
+		}
 	}
 }

@@ -20,7 +20,6 @@ const (
 var (
 	ErrNotEnoughHashrate     = errors.New("not enough hashrate")                // simply not enough hashrate
 	ErrCannotFindCombination = errors.New("cannot find allocation combination") // hashrate is enough but with given constraint cannot find a working combination of miner alloc items. Adding more miners into system should help
-	ErrHashrateUnderDelivery = errors.New("under delivering hashrate")          // used by buyer node
 )
 
 type GlobalSchedulerService struct {
@@ -192,7 +191,7 @@ func (s *GlobalSchedulerService) UpdateCombination(ctx context.Context, minerIDs
 	}
 }
 
-func (s *GlobalSchedulerService) CheckContractHashrate(ctx context.Context, targetHashrateGHS int, dest interfaces.IDestination, hashrateDiffThreshold float64) error {
+func (s *GlobalSchedulerService) IsDeliveringAdequateHashrate(ctx context.Context, targetHashrateGHS int, dest interfaces.IDestination, hashrateDiffThreshold float64) bool {
 	var actualHashrate int
 
 	s.minerCollection.Range(func(miner miner.MinerScheduler) bool {
@@ -205,12 +204,12 @@ func (s *GlobalSchedulerService) CheckContractHashrate(ctx context.Context, targ
 	deltaGHS := targetHashrateGHS - actualHashrate
 	s.log.Debugf("target hashrate %d, actual hashrate %d, delta %d", targetHashrateGHS, actualHashrate, deltaGHS)
 
-	if math.Abs(float64(deltaGHS))/float64(targetHashrateGHS) < hashrateDiffThreshold {
+	if deltaGHS < 0 || math.Abs(float64(deltaGHS))/float64(targetHashrateGHS) < hashrateDiffThreshold {
 		s.log.Debugf("contract delivering enough hashrate")
-		return nil
+		return true
 	}
 
-	return ErrHashrateUnderDelivery
+	return false
 }
 
 func (s *GlobalSchedulerService) DeallocateContract(ctx context.Context, contractID string) {
