@@ -59,10 +59,12 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 	DEST_CYCLE:
 		for _, splitItem := range destinations.Iter() {
 			m.log.Debugf(`
-			New dest cycle for miner %s 
-			All destinations: %s
-			current dest %s upcoming dest %s
-			`, m.minerModel.GetID(), destinations.String(), m.minerModel.GetDest(), splitItem.Dest)
+New dest cycle for miner %s 
+All destinations: %s
+
+current dest %s
+upcoming dest %s
+`, m.minerModel.GetID(), destinations.String(), m.minerModel.GetDest(), splitItem.Dest)
 
 			if !m.minerModel.GetDest().IsEqual(splitItem.Dest) {
 				m.log.Debugf("changing dest to %s", m.minerModel.GetDest())
@@ -81,7 +83,7 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 				m.lastDestChangeAt = time.Now()
 			}
 
-			splitDuration := time.Duration(float64(m.getCycleDuration()) * splitItem.Percentage)
+			splitDuration := time.Duration(float64(m.getCycleDuration()) * splitItem.Fraction)
 			m.log.Infof("destination %s for %.2f seconds", splitItem.Dest, splitDuration.Seconds())
 
 			select {

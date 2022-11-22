@@ -277,12 +277,12 @@ func mapDestItems(dest *miner.DestSplit, hrGHS int) (*[]DestItem, int) {
 	}
 
 	for _, item := range dest.Iter() {
-		HashrateGHS := int(item.Percentage * float64(hrGHS))
+		HashrateGHS := int(item.Fraction * float64(hrGHS))
 
 		destItems = append(destItems, DestItem{
 			ContractID:  item.ID,
 			URI:         item.Dest.String(),
-			Fraction:    item.Percentage,
+			Fraction:    item.Fraction,
 			HashrateGHS: HashrateGHS,
 		})
 
