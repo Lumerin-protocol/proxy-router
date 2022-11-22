@@ -20,9 +20,9 @@ type App struct {
 	MinerController *miner.MinerController
 	Server          *api.Server
 	ContractManager *contractmanager.ContractManager
+	GlobalScheduler *contractmanager.GlobalSchedulerV2
 	Logger          interfaces.ILogger
 	Config          *config.Config
-	// EventsRouter    interfaces.IEventsRouter
 }
 
 func (a *App) Run() {
@@ -69,9 +69,9 @@ func (a *App) Run() {
 		return a.Server.Run(subCtx)
 	})
 
-	// g.Go(func() error {
-	// 	return a.EventsRouter.Run()
-	// })
+	g.Go(func() error {
+		return a.GlobalScheduler.Run(subCtx)
+	})
 
 	err := g.Wait()
 
