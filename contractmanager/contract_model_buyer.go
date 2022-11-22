@@ -51,7 +51,6 @@ func (c *BTCHashrateContract) FulfillBuyerContract(ctx context.Context) error {
 
 	if c.ContractIsExpired() {
 		c.log.Warn("contract is expired %s", c.GetID())
-		c.Close(ctx)
 		return fmt.Errorf("contract is expired")
 	}
 
