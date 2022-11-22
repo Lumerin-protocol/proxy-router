@@ -104,7 +104,7 @@ func (m *AllocCollection) Add(id string, item *AllocItem) {
 	m.items[id] = item
 }
 
-func (m AllocCollection) GetUnallocatedGHS() (int, *AllocItem) {
+func (m *AllocCollection) GetUnallocatedGHS() (int, *AllocItem) {
 	var allocatedFrac float64 = 0
 	var allocItemAvailable *AllocItem
 	var minerID string
@@ -125,6 +125,14 @@ func (m AllocCollection) GetUnallocatedGHS() (int, *AllocItem) {
 	}
 
 	return allocItemAvailable.AllocatedGHS(), allocItemAvailable
+}
+
+func (m *AllocCollection) GetAllocatedGHS() int {
+	allocatedGHS := 0
+	for _, miner := range m.items {
+		allocatedGHS += miner.AllocatedGHS()
+	}
+	return allocatedGHS
 }
 
 type AllocSnap struct {

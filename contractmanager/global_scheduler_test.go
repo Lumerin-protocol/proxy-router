@@ -175,13 +175,13 @@ func TestIncAllocationAddMiner(t *testing.T) {
 	destSplit2, _ := miner2.GetDestSplit().GetByID(contractID)
 	destSplit3, _ := miner3.GetDestSplit().GetByID(contractID)
 
-	if destSplit1.Percentage != 1 {
+	if destSplit1.Fraction != 1 {
 		t.Fatal("should use this contract's most already allocated miner")
 	}
-	if destSplit2.Percentage != 1 {
+	if destSplit2.Fraction != 1 {
 		t.Fatal("should use this contract's second most already allocated miner")
 	}
-	if destSplit3.Percentage == 0.1 {
+	if destSplit3.Fraction == 0.1 {
 		t.Fatal("should add new miner")
 	}
 }
@@ -208,10 +208,10 @@ func TestDecrAllocation(t *testing.T) {
 	destSplit1, _ := miner1.GetDestSplit().GetByID(contractID)
 	destSplit2, _ := miner2.GetDestSplit().GetByID(contractID)
 
-	if destSplit1.Percentage != 0.2 {
+	if destSplit1.Fraction != 0.2 {
 		t.Fatal("should use miner which was the least allocated for the contract")
 	}
-	if destSplit2.Percentage != 0.3 {
+	if destSplit2.Fraction != 0.3 {
 		t.Fatal("should not alter allocation of the second miner")
 	}
 }
@@ -244,7 +244,7 @@ func TestDecrAllocationRemoveMiner(t *testing.T) {
 	if !ok2 {
 		t.Fatal("should not remove second miner")
 	}
-	if destSplit2.Percentage != 0.3 {
+	if destSplit2.Fraction != 0.3 {
 		t.Fatal("should not alter allocation of the second miner")
 	}
 }

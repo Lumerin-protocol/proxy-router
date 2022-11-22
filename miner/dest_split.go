@@ -59,6 +59,14 @@ func (d *DestSplit) Allocate(ID string, percentage float64, dest interfaces.IDes
 	return newDestSplit, nil
 }
 
+func (d *DestSplit) UpsertFractionByID(ID string, fraction float64, dest interfaces.IDestination) (*DestSplit, error) {
+	destSplit, ok := d.SetFractionByID(ID, fraction)
+	if ok {
+		return destSplit, nil
+	}
+	return d.Allocate(ID, fraction, dest)
+}
+
 func (d *DestSplit) SetFractionByID(ID string, fraction float64) (*DestSplit, bool) {
 	newDestSplit := d.Copy()
 
