@@ -191,6 +191,27 @@ func (s *GlobalSchedulerService) UpdateCombination(ctx context.Context, minerIDs
 	}
 }
 
+func (s *GlobalSchedulerService) IsDeliveringAdequateHashrate(ctx context.Context, targetHashrateGHS int, dest interfaces.IDestination, hashrateDiffThreshold float64) bool {
+	var actualHashrate int
+
+	s.minerCollection.Range(func(miner miner.MinerScheduler) bool {
+		if miner.GetWorkerName() == dest.Username() {
+			actualHashrate += miner.GetHashRateGHS()
+		}
+		return true
+	})
+
+	deltaGHS := targetHashrateGHS - actualHashrate
+	s.log.Debugf("target hashrate %d, actual hashrate %d, delta %d", targetHashrateGHS, actualHashrate, deltaGHS)
+
+	if deltaGHS < 0 || math.Abs(float64(deltaGHS))/float64(targetHashrateGHS) < hashrateDiffThreshold {
+		s.log.Debugf("contract delivering enough hashrate")
+		return true
+	}
+
+	return false
+}
+
 func (s *GlobalSchedulerService) DeallocateContract(ctx context.Context, contractID string) {
 	s.log.Infof("deallocating contract %s", contractID)
 
