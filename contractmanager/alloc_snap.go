@@ -77,6 +77,9 @@ func (m AllocCollection) String() string {
 	for _, alloc := range m.items {
 		fmt.Fprintf(b, "%s\t%s\t%.2f\t%d\n", lib.AddrShort(alloc.ContractID), alloc.MinerID, alloc.Fraction, alloc.TotalGHS)
 	}
+	if len(m.items) == 0 {
+		fmt.Fprintf(b, "no miners")
+	}
 	return b.String()
 }
 

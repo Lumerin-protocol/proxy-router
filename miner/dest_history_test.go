@@ -12,16 +12,19 @@ func TestHistory(t *testing.T) {
 	cap := 8
 	history := NewDestHistory(cap)
 
-	// t.Logf("%d, %d", dq.Len(), dq.Cap())
-
 	for i := 0; i < cap+1; i++ {
 		dest, _ := lib.ParseDest(fmt.Sprintf("stratum+tcp://user:pwd@host.com:%d", i))
-		time.Sleep(time.Second)
+		time.Sleep(time.Millisecond)
 		history.Add(dest, "some-contract-id", nil)
 	}
 
+	count := 0
 	history.Range(func(item HistoryItem) bool {
-		t.Logf("item %s %s", item.Dest, item.Duration)
+		count++
 		return true
 	})
+
+	if count == 0 || count > cap {
+		t.Fatalf("invalid history capacity, expected %d actual %d", cap, count)
+	}
 }
