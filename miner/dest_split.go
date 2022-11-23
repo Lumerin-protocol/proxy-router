@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/lib"
 )
 
 type DestSplit struct {
@@ -12,9 +13,9 @@ type DestSplit struct {
 }
 
 type SplitItem struct {
-	ID         string  // external identifier of split item, can be ContractID
-	Percentage float64 // percentage of total miner power, value in range from 0 to 1
-	Dest       interfaces.IDestination
+	ID       string  // external identifier of split item, can be ContractID
+	Fraction float64 // fraction of total miner power, value in range from 0 to 1
+	Dest     interfaces.IDestination
 }
 
 func NewDestSplit() *DestSplit {
@@ -26,9 +27,9 @@ func (d *DestSplit) Copy() *DestSplit {
 
 	for i, v := range d.split {
 		newSplit[i] = SplitItem{
-			ID:         v.ID,
-			Percentage: v.Percentage,
-			Dest:       v.Dest,
+			ID:       v.ID,
+			Fraction: v.Fraction,
+			Dest:     v.Dest,
 		}
 	}
 
@@ -49,14 +50,22 @@ func (d *DestSplit) Allocate(ID string, percentage float64, dest interfaces.IDes
 	newDestSplit := d.Copy()
 
 	sp := SplitItem{
-		ID:         ID,
-		Percentage: percentage,
-		Dest:       dest,
+		ID:       ID,
+		Fraction: percentage,
+		Dest:     dest,
 	}
 
 	newDestSplit.split = append(newDestSplit.split, sp)
 
 	return newDestSplit, nil
+}
+
+func (d *DestSplit) UpsertFractionByID(ID string, fraction float64, dest interfaces.IDestination) (*DestSplit, error) {
+	destSplit, ok := d.SetFractionByID(ID, fraction)
+	if ok {
+		return destSplit, nil
+	}
+	return d.Allocate(ID, fraction, dest)
 }
 
 func (d *DestSplit) SetFractionByID(ID string, fraction float64) (*DestSplit, bool) {
@@ -65,9 +74,9 @@ func (d *DestSplit) SetFractionByID(ID string, fraction float64) (*DestSplit, bo
 	for i, item := range newDestSplit.split {
 		if item.ID == ID {
 			newDestSplit.split[i] = SplitItem{
-				ID:         ID,
-				Percentage: fraction,
-				Dest:       item.Dest,
+				ID:       ID,
+				Fraction: fraction,
+				Dest:     item.Dest,
 			}
 			return newDestSplit, true
 		}
@@ -114,7 +123,7 @@ func (d *DestSplit) GetAllocated() float64 {
 	var total float64 = 0
 
 	for _, spl := range d.split {
-		total += spl.Percentage
+		total += spl.Fraction
 	}
 
 	return total
@@ -135,10 +144,10 @@ func (d *DestSplit) IsEmpty() bool {
 func (d *DestSplit) String() string {
 	var b = new(bytes.Buffer)
 
-	fmt.Fprintf(b, "\nN\tContractID\nDestination\tPercentage")
+	fmt.Fprintf(b, "\nN\tContractID\tFraction\tDestination")
 
 	for i, item := range d.split {
-		fmt.Fprintf(b, "\n%d\t%s\t%s\t%.2f", i, item.ID, item.Dest.String(), item.Percentage)
+		fmt.Fprintf(b, "\n%d\t%s\t%.2f\t%s", i, lib.AddrShort(item.ID), item.Fraction, item.Dest.String())
 	}
 
 	return b.String()

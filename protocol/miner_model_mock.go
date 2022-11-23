@@ -32,7 +32,7 @@ func (m *MinerModelMock) GetID() string {
 func (m *MinerModelMock) GetDest() interfaces.IDestination {
 	return m.Dest
 }
-func (m *MinerModelMock) ChangeDest(dest interfaces.IDestination) error {
+func (m *MinerModelMock) ChangeDest(ctx context.Context, dest interfaces.IDestination) error {
 	return m.ChangeDestErr
 }
 func (m *MinerModelMock) GetCurrentDifficulty() int {
