@@ -69,11 +69,7 @@ func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDe
 
 // Run enables proxying and handling pool messages
 func (s *StratumV1PoolConn) Run(ctx context.Context) error {
-	err := s.run(ctx)
-	if err != nil {
-		s.log.Error(err)
-	}
-	return err
+	return s.run(ctx)
 }
 
 func (s *StratumV1PoolConn) run(ctx context.Context) error {
