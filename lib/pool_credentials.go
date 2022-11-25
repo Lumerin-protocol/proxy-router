@@ -1,6 +1,7 @@
 package lib
 
 import (
+	"fmt"
 	"net/url"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
@@ -17,6 +18,23 @@ func ParseDest(uri string) (Dest, error) {
 	}
 	res.Scheme = "" // drop stratum+tcp prefix to avoid comparison issues
 	return Dest{*res}, nil
+}
+
+func MustParseDest(uri string) Dest {
+	res, err := ParseDest(uri)
+	if err != nil {
+		panic(err)
+	}
+	return res
+}
+
+func NewDest(workerName string, pwd string, host string, port int) *Dest {
+	return &Dest{
+		url.URL{
+			User: url.UserPassword(workerName, pwd),
+			Host: fmt.Sprintf("%s:%d", host, port),
+		},
+	}
 }
 
 func (v Dest) Username() string {
