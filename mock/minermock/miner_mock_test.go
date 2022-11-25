@@ -11,7 +11,7 @@ func TestPoolConnection(t *testing.T) {
 	t.SkipNow()
 
 	dest, _ := lib.ParseDest("tcp://shev8.local:anything123@0.0.0.0:5555")
-	minerMock := NewMinerMock(dest)
+	minerMock := NewMinerMock(dest, lib.NewTestLogger())
 	err := minerMock.Run(context.Background())
 	if err != nil {
 		t.Error(err)

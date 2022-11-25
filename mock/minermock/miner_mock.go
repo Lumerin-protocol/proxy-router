@@ -19,6 +19,7 @@ type StratumV1ResultHandler = func(a stratumv1_message.MiningResult)
 const (
 	INIT_TIMEOUT            = 5 * time.Second
 	DEFAULT_SUBMIT_INTERVAL = 5 * time.Second
+	RESPONSE_TIMEOUT        = time.Minute
 )
 
 type MinerMock struct {
@@ -33,29 +34,33 @@ type MinerMock struct {
 	log interfaces.ILogger
 }
 
-func NewMinerMock(dest interfaces.IDestination) *MinerMock {
+func NewMinerMock(dest interfaces.IDestination, log interfaces.ILogger) *MinerMock {
 	id := atomic.Uint64{}
 	id.Store(0)
 
 	return &MinerMock{
 		dest:           dest,
 		id:             id,
-		log:            lib.NewTestLogger(),
+		log:            log,
 		submitInterval: DEFAULT_SUBMIT_INTERVAL,
 	}
+}
+
+func (m *MinerMock) GetWorkerName() string {
+	return m.dest.Username()
 }
 
 func (m *MinerMock) SetSubmitInterval(interval time.Duration) {
 	m.submitInterval = interval
 }
 
-// func (m *MinerMock)SetHashrateGHS(hrGHS int){}
-
 func (m *MinerMock) Run(ctx context.Context) error {
 	conn, err := net.Dial("tcp", m.dest.GetHost())
 	if err != nil {
 		return err
 	}
+
+	m.log.Info("miner connected to pool")
 
 	m.conn = conn
 
@@ -67,6 +72,7 @@ func (m *MinerMock) Run(ctx context.Context) error {
 		err := m.readMessages(ctx)
 		if err != nil {
 			errCh <- err
+			return
 		}
 		close(doneCh)
 	}()
@@ -75,6 +81,7 @@ func (m *MinerMock) Run(ctx context.Context) error {
 		err := m.handshake(ctx)
 		if err != nil {
 			errCh <- err
+			return
 		}
 		close(handshakeDone)
 	}()
@@ -87,6 +94,8 @@ func (m *MinerMock) Run(ctx context.Context) error {
 		case <-handshakeDone:
 		}
 
+		m.log.Info("handshake completed")
+
 		err := m.mine(ctx)
 		if err != nil {
 			errCh <- err
@@ -96,8 +105,10 @@ func (m *MinerMock) Run(ctx context.Context) error {
 
 	select {
 	case err := <-errCh:
+		m.log.Errorf("miner error %s", err)
 		return err
 	case <-doneCh:
+		m.log.Info("miner exited")
 		return nil
 	}
 }
@@ -159,6 +170,7 @@ func (m *MinerMock) configure(ctx context.Context) error {
 
 func (m *MinerMock) submit(ctx context.Context) error {
 	msg := stratumv1_message.NewMiningSubmit(m.dest.Username(), "620daf25f", "0000000000000000", "62cea7a6", "f9b40000")
+	m.log.Info("new submit")
 	return m.sendAndAwait(ctx, msg)
 }
 
@@ -170,21 +182,29 @@ func (m *MinerMock) sendAndAwait(ctx context.Context, msg stratumv1_message.Mini
 	ID := m.acquireID()
 	msg.SetID(ID)
 
+	errCh := make(chan error)
+
+	go func() {
+		_, err := m.awaitResponse(ID)
+		errCh <- err
+		close(errCh)
+	}()
+
 	bytes := append(msg.Serialize(), lib.CharNewLine)
 	_, err := m.conn.Write(bytes)
 	if err != nil {
 		return err
 	}
 
-	m.log.Infof("sent msg %d %s", ID, string(msg.Serialize()))
+	m.log.Debugf("sent msg %d %s", ID, string(msg.Serialize()))
 
-	if ctx.Err() != nil {
+	select {
+	case err := <-errCh:
+		if err != nil {
+			return err
+		}
+	case <-ctx.Done():
 		return ctx.Err()
-	}
-
-	_, err = m.awaitResponse(ID)
-	if err != nil {
-		return err
 	}
 
 	return nil
@@ -212,15 +232,15 @@ func (m *MinerMock) readMessages(ctx context.Context) error {
 
 		switch typedMessage := msg.(type) {
 		case *stratumv1_message.MiningNotify:
-			m.log.Infof("received Notify")
+			m.log.Debugf("received Notify")
 
 		case *stratumv1_message.MiningSetDifficulty:
 			m.diff = typedMessage.GetDifficulty()
-			m.log.Infof("received SetDifficulty %.2f", m.diff)
+			m.log.Debugf("received SetDifficulty %.2f", m.diff)
 
 		case *stratumv1_message.MiningResult:
 			id := typedMessage.GetID()
-			m.log.Infof("received Result %d %s %s", id, typedMessage.Result, typedMessage.GetError())
+			m.log.Debugf("received Result %d %s %s", id, typedMessage.Result, typedMessage.GetError())
 			handler, ok := m.resHandlers.LoadAndDelete(id)
 			if ok {
 				handler.(StratumV1ResultHandler)(*typedMessage)
@@ -250,7 +270,7 @@ func (m *MinerMock) awaitResponse(ID int) (stratumv1_message.MiningResult, error
 	select {
 	case msg := <-msgCh:
 		return msg, nil
-	case <-time.After(30 * time.Second):
+	case <-time.After(RESPONSE_TIMEOUT):
 		return stratumv1_message.MiningResult{}, fmt.Errorf("pool response timeout")
 	}
 }

@@ -9,15 +9,15 @@ import (
 	"sync/atomic"
 	"time"
 
+	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
 )
 
 const (
-	INIT_DIFF        = 8096.0
-	NOTIFY_INTERVAL  = 30 * time.Second
-	RESPONSE_TIMEOUT = 30 * time.Second
+	NOTIFY_INTERVAL   = 30 * time.Second
+	HANDSHAKE_TIMEOUT = 30 * time.Second
 )
 
 type StratumV1MsgHandler = func(a stratumv1_message.MiningMessageToPool)
@@ -25,21 +25,23 @@ type StratumV1MsgHandler = func(a stratumv1_message.MiningMessageToPool)
 type PoolMockConn struct {
 	conn        net.Conn
 	msgHandlers sync.Map
-	diff        float64
-	diffCh      chan float64
+	diff        int
+	diffCh      chan int
 	workerName  string
 	id          string
 	submitCount atomic.Int64
+	hashrate    *hashrate.Hashrate
 
 	log interfaces.ILogger
 }
 
-func NewPoolMockConn(conn net.Conn, log interfaces.ILogger) *PoolMockConn {
+func NewPoolMockConn(conn net.Conn, diff int, log interfaces.ILogger) *PoolMockConn {
 	return &PoolMockConn{
-		conn: conn,
-		log:  log,
-		diff: INIT_DIFF,
-		id:   conn.LocalAddr().String(),
+		conn:     conn,
+		log:      log,
+		diff:     diff,
+		id:       conn.RemoteAddr().String(),
+		hashrate: hashrate.NewHashrate(log),
 	}
 }
 
@@ -55,60 +57,42 @@ func (c *PoolMockConn) GetSubmitCount() int {
 	return int(c.submitCount.Load())
 }
 
+func (c *PoolMockConn) GetHashRate() int {
+	return c.hashrate.GetHashrate5minAvgGHS()
+}
+
+func (c *PoolMockConn) SetDifficulty(diff int) {
+	c.diffCh <- diff
+}
+
 func (c *PoolMockConn) Run(ctx context.Context) error {
-	errCh := make(chan error)
-	doneCh := make(chan struct{})
+	errCh := make(chan error, 4)
 
-	handshakeDone := make(chan struct{})
+	handshakeCtx, cancel := context.WithTimeout(ctx, HANDSHAKE_TIMEOUT)
+	defer cancel()
 
-	go func() {
-		err := c.readMessages(ctx)
-		if err != nil {
-			errCh <- err
-		}
-		close(doneCh)
-	}()
+	waitHandshake := c.handshake(handshakeCtx)
 
 	go func() {
-		err := c.handshake(ctx)
-		if err != nil {
-			errCh <- err
-		}
-		close(handshakeDone)
+		errCh <- c.readMessages(ctx)
 	}()
 
-	go func() {
-		select {
-		case <-ctx.Done():
-			errCh <- ctx.Err()
-			return
-		case <-handshakeDone:
-		}
-
-		go func() {
-			err := c.watchDiff(ctx)
-			if err != nil {
-				errCh <- err
-			}
-			close(doneCh)
-		}()
-
-		go func() {
-			err := c.watchNotify(ctx)
-			if err != nil {
-				errCh <- err
-			}
-			close(doneCh)
-		}()
-
-	}()
-
-	select {
-	case err := <-errCh:
-		return err
-	case <-doneCh:
-		return nil
+	err := waitHandshake()
+	if err != nil {
+		errCh <- err
 	}
+
+	c.log.Infof("handshake completed")
+
+	go func() {
+		errCh <- c.watchDiff(ctx)
+	}()
+
+	go func() {
+		errCh <- c.watchNotify(ctx)
+	}()
+
+	return <-errCh
 }
 
 func (c *PoolMockConn) watchNotify(ctx context.Context) error {
@@ -127,6 +111,11 @@ func (c *PoolMockConn) watchNotify(ctx context.Context) error {
 }
 
 func (c *PoolMockConn) watchDiff(ctx context.Context) error {
+	err := c.setDifficulty(ctx, c.diff)
+	if err != nil {
+		return err
+	}
+
 	for {
 		select {
 		case diff := <-c.diffCh:
@@ -141,12 +130,12 @@ func (c *PoolMockConn) watchDiff(ctx context.Context) error {
 	}
 }
 
-func (c *PoolMockConn) handshake(ctx context.Context) error {
+func (c *PoolMockConn) handshake(ctx context.Context) func() error {
 	subscribeReceivedCh := make(chan any)
 	authorizeReceivedCh := make(chan any)
-	errCh := make(chan error)
+	errCh := make(chan error, 3)
 
-	c.registerHandlerTimeout(ctx, stratumv1_message.MethodMiningSubscribe, func(msg stratumv1_message.MiningMessageToPool) {
+	c.registerHandler(stratumv1_message.MethodMiningSubscribe, func(msg stratumv1_message.MiningMessageToPool) {
 		err := c.send(ctx, &stratumv1_message.MiningResult{
 			ID:     msg.GetID(),
 			Result: []byte(`[[["mining.set_difficulty","1"],["mining.notify","1"]],"086502001b720a",8]`),
@@ -159,7 +148,7 @@ func (c *PoolMockConn) handshake(ctx context.Context) error {
 		close(subscribeReceivedCh)
 	})
 
-	c.registerHandlerTimeout(ctx, stratumv1_message.MethodMiningAuthorize, func(msg stratumv1_message.MiningMessageToPool) {
+	c.registerHandler(stratumv1_message.MethodMiningAuthorize, func(msg stratumv1_message.MiningMessageToPool) {
 		typedMsg := msg.(*stratumv1_message.MiningAuthorize)
 		c.workerName = typedMsg.GetWorkerName()
 		err := c.send(ctx, &stratumv1_message.MiningResult{
@@ -174,7 +163,7 @@ func (c *PoolMockConn) handshake(ctx context.Context) error {
 		close(authorizeReceivedCh)
 	})
 
-	c.registerHandlerTimeout(ctx, stratumv1_message.MethodMiningConfigure, func(msg stratumv1_message.MiningMessageToPool) {
+	c.registerHandler(stratumv1_message.MethodMiningConfigure, func(msg stratumv1_message.MiningMessageToPool) {
 		err := c.send(ctx, &stratumv1_message.MiningResult{
 			ID:     msg.GetID(),
 			Result: []byte(`{"version-rolling":true,"version-rolling.mask":"1fffe000"}`),
@@ -184,13 +173,15 @@ func (c *PoolMockConn) handshake(ctx context.Context) error {
 		}
 	})
 
-	select {
-	case <-waitCh(subscribeReceivedCh, authorizeReceivedCh):
-		return nil
-	case err := <-errCh:
-		return err
-	case <-ctx.Done():
-		return ctx.Err()
+	return func() error {
+		select {
+		case <-waitCh(subscribeReceivedCh, authorizeReceivedCh):
+			return nil
+		case err := <-errCh:
+			return err
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 }
 
@@ -199,8 +190,8 @@ func (c *PoolMockConn) notify(ctx context.Context) error {
 	return c.send(ctx, msg)
 }
 
-func (c *PoolMockConn) setDifficulty(ctx context.Context, diff float64) error {
-	msg := stratumv1_message.NewMiningSetDifficulty(diff)
+func (c *PoolMockConn) setDifficulty(ctx context.Context, diff int) error {
+	msg := stratumv1_message.NewMiningSetDifficulty(float64(diff))
 	return c.send(ctx, msg)
 }
 
@@ -222,21 +213,21 @@ func (c *PoolMockConn) readMessages(ctx context.Context) error {
 
 		switch typedMessage := msg.(type) {
 		case *stratumv1_message.MiningSubscribe:
-			c.log.Infof("received subscribe")
+			c.log.Debugf("received subscribe")
 			handler, ok := c.msgHandlers.LoadAndDelete(stratumv1_message.MethodMiningSubscribe)
 			if ok {
 				handler.(StratumV1MsgHandler)(typedMessage)
 			}
 
 		case *stratumv1_message.MiningAuthorize:
-			c.log.Infof("received authorize")
+			c.log.Debugf("received authorize")
 			handler, ok := c.msgHandlers.LoadAndDelete(stratumv1_message.MethodMiningAuthorize)
 			if ok {
 				handler.(StratumV1MsgHandler)(typedMessage)
 			}
 
 		case *stratumv1_message.MiningConfigure:
-			c.log.Infof("received configure")
+			c.log.Debugf("received configure")
 			handler, ok := c.msgHandlers.LoadAndDelete(stratumv1_message.MethodMiningConfigure)
 			if ok {
 				handler.(StratumV1MsgHandler)(typedMessage)
@@ -244,7 +235,8 @@ func (c *PoolMockConn) readMessages(ctx context.Context) error {
 
 		case *stratumv1_message.MiningSubmit:
 			c.submitCount.Add(1)
-			c.log.Infof("received submit")
+			c.log.Debugf("received submit")
+			c.hashrate.OnSubmit(int64(c.diff))
 			handler, ok := c.msgHandlers.LoadAndDelete(stratumv1_message.MethodMiningSubmit)
 			if ok {
 				handler.(StratumV1MsgHandler)(typedMessage)
@@ -266,29 +258,6 @@ func (c *PoolMockConn) readMessages(ctx context.Context) error {
 	}
 }
 
-func (c *PoolMockConn) registerHandlerTimeout(ctx context.Context, method string, f StratumV1MsgHandler) error {
-	ctx, cancel := context.WithTimeout(ctx, RESPONSE_TIMEOUT)
-	defer cancel()
-
-	msgCh := make(chan stratumv1_message.MiningMessageToPool)
-
-	c.registerHandler(method, func(msg stratumv1_message.MiningMessageToPool) {
-		select {
-		case msgCh <- msg:
-		case <-ctx.Done():
-		}
-		close(msgCh)
-	})
-
-	select {
-	case msg := <-msgCh:
-		f(msg)
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
 func (c *PoolMockConn) registerHandler(method string, f StratumV1MsgHandler) {
 	c.msgHandlers.Store(method, f)
 }
@@ -300,6 +269,6 @@ func (c *PoolMockConn) send(ctx context.Context, msg stratumv1_message.MiningMes
 		return err
 	}
 
-	c.log.Infof("sent msg %s", string(msg.Serialize()))
+	c.log.Debugf("sent msg %s", string(msg.Serialize()))
 	return nil
 }

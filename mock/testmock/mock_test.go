@@ -9,60 +9,68 @@ import (
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/mock/minermock"
 	"gitlab.com/TitanInd/hashrouter/mock/poolmock"
+	"golang.org/x/sync/errgroup"
 )
 
 func TestConnectMocks(t *testing.T) {
-	workerName := "test-miner"
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	errCh := make(chan error)
+	l, _ := lib.NewDevelopmentLogger("debug", false, false, false)
+	log := l.Sugar()
 
-	pool := poolmock.NewPoolMock(0)
-
+	pool := poolmock.NewPoolMock(0, lib.NewTestLogger())
 	err := pool.Connect(ctx)
 	if err != nil {
 		t.Log(err)
 	}
 
-	port := pool.GetPort()
+	MinerNumber := 20
+	miners := make(map[string]*minermock.MinerMock, MinerNumber)
 
-	go func() {
-		err := pool.Run(ctx)
-		if err != nil {
-			t.Log(err)
-			errCh <- err
-		}
-	}()
-
-	dest, _ := lib.ParseDest(fmt.Sprintf("stratum+tcp://%s:123@0.0.0.0:%d", workerName, port))
-
-	miner := minermock.NewMinerMock(dest)
-	miner.SetSubmitInterval(time.Second)
-
-	go func() {
-		err := miner.Run(ctx)
-		if err != nil {
-			t.Log(err)
-			errCh <- err
-		}
-	}()
-
-	go func() {
-		err = <-errCh
-		t.Error(err)
-	}()
-
-	<-time.After(5 * time.Second)
-
-	poolConn := pool.GetConnByWorkerName(workerName)
-	if poolConn == nil {
-		t.Fatalf("connection not found")
+	for i := 0; i < MinerNumber; i++ {
+		workerName := fmt.Sprintf("mock-miner-%d", i)
+		dest := lib.MustParseDest(fmt.Sprintf(
+			"stratum+tcp://%s:123@0.0.0.0:%d", workerName, pool.GetPort(),
+		))
+		miner := minermock.NewMinerMock(dest, log.Named(workerName))
+		miner.SetSubmitInterval(5 * time.Second)
+		miners[workerName] = miner
 	}
 
-	submitCount := poolConn.GetSubmitCount()
-	if submitCount == 0 {
-		t.Fatalf("no submits sent")
+	errGrp, subCtx := errgroup.WithContext(ctx)
+
+	errGrp.Go(func() error {
+		err := pool.Run(subCtx)
+		if err != nil {
+			t.Log(err)
+		}
+		return err
+	})
+
+	for _, miner := range miners {
+		m := miner
+		errGrp.Go(func() error {
+			err := m.Run(subCtx)
+			if err != nil {
+				t.Log(err)
+			}
+			return err
+		})
+	}
+
+	<-time.After(60 * time.Second)
+
+	for workerName := range miners {
+		poolConn := pool.GetConnByWorkerName(workerName)
+		if poolConn == nil {
+			t.Errorf("miner %s not found", workerName)
+			continue
+		}
+
+		submitCount := poolConn.GetSubmitCount()
+		if submitCount == 0 {
+			t.Errorf("no submits sent for miner %s", workerName)
+		}
 	}
 }

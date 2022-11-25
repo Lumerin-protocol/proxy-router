@@ -2,28 +2,39 @@ package poolmock
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
-	"gitlab.com/TitanInd/hashrouter/lib"
+)
+
+const (
+	DEFAULT_DIFF = 50000
 )
 
 type PoolMock struct {
 	listener net.Listener
-	port     int
-	connMap  sync.Map
+	log      interfaces.ILogger
 
-	log interfaces.ILogger
+	port        int
+	defaultDiff int
+
+	connMap sync.Map
 }
 
 // NewPoolMock creates new mock pool. Set port to zero to auto-select available port. Watch also GetPort()
-func NewPoolMock(port int) *PoolMock {
+func NewPoolMock(port int, log interfaces.ILogger) *PoolMock {
 	return &PoolMock{
-		log:  lib.NewTestLogger(),
-		port: port,
+		log:         log,
+		port:        port,
+		defaultDiff: DEFAULT_DIFF,
 	}
+}
+
+func (p *PoolMock) SetDefaultDiff(diff int) {
+	p.defaultDiff = diff
 }
 
 func (p *PoolMock) Connect(ctx context.Context) error {
@@ -40,6 +51,25 @@ func (p *PoolMock) Connect(ctx context.Context) error {
 }
 
 func (p *PoolMock) Run(ctx context.Context) error {
+	errCh := make(chan error)
+
+	go func() {
+		errCh <- p.run(ctx)
+	}()
+
+	select {
+	case <-ctx.Done():
+		p.close()
+		return ctx.Err()
+	case err := <-errCh:
+		if !errors.Is(err, context.Canceled) {
+			p.close()
+		}
+		return err
+	}
+}
+
+func (p *PoolMock) run(ctx context.Context) error {
 	for {
 		conn, err := p.listener.Accept()
 		if err != nil {
@@ -47,9 +77,10 @@ func (p *PoolMock) Run(ctx context.Context) error {
 		}
 
 		go func() {
-			p.log.Infof("new miner connection %s", conn.LocalAddr().String())
+			connID := conn.RemoteAddr().String()
+			p.log.Infof("new miner connection %s", connID)
 
-			poolMockConn := NewPoolMockConn(conn, p.log.Named(conn.LocalAddr().String()))
+			poolMockConn := NewPoolMockConn(conn, p.defaultDiff, p.log.Named(connID))
 			p.storeConn(poolMockConn)
 
 			err = poolMockConn.Run(ctx)
@@ -59,7 +90,7 @@ func (p *PoolMock) Run(ctx context.Context) error {
 
 			p.removeConn(poolMockConn.ID())
 			_ = conn.Close()
-			p.log.Infof("miner connection closed %s", conn.LocalAddr().String())
+			p.log.Infof("miner connection closed %s", connID)
 		}()
 	}
 }
@@ -90,4 +121,14 @@ func (p *PoolMock) GetConnByWorkerName(workerName string) *PoolMockConn {
 	})
 
 	return foundConn
+}
+
+func (p *PoolMock) close() {
+	p.connMap.Range(func(key, value any) bool {
+		conn := value.(*PoolMockConn)
+		_ = conn.conn.Close()
+		return true
+	})
+
+	_ = p.listener.Close()
 }
