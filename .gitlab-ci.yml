@@ -23,7 +23,7 @@ stages:
 lint:
   inherit:
     default: false
-  image: golangci/golangci-lint:v1.49
+  image: golangci/golangci-lint:v1.50.1-alpine
   variables:
     DOCKER_DRIVER: overlay2
     DOCKER_HOST: tcp://docker:2376
@@ -46,7 +46,7 @@ lint:
 test:
   inherit:
     default: false
-  image: golang:1.18-alpine
+  image: golang:1.19.3-alpine
   stage: test
   #tags:
   # - devops
@@ -66,7 +66,7 @@ test:
 test-e2e:
   inherit:
     default: false
-  image: golang:1.18-alpine
+  image: golang:1.19.3-alpine
   when: manual
   stage: test
   only:
