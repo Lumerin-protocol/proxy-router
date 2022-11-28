@@ -82,7 +82,7 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 
 	err = minerScheduler.Run(ctx)
 
-	p.log.Errorf("Miner disconnected %s", incomingConn.RemoteAddr(), err)
+	p.log.Warnf("Miner disconnected %s %s", incomingConn.RemoteAddr(), err)
 	p.collection.Delete(minerScheduler.GetID())
 
 	return err
