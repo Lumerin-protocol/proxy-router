@@ -36,10 +36,6 @@ lint:
   #- bedrock
   #- titanio-dev
   #- docker
-  only:
-    - branches
-    - tags
-    - merge_requests
   script:
     - golangci-lint run -v
 
