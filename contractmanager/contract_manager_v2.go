@@ -16,7 +16,7 @@ type ContractManager struct {
 	// dependencies
 	blockchain      interfaces.IBlockchainGateway
 	log             interfaces.ILogger
-	globalScheduler *GlobalSchedulerService
+	globalScheduler *GlobalSchedulerV2
 
 	// configuration parameters
 	isBuyer                bool
@@ -33,7 +33,7 @@ type ContractManager struct {
 
 func NewContractManager(
 	blockchain interfaces.IBlockchainGateway,
-	globalScheduler *GlobalSchedulerService,
+	globalScheduler *GlobalSchedulerV2,
 	log interfaces.ILogger,
 	contracts interfaces.ICollection[IContractModel],
 	walletAddr interop.BlockchainAddress,

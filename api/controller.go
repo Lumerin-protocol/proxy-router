@@ -103,7 +103,7 @@ type HistoryItem struct {
 	TimestampString string
 }
 
-func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerService, isBuyer bool, hashrateDiffThreshold float64, validationBufferPeriod time.Duration, defaultDestination interfaces.IDestination, apiAddrPort string) *gin.Engine {
+func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerV2, isBuyer bool, hashrateDiffThreshold float64, validationBufferPeriod time.Duration, defaultDestination interfaces.IDestination, apiAddrPort string) *gin.Engine {
 	apiAddrPortUrl, _ := url.Parse(fmt.Sprintf("//%s", apiAddrPort))
 	apiAddrPortUrl.Scheme = "http"
 
@@ -277,12 +277,12 @@ func mapDestItems(dest *miner.DestSplit, hrGHS int) (*[]DestItem, int) {
 	}
 
 	for _, item := range dest.Iter() {
-		HashrateGHS := int(item.Percentage * float64(hrGHS))
+		HashrateGHS := int(item.Fraction * float64(hrGHS))
 
 		destItems = append(destItems, DestItem{
 			ContractID:  item.ID,
 			URI:         item.Dest.String(),
-			Fraction:    item.Percentage,
+			Fraction:    item.Fraction,
 			HashrateGHS: HashrateGHS,
 		})
 

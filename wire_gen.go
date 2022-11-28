@@ -45,8 +45,8 @@ func InitApp() (*app.App, error) {
 		return nil, err
 	}
 	interfacesICollection := provideContractCollection()
-	globalSchedulerService := provideGlobalScheduler(config, iCollection, iLogger)
-	engine, err := provideApiController(config, iCollection, interfacesICollection, iLogger, globalSchedulerService)
+	globalSchedulerV2 := provideGlobalScheduler(config, iCollection, iLogger)
+	engine, err := provideApiController(config, iCollection, interfacesICollection, iLogger, globalSchedulerV2)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func InitApp() (*app.App, error) {
 	if err != nil {
 		return nil, err
 	}
-	contractManager, err := provideContractManager(config, ethereumGateway, ethereumWallet, globalSchedulerService, interfacesICollection, iLogger)
+	contractManager, err := provideContractManager(config, ethereumGateway, ethereumWallet, globalSchedulerV2, interfacesICollection, iLogger)
 	if err != nil {
 		return nil, err
 	}
@@ -72,6 +72,7 @@ func InitApp() (*app.App, error) {
 		MinerController: minerController,
 		Server:          server,
 		ContractManager: contractManager,
+		GlobalScheduler: globalSchedulerV2,
 		Logger:          iLogger,
 		Config:          config,
 	}
@@ -97,8 +98,8 @@ var protocolSet = wire.NewSet(provideMinerCollection, provideMinerController, ev
 
 var contractsSet = wire.NewSet(provideGlobalScheduler, provideContractCollection, provideEthClient, provideEthWallet, provideEthGateway, provideContractManager)
 
-func provideGlobalScheduler(cfg *config.Config, miners interfaces.ICollection[miner.MinerScheduler], log interfaces.ILogger) *contractmanager.GlobalSchedulerService {
-	return contractmanager.NewGlobalScheduler(miners, log, cfg.Pool.MinDuration, cfg.Pool.MaxDuration)
+func provideGlobalScheduler(cfg *config.Config, miners interfaces.ICollection[miner.MinerScheduler], log interfaces.ILogger) *contractmanager.GlobalSchedulerV2 {
+	return contractmanager.NewGlobalSchedulerV2(miners, log, cfg.Pool.MinDuration, cfg.Pool.MaxDuration, cfg.Contract.HashrateDiffThreshold)
 }
 
 func provideMinerCollection() interfaces.ICollection[miner.MinerScheduler] {
@@ -118,7 +119,7 @@ func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo inter
 	return miner.NewMinerController(destination, repo, l, cfg.Proxy.LogStratum, cfg.Miner.VettingDuration, cfg.Pool.MinDuration, cfg.Pool.MaxDuration, cfg.Pool.ConnTimeout), nil
 }
 
-func provideApiController(cfg *config.Config, miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerService) (*gin.Engine, error) {
+func provideApiController(cfg *config.Config, miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerV2) (*gin.Engine, error) {
 
 	dest, err := lib.ParseDest(cfg.Pool.Address)
 
@@ -173,7 +174,7 @@ func provideContractManager(
 	cfg *config.Config,
 	ethGateway *blockchain.EthereumGateway,
 	ethWallet *blockchain.EthereumWallet,
-	globalScheduler *contractmanager.GlobalSchedulerService,
+	globalScheduler *contractmanager.GlobalSchedulerV2,
 	contracts interfaces.ICollection[contractmanager.IContractModel],
 	log interfaces.ILogger,
 ) (*contractmanager.ContractManager, error) {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
 	"sync"
 	"time"
 
@@ -96,7 +97,8 @@ func (s *StratumV1Miner) Read(ctx context.Context) (stratumv1_message.MiningMess
 }
 
 func (s *StratumV1Miner) GetID() string {
-	return s.conn.RemoteAddr().String()
+	addr, _ := netip.ParseAddrPort(s.conn.RemoteAddr().String())
+	return fmt.Sprintf("%d", addr.Port())
 }
 
 func (s *StratumV1Miner) GetWorkerName() string {

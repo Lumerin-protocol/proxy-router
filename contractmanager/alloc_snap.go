@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/miner"
 	"golang.org/x/exp/slices"
 )
@@ -27,7 +28,7 @@ func (m *AllocItem) AllocatedGHS() int {
 func (m *AllocItem) String() string {
 	b := new(bytes.Buffer)
 	fmt.Fprintf(b, "\nContractID\tMinerID\tFraction\tTotalGHS\n")
-	fmt.Fprintf(b, "%s\t%s\t%.2f\t%d\n", m.ContractID, m.MinerID, m.Fraction, m.TotalGHS)
+	fmt.Fprintf(b, "%s\t%s\t%.2f\t%d\n", lib.AddrShort(m.ContractID), m.MinerID, m.Fraction, m.TotalGHS)
 	return b.String()
 }
 
@@ -74,7 +75,10 @@ func (m AllocCollection) String() string {
 	b := new(bytes.Buffer)
 	fmt.Fprintf(b, "\nContractID\tMinerID\tFraction\tTotalGHS\n")
 	for _, alloc := range m.items {
-		fmt.Fprintf(b, "%s\t%s\t%.2f\t%d\n", alloc.ContractID, alloc.MinerID, alloc.Fraction, alloc.TotalGHS)
+		fmt.Fprintf(b, "%s\t%s\t%.2f\t%d\n", lib.AddrShort(alloc.ContractID), alloc.MinerID, alloc.Fraction, alloc.TotalGHS)
+	}
+	if len(m.items) == 0 {
+		fmt.Fprintf(b, "no miners")
 	}
 	return b.String()
 }
@@ -104,7 +108,7 @@ func (m *AllocCollection) Add(id string, item *AllocItem) {
 	m.items[id] = item
 }
 
-func (m AllocCollection) GetUnallocatedGHS() (int, *AllocItem) {
+func (m *AllocCollection) GetUnallocatedGHS() (int, *AllocItem) {
 	var allocatedFrac float64 = 0
 	var allocItemAvailable *AllocItem
 	var minerID string
@@ -125,6 +129,14 @@ func (m AllocCollection) GetUnallocatedGHS() (int, *AllocItem) {
 	}
 
 	return allocItemAvailable.AllocatedGHS(), allocItemAvailable
+}
+
+func (m *AllocCollection) GetAllocatedGHS() int {
+	allocatedGHS := 0
+	for _, miner := range m.items {
+		allocatedGHS += miner.AllocatedGHS()
+	}
+	return allocatedGHS
 }
 
 type AllocSnap struct {
@@ -224,7 +236,7 @@ func (m *AllocSnap) String() string {
 	fmt.Fprintf(b, "\nContractID\tMinerID\tFraction\tTotalGHS\n")
 	for _, item := range m.contractIDMinerIDMap {
 		for _, alloc := range item.GetItems() {
-			fmt.Fprintf(b, "%s\t%s\t%.2f\t%d\n", alloc.ContractID, alloc.MinerID, alloc.Fraction, alloc.TotalGHS)
+			fmt.Fprintf(b, "%s\t%s\t%.2f\t%d\n", lib.AddrShort(alloc.ContractID), alloc.MinerID, alloc.Fraction, alloc.TotalGHS)
 		}
 	}
 	return b.String()
@@ -245,7 +257,7 @@ func CreateCurrentMinerSnapshot(minerCollection interfaces.ICollection[miner.Min
 		snapshot.SetMiner(minerID, hashrateGHS)
 
 		for _, splitItem := range miner.GetCurrentDestSplit().Iter() {
-			snapshot.Set(minerID, splitItem.ID, splitItem.Percentage, hashrateGHS)
+			snapshot.Set(minerID, splitItem.ID, splitItem.Fraction, hashrateGHS)
 		}
 
 		return true
@@ -269,7 +281,7 @@ func CreateMinerSnapshot(minerCollection interfaces.ICollection[miner.MinerSched
 		snapshot.SetMiner(minerID, hashrateGHS)
 
 		for _, splitItem := range miner.GetDestSplit().Iter() {
-			snapshot.Set(minerID, splitItem.ID, splitItem.Percentage, hashrateGHS)
+			snapshot.Set(minerID, splitItem.ID, splitItem.Fraction, hashrateGHS)
 		}
 
 		return true
