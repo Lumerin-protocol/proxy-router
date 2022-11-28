@@ -73,7 +73,7 @@ func TestHashrateDelivery(t *testing.T) {
 	//
 	// start miners
 	//
-	minersCtl.AddMiners(ctx, 10, HASHROUTER_STRATUM_PORT)
+	_ = minersCtl.AddMiners(ctx, 10, HASHROUTER_STRATUM_PORT)
 	errGrp.Go(func() error {
 		return minersCtl.Run(subCtx)
 	})

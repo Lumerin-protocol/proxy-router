@@ -236,7 +236,7 @@ func (m *StratumV1PoolConn) Write(ctx context.Context, msg stratumv1_message.Min
 	}
 
 	b := append(msg.Serialize(), lib.CharNewLine)
-	_, err := m.conn.Write([]byte(b))
+	_, err := m.conn.Write(b)
 
 	if err != nil {
 		return err
