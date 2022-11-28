@@ -8,14 +8,13 @@ import (
 
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/mock/poolmock"
+	"gitlab.com/TitanInd/hashrouter/test/testctl"
 	"golang.org/x/sync/errgroup"
 )
 
 const (
-	HASHROUTER_RELATIVE_PATH = "../.."
-	HASHROUTER_EXEC_NAME     = "hashrouter"
-	HASHROUTER_STRATUM_PORT  = 4000
-	HASHROUTER_HTTP_PORT     = 4001
+	HASHROUTER_STRATUM_PORT = 4000
+	HASHROUTER_HTTP_PORT    = 4001
 
 	CONTRACT_WORKER_NAME = "contract"
 	HASHRATE_WAIT_TIME   = 2 * time.Minute
@@ -46,8 +45,8 @@ func TestHashrateDelivery(t *testing.T) {
 		t.Log(err)
 	})
 
-	proxyCtl := NewProxyController(HASHROUTER_STRATUM_PORT, HASHROUTER_HTTP_PORT, pool.GetPort())
-	minersCtl := NewMinersController(ctx, log)
+	proxyCtl := testctl.NewProxyController(HASHROUTER_STRATUM_PORT, HASHROUTER_HTTP_PORT, pool.GetPort())
+	minersCtl := testctl.NewMinersController(ctx, log)
 
 	errGrp.Go(func() error {
 		return pool.Run(subCtx)

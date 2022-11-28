@@ -1,4 +1,4 @@
-package fakeminerpool
+package testctl
 
 import (
 	"bytes"
@@ -15,6 +15,11 @@ import (
 	"gitlab.com/TitanInd/hashrouter/api"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/mock/minermock"
+)
+
+const (
+	HASHROUTER_RELATIVE_PATH = "../.."
+	HASHROUTER_EXEC_NAME     = "hashrouter"
 )
 
 type ProxyController struct {
@@ -118,6 +123,6 @@ func (c *ProxyController) CheckMinersConnected(miners map[int]*minermock.MinerMo
 }
 
 func (c *ProxyController) CreateTestContract(workerName string, contractPoolPort int, hrGHS int, duration time.Duration) error {
-	dest := lib.NewDest(CONTRACT_WORKER_NAME, "", "0.0.0.0", contractPoolPort)
+	dest := lib.NewDest(workerName, "", "0.0.0.0", contractPoolPort)
 	return c.apiClient.PostContract(dest, hrGHS, duration)
 }

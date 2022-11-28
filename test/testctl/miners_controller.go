@@ -1,4 +1,4 @@
-package fakeminerpool
+package testctl
 
 import (
 	"context"
