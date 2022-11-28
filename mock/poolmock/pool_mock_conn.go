@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
@@ -21,6 +20,7 @@ const (
 )
 
 type StratumV1MsgHandler = func(a stratumv1_message.MiningMessageToPool)
+type OnSubmitHandler = func(workerName string, diff int64)
 
 type PoolMockConn struct {
 	conn        net.Conn
@@ -30,18 +30,18 @@ type PoolMockConn struct {
 	workerName  string
 	id          string
 	submitCount atomic.Int64
-	hashrate    *hashrate.Hashrate
+	onSubmit    OnSubmitHandler
 
 	log interfaces.ILogger
 }
 
-func NewPoolMockConn(conn net.Conn, diff int, log interfaces.ILogger) *PoolMockConn {
+func NewPoolMockConn(conn net.Conn, diff int, onSubmit OnSubmitHandler, log interfaces.ILogger) *PoolMockConn {
 	return &PoolMockConn{
 		conn:     conn,
 		log:      log,
 		diff:     diff,
+		onSubmit: onSubmit,
 		id:       conn.RemoteAddr().String(),
-		hashrate: hashrate.NewHashrate(log),
 	}
 }
 
@@ -55,10 +55,6 @@ func (c *PoolMockConn) GetWorkerName() string {
 
 func (c *PoolMockConn) GetSubmitCount() int {
 	return int(c.submitCount.Load())
-}
-
-func (c *PoolMockConn) GetHashRate() int {
-	return c.hashrate.GetHashrate5minAvgGHS()
 }
 
 func (c *PoolMockConn) SetDifficulty(diff int) {
@@ -235,8 +231,7 @@ func (c *PoolMockConn) readMessages(ctx context.Context) error {
 
 		case *stratumv1_message.MiningSubmit:
 			c.submitCount.Add(1)
-			c.log.Debugf("received submit")
-			c.hashrate.OnSubmit(int64(c.diff))
+			c.onSubmit(c.workerName, int64(c.diff))
 			handler, ok := c.msgHandlers.LoadAndDelete(stratumv1_message.MethodMiningSubmit)
 			if ok {
 				handler.(StratumV1MsgHandler)(typedMessage)

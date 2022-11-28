@@ -105,7 +105,7 @@ func (m *MinerMock) Run(ctx context.Context) error {
 
 	select {
 	case err := <-errCh:
-		m.log.Errorf("miner error %s", err)
+		m.log.Warnf("miner error %s", err)
 		return err
 	case <-doneCh:
 		m.log.Info("miner exited")

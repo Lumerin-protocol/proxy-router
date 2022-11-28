@@ -7,6 +7,7 @@ import (
 	"net"
 	"sync"
 
+	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
 
@@ -21,7 +22,8 @@ type PoolMock struct {
 	port        int
 	defaultDiff int
 
-	connMap sync.Map
+	connMap  sync.Map
+	workerHr sync.Map
 }
 
 // NewPoolMock creates new mock pool. Set port to zero to auto-select available port. Watch also GetPort()
@@ -80,7 +82,7 @@ func (p *PoolMock) run(ctx context.Context) error {
 			connID := conn.RemoteAddr().String()
 			p.log.Infof("new miner connection %s", connID)
 
-			poolMockConn := NewPoolMockConn(conn, p.defaultDiff, p.log.Named(connID))
+			poolMockConn := NewPoolMockConn(conn, p.defaultDiff, p.OnSubmit, p.log.Named(connID))
 			p.storeConn(poolMockConn)
 
 			err = poolMockConn.Run(ctx)
@@ -121,6 +123,21 @@ func (p *PoolMock) GetConnByWorkerName(workerName string) *PoolMockConn {
 	})
 
 	return foundConn
+}
+
+func (p *PoolMock) GetHRByWorkerName(workerName string) (hrGHS int, ok bool) {
+	hr, ok := p.workerHr.Load(workerName)
+	if !ok {
+		return 0, false
+	}
+	return hr.(*hashrate.Hashrate).GetHashrate5minAvgGHS(), true
+}
+
+func (p *PoolMock) OnSubmit(workerName string, diff int64) {
+	hr, _ := p.workerHr.LoadOrStore(workerName, hashrate.NewHashrate(p.log))
+	workerHr := hr.(*hashrate.Hashrate)
+	workerHr.OnSubmit(diff)
+	p.log.Infof("got submit from worker(%s), hrGHS %d", workerName, workerHr.GetHashrate5minAvgGHS())
 }
 
 func (p *PoolMock) close() {

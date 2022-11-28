@@ -1,20 +1,12 @@
-package main
+package fakeminerpool
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"os"
-	"os/exec"
-	"path"
-	"syscall"
 	"testing"
 	"time"
 
-	"gitlab.com/TitanInd/hashrouter/api"
 	"gitlab.com/TitanInd/hashrouter/lib"
-	"gitlab.com/TitanInd/hashrouter/mock/minermock"
 	"gitlab.com/TitanInd/hashrouter/mock/poolmock"
 	"golang.org/x/sync/errgroup"
 )
@@ -28,6 +20,7 @@ const (
 	CONTRACT_WORKER_NAME = "contract"
 	HASHRATE_WAIT_TIME   = 2 * time.Minute
 	CONTRACT_HASHRATE    = 20000
+	CONTRACT_DURATION    = 15 * time.Minute
 )
 
 func TestHashrateDelivery(t *testing.T) {
@@ -38,19 +31,10 @@ func TestHashrateDelivery(t *testing.T) {
 	log := l.Sugar()
 
 	//
-	// start default pool
+	// start pool
 	//
-	defaultPool := poolmock.NewPoolMock(0, log.Named("default-pool"))
-	err := defaultPool.Connect(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	//
-	// start contract pool
-	//
-	contractPool := poolmock.NewPoolMock(0, log.Named("contract-pool"))
-	err = contractPool.Connect(ctx)
+	pool := poolmock.NewPoolMock(0, log.Named("pool"))
+	err := pool.Connect(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,14 +46,14 @@ func TestHashrateDelivery(t *testing.T) {
 		t.Log(err)
 	})
 
+	proxyCtl := NewProxyController(HASHROUTER_STRATUM_PORT, HASHROUTER_HTTP_PORT, pool.GetPort())
+	minersCtl := NewMinersController(ctx, log)
+
 	errGrp.Go(func() error {
-		return defaultPool.Run(subCtx)
+		return pool.Run(subCtx)
 	})
 	errGrp.Go(func() error {
-		return contractPool.Run(subCtx)
-	})
-	errGrp.Go(func() error {
-		return StartHashrouter(subCtx, HASHROUTER_STRATUM_PORT, HASHROUTER_HTTP_PORT, defaultPool.GetPort())
+		return proxyCtl.StartHashrouter(subCtx)
 	})
 
 	go func() {
@@ -82,74 +66,29 @@ func TestHashrateDelivery(t *testing.T) {
 	//
 	// check proxy is up
 	//
-	client, err := api.NewApiClient(fmt.Sprintf("http://0.0.0.0:%d", HASHROUTER_HTTP_PORT))
+	err = proxyCtl.Wait(ctx)
 	if err != nil {
-		t.Fatal(err)
-	}
-	err = poll(ctx, 20*time.Second, func() error {
-		err := client.Health()
-		if err != nil {
-			return err
-		}
-		log.Info("proxy is up")
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
+		t.Fatal("proxy is not up")
 	}
 
 	//
 	// start miners
 	//
-	MinerNumber := 10
-	miners := make(map[int]*minermock.MinerMock, MinerNumber)
-
-	for i := 0; i < MinerNumber; i++ {
-		workerName := fmt.Sprintf("mock-miner-%d", i)
-		dest := lib.MustParseDest(fmt.Sprintf(
-			"stratum+tcp://%s:123@0.0.0.0:%d", workerName, HASHROUTER_STRATUM_PORT,
-		))
-		miner := minermock.NewMinerMock(dest, log.Named(workerName))
-		miner.SetSubmitInterval(10 * time.Second)
-		miners[i] = miner
-	}
-
-	for _, miner := range miners {
-		m := miner
-		errGrp.Go(func() error {
-			return m.Run(subCtx)
-		})
-	}
+	minersCtl.AddMiners(ctx, 10, HASHROUTER_STRATUM_PORT)
+	errGrp.Go(func() error {
+		return minersCtl.Run(subCtx)
+	})
 
 	//
 	// check all miners connected
 	//
-	err = poll(ctx, 40*time.Second, func() error {
-		minersResp, err := client.GetMiners()
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		connectedMiners := make(map[string]*api.Miner)
-		for _, minerItem := range minersResp.Miners {
-			connectedMiners[minerItem.WorkerName] = &minerItem
-		}
-
-		for _, m := range miners {
-			mn, isOk := connectedMiners[m.GetWorkerName()]
-			if !isOk {
-				return fmt.Errorf("miner(%s) not connected", m.GetWorkerName())
-			}
-			if mn.TotalHashrateGHS == 0 {
-				return fmt.Errorf("miner(%s) not providing hashrate", m.GetWorkerName())
-			}
-		}
-		log.Info("all miners are connected")
-		return nil
+	err = lib.Poll(ctx, 40*time.Second, func() error {
+		return proxyCtl.CheckMinersConnected(minersCtl.GetMiners())
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
+	log.Info("all miners are connected")
 
 	//
 	// sleep while vetting period is in place
@@ -160,97 +99,76 @@ func TestHashrateDelivery(t *testing.T) {
 	//
 	// create test contract
 	//
-	dest := lib.NewDest(CONTRACT_WORKER_NAME, "", "0.0.0.0", contractPool.GetPort())
-	err = client.PostContract(dest, CONTRACT_HASHRATE, 15*time.Minute)
+	log.Infof("creating test contract for %d GHS for %s", CONTRACT_HASHRATE, CONTRACT_DURATION)
+	err = proxyCtl.CreateTestContract(CONTRACT_WORKER_NAME, pool.GetPort(), CONTRACT_HASHRATE, CONTRACT_DURATION)
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	// EMA_SATURATION_PERIOD time until average 5min hashrate will become accurate
+	// TODO: consider using 1 min EMA to speed up the tests
+	EMA_SATURATION_PERIOD := 5 * time.Minute
+	log.Infof("check hashrate delivered for %s without failing", EMA_SATURATION_PERIOD)
+	_ = watchHashrate(pool, t, EMA_SATURATION_PERIOD, false)
+
 	//
-	// check hashrate delivered
 	//
-	err = poll(ctx, 30*time.Second, func() error {
-		conn := contractPool.GetConnByWorkerName(CONTRACT_WORKER_NAME)
-		if conn == nil {
-			return fmt.Errorf("contract worker not found")
-		}
-		hrGHS := conn.GetHashRate()
-		if !lib.AlmostEqual(hrGHS, CONTRACT_HASHRATE, 0.1) {
-			return fmt.Errorf("invalid hashrate expected(%d) actual(%d)", CONTRACT_HASHRATE, hrGHS)
-		}
-		return nil
-	})
+	durationLeft := CONTRACT_DURATION - EMA_SATURATION_PERIOD - time.Minute
+	log.Infof("check hashrate delivered during the rest %s with failing", durationLeft)
+	err = watchHashrate(pool, t, durationLeft, false)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("hashrate doesn't match: %s", err)
 	}
 
 	log.Info("hashrate matches expected")
+	log.Infof("sleeping 2 minutes until contract ends")
+	time.Sleep(2 * time.Minute)
+
+	//
+	//
+	log.Infof("checking if contract ended")
+	_, ok := pool.GetHRByWorkerName(CONTRACT_WORKER_NAME)
+	if ok {
+		t.Fatal("contract should've been already ended")
+	}
 }
 
-func StartHashrouter(ctx context.Context, stratumPort int, httpPort int, poolPort int) error {
-	pwd, _ := os.Getwd()
-	dir := path.Join(pwd, HASHROUTER_RELATIVE_PATH)
-	exe := path.Join(dir, HASHROUTER_EXEC_NAME)
-
-	cmd := exec.Command(exe,
-		fmt.Sprintf("--proxy-address=0.0.0.0:%d", stratumPort),
-		fmt.Sprintf("--web-address=0.0.0.0:%d", httpPort),
-		fmt.Sprintf("--pool-address=stratum+tcp://proxy:123@0.0.0.0:%d", poolPort),
-		fmt.Sprintf("--miner-vetting-duration=%s", time.Minute),
-		"--contract-disable=true",
-		"--log-color=false",
-		"--log-to-file=false",
-		"--log-level=info",
+// watchHashrate
+//
+// shouldFailOnWrongHR=true stops execution if hashrate is not accurate
+//
+// shouldFailOnWrongHR=false continues monitoring if hashrate is not accurate
+func watchHashrate(pool *poolmock.PoolMock, t *testing.T, duration time.Duration, shouldFailOnWrongHR bool) error {
+	var (
+		i         time.Duration
+		delay     = 15 * time.Second
+		tolerance = 0.1
+		err       error
 	)
 
-	cmd.Dir = dir
+	for i = 0; i < duration; i += delay {
+		time.Sleep(delay)
 
-	var b bytes.Buffer
-
-	cmd.Stdout = io.MultiWriter(os.Stdout, &b)
-	cmd.Stderr = cmd.Stdout
-
-	err := cmd.Start()
-	if err != nil {
-		return err
+		hrGHS, ok := pool.GetHRByWorkerName(CONTRACT_WORKER_NAME)
+		if !ok {
+			err = fmt.Errorf("worker(%s) not found", CONTRACT_WORKER_NAME)
+			t.Log(err)
+			if shouldFailOnWrongHR {
+				return err
+			}
+			continue
+		}
+		if !lib.AlmostEqual(hrGHS, CONTRACT_HASHRATE, tolerance) {
+			err = fmt.Errorf("invalid hashrate expected(%d) actual(%d)", CONTRACT_HASHRATE, hrGHS)
+			t.Log(err)
+			if shouldFailOnWrongHR {
+				return err
+			}
+			continue
+		}
+		t.Logf("hashrate (%d) is within expected range (%d ± %.1f%%)", hrGHS, CONTRACT_HASHRATE, tolerance*100)
 	}
 
-	errCh := make(chan error)
-
-	go func() {
-		errCh <- cmd.Wait()
-		close(errCh)
-	}()
-
-	select {
-	case err := <-errCh:
-		return err
-	case <-ctx.Done():
-		err = cmd.Process.Signal(syscall.SIGINT)
-		if err != nil {
-			return err
-		}
-		return <-errCh
-	}
-}
-
-func poll(ctx context.Context, dur time.Duration, f func() error) error {
-	pollInterval := time.Second
-	for i := 0; ; i++ {
-		err := f()
-		if err == nil {
-			return nil
-		}
-
-		elapsed := time.Duration(i) * pollInterval
-		if err != nil && elapsed > dur {
-			return err
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(pollInterval):
-		}
-	}
+	t.Logf("monitoring finished")
+	return err
 }
