@@ -3,6 +3,7 @@ package contractmanager
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
@@ -327,4 +328,25 @@ func (s *GlobalSchedulerV2) waitTask(tsk task) error {
 
 func (s *GlobalSchedulerV2) fulfillTask(ctx context.Context, tsk task) {
 	tsk.errCh <- s.update(tsk.contractID, tsk.hashrateGHS, tsk.dest)
+}
+
+func (s *GlobalSchedulerV2) IsDeliveringAdequateHashrate(ctx context.Context, targetHashrateGHS int, dest interfaces.IDestination, hashrateDiffThreshold float64) bool {
+	var actualHashrate int
+
+	s.minerCollection.Range(func(miner miner.MinerScheduler) bool {
+		if miner.GetWorkerName() == dest.Username() {
+			actualHashrate += miner.GetHashRateGHS()
+		}
+		return true
+	})
+
+	deltaGHS := targetHashrateGHS - actualHashrate
+	s.log.Debugf("target hashrate %d, actual hashrate %d, delta %d", targetHashrateGHS, actualHashrate, deltaGHS)
+
+	if deltaGHS < 0 || math.Abs(float64(deltaGHS))/float64(targetHashrateGHS) < hashrateDiffThreshold {
+		s.log.Debugf("contract delivering enough hashrate")
+		return true
+	}
+
+	return false
 }

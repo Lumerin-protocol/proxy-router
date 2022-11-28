@@ -1,5 +1,4 @@
 //go:build wireinject
-// +build wireinject
 
 package main
 
@@ -32,7 +31,7 @@ func main() {
 		panic(err)
 	}
 
-	appInstance.Run()
+	appInstance.Run(context.Background())
 }
 
 var networkSet = wire.NewSet(provideTCPServer, provideApiServer)
@@ -142,7 +141,7 @@ func provideContractManager(
 }
 
 func provideLogger(cfg *config.Config) (interfaces.ILogger, error) {
-	return lib.NewLogger(cfg.Environment == "production")
+	return lib.NewLogger(cfg.Environment == "production", cfg.Log.Level, cfg.Log.LogToFile, cfg.Log.Color)
 }
 
 func provideConfig() (*config.Config, error) {

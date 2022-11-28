@@ -1,10 +1,10 @@
 package tcpserver
 
+import "gitlab.com/TitanInd/hashrouter/lib"
+
 // PeekNewLine overcomes limitation of bufio.Peek method, waits until buffer reaches newline char
 // and returns buffer without advancing the reader
 func PeekNewLine(b bufferedConn) ([]byte, error) {
-	var NewLine = byte('\n')
-
 	var (
 		peeked []byte
 		err    error
@@ -16,7 +16,7 @@ func PeekNewLine(b bufferedConn) ([]byte, error) {
 			return nil, err
 		}
 		char := peeked[len(peeked)-1]
-		if char == NewLine {
+		if char == lib.CharNewLine {
 			break
 		}
 	}

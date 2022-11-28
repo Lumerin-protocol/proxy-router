@@ -55,8 +55,8 @@ func (m *StratumV1Miner) write(ctx context.Context, msg stratumv1_message.Mining
 			lib.LogMsg(true, false, m.conn.RemoteAddr().String(), msg.Serialize(), m.log)
 		}
 
-		b := fmt.Sprintf("%s\n", msg.Serialize())
-		_, err := m.conn.Write([]byte(b))
+		b := append(msg.Serialize(), lib.CharNewLine)
+		_, err := m.conn.Write(b)
 		return err
 	}
 

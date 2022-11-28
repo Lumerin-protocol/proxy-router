@@ -141,7 +141,12 @@ func (m *ContractManager) handleContract(ctx context.Context, contractAddr commo
 			return fmt.Errorf("cannot read created contract %w", err)
 		}
 
-		contract := NewContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, m.isBuyer, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest)
+		var contract *BTCHashrateContract
+		if m.isBuyer {
+			contract = NewBuyerContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest)
+		} else {
+			contract = NewContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest)
+		}
 
 		if !contract.IsValidWallet(m.walletAddr) {
 			// contract will be ignored by this node

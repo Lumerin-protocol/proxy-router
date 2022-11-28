@@ -1,4 +1,4 @@
-variables:
+variables: # keep this list alphabetically sorted
   CI_AWS_TASK: "proxy-router"
   ENVIRONMENT: "production" # production makes logs in json and not panics when calling DPanic
   HASHRATE_DIFF_THRESHOLD: "0.1"
@@ -10,10 +10,10 @@ variables:
   POOL_CONN_TIMEOUT: 10m
   PROXY_ADDRESS: "0.0.0.0:3333"
   PROXY_LOG_STRATUM: "false"
+  SOCKET_MINER_CONNECTION_LIMIT: 1000
+  STRATUM_SOCKET_BUFFER_SIZE: 5
   WEB_ADDRESS: "0.0.0.0:8080"
   VALIDATION_BUFFER_PERIOD: 20m
-  STRATUM_SOCKET_BUFFER_SIZE: 5
-  SOCKET_MINER_CONNECTION_LIMIT: 1000
 
 stages:
   - test
@@ -23,7 +23,7 @@ stages:
 lint:
   inherit:
     default: false
-  image: golangci/golangci-lint:v1.49
+  image: golangci/golangci-lint:v1.50.1-alpine
   variables:
     DOCKER_DRIVER: overlay2
     DOCKER_HOST: tcp://docker:2376
@@ -39,20 +39,14 @@ lint:
   only:
     - branches
     - tags
-  image: golangci/golangci-lint:v1.49
+    - merge_requests
   script:
     - golangci-lint run -v
 
 test:
   inherit:
     default: false
-  image: golang:1.18-alpine
-  variables:
-    DOCKER_DRIVER: overlay2
-    DOCKER_HOST: tcp://docker:2376
-    DOCKER_TLS_CERTDIR: "/certs"
-    DOCKER_TLS_VERIFY: 1
-    DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
+  image: golang:1.19.3-alpine
   stage: test
   #tags:
   # - devops
@@ -62,12 +56,29 @@ test:
   only:
     - branches
     - tags
-  image: golang:1.18-alpine
+    - merge_requests
   script:
     - apk add --no-cache git make musl-dev gcc
     - go version
     - go mod download
     - go test -v -p 1 $(go list ./... | grep -v /test) # skips the test folder for now
+
+test-e2e:
+  inherit:
+    default: false
+  image: golang:1.19.3-alpine
+  when: manual
+  stage: test
+  only:
+  - branches
+  - tags
+  - merge_requests
+  script:
+    - apk add --no-cache git make musl-dev gcc
+    - go version
+    - go mod download
+    - go build
+    - go test -v -count=1 -timeout=30m -tags wireinject gitlab.com/TitanInd/hashrouter/test/e2e 
 
 .ecr_login_script: &ecr_login_script |
   echo "**************************"

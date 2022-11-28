@@ -51,7 +51,7 @@ func TestHashrateContractCreation(t *testing.T) {
 	speed := 5 * int(math.Pow10(12)) // 50 TH/s
 	length := 2 * 60 * 60            // 2 hours
 
-	log, _ := lib.NewLogger(false)
+	log := lib.NewTestLogger()
 	client, err := blockchain.NewEthClient(gethNodeAddress, log)
 	if err != nil {
 		t.Fatal(err)
@@ -85,7 +85,7 @@ func TestHashrateContractCreation(t *testing.T) {
 }
 
 func TestHashrateContractPurchase(t *testing.T) {
-	log, _ := lib.NewLogger(false)
+	log := lib.NewTestLogger()
 	client, err := blockchain.NewEthClient(gethNodeAddress, log)
 	if err != nil {
 		t.Fatal(err)
@@ -122,7 +122,7 @@ func TestHashrateContractPurchase(t *testing.T) {
 func TestHashrateRunningContractBuyerUpdate(t *testing.T) {
 	updatedDest := "stratum+tcp://shev8.contract3:123@stratum.braiins.com:3333"
 
-	log, _ := lib.NewLogger(false)
+	log := lib.NewTestLogger()
 	client, err := blockchain.NewEthClient(gethNodeAddress, log)
 	if err != nil {
 		t.Fatal(err)
@@ -171,7 +171,7 @@ func TestHashrateContractSellerUpdate(t *testing.T) {
 		length int64 = 6 * 60 * 60
 	)
 
-	log, _ := lib.NewLogger(false)
+	log := lib.NewTestLogger()
 	client, err := blockchain.NewEthClient(gethNodeAddress, log)
 	if err != nil {
 		t.Fatal(err)

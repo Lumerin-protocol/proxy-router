@@ -50,7 +50,6 @@ func NewContract(
 	globalScheduler *GlobalSchedulerV2,
 	log interfaces.ILogger,
 	hr *hashrate.Hashrate,
-	isBuyer bool,
 	hashrateDiffThreshold float64,
 	validationBufferPeriod time.Duration,
 	defaultDestination interfaces.IDestination,
@@ -65,7 +64,7 @@ func NewContract(
 		data:                   data,
 		hashrate:               hr,
 		log:                    log,
-		isBuyer:                isBuyer,
+		isBuyer:                false,
 		hashrateDiffThreshold:  hashrateDiffThreshold,
 		validationBufferPeriod: validationBufferPeriod,
 		globalScheduler:        globalScheduler,
@@ -212,7 +211,12 @@ func (c *BTCHashrateContract) LoadBlockchainContract() error {
 }
 
 func (c *BTCHashrateContract) FulfillAndClose(ctx context.Context) {
-	err := c.FulfillContract(ctx)
+	var err error
+	if c.isBuyer {
+		err = c.FulfillBuyerContract(ctx)
+	} else {
+		err = c.FulfillContract(ctx)
+	}
 	if err != nil {
 		c.log.Errorf("error during contract fulfillment: %s", err)
 		err := c.Close(ctx)
