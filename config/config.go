@@ -17,7 +17,7 @@ type Config struct {
 		LumerinTokenAddress    string
 		ValidatorAddress       string
 		ProxyAddress           string
-		Disable                bool `env:"CONTRACT_DISABLE" flag:"contract-disable" flag:"contract-disable"`
+		Disable                bool `env:"CONTRACT_DISABLE" flag:"contract-disable"`
 	}
 	Environment string `env:"ENVIRONMENT" flag:"environment"`
 	EthNode     struct {
