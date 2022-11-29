@@ -69,8 +69,6 @@ test-e2e:
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_ENVIRONMENT_NAME
       when: always
-    - if: $CI_COMMIT_BRANCH == "main" && $CI_ENVIRONMENT_NAME == "lmn"
-      when: always
     - if: $CI_COMMIT_BRANCH != $CI_ENVIRONMENT_NAME
       when: manual
     - if: $CI_MERGE_REQUEST_ID
