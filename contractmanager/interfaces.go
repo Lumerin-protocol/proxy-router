@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
 
@@ -21,4 +22,5 @@ type IContractModel interface {
 	GetState() ContractState
 	GetStatusInternal() string
 	GetDest() interfaces.IDestination
+	IsValidWallet(walletAddress common.Address) bool
 }

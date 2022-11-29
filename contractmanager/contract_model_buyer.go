@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
@@ -24,29 +25,45 @@ func NewBuyerContract(
 	hashrateDiffThreshold float64,
 	validationBufferPeriod time.Duration,
 	defaultDestination interfaces.IDestination,
-) *BTCHashrateContract {
+) *BTCBuyerHashrateContract {
 
 	if hr == nil {
 		hr = hashrate.NewHashrate(log)
 	}
 
-	contract := &BTCHashrateContract{
-		blockchain:             blockchain,
-		data:                   data,
-		hashrate:               hr,
-		log:                    log,
-		isBuyer:                true,
-		hashrateDiffThreshold:  hashrateDiffThreshold,
-		validationBufferPeriod: validationBufferPeriod,
-		globalScheduler:        globalScheduler,
-		state:                  convertBlockchainStatusToApplicationStatus(data.State),
-		defaultDestination:     defaultDestination,
+	contract := &BTCBuyerHashrateContract{
+		&BTCHashrateContract{
+			blockchain:             blockchain,
+			data:                   data,
+			hashrate:               hr,
+			log:                    log,
+			isBuyer:                true,
+			hashrateDiffThreshold:  hashrateDiffThreshold,
+			validationBufferPeriod: validationBufferPeriod,
+			globalScheduler:        globalScheduler,
+			state:                  convertBlockchainStatusToApplicationStatus(data.State),
+			defaultDestination:     defaultDestination,
+		},
 	}
 
 	return contract
 }
 
-func (c *BTCHashrateContract) FulfillBuyerContract(ctx context.Context) error {
+func (c *BTCBuyerHashrateContract) Run(ctx context.Context) error {
+	// contract was purchased before the node started, may be result of the restart
+	if c.data.State == blockchain.ContractBlockchainStateRunning {
+		go func() {
+			time.Sleep(c.validationBufferPeriod)
+			c.FulfillAndClose(ctx)
+		}()
+	}
+	// buyer node points contracts to default
+	c.setDestToDefault(c.defaultDestination)
+
+	return c.listenContractEvents(ctx)
+}
+
+func (c *BTCBuyerHashrateContract) FulfillBuyerContract(ctx context.Context) error {
 	c.state = ContractStatePurchased
 
 	if c.ContractIsExpired() {
@@ -89,10 +106,30 @@ func (c *BTCHashrateContract) FulfillBuyerContract(ctx context.Context) error {
 	}
 }
 
-func (c *BTCHashrateContract) ShouldContractContinue() bool {
+func (c *BTCBuyerHashrateContract) ShouldContractContinue() bool {
 	return !c.ContractIsExpired() && c.ContractIsNotAvailable()
 }
 
-func (c *BTCHashrateContract) ContractIsNotAvailable() bool {
+func (c *BTCBuyerHashrateContract) ContractIsNotAvailable() bool {
 	return c.state == ContractStateRunning || c.state == ContractStatePurchased
+}
+
+func (c *BTCBuyerHashrateContract) FulfillAndClose(ctx context.Context) {
+	err := c.FulfillBuyerContract(ctx)
+
+	if err != nil {
+		c.log.Errorf("error during contract fulfillment: %s", err)
+		err := c.Close(ctx)
+		if err != nil {
+			c.log.Errorf("error during contract closeout: %s", err)
+		}
+	}
+}
+
+func (c *BTCBuyerHashrateContract) GetCloseoutAccount() string {
+	return c.GetBuyerAddress()
+}
+
+func (c *BTCBuyerHashrateContract) IsValidWallet(walletAddress common.Address) bool {
+	return c.data.Buyer == walletAddress
 }

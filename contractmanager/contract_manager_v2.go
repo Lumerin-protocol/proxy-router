@@ -141,7 +141,7 @@ func (m *ContractManager) handleContract(ctx context.Context, contractAddr commo
 			return fmt.Errorf("cannot read created contract %w", err)
 		}
 
-		var contract *BTCHashrateContract
+		var contract IContractModel
 		if m.isBuyer {
 			contract = NewBuyerContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest)
 		} else {

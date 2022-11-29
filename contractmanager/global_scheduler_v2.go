@@ -118,7 +118,7 @@ func (s *GlobalSchedulerV2) update(contractID string, targetHrGHS int, dest inte
 		allocCollection, err = s.decreaseHr(snap, currentHrGHS-targetHrGHS, contractID, dest)
 	}
 	if err != nil {
-		s.log.Error("allocation error, no changes has been made %s", err)
+		s.log.Errorf("allocation error, no changes has been made %s", err)
 		return nil
 	}
 

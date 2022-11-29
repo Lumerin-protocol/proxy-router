@@ -105,10 +105,6 @@ func (c *BTCHashrateContract) Run(ctx context.Context) error {
 
 // Ignore checks if contract should be ignored by the node
 func (c *BTCHashrateContract) IsValidWallet(walletAddress common.Address) bool {
-	if c.isBuyer {
-		return c.data.Buyer == walletAddress
-	}
-
 	return c.data.Seller == walletAddress
 }
 
@@ -210,12 +206,7 @@ func (c *BTCHashrateContract) LoadBlockchainContract() error {
 }
 
 func (c *BTCHashrateContract) FulfillAndClose(ctx context.Context) {
-	var err error
-	if c.isBuyer {
-		err = c.FulfillBuyerContract(ctx)
-	} else {
-		err = c.FulfillContract(ctx)
-	}
+	err := c.FulfillContract(ctx)
 	if err != nil {
 		c.log.Errorf("error during contract fulfillment: %s", err)
 		err := c.Close(ctx)
@@ -239,8 +230,8 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 	// running cycle checks combination every N seconds
 	for {
 		if c.ContractIsExpired() {
-			c.log.Info("contract time ended, or state is closed, closing...", c.GetID())
-			return fmt.Errorf("contract is expired")
+			c.log.Info("contract expired", c.GetID())
+			return nil
 		}
 
 		// TODO hashrate monitoring
@@ -260,16 +251,12 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 			c.log.Errorf("contract context done while waiting for running contract to finish: %v", ctx.Err().Error())
 			return ctx.Err()
 		case <-c.stopFullfillment:
-			c.log.Infof("Done fullfilling contract %v", c.GetID())
+			c.log.Infof("done fullfilling contract %v", c.GetID())
 			return nil
 		case <-time.After(30 * time.Second):
 			continue
 		}
 	}
-
-	c.log.Debugf("Discontinuing Contract %v", c.GetID())
-
-	return nil
 }
 
 func (c *BTCHashrateContract) Close(ctx context.Context) error {
@@ -368,9 +355,6 @@ func (c *BTCHashrateContract) GetCloseoutType() constants.CloseoutType {
 }
 
 func (c *BTCHashrateContract) GetCloseoutAccount() string {
-	if c.isBuyer {
-		return c.GetBuyerAddress()
-	}
 	return c.GetSellerAddress()
 }
 
