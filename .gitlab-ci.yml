@@ -1,5 +1,10 @@
 variables: # keep this list alphabetically sorted
   CI_AWS_TASK: "proxy-router"
+  DOCKER_DRIVER: overlay2
+  DOCKER_HOST: tcp://docker:2376
+  DOCKER_TLS_CERTDIR: "/certs"
+  DOCKER_TLS_VERIFY: 1
+  DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
   ENVIRONMENT: "production" # production makes logs in json and not panics when calling DPanic
   HASHRATE_DIFF_THRESHOLD: "0.1"
   IS_BUYER: "false"
@@ -24,18 +29,12 @@ lint:
   inherit:
     default: false
   image: golangci/golangci-lint:v1.50.1-alpine
-  variables:
-    DOCKER_DRIVER: overlay2
-    DOCKER_HOST: tcp://docker:2376
-    DOCKER_TLS_CERTDIR: "/certs"
-    DOCKER_TLS_VERIFY: 1
-    DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
   stage: test
   tags:
   - devops
   - bedrock
   - titanio-dev
-  - docker
+  - shell
   only:
     - branches
     - tags
@@ -52,7 +51,7 @@ test:
   - devops
   - bedrock
   - titanio-dev
-  - docker
+  - shell
   only:
     - branches
     - tags
@@ -69,6 +68,11 @@ test-e2e:
   image: golang:1.19.3-alpine
   when: manual
   stage: test
+  tags:
+  - devops
+  - bedrock
+  - titanio-dev
+  - shell
   only:
   - branches
   - tags
@@ -228,8 +232,8 @@ bedrock-02-DEV-buyer:
 bedrock-03-STG-seller:
   stage: deploy
   environment: stg
-  only:
-    - stg
+  # only:
+  #   - stg
   tags:
     - devops
     - bedrock
@@ -246,8 +250,8 @@ bedrock-03-STG-seller:
 bedrock-03-STG-buyer:
   stage: deploy
   environment: stg
-  only:
-    - stg
+  # only:
+  #   - stg
   tags:
     - devops
     - bedrock
@@ -264,8 +268,8 @@ bedrock-03-STG-buyer:
 bedrock-04-PRD-seller:
   stage: deploy
   environment: lmn
-  only:
-    - main
+  # only:
+  #   - main
   tags:
     - devops
     - bedrock
@@ -283,8 +287,8 @@ bedrock-04-PRD-seller:
 bedrock-04-PRD-buyer:
   stage: deploy
   environment: lmn
-  only:
-    - main
+  # only:
+  #   - main
   tags:
     - devops
     - bedrock
