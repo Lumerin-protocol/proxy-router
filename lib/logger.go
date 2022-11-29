@@ -41,7 +41,7 @@ func NewLogger(isProduction bool, level string, logToFile bool, color bool) (*Lo
 	)
 
 	if isProduction {
-		log, err = newProductionLogger()
+		log, err = newProductionLogger(level)
 	} else {
 		log, err = NewDevelopmentLogger(level, logToFile, color, true)
 	}
@@ -101,9 +101,13 @@ func NewDevelopmentLogger(levelStr string, logToFile bool, color bool, addCaller
 	return zap.New(core, opts...), nil
 }
 
-func newProductionLogger() (*zap.Logger, error) {
+func newProductionLogger(levelStr string) (*zap.Logger, error) {
 	cfg := zap.NewProductionConfig()
-	cfg.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	level, err := zapcore.ParseLevel(levelStr)
+	if err != nil {
+		return nil, err
+	}
+	cfg.Level = zap.NewAtomicLevelAt(level)
 	l, err := cfg.Build()
 	if err != nil {
 		return nil, err
