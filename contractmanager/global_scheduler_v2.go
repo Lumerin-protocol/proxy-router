@@ -305,7 +305,6 @@ func (s *GlobalSchedulerV2) pushTask(tsk task) {
 	for t = 0; ; t += TASK_PUSH_ALERT_TIMEOUT {
 		select {
 		case s.queue <- tsk:
-			close(s.queue)
 			return
 		case <-time.After(TASK_PUSH_ALERT_TIMEOUT):
 			s.log.Warnf("ALERT task push takes too long: %s", t)
