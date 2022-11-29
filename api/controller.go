@@ -457,8 +457,6 @@ func MapContractState(state contractmanager.ContractState) string {
 		return "purchased"
 	case contractmanager.ContractStateRunning:
 		return "running"
-	case contractmanager.ContractStateClosed:
-		return "closed"
 	}
 	return "unknown"
 }

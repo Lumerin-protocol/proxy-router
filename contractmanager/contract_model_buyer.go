@@ -88,3 +88,11 @@ func (c *BTCHashrateContract) FulfillBuyerContract(ctx context.Context) error {
 		}
 	}
 }
+
+func (c *BTCHashrateContract) ShouldContractContinue() bool {
+	return !c.ContractIsExpired() && c.ContractIsNotAvailable()
+}
+
+func (c *BTCHashrateContract) ContractIsNotAvailable() bool {
+	return c.state == ContractStateRunning || c.state == ContractStatePurchased
+}

@@ -20,7 +20,6 @@ const (
 	ContractStateAvailable ContractState = iota // contract was created and the system is following its updates
 	ContractStatePurchased                      // contract was purchased but not yet picked up by miners
 	ContractStateRunning                        // contract is fulfilling
-	ContractStateClosed                         // contract is closed
 )
 
 // BTCHashrateContract represents the collection of mining resources (collection of miners / parts of the miners) that work to fulfill single contract and monotoring tools of their performance
@@ -78,7 +77,7 @@ func NewContract(
 func convertBlockchainStatusToApplicationStatus(status blockchain.ContractBlockchainState) ContractState {
 	switch status {
 	case blockchain.ContractBlockchainStateRunning:
-		return ContractStateRunning
+		return ContractStatePurchased
 	case blockchain.ContractBlockchainStateAvailable:
 		return ContractStateAvailable
 	default:
@@ -226,12 +225,12 @@ func (c *BTCHashrateContract) FulfillAndClose(ctx context.Context) {
 	}
 }
 
+// FulfillContract fulfills contract and returns error when contract is finished (NO CLOSEOUT)
 func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 	c.state = ContractStatePurchased
 
 	if c.ContractIsExpired() {
 		c.log.Warn("contract is expired %s", c.GetID())
-		c.Close(ctx)
 		return fmt.Errorf("contract is expired")
 	}
 
@@ -244,31 +243,33 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 			return fmt.Errorf("contract is expired")
 		}
 
-		if c.ShouldContractContinue() {
-			// TODO hashrate monitoring
-			c.log.Infof("contract (%s) is running for %.0f seconds", c.GetID(), time.Since(*c.GetStartTime()).Seconds())
+		// TODO hashrate monitoring
+		c.log.Infof("contract (%s) is running for %.0f seconds", c.GetID(), time.Since(*c.GetStartTime()).Seconds())
 
-			err := c.globalScheduler.Update(c.GetID(), c.GetHashrateGHS(), c.GetDest())
-			if err != nil {
-				c.log.Errorf("cannot update combination %s", err)
-			}
-
-			select {
-			case <-ctx.Done():
-				c.log.Errorf("contract context done while waiting for running contract to finish: %v", ctx.Err().Error())
-				return ctx.Err()
-			case <-c.stopFullfillment:
-				c.log.Infof("Done fullfilling contract %v", c.GetID())
-				return nil
-			case <-time.After(30 * time.Second):
-				continue
-			}
+		err := c.globalScheduler.Update(c.GetID(), c.GetHashrateGHS(), c.GetDest())
+		if err != nil {
+			c.log.Errorf("cannot update combination %s", err)
 		}
 
-		c.log.Debugf("Discontinuing Contract %v", c.GetID())
+		if c.state != ContractStateRunning {
+			c.state = ContractStateRunning
+		}
 
-		return nil
+		select {
+		case <-ctx.Done():
+			c.log.Errorf("contract context done while waiting for running contract to finish: %v", ctx.Err().Error())
+			return ctx.Err()
+		case <-c.stopFullfillment:
+			c.log.Infof("Done fullfilling contract %v", c.GetID())
+			return nil
+		case <-time.After(30 * time.Second):
+			continue
+		}
 	}
+
+	c.log.Debugf("Discontinuing Contract %v", c.GetID())
+
+	return nil
 }
 
 func (c *BTCHashrateContract) Close(ctx context.Context) error {
@@ -289,11 +290,10 @@ func (c *BTCHashrateContract) Close(ctx context.Context) error {
 // Stops fulfilling the contract by miners
 func (c *BTCHashrateContract) Stop(ctx context.Context) {
 	c.log.Infof("Attempting to stop contract %v; with state %v", c.GetID(), c.state)
-	if c.ContractIsNotAvailable() {
-
+	if c.state == ContractStateRunning {
 		c.log.Infof("Stopping contract %v", c.GetID())
 
-		err := c.globalScheduler.Update(c.GetID(), c.GetHashrateGHS(), c.GetDest())
+		err := c.globalScheduler.Update(c.GetID(), 0, c.GetDest())
 		if err != nil {
 			c.log.Error(err)
 		}
@@ -315,16 +315,6 @@ func (c *BTCHashrateContract) ContractIsExpired() bool {
 		return false
 	}
 	return time.Now().After(*endTime)
-}
-
-func (c *BTCHashrateContract) ShouldContractContinue() bool {
-	// c.log.Infof("is the contract expired? %v", c.ContractIsExpired())
-	// c.log.Infof("is the contract available? %v", !c.ContractIsNotAvailable())
-	return !c.ContractIsExpired() && c.ContractIsNotAvailable()
-}
-
-func (c *BTCHashrateContract) ContractIsNotAvailable() bool {
-	return c.state == ContractStateRunning || c.state == ContractStatePurchased
 }
 
 func (c *BTCHashrateContract) GetBuyerAddress() string {

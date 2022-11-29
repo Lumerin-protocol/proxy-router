@@ -17,8 +17,7 @@ fmt:
 	go fmt ./...
 
 lint:
-	go fmt ./...
-	go vet ./...
+	golangci-lint run -v
 
 tidy:
 	go mod tidy
