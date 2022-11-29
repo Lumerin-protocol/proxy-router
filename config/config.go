@@ -7,7 +7,7 @@ type Config struct {
 	Contract struct {
 		Address                string        `env:"CLONE_FACTORY_ADDRESS" flag:"contract-address" validate:"required,eth_addr"`
 		IsBuyer                bool          `env:"IS_BUYER" flag:"is-buyer"`
-		HashrateDiffThreshold  float64       `env:"HASHRATE_DIFF_THRESHOLD" flag:"hashrate-diff-theshold"`
+		HashrateDiffThreshold  float64       `env:"HASHRATE_DIFF_THRESHOLD" flag:"hashrate-diff-threshold"`
 		ValidationBufferPeriod time.Duration `env:"VALIDATION_BUFFER_PERIOD" flag:"validation-buffer-period" validate:"duration"`
 		Mnemonic               string        `env:"CONTRACT_MNEMONIC" flag:"contract-mnemonic" validate:"required_without=WalletPrivateKey"`
 		AccountIndex           int           `env:"ACCOUNT_INDEX" flag:"account-index"`
