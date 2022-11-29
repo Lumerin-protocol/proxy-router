@@ -74,14 +74,18 @@ func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo inter
 }
 
 func provideApiController(cfg *config.Config, miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerV2) (*gin.Engine, error) {
-
 	dest, err := lib.ParseDest(cfg.Pool.Address)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return api.NewApiController(miners, contracts, log, gs, cfg.Contract.IsBuyer, cfg.Contract.HashrateDiffThreshold, cfg.Contract.ValidationBufferPeriod, dest, cfg.Web.Address), nil
+	publicUrl := cfg.Web.PublicUrl
+	if publicUrl == "" {
+		publicUrl = fmt.Sprintf("http://%s", cfg.Web.Address)
+	}
+
+	return api.NewApiController(miners, contracts, log, gs, cfg.Contract.IsBuyer, cfg.Contract.HashrateDiffThreshold, cfg.Contract.ValidationBufferPeriod, dest, publicUrl), nil
 }
 
 func provideTCPServer(cfg *config.Config, l interfaces.ILogger) *tcpserver.TCPServer {

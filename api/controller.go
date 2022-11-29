@@ -29,7 +29,7 @@ type ApiController struct {
 	contracts          interfaces.ICollection[contractmanager.IContractModel]
 	defaultDestination interfaces.IDestination
 
-	apiAddrPort *url.URL
+	publicUrl *url.URL
 }
 
 type MinersResponse struct {
@@ -103,17 +103,17 @@ type HistoryItem struct {
 	TimestampString string
 }
 
-func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerV2, isBuyer bool, hashrateDiffThreshold float64, validationBufferPeriod time.Duration, defaultDestination interfaces.IDestination, apiAddrPort string) *gin.Engine {
-	apiAddrPortUrl, _ := url.Parse(fmt.Sprintf("//%s", apiAddrPort))
-	apiAddrPortUrl.Scheme = "http"
+func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerV2, isBuyer bool, hashrateDiffThreshold float64, validationBufferPeriod time.Duration, defaultDestination interfaces.IDestination, apiPublicUrl string) *gin.Engine {
+	publicUrl, _ := url.Parse(apiPublicUrl)
 
-	r := gin.Default()
 	controller := ApiController{
 		miners:             miners,
 		contracts:          contracts,
 		defaultDestination: defaultDestination,
-		apiAddrPort:        apiAddrPortUrl,
+		publicUrl:          publicUrl,
 	}
+
+	r := gin.Default()
 
 	r.GET("/healthcheck", func(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, map[string]string{"status": "healthy"})
@@ -412,7 +412,7 @@ func (c *ApiController) MapMiner(m miner.MinerScheduler) *Miner {
 	destItems, _ := mapDestItems(m.GetCurrentDestSplit(), m.GetHashRateGHS())
 	return &Miner{
 		Resource: Resource{
-			Self: c.apiAddrPort.JoinPath(fmt.Sprintf("/miners/%s", m.GetID())).String(),
+			Self: c.publicUrl.JoinPath(fmt.Sprintf("/miners/%s", m.GetID())).String(),
 		},
 		ID:                m.GetID(),
 		Status:            m.GetStatus().String(),
@@ -434,7 +434,7 @@ func (c *ApiController) MapMiner(m miner.MinerScheduler) *Miner {
 func (c *ApiController) MapContract(item contractmanager.IContractModel) *Contract {
 	return &Contract{
 		Resource: Resource{
-			Self: c.apiAddrPort.JoinPath(fmt.Sprintf("/contracts/%s", item.GetID())).String(),
+			Self: c.publicUrl.JoinPath(fmt.Sprintf("/contracts/%s", item.GetID())).String(),
 		},
 		ID:                item.GetID(),
 		BuyerAddr:         item.GetBuyerAddress(),
