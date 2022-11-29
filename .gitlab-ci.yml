@@ -1,10 +1,5 @@
 variables: # keep this list alphabetically sorted
   CI_AWS_TASK: "proxy-router"
-  DOCKER_DRIVER: overlay2
-  DOCKER_HOST: tcp://docker:2376
-  DOCKER_TLS_CERTDIR: "/certs"
-  DOCKER_TLS_VERIFY: 1
-  DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
   ENVIRONMENT: "production" # production makes logs in json and not panics when calling DPanic
   HASHRATE_DIFF_THRESHOLD: "0.1"
   IS_BUYER: "false"
@@ -68,6 +63,18 @@ test-e2e:
     - go mod download
     - go build
     - go test -v -count=1 -timeout=30m -tags wireinject gitlab.com/TitanInd/hashrouter/test/e2e 
+
+# runs job automatically on target branch and manually on any other
+.rule_run_from_any_branch: &rule_run_from_any_branch
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_ENVIRONMENT_NAME
+      when: always
+    - if: $CI_COMMIT_BRANCH == "main" && $CI_ENVIRONMENT_NAME == "lmn"
+      when: always
+    - if: $CI_COMMIT_BRANCH != $CI_ENVIRONMENT_NAME
+      when: manual
+    - if: $CI_MERGE_REQUEST_ID
+      when: manual
 
 .ecr_login_script: &ecr_login_script |
   echo "**************************"
@@ -171,13 +178,7 @@ default:
 bedrock-02-DEV-seller:
   stage: deploy
   environment: dev
-  rules:
-    - if: $CI_COMMIT_BRANCH == "dev"
-      when: always
-    - if: $CI_COMMIT_BRANCH != "dev"
-      when: manual
-    - if: $CI_MERGE_REQUEST_ID
-      when: never
+  <<: *rule_run_from_any_branch
   tags:
     - devops
     - bedrock
@@ -194,13 +195,7 @@ bedrock-02-DEV-seller:
 bedrock-02-DEV-buyer:
   stage: deploy
   environment: dev
-  rules:
-    - if: $CI_COMMIT_BRANCH == "dev"
-      when: always
-    - if: $CI_COMMIT_BRANCH != "dev"
-      when: manual
-    - if: $CI_MERGE_REQUEST_ID
-      when: never
+  <<: *rule_run_from_any_branch
   tags:
     - devops
     - bedrock
@@ -217,6 +212,7 @@ bedrock-02-DEV-buyer:
 bedrock-03-STG-seller:
   stage: deploy
   environment: stg
+  <<: *rule_run_from_any_branch
   # only:
   #   - stg
   tags:
@@ -235,6 +231,7 @@ bedrock-03-STG-seller:
 bedrock-03-STG-buyer:
   stage: deploy
   environment: stg
+  <<: *rule_run_from_any_branch
   # only:
   #   - stg
   tags:
@@ -253,6 +250,7 @@ bedrock-03-STG-buyer:
 bedrock-04-PRD-seller:
   stage: deploy
   environment: lmn
+  <<: *rule_run_from_any_branch
   # only:
   #   - main
   tags:
@@ -272,6 +270,7 @@ bedrock-04-PRD-seller:
 bedrock-04-PRD-buyer:
   stage: deploy
   environment: lmn
+  <<: *rule_run_from_any_branch
   # only:
   #   - main
   tags:
