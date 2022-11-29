@@ -2,17 +2,17 @@ package config
 
 import "time"
 
-// Validation tags described here: https://github.com/go-playground/validator
+// Validation tags described here: https://pkg.go.dev/github.com/go-playground/validator/v10
 type Config struct {
 	Contract struct {
-		Address                string        `env:"CLONE_FACTORY_ADDRESS" flag:"contract-address" validate:"required,eth_addr"`
+		Address                string        `env:"CLONE_FACTORY_ADDRESS" flag:"contract-address" validate:"required_if=Disable false,omitempty,eth_addr"`
 		IsBuyer                bool          `env:"IS_BUYER" flag:"is-buyer"`
 		HashrateDiffThreshold  float64       `env:"HASHRATE_DIFF_THRESHOLD"`
 		ValidationBufferPeriod time.Duration `env:"VALIDATION_BUFFER_PERIOD" validate:"duration"`
-		Mnemonic               string        `env:"CONTRACT_MNEMONIC" validate:"required_without=WalletPrivateKey"`
+		Mnemonic               string        `env:"CONTRACT_MNEMONIC" validate:"required_without=WalletPrivateKey|required_if=Disable false"`
 		AccountIndex           int           `env:"ACCOUNT_INDEX"`
-		WalletPrivateKey       string        `env:"WALLET_PRIVATE_KEY" validate:"required_without=Mnemonic"`
-		WalletAddress          string        `env:"WALLET_ADDRESS" validate:"required_without=Mnemonic"`
+		WalletPrivateKey       string        `env:"WALLET_PRIVATE_KEY" validate:"required_without=Mnemonic|required_if=Disable false"`
+		WalletAddress          string        `env:"WALLET_ADDRESS" validate:"required_without=Mnemonic|required_if=Disable false"`
 		ClaimFunds             bool
 		LumerinTokenAddress    string
 		ValidatorAddress       string

@@ -147,6 +147,9 @@ func provideEthClient(cfg *config.Config, log interfaces.ILogger) (*ethclient.Cl
 }
 
 func provideEthWallet(cfg *config.Config) (*blockchain.EthereumWallet, error) {
+	if cfg.Contract.Disable {
+		return nil, nil
+	}
 	if cfg.Contract.WalletAddress != "" && cfg.Contract.WalletPrivateKey != "" {
 		return blockchain.NewEthereumWalletFromPrivateKey(cfg.Contract.WalletAddress, cfg.Contract.WalletPrivateKey)
 	}
@@ -159,6 +162,10 @@ func provideEthWallet(cfg *config.Config) (*blockchain.EthereumWallet, error) {
 }
 
 func provideEthGateway(cfg *config.Config, ethClient *ethclient.Client, ethWallet *blockchain.EthereumWallet, log interfaces.ILogger) (*blockchain.EthereumGateway, error) {
+	if cfg.Contract.Disable {
+		return nil, nil
+	}
+
 	backoff := lib.NewLinearBackoff(2*time.Second, nil, lib.Of(15*time.Second))
 	g, err := blockchain.NewEthereumGateway(ethClient, ethWallet.GetPrivateKey(), cfg.Contract.Address, log, backoff)
 	if err != nil {
@@ -182,6 +189,10 @@ func provideContractManager(
 	contracts interfaces.ICollection[contractmanager.IContractModel],
 	log interfaces.ILogger,
 ) (*contractmanager.ContractManager, error) {
+	if cfg.Contract.Disable {
+		return nil, nil
+	}
+
 	destination, err := lib.ParseDest(cfg.Pool.Address)
 	if err != nil {
 		return nil, err
