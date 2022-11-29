@@ -64,13 +64,6 @@ test-e2e:
     - go build
     - go test -v -count=1 -timeout=30m -tags wireinject gitlab.com/TitanInd/hashrouter/test/e2e 
 
-# runs job automatically on target branch and manually on any other
-.rule_run_from_any_branch: &rule_run_from_any_branch
-  rules:
-    - if: $CI_COMMIT_BRANCH == $CI_ENVIRONMENT_NAME
-      when: always
-    - when: manual
-
 .ecr_login_script: &ecr_login_script |
   echo "**************************"
   echo "*** ECR Login to Shared Titanio-NET Repo in USE-1"
@@ -173,7 +166,13 @@ default:
 bedrock-02-DEV-seller:
   stage: deploy
   environment: dev
-  <<: *rule_run_from_any_branch
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+      when: always
+    - if: $CI_COMMIT_BRANCH != "dev"
+      when: manual
+    - if: $CI_MERGE_REQUEST_ID
+      when: never
   tags:
     - devops
     - bedrock
@@ -190,7 +189,13 @@ bedrock-02-DEV-seller:
 bedrock-02-DEV-buyer:
   stage: deploy
   environment: dev
-  <<: *rule_run_from_any_branch
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+      when: always
+    - if: $CI_COMMIT_BRANCH != "dev"
+      when: manual
+    - if: $CI_MERGE_REQUEST_ID
+      when: never
   tags:
     - devops
     - bedrock
@@ -207,7 +212,13 @@ bedrock-02-DEV-buyer:
 bedrock-03-STG-seller:
   stage: deploy
   environment: stg
-  <<: *rule_run_from_any_branch
+  rules:
+  - if: $CI_COMMIT_BRANCH == "stg"
+    when: always
+  - if: $CI_COMMIT_BRANCH != "stg"
+    when: manual
+  - if: $CI_MERGE_REQUEST_ID
+    when: never
   # only:
   #   - stg
   tags:
@@ -226,7 +237,13 @@ bedrock-03-STG-seller:
 bedrock-03-STG-buyer:
   stage: deploy
   environment: stg
-  <<: *rule_run_from_any_branch
+  rules:
+  - if: $CI_COMMIT_BRANCH == "stg"
+    when: always
+  - if: $CI_COMMIT_BRANCH != "stg"
+    when: manual
+  - if: $CI_MERGE_REQUEST_ID
+    when: never
   # only:
   #   - stg
   tags:
@@ -245,7 +262,13 @@ bedrock-03-STG-buyer:
 bedrock-04-PRD-seller:
   stage: deploy
   environment: lmn
-  <<: *rule_run_from_any_branch
+  rules:
+  - if: $CI_COMMIT_BRANCH == "main"
+    when: always
+  - if: $CI_COMMIT_BRANCH != "main"
+    when: manual
+  - if: $CI_MERGE_REQUEST_ID
+    when: never
   # only:
   #   - main
   tags:
@@ -265,7 +288,13 @@ bedrock-04-PRD-seller:
 bedrock-04-PRD-buyer:
   stage: deploy
   environment: lmn
-  <<: *rule_run_from_any_branch
+  rules:
+  - if: $CI_COMMIT_BRANCH == "main"
+    when: always
+  - if: $CI_COMMIT_BRANCH != "main"
+    when: manual
+  - if: $CI_MERGE_REQUEST_ID
+    when: never
   # only:
   #   - main
   tags:
