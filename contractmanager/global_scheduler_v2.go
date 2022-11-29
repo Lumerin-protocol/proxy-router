@@ -318,6 +318,7 @@ func (s *GlobalSchedulerV2) waitTask(tsk task) error {
 	for t = 0; ; t += TASK_ALERT_TIMEOUT {
 		select {
 		case err := <-tsk.errCh:
+			close(tsk.errCh)
 			return err
 		case <-time.After(TASK_ALERT_TIMEOUT):
 			s.log.Warnf("ALERT task takes too long: %s", t)
