@@ -69,10 +69,7 @@ test-e2e:
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_ENVIRONMENT_NAME
       when: always
-    - if: $CI_COMMIT_BRANCH != $CI_ENVIRONMENT_NAME
-      when: manual
-    - if: $CI_MERGE_REQUEST_ID
-      when: manual
+    - when: manual
 
 .ecr_login_script: &ecr_login_script |
   echo "**************************"
