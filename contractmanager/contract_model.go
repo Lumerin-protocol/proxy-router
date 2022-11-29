@@ -91,13 +91,8 @@ func (c *BTCHashrateContract) Run(ctx context.Context) error {
 	// contract was purchased before the node started, may be result of the restart
 	if c.data.State == blockchain.ContractBlockchainStateRunning {
 		go func() {
-			time.Sleep(c.validationBufferPeriod)
 			c.FulfillAndClose(ctx)
 		}()
-	}
-	if c.isBuyer {
-		// buyer node points contracts to default
-		c.setDestToDefault(c.defaultDestination)
 	}
 
 	return c.listenContractEvents(ctx)
@@ -348,9 +343,6 @@ func (c *BTCHashrateContract) GetDest() interfaces.IDestination {
 }
 
 func (c *BTCHashrateContract) GetCloseoutType() constants.CloseoutType {
-	if c.isBuyer {
-		return constants.CloseoutTypeCancel
-	}
 	return constants.CloseoutTypeWithoutClaim
 }
 

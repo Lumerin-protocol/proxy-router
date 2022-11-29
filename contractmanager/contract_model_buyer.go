@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
+	"gitlab.com/TitanInd/hashrouter/constants"
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
@@ -132,4 +133,8 @@ func (c *BTCBuyerHashrateContract) GetCloseoutAccount() string {
 
 func (c *BTCBuyerHashrateContract) IsValidWallet(walletAddress common.Address) bool {
 	return c.data.Buyer == walletAddress
+}
+
+func (c *BTCBuyerHashrateContract) GetCloseoutType() constants.CloseoutType {
+	return constants.CloseoutTypeCancel
 }
