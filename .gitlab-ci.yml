@@ -100,7 +100,9 @@ test-e2e:
   --build-arg POOL_MAX_DURATION=$POOL_MAX_DURATION \
   --build-arg VALIDATION_BUFFER_PERIOD=$VALIDATION_BUFFER_PERIOD \
   --build-arg HASHRATE_DIFF_THRESHOLD=$HASHRATE_DIFF_THRESHOLD \
-  --build-arg STRATUM_SOCKET_BUFFER_SIZE=$STRATUM_SOCKET_BUFFER_SIZE
+  --build-arg STRATUM_SOCKET_BUFFER_SIZE=$STRATUM_SOCKET_BUFFER_SIZE \
+  --build-arg WEB_PUBLIC_URL=$WEB_PUBLIC_URL \
+  --build-arg LOG_LEVEL=$LOG_LEVEL
   echo "**************************"
   echo "*** Push Image"
   echo "**************************"
