@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
-	"gitlab.com/TitanInd/hashrouter/protocol"
 )
 
 // DefaultDestID is used as destinationID / contractID for split serving default pool
@@ -69,12 +68,12 @@ upcoming dest %s
 			if !m.minerModel.GetDest().IsEqual(splitItem.Dest) {
 				m.log.Debugf("changing dest to %s", m.minerModel.GetDest())
 
-				err := m.ChangeDest(context.TODO(), splitItem.Dest, splitItem.ID)
+				err := m.ChangeDest(context.TODO(), splitItem.Dest, splitItem.ID, splitItem.OnSubmit)
 				if err != nil {
 					// if change dest fails then it is likely something wrong with the dest pool
 					m.log.Errorf("cannot change dest to %s %s", splitItem.Dest, err)
 					m.log.Warnf("falling back to default dest for current split item")
-					err := m.ChangeDest(context.TODO(), m.defaultDest, splitItem.ID)
+					err := m.ChangeDest(context.TODO(), m.defaultDest, splitItem.ID, splitItem.OnSubmit)
 					if err != nil {
 						return err
 					}
@@ -148,16 +147,16 @@ func (m *OnDemandMinerScheduler) SetDestSplit(destSplit *DestSplit) {
 }
 
 // ChangeDest forcefully change destination regardless of the split. The destination will be overrided back on next split item
-func (m *OnDemandMinerScheduler) ChangeDest(ctx context.Context, dest interfaces.IDestination, ID string) error {
+func (m *OnDemandMinerScheduler) ChangeDest(ctx context.Context, dest interfaces.IDestination, ID string, onSubmit interfaces.IHashrate) error {
 	m.history.Add(dest, ID, nil)
-	return m.minerModel.ChangeDest(ctx, dest)
+	return m.minerModel.ChangeDest(ctx, dest, onSubmit)
 }
 
 func (m *OnDemandMinerScheduler) GetHashRateGHS() int {
 	return m.minerModel.GetHashRateGHS()
 }
 
-func (m *OnDemandMinerScheduler) GetHashRate() protocol.Hashrate {
+func (m *OnDemandMinerScheduler) GetHashRate() interfaces.Hashrate {
 	return m.minerModel.GetHashRate()
 }
 
@@ -168,11 +167,7 @@ func (m *OnDemandMinerScheduler) getUpdatedDestSplitWithDefault() *DestSplit {
 		m.upcomingDestSplit = nil
 	}
 
-	return m.destSplit.AllocateRemaining(DefaultDestID, m.defaultDest)
-}
-
-func (m *OnDemandMinerScheduler) OnSubmit(cb protocol.OnSubmitHandler) protocol.ListenerHandle {
-	return m.minerModel.OnSubmit(cb)
+	return m.destSplit.AllocateRemaining(DefaultDestID, m.defaultDest, nil)
 }
 
 func (m *OnDemandMinerScheduler) GetCurrentDest() interfaces.IDestination {

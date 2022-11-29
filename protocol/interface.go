@@ -8,12 +8,6 @@ import (
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
 )
 
-type Hashrate interface {
-	GetHashrate5minAvgGHS() int
-	GetHashrate30minAvgGHS() int
-	GetHashrate1hAvgGHS() int
-}
-
 type StratumV1SourceConn interface {
 	GetID() string
 	Read(ctx context.Context) (stratumv1_message.MiningMessageGeneric, error)
@@ -36,6 +30,3 @@ type StratumV1DestConn interface {
 }
 
 type StratumV1ResultHandler = func(a stratumv1_message.MiningResult) stratumv1_message.MiningMessageGeneric
-
-type OnSubmitHandler = func(diff uint64, dest interfaces.IDestination)
-type ListenerHandle int

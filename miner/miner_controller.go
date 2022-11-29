@@ -92,7 +92,7 @@ func (p *MinerController) ChangeDestAll(dest interfaces.IDestination) error {
 		p.log.Infof("changing pool to %s for minerID %s", dest.GetHost(), miner.GetID())
 
 		split := NewDestSplit()
-		split, _ = split.Allocate("API_TEST", 1, dest)
+		split, _ = split.Allocate("API_TEST", 1, dest, nil)
 		miner.SetDestSplit(split)
 
 		return true

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
-	"gitlab.com/TitanInd/hashrouter/protocol"
 )
 
 type Hashrate interface {
@@ -19,15 +18,14 @@ type MinerModel interface {
 	GetID() string                 // get miner unique id (host:port for example)
 
 	GetDest() interfaces.IDestination
-	ChangeDest(context.Context, interfaces.IDestination) error
+	ChangeDest(ctx context.Context, dest interfaces.IDestination, onSubmit interfaces.IHashrate) error
 	GetCurrentDifficulty() int
 
 	GetWorkerName() string
 	GetHashRateGHS() int
-	GetHashRate() protocol.Hashrate
+	GetHashRate() interfaces.Hashrate
 	GetConnectedAt() time.Time
 
-	OnSubmit(cb protocol.OnSubmitHandler) protocol.ListenerHandle
 	RangeDestConn(f func(key any, value any) bool)
 }
 
@@ -44,11 +42,11 @@ type MinerScheduler interface {
 	SetDestSplit(*DestSplit)
 
 	GetCurrentDest() interfaces.IDestination // get miner total hashrate in GH/s
-	ChangeDest(ctx context.Context, dest interfaces.IDestination, ID string) error
+	ChangeDest(ctx context.Context, dest interfaces.IDestination, ID string, onSubmit interfaces.IHashrate) error
 	GetCurrentDifficulty() int
 	GetWorkerName() string
 	GetHashRateGHS() int
-	GetHashRate() protocol.Hashrate
+	GetHashRate() interfaces.Hashrate
 	GetUnallocatedHashrateGHS() int // get hashrate which is directed to default pool in GH/s
 	GetConnectedAt() time.Time
 	GetUptime() time.Duration

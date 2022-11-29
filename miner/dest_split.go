@@ -3,6 +3,7 @@ package miner
 import (
 	"bytes"
 	"fmt"
+	"text/tabwriter"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
@@ -16,6 +17,7 @@ type SplitItem struct {
 	ID       string  // external identifier of split item, can be ContractID
 	Fraction float64 // fraction of total miner power, value in range from 0 to 1
 	Dest     interfaces.IDestination
+	OnSubmit interfaces.IHashrate
 }
 
 func NewDestSplit() *DestSplit {
@@ -30,6 +32,7 @@ func (d *DestSplit) Copy() *DestSplit {
 			ID:       v.ID,
 			Fraction: v.Fraction,
 			Dest:     v.Dest,
+			OnSubmit: v.OnSubmit,
 		}
 	}
 
@@ -38,7 +41,7 @@ func (d *DestSplit) Copy() *DestSplit {
 	}
 }
 
-func (d *DestSplit) Allocate(ID string, percentage float64, dest interfaces.IDestination) (*DestSplit, error) {
+func (d *DestSplit) Allocate(ID string, percentage float64, dest interfaces.IDestination, onSubmit interfaces.IHashrate) (*DestSplit, error) {
 	if percentage > 1 || percentage == 0 {
 		return nil, fmt.Errorf("percentage should be withing range 0..1")
 	}
@@ -53,6 +56,7 @@ func (d *DestSplit) Allocate(ID string, percentage float64, dest interfaces.IDes
 		ID:       ID,
 		Fraction: percentage,
 		Dest:     dest,
+		OnSubmit: onSubmit,
 	}
 
 	newDestSplit.split = append(newDestSplit.split, sp)
@@ -60,15 +64,15 @@ func (d *DestSplit) Allocate(ID string, percentage float64, dest interfaces.IDes
 	return newDestSplit, nil
 }
 
-func (d *DestSplit) UpsertFractionByID(ID string, fraction float64, dest interfaces.IDestination) (*DestSplit, error) {
-	destSplit, ok := d.SetFractionByID(ID, fraction)
+func (d *DestSplit) UpsertFractionByID(ID string, fraction float64, dest interfaces.IDestination, onSubmit interfaces.IHashrate) (*DestSplit, error) {
+	destSplit, ok := d.SetFractionByID(ID, fraction, onSubmit)
 	if ok {
 		return destSplit, nil
 	}
-	return d.Allocate(ID, fraction, dest)
+	return d.Allocate(ID, fraction, dest, onSubmit)
 }
 
-func (d *DestSplit) SetFractionByID(ID string, fraction float64) (*DestSplit, bool) {
+func (d *DestSplit) SetFractionByID(ID string, fraction float64, onSubmit interfaces.IHashrate) (*DestSplit, bool) {
 	newDestSplit := d.Copy()
 
 	for i, item := range newDestSplit.split {
@@ -77,6 +81,7 @@ func (d *DestSplit) SetFractionByID(ID string, fraction float64) (*DestSplit, bo
 				ID:       ID,
 				Fraction: fraction,
 				Dest:     item.Dest,
+				OnSubmit: onSubmit,
 			}
 			return newDestSplit, true
 		}
@@ -84,7 +89,7 @@ func (d *DestSplit) SetFractionByID(ID string, fraction float64) (*DestSplit, bo
 	return newDestSplit, false
 }
 
-func (d *DestSplit) AllocateRemaining(ID string, dest interfaces.IDestination) *DestSplit {
+func (d *DestSplit) AllocateRemaining(ID string, dest interfaces.IDestination, onSubmit interfaces.IHashrate) *DestSplit {
 	newDestSplit := d.Copy()
 	remaining := newDestSplit.GetUnallocated()
 	if remaining == 0 {
@@ -92,7 +97,7 @@ func (d *DestSplit) AllocateRemaining(ID string, dest interfaces.IDestination) *
 	}
 
 	// skipping error check because Allocate validates fraction value, which is always correct in this case
-	destSplit, _ := newDestSplit.Allocate(ID, remaining, dest)
+	destSplit, _ := newDestSplit.Allocate(ID, remaining, dest, onSubmit)
 
 	return destSplit
 }
@@ -143,12 +148,12 @@ func (d *DestSplit) IsEmpty() bool {
 
 func (d *DestSplit) String() string {
 	var b = new(bytes.Buffer)
-
-	fmt.Fprintf(b, "\nN\tContractID\tFraction\tDestination")
+	w := tabwriter.NewWriter(b, 1, 1, 1, ' ', 0)
+	fmt.Fprintf(w, "\nN\tContractID\tFraction\tDestination")
 
 	for i, item := range d.split {
-		fmt.Fprintf(b, "\n%d\t%s\t%.2f\t%s", i, lib.AddrShort(item.ID), item.Fraction, item.Dest.String())
+		fmt.Fprintf(w, "\n%d\t%s\t%.2f\t%s", i, lib.AddrShort(item.ID), item.Fraction, item.Dest.String())
 	}
-
+	_ = w.Flush()
 	return b.String()
 }

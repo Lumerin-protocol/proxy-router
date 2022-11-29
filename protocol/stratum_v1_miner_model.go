@@ -16,9 +16,9 @@ type stratumV1MinerModel struct {
 	minerConn StratumV1SourceConn
 	validator *hashrate.Hashrate
 
-	difficulty int64
-	onSubmit   []OnSubmitHandler
-	mutex      sync.RWMutex // guards onSubmit
+	difficulty    int64
+	onSubmit      interfaces.IHashrate
+	onSubmitMutex sync.RWMutex // guards onSubmit
 
 	configureMsgReq *stratumv1_message.MiningConfigure
 
@@ -187,12 +187,13 @@ func (s *stratumV1MinerModel) minerInterceptor(msg stratumv1_message.MiningMessa
 				return &a
 			}
 			s.validator.OnSubmit(s.difficulty)
-			s.mutex.RLock()
-			defer s.mutex.RUnlock()
 
-			for _, handler := range s.onSubmit {
-				handler(uint64(s.difficulty), s.poolConn.GetDest())
+			s.onSubmitMutex.RLock()
+			defer s.onSubmitMutex.RUnlock()
+			if s.onSubmit != nil {
+				s.onSubmit.OnSubmit(s.difficulty)
 			}
+
 			return &a
 		})
 
@@ -207,8 +208,13 @@ func (s *stratumV1MinerModel) poolInterceptor(msg stratumv1_message.MiningMessag
 	}
 }
 
-func (s *stratumV1MinerModel) ChangeDest(ctx context.Context, dest interfaces.IDestination) error {
-	return s.poolConn.SetDest(ctx, dest, s.configureMsgReq)
+func (s *stratumV1MinerModel) ChangeDest(ctx context.Context, dest interfaces.IDestination, onSubmit interfaces.IHashrate) error {
+	err := s.poolConn.SetDest(ctx, dest, s.configureMsgReq)
+	if err != nil {
+		return err
+	}
+	s.setOnSubmit(onSubmit)
+	return nil
 }
 
 func (s *stratumV1MinerModel) GetDest() interfaces.IDestination {
@@ -223,7 +229,7 @@ func (s *stratumV1MinerModel) GetHashRateGHS() int {
 	return s.validator.GetHashrateGHS()
 }
 
-func (s *stratumV1MinerModel) GetHashRate() Hashrate {
+func (s *stratumV1MinerModel) GetHashRate() interfaces.Hashrate {
 	return s.validator
 }
 
@@ -231,23 +237,15 @@ func (s *stratumV1MinerModel) GetCurrentDifficulty() int {
 	return int(s.difficulty)
 }
 
-func (s *stratumV1MinerModel) OnSubmit(cb OnSubmitHandler) ListenerHandle {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+func (s *stratumV1MinerModel) setOnSubmit(onSubmit interfaces.IHashrate) {
+	s.onSubmitMutex.Lock()
+	defer s.onSubmitMutex.Unlock()
 
-	s.onSubmit = append(s.onSubmit, cb)
-	return ListenerHandle(len(s.onSubmit))
+	s.onSubmit = onSubmit
 }
 
 func (s *stratumV1MinerModel) GetWorkerName() string {
 	return s.workerName
-}
-
-func (s *stratumV1MinerModel) RemoveListener(h ListenerHandle) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	s.onSubmit[h] = nil
 }
 
 func (s *stratumV1MinerModel) GetConnectedAt() time.Time {

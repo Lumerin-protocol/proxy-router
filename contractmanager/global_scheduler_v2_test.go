@@ -31,8 +31,8 @@ func CreateMockMinerCollection(contractID string, dest lib.Dest) *data.Collectio
 		HashrateGHS: 30000,
 	}
 
-	destSplit1, _ := miner.NewDestSplit().Allocate(contractID, 0.5, dest)
-	destSplit2, _ := miner.NewDestSplit().Allocate(contractID, 0.3, dest)
+	destSplit1, _ := miner.NewDestSplit().Allocate(contractID, 0.5, dest, nil)
+	destSplit2, _ := miner.NewDestSplit().Allocate(contractID, 0.3, dest, nil)
 	destSplit3 := miner.NewDestSplit()
 
 	scheduler1 := miner.NewOnDemandMinerScheduler(miner1, destSplit1, &lib.LoggerMock{}, DefaultDest, 0, 0, 0)
@@ -56,7 +56,7 @@ func TestAllocationPreferSingleMiner(t *testing.T) {
 	contract2ID := "test-contract-2"
 	hrGHS := 10000
 
-	err := globalScheduler.update(contract2ID, hrGHS, dest)
+	err := globalScheduler.update(contract2ID, hrGHS, dest, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -86,7 +86,7 @@ func TestAllocationShouldntSplitBetweenTwoContracts(t *testing.T) {
 	contract2ID := "test-contract-2"
 	hrGHS := 5000
 
-	err := globalScheduler.update(contract2ID, hrGHS, dest)
+	err := globalScheduler.update(contract2ID, hrGHS, dest, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestIncAllocation(t *testing.T) {
 	miners := CreateMockMinerCollection(contractID, dest)
 	globalScheduler := NewGlobalSchedulerV2(miners, &lib.LoggerMock{}, 0, 0, 0)
 
-	err := globalScheduler.update(contractID, expectedGHS, dest)
+	err := globalScheduler.update(contractID, expectedGHS, dest, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestIncAllocationAddMiner(t *testing.T) {
 	miners := CreateMockMinerCollection(contractID, dest)
 	globalScheduler := NewGlobalSchedulerV2(miners, &lib.LoggerMock{}, 0, 0, 0)
 
-	err := globalScheduler.update(contractID, newGHS, dest)
+	err := globalScheduler.update(contractID, newGHS, dest, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +167,7 @@ func TestDecrAllocation(t *testing.T) {
 	miners := CreateMockMinerCollection(contractID, dest)
 	globalScheduler := NewGlobalSchedulerV2(miners, &lib.LoggerMock{}, 0, 0, 0)
 
-	err := globalScheduler.update(contractID, newGHS, dest)
+	err := globalScheduler.update(contractID, newGHS, dest, nil)
 	if err != nil {
 		t.Fatal(err)
 		return
@@ -195,7 +195,7 @@ func TestDecrAllocationRemoveMiner(t *testing.T) {
 	miners := CreateMockMinerCollection(contractID, dest)
 	globalScheduler := NewGlobalSchedulerV2(miners, &lib.LoggerMock{}, 0, 0, 0)
 
-	err := globalScheduler.update(contractID, newGHS, dest)
+	err := globalScheduler.update(contractID, newGHS, dest, nil)
 	if err != nil {
 		t.Fatal(err)
 		return

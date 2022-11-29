@@ -6,7 +6,6 @@ import (
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
-	"gitlab.com/TitanInd/hashrouter/protocol"
 )
 
 type MinerSchedulerMock struct {
@@ -57,12 +56,14 @@ func (S *MinerSchedulerMock) SetDestSplit(*DestSplit) {}
 func (s *MinerSchedulerMock) GetCurrentDest() interfaces.IDestination {
 	return s.Dest
 }
-func (s *MinerSchedulerMock) ChangeDest(ctx context.Context, dest interfaces.IDestination, contractID string) error {
+
+func (s *MinerSchedulerMock) ChangeDest(ctx context.Context, dest interfaces.IDestination, contractID string, onSubmit interfaces.IHashrate) error {
 	return nil
 }
 
 func (s *MinerSchedulerMock) GetCurrentDifficulty() int {
 	return s.Diff
+
 }
 func (s *MinerSchedulerMock) GetWorkerName() string {
 	return s.WorkerName
@@ -72,7 +73,7 @@ func (s *MinerSchedulerMock) GetHashRateGHS() int {
 	return s.HashrateGHS
 }
 
-func (s *MinerSchedulerMock) GetHashRate() protocol.Hashrate {
+func (s *MinerSchedulerMock) GetHashRate() interfaces.Hashrate {
 	return nil
 }
 

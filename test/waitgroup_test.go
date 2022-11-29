@@ -1,4 +1,4 @@
-package fakeminerpool
+package main
 
 import (
 	"context"

@@ -232,7 +232,7 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 		// TODO hashrate monitoring
 		c.log.Infof("contract (%s) is running for %.0f seconds", c.GetID(), time.Since(*c.GetStartTime()).Seconds())
 
-		err := c.globalScheduler.Update(c.GetID(), c.GetHashrateGHS(), c.GetDest())
+		err := c.globalScheduler.Update(c.GetID(), c.GetHashrateGHS(), c.GetDest(), c.hashrate)
 		if err != nil {
 			c.log.Errorf("cannot update combination %s", err)
 		}
@@ -252,6 +252,10 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 			continue
 		}
 	}
+}
+
+func (c *BTCHashrateContract) onSubmit(diff int) {
+	c.hashrate.OnSubmit(int64(diff))
 }
 
 func (c *BTCHashrateContract) Close(ctx context.Context) error {
@@ -275,7 +279,7 @@ func (c *BTCHashrateContract) Stop(ctx context.Context) {
 	if c.state == ContractStateRunning {
 		c.log.Infof("Stopping contract %v", c.GetID())
 
-		err := c.globalScheduler.Update(c.GetID(), 0, c.GetDest())
+		err := c.globalScheduler.Update(c.GetID(), 0, c.GetDest(), nil)
 		if err != nil {
 			c.log.Error(err)
 		}
@@ -352,6 +356,10 @@ func (c *BTCHashrateContract) GetCloseoutAccount() string {
 
 func (c *BTCHashrateContract) GetStatusInternal() string {
 	return c.data.State.String()
+}
+
+func (c *BTCHashrateContract) GetDeliveredHashrate() interfaces.Hashrate {
+	return c.hashrate
 }
 
 var _ interfaces.IModel = (*BTCHashrateContract)(nil)

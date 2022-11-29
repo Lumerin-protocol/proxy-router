@@ -79,18 +79,19 @@ type DestItem struct {
 type Contract struct {
 	Resource
 
-	ID                string
-	BuyerAddr         string
-	SellerAddr        string
-	HashrateGHS       int
-	DurationSeconds   int
-	StartTimestamp    *string
-	EndTimestamp      *string
-	ApplicationStatus string
-	BlockchainStatus  string
-	Dest              string
-	History           *[]HistoryItem `json:",omitempty"`
-	Miners            []Miner
+	ID                   string
+	BuyerAddr            string
+	SellerAddr           string
+	HashrateGHS          int
+	DeliveredHashrateGHS *HashrateAvgGHS
+	DurationSeconds      int
+	StartTimestamp       *string
+	EndTimestamp         *string
+	ApplicationStatus    string
+	BlockchainStatus     string
+	Dest                 string
+	History              *[]HistoryItem `json:",omitempty"`
+	Miners               []Miner
 }
 
 type HistoryItem struct {
@@ -328,7 +329,7 @@ func (c *ApiController) changeDestAll(destStr string) error {
 	}
 
 	c.miners.Range(func(miner miner.MinerScheduler) bool {
-		err = miner.ChangeDest(context.TODO(), dest, fmt.Sprintf("api-change-dest-all-%s", lib.GetRandomAddr()))
+		err = miner.ChangeDest(context.TODO(), dest, fmt.Sprintf("api-change-dest-all-%s", lib.GetRandomAddr()), nil)
 		return err == nil
 	})
 
@@ -410,6 +411,7 @@ func (c *ApiController) GetContract(ID string) (*Contract, bool) {
 func (c *ApiController) MapMiner(m miner.MinerScheduler) *Miner {
 	hashrate := m.GetHashRate()
 	destItems, _ := mapDestItems(m.GetCurrentDestSplit(), m.GetHashRateGHS())
+	upcomingDest, _ := mapDestItems(m.GetUpcomingDestSplit(), m.GetHashRateGHS())
 	return &Miner{
 		Resource: Resource{
 			Self: c.publicUrl.JoinPath(fmt.Sprintf("/miners/%s", m.GetID())).String(),
@@ -418,34 +420,45 @@ func (c *ApiController) MapMiner(m miner.MinerScheduler) *Miner {
 		Status:            m.GetStatus().String(),
 		TotalHashrateGHS:  m.GetHashRateGHS(),
 		CurrentDifficulty: m.GetCurrentDifficulty(),
-		Destinations:      destItems,
 		HashrateAvgGHS: HashrateAvgGHS{
 			T5m:  hashrate.GetHashrate5minAvgGHS(),
 			T30m: hashrate.GetHashrate30minAvgGHS(),
 			T1h:  hashrate.GetHashrate1hAvgGHS(),
 		},
-		CurrentDestination: m.GetCurrentDest().String(),
-		WorkerName:         m.GetWorkerName(),
-		ConnectedAt:        m.GetConnectedAt().Format(time.RFC3339),
-		UptimeSeconds:      int(m.GetUptime().Seconds()),
+		Destinations:         destItems,
+		UpcomingDestinations: upcomingDest,
+		CurrentDestination:   m.GetCurrentDest().String(),
+		WorkerName:           m.GetWorkerName(),
+		ConnectedAt:          m.GetConnectedAt().Format(time.RFC3339),
+		UptimeSeconds:        int(m.GetUptime().Seconds()),
 	}
 }
 
 func (c *ApiController) MapContract(item contractmanager.IContractModel) *Contract {
+	var hashrateAvgGHS *HashrateAvgGHS
+	hr := item.GetDeliveredHashrate()
+	if hr != nil {
+		hashrateAvgGHS = &HashrateAvgGHS{
+			T5m:  hr.GetHashrate5minAvgGHS(),
+			T30m: hr.GetHashrate30minAvgGHS(),
+			T1h:  hr.GetHashrate1hAvgGHS(),
+		}
+	}
 	return &Contract{
 		Resource: Resource{
 			Self: c.publicUrl.JoinPath(fmt.Sprintf("/contracts/%s", item.GetID())).String(),
 		},
-		ID:                item.GetID(),
-		BuyerAddr:         item.GetBuyerAddress(),
-		SellerAddr:        item.GetSellerAddress(),
-		HashrateGHS:       item.GetHashrateGHS(),
-		DurationSeconds:   int(item.GetDuration().Seconds()),
-		StartTimestamp:    TimePtrToStringPtr(item.GetStartTime()),
-		EndTimestamp:      TimePtrToStringPtr(item.GetEndTime()),
-		ApplicationStatus: MapContractState(item.GetState()),
-		BlockchainStatus:  item.GetStatusInternal(),
-		Dest:              item.GetDest().String(),
+		ID:                   item.GetID(),
+		BuyerAddr:            item.GetBuyerAddress(),
+		SellerAddr:           item.GetSellerAddress(),
+		HashrateGHS:          item.GetHashrateGHS(),
+		DeliveredHashrateGHS: hashrateAvgGHS,
+		DurationSeconds:      int(item.GetDuration().Seconds()),
+		StartTimestamp:       TimePtrToStringPtr(item.GetStartTime()),
+		EndTimestamp:         TimePtrToStringPtr(item.GetEndTime()),
+		ApplicationStatus:    MapContractState(item.GetState()),
+		BlockchainStatus:     item.GetStatusInternal(),
+		Dest:                 item.GetDest().String(),
 	}
 }
 

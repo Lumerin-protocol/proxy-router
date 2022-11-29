@@ -3,6 +3,7 @@ package contractmanager
 import (
 	"bytes"
 	"fmt"
+	"text/tabwriter"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
@@ -27,8 +28,10 @@ func (m *AllocItem) AllocatedGHS() int {
 
 func (m *AllocItem) String() string {
 	b := new(bytes.Buffer)
-	fmt.Fprintf(b, "\nContractID\tMinerID\tFraction\tTotalGHS\n")
-	fmt.Fprintf(b, "%s\t%s\t%.2f\t%d\n", lib.AddrShort(m.ContractID), m.MinerID, m.Fraction, m.TotalGHS)
+	w := tabwriter.NewWriter(b, 1, 1, 1, ' ', 0)
+	fmt.Fprintf(w, "\nContractID\tMinerID\tTotalGHS\tFraction\tHashrateGHS\n")
+	fmt.Fprintf(w, "%s\t%s\t%d\t%.2f\t%d\n", lib.AddrShort(m.ContractID), m.MinerID, m.TotalGHS, m.Fraction, m.AllocatedGHS())
+	_ = w.Flush()
 	return b.String()
 }
 
@@ -73,13 +76,18 @@ func (m AllocCollection) SortByAllocatedGHS() []AllocItem {
 
 func (m AllocCollection) String() string {
 	b := new(bytes.Buffer)
-	fmt.Fprintf(b, "\nContractID\tMinerID\tFraction\tTotalGHS\n")
+
+	w := tabwriter.NewWriter(b, 1, 1, 1, ' ', 0)
+
+	fmt.Fprintf(w, "\nContractID\tMinerID\tTotalGHS\tFraction\tHashrateGHS\n")
 	for _, alloc := range m.items {
-		fmt.Fprintf(b, "%s\t%s\t%.2f\t%d\n", lib.AddrShort(alloc.ContractID), alloc.MinerID, alloc.Fraction, alloc.TotalGHS)
+		fmt.Fprintf(w, "%s\t%s\t%d\t%.2f\t%d\n", lib.AddrShort(alloc.ContractID), alloc.MinerID, alloc.TotalGHS, alloc.Fraction, alloc.AllocatedGHS())
 	}
 	if len(m.items) == 0 {
-		fmt.Fprintf(b, "no miners")
+		fmt.Fprintf(w, "no miners")
 	}
+	_ = w.Flush()
+	fmt.Fprintf(b, "========\nTotal: %d", m.GetAllocatedGHS())
 	return b.String()
 }
 
@@ -233,12 +241,14 @@ func (s *AllocSnap) GetUnallocatedGHS() (int, *AllocCollection) {
 
 func (m *AllocSnap) String() string {
 	b := new(bytes.Buffer)
-	fmt.Fprintf(b, "\nContractID\tMinerID\tFraction\tTotalGHS\n")
+	w := tabwriter.NewWriter(b, 1, 1, 1, ' ', 0)
+	fmt.Fprintf(w, "\nContractID\tMinerID\tTotalGHS\tFraction\tHashrateGHS\n")
 	for _, item := range m.contractIDMinerIDMap {
 		for _, alloc := range item.GetItems() {
-			fmt.Fprintf(b, "%s\t%s\t%.2f\t%d\n", lib.AddrShort(alloc.ContractID), alloc.MinerID, alloc.Fraction, alloc.TotalGHS)
+			fmt.Fprintf(w, "%s\t%s\t%d\t%.2f\t%d\n", lib.AddrShort(alloc.ContractID), alloc.MinerID, alloc.TotalGHS, alloc.Fraction, alloc.AllocatedGHS())
 		}
 	}
+	_ = w.Flush()
 	return b.String()
 }
 

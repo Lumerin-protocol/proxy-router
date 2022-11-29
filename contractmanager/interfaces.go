@@ -15,6 +15,7 @@ type IContractModel interface {
 	GetSellerAddress() string
 	GetID() string
 	GetAddress() string
+	GetDeliveredHashrate() interfaces.Hashrate
 	GetHashrateGHS() int
 	GetStartTime() *time.Time
 	GetDuration() time.Duration
