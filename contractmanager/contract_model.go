@@ -196,18 +196,19 @@ func (c *BTCHashrateContract) LoadBlockchainContract() error {
 	}
 
 	c.data = contractData
-	c.log.Debugf("Loaded contract: %v - %v \n", c.GetID(), c.data)
+	c.log.Debugf("loaded contract: %s \n %v ", c.GetID(), c.data)
 	return nil
 }
 
 func (c *BTCHashrateContract) FulfillAndClose(ctx context.Context) {
 	err := c.FulfillContract(ctx)
+	c.log.Infof("contract(%s) fulfillment finished: %s", c.GetID(), err)
+
+	err = c.Close(ctx)
 	if err != nil {
-		c.log.Errorf("error during contract fulfillment: %s", err)
-		err := c.Close(ctx)
-		if err != nil {
-			c.log.Errorf("error during contract closeout: %s", err)
-		}
+		c.log.Errorf("error during contract closeout: %s", err)
+	} else {
+		c.log.Infof("contract(%s) closed: %s", c.GetID(), err)
 	}
 }
 
@@ -216,8 +217,7 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 	c.state = ContractStatePurchased
 
 	if c.ContractIsExpired() {
-		c.log.Warn("contract is expired %s", c.GetID())
-		return fmt.Errorf("contract is expired")
+		return fmt.Errorf("contract is expired %s", c.GetID())
 	}
 
 	c.stopFullfillment = make(chan struct{}, 10)
@@ -225,8 +225,7 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 	// running cycle checks combination every N seconds
 	for {
 		if c.ContractIsExpired() {
-			c.log.Info("contract expired", c.GetID())
-			return nil
+			return fmt.Errorf("contract is expired: %s", c.GetID())
 		}
 
 		// TODO hashrate monitoring
@@ -243,11 +242,9 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 
 		select {
 		case <-ctx.Done():
-			c.log.Errorf("contract context done while waiting for running contract to finish: %v", ctx.Err().Error())
 			return ctx.Err()
 		case <-c.stopFullfillment:
-			c.log.Infof("done fullfilling contract %v", c.GetID())
-			return nil
+			return fmt.Errorf("contract was stopped: %s", c.GetID())
 		case <-time.After(30 * time.Second):
 			continue
 		}
@@ -275,10 +272,12 @@ func (c *BTCHashrateContract) Close(ctx context.Context) error {
 
 // Stops fulfilling the contract by miners
 func (c *BTCHashrateContract) Stop(ctx context.Context) {
-	c.log.Infof("Attempting to stop contract %v; with state %v", c.GetID(), c.state)
+	c.log.Infof("attempting to stop contract %v; with state %v", c.GetID(), c.state)
 	if c.state == ContractStateRunning {
 		c.log.Infof("Stopping contract %v", c.GetID())
 
+		// TODO: deallocation should be performed within main loop
+		// and this function should only send a signal to stop
 		err := c.globalScheduler.Update(c.GetID(), 0, c.GetDest(), nil)
 		if err != nil {
 			c.log.Error(err)
@@ -292,7 +291,7 @@ func (c *BTCHashrateContract) Stop(ctx context.Context) {
 		return
 	}
 
-	c.log.Warnf("contract (%s) is not running", c.GetID())
+	c.log.Warnf("contract (%s) stopped", c.GetID())
 }
 
 func (c *BTCHashrateContract) ContractIsExpired() bool {
