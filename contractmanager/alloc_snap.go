@@ -61,15 +61,28 @@ func (m AllocCollection) FilterFullyAvailable() *AllocCollection {
 	return fullyAvailable
 }
 
-func (m AllocCollection) SortByAllocatedGHS() []AllocItem {
-	items := make([]AllocItem, len(m.items))
+func (m AllocCollection) SortByAllocatedGHS() []*AllocItem {
+	items := make([]*AllocItem, len(m.items))
 	i := 0
 	for _, item := range m.items {
-		items[i] = *item
+		items[i] = item
 		i++
 	}
-	slices.SortStableFunc(items, func(a, b AllocItem) bool {
+	slices.SortStableFunc(items, func(a, b *AllocItem) bool {
 		return a.AllocatedGHS() < b.AllocatedGHS()
+	})
+	return items
+}
+
+func (m AllocCollection) SortByAllocatedGHSInv() []*AllocItem {
+	items := make([]*AllocItem, len(m.items))
+	i := 0
+	for _, item := range m.items {
+		items[i] = item
+		i++
+	}
+	slices.SortStableFunc(items, func(a, b *AllocItem) bool {
+		return a.AllocatedGHS() > b.AllocatedGHS()
 	})
 	return items
 }
@@ -108,8 +121,17 @@ func (m AllocCollection) IDs() []string {
 
 func (m *AllocCollection) Get(id string) (*AllocItem, bool) {
 	item, ok := m.items[id]
-
 	return item, ok
+}
+
+func (m *AllocCollection) Iter() []*AllocItem {
+	items := make([]*AllocItem, len(m.items))
+	i := 0
+	for _, item := range m.items {
+		items[i] = item
+		i++
+	}
+	return items
 }
 
 func (m *AllocCollection) Add(id string, item *AllocItem) {

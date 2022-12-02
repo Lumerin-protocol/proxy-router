@@ -257,17 +257,14 @@ func (s *GlobalSchedulerV2) decreaseHr(snap *AllocSnap, hrToDecreaseGHS int, con
 	return newContractItems, nil
 }
 
-// adjustAllocCollection adjusts percentage for each allocation item so it wont fall in red zone
-func (s *GlobalSchedulerV2) adjustAllocCollection(coll *AllocCollection, snap *AllocSnap) *AllocCollection {
-	// TODO
-	// 0. check is alloc collection violates constraints
-
-	// 1. check if split items could be merged together with constraints
-
-	// 2. apply constraints by adding one more miner or reducing existing miners
-
-	// 3. attempt to drop everything and allocate from scratch and compare (but try to avoid unnecessary reallocations)
-	return coll
+func (s *GlobalSchedulerV2) checkRedZones(fraction float64) int {
+	if fraction < s.poolMinFraction {
+		return -1
+	}
+	if fraction > s.poolMaxFraction {
+		return +1
+	}
+	return 0
 }
 
 func (s *GlobalSchedulerV2) applyAllocCollection(contractID string, coll *AllocCollection, dest interfaces.IDestination, onSubmit interfaces.IHashrate) error {
@@ -376,4 +373,160 @@ func (s *GlobalSchedulerV2) IsDeliveringAdequateHashrate(ctx context.Context, ta
 	}
 
 	return false
+}
+
+// adjustAllocCollection adjusts percentage for each allocation item so it wont fall in red zone
+func (s *GlobalSchedulerV2) adjustAllocCollection(coll *AllocCollection, snap *AllocSnap) *AllocCollection {
+	// check if miner amount can be reduced, by allocating more percentage for existing miners
+	// if difference is 1 it is likely a deliberate split to avoid red zones
+	coll = s.tryReduceMiners(coll)
+
+	// check red zones
+	s.tryAdjustRedZones(coll, snap)
+
+	// TODO
+	// 0. check is alloc collection violates constraints
+
+	// 1. check if split items could be merged together with constraints
+
+	// 2. apply constraints by adding one more miner or reducing existing miners
+
+	// 3. attempt to drop everything and allocate from scratch and compare (but try to avoid unnecessary reallocations)
+	return coll
+}
+
+func (s *GlobalSchedulerV2) tryReduceMiners(coll *AllocCollection) *AllocCollection {
+	hrCounter := 0
+	totalHR := coll.GetAllocatedGHS()
+	newColl := NewAllocCollection()
+	for _, item := range coll.SortByAllocatedGHSInv() {
+		if totalHR <= hrCounter+item.TotalGHS {
+			newColl.Add(item.MinerID, &AllocItem{
+				MinerID:    item.MinerID,
+				ContractID: item.ContractID,
+				Fraction:   float64(totalHR-hrCounter) / float64(item.TotalGHS),
+				TotalGHS:   item.TotalGHS,
+			})
+			break
+		}
+		hrCounter += item.TotalGHS
+		newColl.Add(item.MinerID, &AllocItem{
+			MinerID:    item.MinerID,
+			ContractID: item.ContractID,
+			Fraction:   1,
+			TotalGHS:   item.TotalGHS,
+		})
+	}
+
+	if coll.Len()-newColl.Len() > 1 {
+		s.log.Debugf("redistributed successfully: \n===before\n %s \n===after %s", coll.String(), newColl.String())
+		coll = newColl
+	}
+
+	return coll
+}
+
+func (s *GlobalSchedulerV2) tryAdjustRedZones(coll *AllocCollection, snap *AllocSnap) {
+	s.log.Debugf("before red zone adjustment: \n %s", coll.String())
+
+	for _, item := range coll.SortByAllocatedGHS() {
+		if lib.AlmostEqual(item.Fraction, 0, 0.01) {
+			item.Fraction = 0
+			continue
+		}
+		if lib.AlmostEqual(item.Fraction, 1, 0.01) {
+			item.Fraction = 1
+			continue
+		}
+
+		var ok bool
+
+		if item.Fraction < s.poolMinFraction {
+			ok = s.adjustLeftRedZone(item, coll)
+		} else if item.Fraction > s.poolMaxFraction {
+			ok = s.adjustRightRedZone(item, snap, coll)
+		}
+		if !ok {
+			s.log.Warnf("couldn't adjust red zone for minerID(%s), contractID(%s), fraction(%2.d)", item.MinerID, item.ContractID, item.Fraction)
+		}
+	}
+	s.log.Debugf("after red zone adjustment: \n %s", coll.String())
+}
+
+func (s *GlobalSchedulerV2) adjustLeftRedZone(item *AllocItem, coll *AllocCollection) bool {
+	for _, item2 := range coll.GetItems() {
+		if item2.MinerID == item.MinerID {
+			continue
+		}
+
+		f1, f2, ok := FindMidpointSplitWRedzones(s.poolMinFraction, s.poolMaxFraction, item.TotalGHS, item2.TotalGHS, item.AllocatedGHS()+item2.AllocatedGHS())
+		if !ok {
+			continue
+		}
+
+		item.Fraction, item2.Fraction = f1, f2
+		return true
+	}
+	return false
+}
+
+func (s *GlobalSchedulerV2) adjustRightRedZone(item *AllocItem, snap *AllocSnap, coll *AllocCollection) bool {
+	var existingAndFreeMiners []*AllocItem
+	_, freeMiners := snap.GetUnallocatedGHS()
+
+	existingAndFreeMiners = append(existingAndFreeMiners, coll.SortByAllocatedGHS()...)
+	existingAndFreeMiners = append(existingAndFreeMiners, freeMiners.FilterFullyAvailable().Iter()...)
+
+	for _, item2 := range existingAndFreeMiners {
+		if item2.MinerID == item.MinerID {
+			continue
+		}
+
+		// for existing miners fraction 1 means it is busy
+		// for new miners fraction 1 means it is fully available
+		// TODO: fix snap.GetUnallocatedGHS()
+		if item2.ContractID == "" {
+			item2.Fraction = 0
+		}
+
+		f1, f2, ok := FindMidpointSplitWRedzones(s.poolMinFraction, s.poolMaxFraction, item.TotalGHS, item2.TotalGHS, item.AllocatedGHS()+item2.AllocatedGHS())
+		if !ok {
+			continue
+		}
+
+		newItem2 := &AllocItem{
+			MinerID:    item2.MinerID,
+			ContractID: item.ContractID,
+			Fraction:   item2.Fraction,
+			TotalGHS:   item2.TotalGHS,
+		}
+		coll.Add(item2.MinerID, newItem2)
+
+		item.Fraction, newItem2.Fraction = f1, f2
+		return true
+	}
+	return false
+}
+
+// FindMidpointSplitWRedzones solves the system of inequalities:
+//
+//	totalHR1 * fraction1 + totalHR2 * fraction2 = targetHR
+//	minFraction < fraction1 < maxFraction
+//	minFraction < fraction2 < maxFraction
+//
+// returning the midpoint of intervals of fraction1 and fraction2
+//
+// NB: it does not consider option for allocating miner for 100%
+// or 0%. Those cases should be ruled out before using this function
+func FindMidpointSplitWRedzones(minFraction, maxFraction float64, totalHR1, totalHR2, targerHR int) (fraction1 float64, fraction2 float64, ok bool) {
+	leftEndpointF1 := math.Max((float64(targerHR)-maxFraction*float64(totalHR2))/float64(totalHR1), minFraction)
+	rightEndpointF1 := math.Min((float64(targerHR)-minFraction*float64(totalHR2))/float64(totalHR1), maxFraction)
+	if leftEndpointF1 > rightEndpointF1 {
+		return 0, 0, false
+	}
+
+	fraction1 = (leftEndpointF1 + rightEndpointF1) / 2
+	fraction2 = (float64(targerHR) - float64(totalHR1)*fraction1) / float64(totalHR2)
+
+	return fraction1, fraction2, true
 }
