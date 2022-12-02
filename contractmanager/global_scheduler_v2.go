@@ -192,7 +192,6 @@ func (s *GlobalSchedulerV2) addNewMiners(allocItems *AllocCollection, freeMiners
 			fractionToRemove := float64(delta) / float64(ai.TotalGHS)
 			item, _ := combination.Get(ai.GetSourceID())
 			item.Fraction = ai.Fraction - fractionToRemove
-			toAddGHS = 0
 			break
 		}
 	}
