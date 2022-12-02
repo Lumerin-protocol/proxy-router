@@ -145,6 +145,8 @@ func (s *GlobalSchedulerV2) increaseHr(snap *AllocSnap, hrToIncreaseGHS int, con
 		if remainingToAddGHS == 0 {
 			return allocItems, true
 		}
+	} else {
+		allocItems = NewAllocCollection()
 	}
 
 	// 2. find additional miners that can fulfill the contract
