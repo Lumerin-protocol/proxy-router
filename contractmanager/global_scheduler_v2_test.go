@@ -132,9 +132,10 @@ func TestIncAllocationAddMiner(t *testing.T) {
 	dest, _ := lib.ParseDest("stratum+tcp://user:pwd@host.com:3333")
 	contractID := "test-contract"
 	newGHS := 31000
+	minPoolDuration, maxPoolDuration := 2*time.Minute, 7*time.Minute
 
 	miners := CreateMockMinerCollection(contractID, dest)
-	globalScheduler := NewGlobalSchedulerV2(miners, &lib.LoggerMock{}, 0, 0, 0)
+	globalScheduler := NewGlobalSchedulerV2(miners, lib.NewTestLogger(), minPoolDuration, maxPoolDuration, 0.1)
 
 	err := globalScheduler.update(contractID, newGHS, dest, nil)
 	if err != nil {
@@ -149,15 +150,15 @@ func TestIncAllocationAddMiner(t *testing.T) {
 	destSplit2, _ := miner2.GetDestSplit().GetByID(contractID)
 	destSplit3, _ := miner3.GetDestSplit().GetByID(contractID)
 
-	if destSplit1.Fraction != 1 {
-		t.Fatal("should use this contract's most already allocated miner")
-	}
-	if destSplit2.Fraction != 1 {
-		t.Fatal("should use this contract's second most already allocated miner")
-	}
-	if destSplit3.Fraction == 0.1 {
-		t.Fatal("should add new miner")
-	}
+	require.Zero(t, globalScheduler.checkRedZones(destSplit1.Fraction), "shouldn't be in red zone")
+	require.Zero(t, globalScheduler.checkRedZones(destSplit2.Fraction), "shouldn't be in red zone")
+	require.Zero(t, globalScheduler.checkRedZones(destSplit3.Fraction), "shouldn't be in red zone")
+
+	actualGHS := int(float64(miner1.GetHashRateGHS())*destSplit1.Fraction +
+		float64(miner2.GetHashRateGHS())*destSplit2.Fraction +
+		float64(miner3.GetHashRateGHS())*destSplit3.Fraction)
+
+	require.InEpsilon(t, newGHS, actualGHS, 0.1, "HR should be accurate")
 }
 
 func TestDecrAllocation(t *testing.T) {
@@ -432,6 +433,7 @@ func TestFindMidpointSplitWRedzones(t *testing.T) {
 		{10000, 30000, 15000},
 		{20000, 15000, 21000},
 		{10000, 5000, 10100},
+		{20000, 30000, 21000},
 	}
 
 	for _, tt := range tests {
@@ -439,7 +441,7 @@ func TestFindMidpointSplitWRedzones(t *testing.T) {
 			f1, f2, ok := FindMidpointSplitWRedzones(minFraction, maxFraction, tt.totalHR1, tt.totalHR2, tt.targetHR)
 
 			require.Equal(t, true, ok, "must be solvable for these values")
-			require.InDelta(t, float64(tt.totalHR1)*f1+float64(tt.totalHR2)*f2, tt.targetHR, 0.01, "hashrate should match target")
+			require.InEpsilon(t, float64(tt.totalHR1)*f1+float64(tt.totalHR2)*f2, tt.targetHR, 0.01, "hashrate should match target")
 			require.Truef(t, minFraction < f1 && f1 < maxFraction, "should not be in red zone %.3d", f1)
 			require.Truef(t, minFraction < f2 && f2 < maxFraction, "should not be in red zone %.3d", f2)
 		})
