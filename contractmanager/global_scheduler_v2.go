@@ -129,7 +129,7 @@ func (s *GlobalSchedulerV2) update(contractID string, targetHrGHS int, dest inte
 	return s.applyAllocCollection(contractID, allocCollection, dest, onSubmit)
 }
 
-func (s *GlobalSchedulerV2) increaseHr(snap *AllocSnap, hrToIncreaseGHS int, contractID string, dest interfaces.IDestination) (*AllocCollection, bool) {
+func (s *GlobalSchedulerV2) increaseHr(snap *AllocSnap, hrToIncreaseGHS int, contractID string, dest interfaces.IDestination) (coll *AllocCollection, isAccurate bool) {
 	s.log.Debugf("increasing allocation contractID(%s) hrToIncrease(%d)", lib.AddrShort(contractID), hrToIncreaseGHS)
 	remainingToAddGHS := hrToIncreaseGHS
 
@@ -210,7 +210,7 @@ func (s *GlobalSchedulerV2) addNewMiners(allocItems *AllocCollection, freeMiners
 	return 0
 }
 
-func (s *GlobalSchedulerV2) decreaseHr(snap *AllocSnap, hrToDecreaseGHS int, contractID string, dest interfaces.IDestination) (*AllocCollection, bool) {
+func (s *GlobalSchedulerV2) decreaseHr(snap *AllocSnap, hrToDecreaseGHS int, contractID string, dest interfaces.IDestination) (coll *AllocCollection, isAccurate bool) {
 	s.log.Debugf("decreasing allocation contractID(%s) hrToDecrease(%d)", lib.AddrShort(contractID), hrToDecreaseGHS)
 
 	remainingToRemoveGHS := hrToDecreaseGHS
