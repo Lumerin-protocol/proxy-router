@@ -22,6 +22,7 @@ const (
 	CONTRACT_DURATION    = 15 * time.Minute
 )
 
+// Dont forget to build executable before running this test
 func TestHashrateDelivery(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

@@ -2,17 +2,17 @@ package config
 
 import "time"
 
-// Validation tags described here: https://github.com/go-playground/validator
+// Validation tags described here: https://pkg.go.dev/github.com/go-playground/validator/v10
 type Config struct {
 	Contract struct {
-		Address                string        `env:"CLONE_FACTORY_ADDRESS" flag:"contract-address" validate:"required,eth_addr"`
+		Address                string        `env:"CLONE_FACTORY_ADDRESS" flag:"contract-address" validate:"required_if=Disable false,omitempty,eth_addr"`
 		IsBuyer                bool          `env:"IS_BUYER" flag:"is-buyer"`
 		HashrateDiffThreshold  float64       `env:"HASHRATE_DIFF_THRESHOLD" flag:"hashrate-diff-threshold"`
 		ValidationBufferPeriod time.Duration `env:"VALIDATION_BUFFER_PERIOD" flag:"validation-buffer-period" validate:"duration"`
-		Mnemonic               string        `env:"CONTRACT_MNEMONIC" flag:"contract-mnemonic" validate:"required_without=WalletPrivateKey"`
+		Mnemonic               string        `env:"CONTRACT_MNEMONIC" flag:"contract-mnemonic" validate:"required_without=WalletPrivateKey|required_if=Disable false"`
 		AccountIndex           int           `env:"ACCOUNT_INDEX" flag:"account-index"`
-		WalletPrivateKey       string        `env:"WALLET_PRIVATE_KEY" flag:"wallet-private-key" validate:"required_without=Mnemonic"`
-		WalletAddress          string        `env:"WALLET_ADDRESS" flag:"wallet-address" validate:"required_without=Mnemonic"`
+		WalletPrivateKey       string        `env:"WALLET_PRIVATE_KEY" flag:"wallet-private-key" validate:"required_without=Mnemonic|required_if=Disable false"`
+		WalletAddress          string        `env:"WALLET_ADDRESS" flag:"wallet-address" validate:"required_without=Mnemonic|required_if=Disable false"`
 		ClaimFunds             bool
 		LumerinTokenAddress    string
 		ValidatorAddress       string
@@ -44,6 +44,7 @@ type Config struct {
 		ConnTimeout time.Duration `env:"POOL_CONN_TIMEOUT" flag:"pool-conn-timeout" validate:"duration"`
 	}
 	Web struct {
-		Address string `env:"WEB_ADDRESS" flag:"web-address" desc:"http server address host:port" validate:"required,hostname_port"`
+		Address   string `env:"WEB_ADDRESS" flag:"web-address" desc:"http server address host:port" validate:"required,hostname_port"`
+		PublicUrl string `env:"WEB_PUBLIC_URL" flag:"web-public-url" desc:"public url of the proxyrouter, falls back to web-address if empty" validate:"omitempty,url"`
 	}
 }

@@ -6,7 +6,6 @@ import (
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
-	"gitlab.com/TitanInd/hashrouter/protocol"
 )
 
 type MinerSchedulerMock struct {
@@ -24,7 +23,7 @@ func NewMinerSchedulerMock() MinerSchedulerMock {
 	return MinerSchedulerMock{}
 }
 
-func (s *MinerSchedulerMock) Allocate(ID string, percentage float64, dest interfaces.IDestination) (*Split, error) {
+func (s *MinerSchedulerMock) Allocate(ID string, percentage float64, dest interfaces.IDestination) (*SplitItem, error) {
 	return nil, nil
 }
 
@@ -38,21 +37,33 @@ func (s *MinerSchedulerMock) Run(context.Context) error {
 
 func (s *MinerSchedulerMock) GetID() string {
 	return s.ID
-} // get miner unique id (host:port for example)
+}
+
+func (s *MinerSchedulerMock) GetCurrentDestSplit() *DestSplit {
+	return &s.DestSplit
+}
 
 func (s *MinerSchedulerMock) GetDestSplit() *DestSplit {
 	return &s.DestSplit
 }
 
+func (s *MinerSchedulerMock) GetUpcomingDestSplit() *DestSplit {
+	return nil
+}
+
+func (S *MinerSchedulerMock) SetDestSplit(*DestSplit) {}
+
 func (s *MinerSchedulerMock) GetCurrentDest() interfaces.IDestination {
 	return s.Dest
 }
-func (s *MinerSchedulerMock) ChangeDest(dest interfaces.IDestination) error {
+
+func (s *MinerSchedulerMock) ChangeDest(ctx context.Context, dest interfaces.IDestination, contractID string, onSubmit interfaces.IHashrate) error {
 	return nil
 }
 
 func (s *MinerSchedulerMock) GetCurrentDifficulty() int {
 	return s.Diff
+
 }
 func (s *MinerSchedulerMock) GetWorkerName() string {
 	return s.WorkerName
@@ -62,7 +73,7 @@ func (s *MinerSchedulerMock) GetHashRateGHS() int {
 	return s.HashrateGHS
 }
 
-func (s *MinerSchedulerMock) GetHashRate() protocol.Hashrate {
+func (s *MinerSchedulerMock) GetHashRate() interfaces.Hashrate {
 	return nil
 }
 
@@ -87,5 +98,9 @@ func (s *MinerSchedulerMock) GetUptime() time.Duration {
 }
 
 func (s *MinerSchedulerMock) RangeDestConn(f func(a, b any) bool) {}
+
+func (s *MinerSchedulerMock) RangeHistory(f func(a HistoryItem) bool) {}
+
+func (s *MinerSchedulerMock) RangeHistoryContractID(ID string, f func(a HistoryItem) bool) {}
 
 var _ MinerScheduler = new(MinerSchedulerMock)
