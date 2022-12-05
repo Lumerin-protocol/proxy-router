@@ -55,7 +55,7 @@ func NewContract(
 ) *BTCHashrateContract {
 
 	if hr == nil {
-		hr = hashrate.NewHashrate(log)
+		hr = hashrate.NewHashrate()
 	}
 
 	contract := &BTCHashrateContract{

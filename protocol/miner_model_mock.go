@@ -6,7 +6,6 @@ import (
 
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
-	"gitlab.com/TitanInd/hashrouter/lib"
 )
 
 type MinerModelMock struct {
@@ -43,7 +42,7 @@ func (m *MinerModelMock) GetHashRateGHS() int {
 	return m.HashrateGHS
 }
 func (m *MinerModelMock) GetHashRate() interfaces.Hashrate {
-	return hashrate.NewHashrate(&lib.LoggerMock{})
+	return hashrate.NewHashrate()
 }
 func (m *MinerModelMock) GetConnectedAt() time.Time {
 	return m.ConnectedAt
