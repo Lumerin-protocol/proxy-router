@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"context"
+	"errors"
 	"net"
 	"sync"
 	"time"
@@ -40,7 +41,17 @@ func (p *StratumV1PoolConnPool) GetDest() interfaces.IDestination {
 	return p.conn.GetDest()
 }
 
-func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination, configure *stratumv1_message.MiningConfigure) error {
+func (p *StratumV1PoolConnPool) SetDest(ctx context.Context, dest interfaces.IDestination, configure *stratumv1_message.MiningConfigure) error {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	go func() {
+		<-ctx.Done()
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			p.log.Errorf("setDest context timeouted %s", ctx.Err())
+		}
+	}()
+
 	p.mu.Lock()
 	if p.conn != nil {
 		if p.conn.GetDest().IsEqual(dest) {

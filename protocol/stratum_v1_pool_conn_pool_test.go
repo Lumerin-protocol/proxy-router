@@ -1,6 +1,8 @@
 package protocol
 
 import (
+	"context"
+	"errors"
 	"net"
 	"testing"
 	"time"
@@ -53,4 +55,21 @@ func TestGetDestAfterConnectionClosed(t *testing.T) {
 	}()
 
 	connPool.GetDest()
+}
+
+func TestTimeout(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	go func() {
+		<-ctx.Done()
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			t.Logf("setDest context timeouted: %s", ctx.Err())
+		} else {
+			t.Logf("setDest context some other error: %s", ctx.Err())
+		}
+	}()
+
+	// cancel()
+	<-time.After(3 * time.Second)
 }
