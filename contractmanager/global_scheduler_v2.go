@@ -2,7 +2,6 @@ package contractmanager
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"time"
 
@@ -108,20 +107,20 @@ func (s *GlobalSchedulerV2) update(contractID string, targetHrGHS int, dest inte
 
 	var (
 		allocCollection *AllocCollection
-		err             error
+		isAccurate      bool
 	)
 
 	if lib.AlmostEqual(targetHrGHS, currentHrGHS, s.hashrateDiffThreshold) {
 		s.log.Debugf("contractID(%s) targetGHS(%d) currentHrGHS(%d) is within diff threshold(%.2f)", lib.AddrShort(contractID), targetHrGHS, currentHrGHS, s.hashrateDiffThreshold)
 		allocCollection = miners
 	} else if targetHrGHS > currentHrGHS {
-		allocCollection, err = s.increaseHr(snap, targetHrGHS-currentHrGHS, contractID, dest)
+		allocCollection, isAccurate = s.increaseHr(snap, targetHrGHS-currentHrGHS, contractID, dest)
 	} else {
-		allocCollection, err = s.decreaseHr(snap, currentHrGHS-targetHrGHS, contractID, dest)
+		allocCollection, isAccurate = s.decreaseHr(snap, currentHrGHS-targetHrGHS, contractID, dest)
 	}
-	if err != nil {
-		s.log.Errorf("allocation error, no changes has been made %s", err)
-		return nil
+
+	if !isAccurate {
+		s.log.Errorf("allocation wasn't totally accurate")
 	}
 
 	allocCollection = s.adjustAllocCollection(allocCollection, snap)
@@ -130,84 +129,88 @@ func (s *GlobalSchedulerV2) update(contractID string, targetHrGHS int, dest inte
 	return s.applyAllocCollection(contractID, allocCollection, dest, onSubmit)
 }
 
-func (s *GlobalSchedulerV2) increaseHr(snap *AllocSnap, hrToIncreaseGHS int, contractID string, dest interfaces.IDestination) (*AllocCollection, error) {
+func (s *GlobalSchedulerV2) increaseHr(snap *AllocSnap, hrToIncreaseGHS int, contractID string, dest interfaces.IDestination) (coll *AllocCollection, isAccurate bool) {
 	s.log.Debugf("increasing allocation contractID(%s) hrToIncrease(%d)", lib.AddrShort(contractID), hrToIncreaseGHS)
+	remainingToAddGHS := hrToIncreaseGHS
+
+	defer s.log.Debugf(
+		"increased allocation for contractID(%s): actually added(%d), expected to add(%d)",
+		lib.AddrShort(contractID), hrToIncreaseGHS-remainingToAddGHS, hrToIncreaseGHS,
+	)
 
 	// 1. check if existing miners can be used to increase hashrate
-	remainingToAddGHS := hrToIncreaseGHS
-	newContractItems := NewAllocCollection()
-
 	allocItems, ok := snap.Contract(contractID)
 	if ok {
-		// add existing items into new contract items and max out their percentage
-		for _, item := range allocItems.GetItems() {
-			if remainingToAddGHS == 0 {
-				newContractItems.Add(item.MinerID, &AllocItem{
-					ContractID: contractID,
-					MinerID:    item.MinerID,
-					Fraction:   item.Fraction, // it can fall into unavailable interval, will be adjusted later
-					TotalGHS:   item.TotalGHS,
-				})
-				continue
-			}
-
-			minerID := item.MinerID
-			minerItems, ok := snap.Miner(minerID)
-			if !ok {
-				s.log.DPanicf("miner not found")
-			}
-			_, available := minerItems.GetUnallocatedGHS()
-			toAddGHS := lib.MinInt(remainingToAddGHS, available.AllocatedGHS())
-			toAddFraction := float64(toAddGHS) / float64(item.TotalGHS)
-
-			newContractItems.Add(item.MinerID, &AllocItem{
-				ContractID: contractID,
-				MinerID:    minerID,
-				Fraction:   item.Fraction + toAddFraction, // it can fall into unavailable interval, will be adjusted later
-				TotalGHS:   item.TotalGHS,
-			})
-			remainingToAddGHS -= toAddGHS
+		remainingToAddGHS = s.maxoutExisting(allocItems, remainingToAddGHS)
+		if remainingToAddGHS == 0 {
+			return allocItems, true
 		}
+	} else {
+		allocItems = NewAllocCollection()
 	}
 
 	// 2. find additional miners that can fulfill the contract
-	if remainingToAddGHS > 0 {
-		_, minerHashrates := snap.GetUnallocatedGHS()
-
-		combination, delta := FindCombinations(minerHashrates.FilterFullyAvailable(), remainingToAddGHS)
-
-		s.log.Debugf("raw combination: %s", combination.String())
-
-		if combination.Len() == 0 {
-			return nil, fmt.Errorf("cannot fulfill given hashrate")
-		}
-
-		// safety cycle to remove only from alloc item with available hashrate
-		for _, ai := range combination.SortByAllocatedGHS() {
-			if delta <= ai.TotalGHS {
-				fractionToRemove := float64(delta) / float64(ai.TotalGHS)
-				item, _ := combination.Get(ai.GetSourceID())
-				item.Fraction = ai.Fraction - fractionToRemove
-				break
-			}
-		}
-
-		for _, ai := range combination.GetItems() {
-			newContractItems.Add(ai.MinerID, &AllocItem{
-				MinerID:    ai.MinerID,
-				ContractID: contractID,
-				Fraction:   ai.Fraction,
-				TotalGHS:   ai.TotalGHS,
-			})
-		}
+	_, availableMinersHR := snap.GetUnallocatedGHS()
+	remainingToAddGHS = s.addNewMiners(allocItems, availableMinersHR.FilterFullyAvailable(), remainingToAddGHS, contractID)
+	if remainingToAddGHS == 0 {
+		return allocItems, true
 	}
 
 	//3. TODO: try to allocate from scratch (ignoring existing miners) and compare
 
-	return newContractItems, nil
+	return allocItems, false
 }
 
-func (s *GlobalSchedulerV2) decreaseHr(snap *AllocSnap, hrToDecreaseGHS int, contractID string, dest interfaces.IDestination) (*AllocCollection, error) {
+// maxoutExisting tries to increase existing allocation up to 100%, returns GHS that is remaining
+func (s *GlobalSchedulerV2) maxoutExisting(allocItems *AllocCollection, toAddGHS int) int {
+	// adjust existing items to max out their percentage
+	for _, item := range allocItems.GetItems() {
+		if toAddGHS == 0 {
+			return toAddGHS
+		}
+
+		availableGHS := int((1 - item.Fraction) * float64(item.TotalGHS))
+		toAddGHSMiner := lib.MinInt(toAddGHS, availableGHS)
+		toAddFraction := float64(toAddGHSMiner) / float64(item.TotalGHS)
+		item.Fraction = item.Fraction + toAddFraction
+
+		toAddGHS -= toAddGHSMiner
+	}
+	return toAddGHS
+}
+
+func (s *GlobalSchedulerV2) addNewMiners(allocItems *AllocCollection, freeMiners *AllocCollection, toAddGHS int, contractID string) (remainingGHS int) {
+	combination, delta := FindCombinations(freeMiners, toAddGHS)
+
+	if combination.Len() == 0 {
+		return toAddGHS
+	}
+
+	// one of the miners should be partially allocated to account for delta
+	for _, ai := range combination.SortByAllocatedGHS() {
+		if delta <= ai.TotalGHS {
+			fractionToRemove := float64(delta) / float64(ai.TotalGHS)
+			item, _ := combination.Get(ai.GetSourceID())
+			item.Fraction = ai.Fraction - fractionToRemove
+			break
+		}
+	}
+
+	s.log.Debugf("added miners: %s", combination.String())
+
+	for _, ai := range combination.GetItems() {
+		allocItems.Add(ai.MinerID, &AllocItem{
+			MinerID:    ai.MinerID,
+			ContractID: contractID,
+			Fraction:   ai.Fraction,
+			TotalGHS:   ai.TotalGHS,
+		})
+	}
+
+	return 0
+}
+
+func (s *GlobalSchedulerV2) decreaseHr(snap *AllocSnap, hrToDecreaseGHS int, contractID string, dest interfaces.IDestination) (coll *AllocCollection, isAccurate bool) {
 	s.log.Debugf("decreasing allocation contractID(%s) hrToDecrease(%d)", lib.AddrShort(contractID), hrToDecreaseGHS)
 
 	remainingToRemoveGHS := hrToDecreaseGHS
@@ -248,26 +251,26 @@ func (s *GlobalSchedulerV2) decreaseHr(snap *AllocSnap, hrToDecreaseGHS int, con
 	}
 
 	if remainingToRemoveGHS != 0 {
-		s.log.Warnf("inconsistensy error, shouldnt go here")
+		s.log.DPanicf("inconsistensy error, shouldnt go here")
 	}
 
 	newContractItems = s.adjustAllocCollection(newContractItems, snap)
 
 	//5. Apply updated rules
-	return newContractItems, nil
+	return newContractItems, true
 }
 
-// adjustAllocCollection adjusts percentage for each allocation item so it wont fall in red zone
-func (s *GlobalSchedulerV2) adjustAllocCollection(coll *AllocCollection, snap *AllocSnap) *AllocCollection {
-	// TODO
-	// 0. check is alloc collection violates constraints
-
-	// 1. check if split items could be merged together with constraints
-
-	// 2. apply constraints by adding one more miner or reducing existing miners
-
-	// 3. attempt to drop everything and allocate from scratch and compare (but try to avoid unnecessary reallocations)
-	return coll
+func (s *GlobalSchedulerV2) checkRedZones(fraction float64) int {
+	if fraction == 1 || fraction == 0 {
+		return 0
+	}
+	if fraction < s.poolMinFraction {
+		return -1
+	}
+	if fraction > s.poolMaxFraction {
+		return +1
+	}
+	return 0
 }
 
 func (s *GlobalSchedulerV2) applyAllocCollection(contractID string, coll *AllocCollection, dest interfaces.IDestination, onSubmit interfaces.IHashrate) error {
@@ -376,4 +379,160 @@ func (s *GlobalSchedulerV2) IsDeliveringAdequateHashrate(ctx context.Context, ta
 	}
 
 	return false
+}
+
+// adjustAllocCollection adjusts percentage for each allocation item so it wont fall in red zone
+func (s *GlobalSchedulerV2) adjustAllocCollection(coll *AllocCollection, snap *AllocSnap) *AllocCollection {
+	// check if miner amount can be reduced, by allocating more percentage for existing miners
+	// if difference is 1 it is likely a deliberate split to avoid red zones
+	coll = s.tryReduceMiners(coll)
+
+	// check red zones
+	s.tryAdjustRedZones(coll, snap)
+
+	// TODO
+	// 0. check is alloc collection violates constraints
+
+	// 1. check if split items could be merged together with constraints
+
+	// 2. apply constraints by adding one more miner or reducing existing miners
+
+	// 3. attempt to drop everything and allocate from scratch and compare (but try to avoid unnecessary reallocations)
+	return coll
+}
+
+func (s *GlobalSchedulerV2) tryReduceMiners(coll *AllocCollection) *AllocCollection {
+	hrCounter := 0
+	totalHR := coll.GetAllocatedGHS()
+	newColl := NewAllocCollection()
+	for _, item := range coll.SortByAllocatedGHSInv() {
+		if totalHR <= hrCounter+item.TotalGHS {
+			newColl.Add(item.MinerID, &AllocItem{
+				MinerID:    item.MinerID,
+				ContractID: item.ContractID,
+				Fraction:   float64(totalHR-hrCounter) / float64(item.TotalGHS),
+				TotalGHS:   item.TotalGHS,
+			})
+			break
+		}
+		hrCounter += item.TotalGHS
+		newColl.Add(item.MinerID, &AllocItem{
+			MinerID:    item.MinerID,
+			ContractID: item.ContractID,
+			Fraction:   1,
+			TotalGHS:   item.TotalGHS,
+		})
+	}
+
+	if coll.Len()-newColl.Len() > 1 {
+		s.log.Debugf("redistributed successfully: \n===before\n %s \n===after %s", coll.String(), newColl.String())
+		coll = newColl
+	}
+
+	return coll
+}
+
+func (s *GlobalSchedulerV2) tryAdjustRedZones(coll *AllocCollection, snap *AllocSnap) {
+	s.log.Debugf("before red zone adjustment: \n %s", coll.String())
+
+	for _, item := range coll.SortByAllocatedGHS() {
+		if lib.AlmostEqual(item.Fraction, 0, 0.01) {
+			item.Fraction = 0
+			continue
+		}
+		if lib.AlmostEqual(item.Fraction, 1, 0.01) {
+			item.Fraction = 1
+			continue
+		}
+
+		ok := true
+
+		if item.Fraction < s.poolMinFraction {
+			ok = s.adjustLeftRedZone(item, coll)
+		} else if item.Fraction > s.poolMaxFraction {
+			ok = s.adjustRightRedZone(item, snap, coll)
+		}
+		if !ok {
+			s.log.Warnf("couldn't adjust red zone for minerID(%s), contractID(%s), fraction(%.2f)", item.MinerID, item.ContractID, item.Fraction)
+		}
+	}
+	s.log.Debugf("after red zone adjustment: \n %s", coll.String())
+}
+
+func (s *GlobalSchedulerV2) adjustLeftRedZone(item *AllocItem, coll *AllocCollection) bool {
+	for _, item2 := range coll.GetItems() {
+		if item2.MinerID == item.MinerID {
+			continue
+		}
+
+		f1, f2, ok := FindMidpointSplitWRedzones(s.poolMinFraction, s.poolMaxFraction, item.TotalGHS, item2.TotalGHS, item.AllocatedGHS()+item2.AllocatedGHS())
+		if !ok {
+			continue
+		}
+
+		item.Fraction, item2.Fraction = f1, f2
+		return true
+	}
+	return false
+}
+
+func (s *GlobalSchedulerV2) adjustRightRedZone(item *AllocItem, snap *AllocSnap, coll *AllocCollection) bool {
+	var existingAndFreeMiners []*AllocItem
+	_, freeMiners := snap.GetUnallocatedGHS()
+
+	existingAndFreeMiners = append(existingAndFreeMiners, coll.SortByAllocatedGHS()...)
+	existingAndFreeMiners = append(existingAndFreeMiners, freeMiners.FilterFullyAvailable().Iter()...)
+
+	for _, item2 := range existingAndFreeMiners {
+		if item2.MinerID == item.MinerID {
+			continue
+		}
+
+		// for existing miners fraction 1 means it is busy
+		// for new miners fraction 1 means it is fully available
+		// TODO: fix snap.GetUnallocatedGHS()
+		if item2.ContractID == "" {
+			item2.Fraction = 0
+		}
+
+		f1, f2, ok := FindMidpointSplitWRedzones(s.poolMinFraction, s.poolMaxFraction, item.TotalGHS, item2.TotalGHS, item.AllocatedGHS()+item2.AllocatedGHS())
+		if !ok {
+			continue
+		}
+
+		newItem2 := &AllocItem{
+			MinerID:    item2.MinerID,
+			ContractID: item.ContractID,
+			Fraction:   item2.Fraction,
+			TotalGHS:   item2.TotalGHS,
+		}
+		coll.Add(item2.MinerID, newItem2)
+
+		item.Fraction, newItem2.Fraction = f1, f2
+		return true
+	}
+	return false
+}
+
+// FindMidpointSplitWRedzones solves the system of inequalities:
+//
+//	totalHR1 * fraction1 + totalHR2 * fraction2 = targetHR
+//	minFraction < fraction1 < maxFraction
+//	minFraction < fraction2 < maxFraction
+//
+// returning the midpoint of intervals of fraction1 and fraction2
+//
+// NB: it does not consider option for allocating miner for 100%
+// or 0%. Those cases should be ruled out before using this function
+func FindMidpointSplitWRedzones(minFraction, maxFraction float64, totalHR1, totalHR2, targerHR int) (fraction1 float64, fraction2 float64, ok bool) {
+	leftEndpointF1 := math.Max((float64(targerHR)-maxFraction*float64(totalHR2))/float64(totalHR1), minFraction)
+	rightEndpointF1 := math.Min((float64(targerHR)-minFraction*float64(totalHR2))/float64(totalHR1), maxFraction)
+	if leftEndpointF1 > rightEndpointF1 {
+		return 0, 0, false
+	}
+
+	fraction1 = (leftEndpointF1 + rightEndpointF1) / 2
+	fraction2 = (float64(targerHR) - float64(totalHR1)*fraction1) / float64(totalHR2)
+
+	return fraction1, fraction2, true
 }
