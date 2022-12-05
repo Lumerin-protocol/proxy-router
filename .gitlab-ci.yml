@@ -6,7 +6,7 @@ variables: # keep this list alphabetically sorted
   MINER_VETTING_DURATION: 5m
   NODE_DEF: "prt"
   POOL_MIN_DURATION: 2m
-  POOL_MAX_DURATION: 5m
+  POOL_MAX_DURATION: 7m
   POOL_CONN_TIMEOUT: 10m
   PROXY_ADDRESS: "0.0.0.0:3333"
   PROXY_LOG_STRATUM: "false"

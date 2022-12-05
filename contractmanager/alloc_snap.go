@@ -61,15 +61,28 @@ func (m AllocCollection) FilterFullyAvailable() *AllocCollection {
 	return fullyAvailable
 }
 
-func (m AllocCollection) SortByAllocatedGHS() []AllocItem {
-	items := make([]AllocItem, len(m.items))
+func (m AllocCollection) SortByAllocatedGHS() []*AllocItem {
+	items := make([]*AllocItem, len(m.items))
 	i := 0
 	for _, item := range m.items {
-		items[i] = *item
+		items[i] = item
 		i++
 	}
-	slices.SortStableFunc(items, func(a, b AllocItem) bool {
+	slices.SortStableFunc(items, func(a, b *AllocItem) bool {
 		return a.AllocatedGHS() < b.AllocatedGHS()
+	})
+	return items
+}
+
+func (m AllocCollection) SortByAllocatedGHSInv() []*AllocItem {
+	items := make([]*AllocItem, len(m.items))
+	i := 0
+	for _, item := range m.items {
+		items[i] = item
+		i++
+	}
+	slices.SortStableFunc(items, func(a, b *AllocItem) bool {
+		return a.AllocatedGHS() > b.AllocatedGHS()
 	})
 	return items
 }
@@ -108,8 +121,17 @@ func (m AllocCollection) IDs() []string {
 
 func (m *AllocCollection) Get(id string) (*AllocItem, bool) {
 	item, ok := m.items[id]
-
 	return item, ok
+}
+
+func (m *AllocCollection) Iter() []*AllocItem {
+	items := make([]*AllocItem, len(m.items))
+	i := 0
+	for _, item := range m.items {
+		items[i] = item
+		i++
+	}
+	return items
 }
 
 func (m *AllocCollection) Add(id string, item *AllocItem) {
@@ -207,19 +229,18 @@ func (m *AllocSnap) Get(minerID string, contractID string) (AllocItem, bool) {
 	return *item, true
 }
 
-func (m *AllocSnap) Miner(minerID string) (*AllocCollection, bool) {
-	res, ok := m.minerIDcontractIDMap[minerID]
-	return res, ok
+func (m *AllocSnap) Miner(minerID string) (coll *AllocCollection, ok bool) {
+	coll, ok = m.minerIDcontractIDMap[minerID]
+	return coll, ok
 }
 
-func (m *AllocSnap) Contract(contractID string) (*AllocCollection, bool) {
-	res, ok := m.contractIDMinerIDMap[contractID]
-	return res, ok
+func (m *AllocSnap) Contract(contractID string) (coll *AllocCollection, ok bool) {
+	coll, ok = m.contractIDMinerIDMap[contractID]
+	return coll, ok
 }
 
-func (s *AllocSnap) GetUnallocatedGHS() (int, *AllocCollection) {
-	var unallocatedHashrateGHS int = 0
-	allocItemsAvailable := NewAllocCollection()
+func (s *AllocSnap) GetUnallocatedGHS() (unallocatedHrGHS int, allocItemsAvailable *AllocCollection) {
+	allocItemsAvailable = NewAllocCollection()
 
 	for minerID, miner := range s.minerIDcontractIDMap {
 		_, allocItem := miner.GetUnallocatedGHS()
@@ -232,11 +253,11 @@ func (s *AllocSnap) GetUnallocatedGHS() (int, *AllocCollection) {
 				TotalGHS:   s.minerIDHashrateGHS[minerID],
 			}
 			allocItemsAvailable.Add(minerID, item)
-			unallocatedHashrateGHS += item.AllocatedGHS()
+			unallocatedHrGHS += item.AllocatedGHS()
 		}
 	}
 
-	return unallocatedHashrateGHS, allocItemsAvailable
+	return unallocatedHrGHS, allocItemsAvailable
 }
 
 func (m *AllocSnap) String() string {

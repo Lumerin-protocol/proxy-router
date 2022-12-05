@@ -21,5 +21,5 @@ func TestHashrate(t *testing.T) {
 	}
 
 	require.Equal(t, hashrate.GetTotalHashes(), uint64(50000))
-	require.InDelta(t, 712, hashrate.GetHashrateGHS(), 0.01)
+	require.InEpsilon(t, 712, hashrate.GetHashrateGHS(), 0.01)
 }
