@@ -1,7 +1,6 @@
 package hashrate
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -22,7 +21,7 @@ func TestHashrate(t *testing.T) {
 
 	for i := 0; i < observations; i++ {
 		hashrate.OnSubmit(int64(diff))
-		fmt.Printf("Current Time %s Hashrate %d\n", nowTime, hashrate.GetHashrateGHS())
+		// fmt.Printf("Current Time %s Hashrate %d\n", nowTime, hashrate.GetHashrateGHS())
 		nowTime = nowTime.Add(submitDelay)
 	}
 
