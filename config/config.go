@@ -7,12 +7,12 @@ type Config struct {
 	Contract struct {
 		Address                string        `env:"CLONE_FACTORY_ADDRESS" flag:"contract-address" validate:"required_if=Disable false,omitempty,eth_addr"`
 		IsBuyer                bool          `env:"IS_BUYER" flag:"is-buyer"`
-		HashrateDiffThreshold  float64       `env:"HASHRATE_DIFF_THRESHOLD"`
-		ValidationBufferPeriod time.Duration `env:"VALIDATION_BUFFER_PERIOD" validate:"duration"`
-		Mnemonic               string        `env:"CONTRACT_MNEMONIC" validate:"required_without=WalletPrivateKey|required_if=Disable false"`
-		AccountIndex           int           `env:"ACCOUNT_INDEX"`
-		WalletPrivateKey       string        `env:"WALLET_PRIVATE_KEY" validate:"required_without=Mnemonic|required_if=Disable false"`
-		WalletAddress          string        `env:"WALLET_ADDRESS" validate:"required_without=Mnemonic|required_if=Disable false"`
+		HashrateDiffThreshold  float64       `env:"HASHRATE_DIFF_THRESHOLD" flag:"hashrate-diff-threshold"`
+		ValidationBufferPeriod time.Duration `env:"VALIDATION_BUFFER_PERIOD" flag:"validation-buffer-period" validate:"duration"`
+		Mnemonic               string        `env:"CONTRACT_MNEMONIC" flag:"contract-mnemonic" validate:"required_without=WalletPrivateKey|required_if=Disable false"`
+		AccountIndex           int           `env:"ACCOUNT_INDEX" flag:"account-index"`
+		WalletPrivateKey       string        `env:"WALLET_PRIVATE_KEY" flag:"wallet-private-key" validate:"required_without=Mnemonic|required_if=Disable false"`
+		WalletAddress          string        `env:"WALLET_ADDRESS" flag:"wallet-address" validate:"required_without=Mnemonic|required_if=Disable false"`
 		ClaimFunds             bool
 		LumerinTokenAddress    string
 		ValidatorAddress       string
@@ -34,14 +34,14 @@ type Config struct {
 	}
 	Proxy struct {
 		Address              string `env:"PROXY_ADDRESS" flag:"proxy-address" validate:"required,hostname_port"`
-		LogStratum           bool   `env:"PROXY_LOG_STRATUM"`
+		LogStratum           bool   `env:"PROXY_LOG_STRATUM" flag:"proxy-log-stratum"`
 		ConnectionBufferSize int    `env:"STRATUM_SOCKET_BUFFER_SIZE" flag:"stratum-socket-buffer" validate:"required,numeric"`
 	}
 	Pool struct {
 		Address     string        `env:"POOL_ADDRESS" flag:"pool-address" validate:"required,uri"`
-		MinDuration time.Duration `env:"POOL_MIN_DURATION" validate:"duration"`
-		MaxDuration time.Duration `env:"POOL_MAX_DURATION" validate:"duration"`
-		ConnTimeout time.Duration `env:"POOL_CONN_TIMEOUT" validate:"duration"`
+		MinDuration time.Duration `env:"POOL_MIN_DURATION" flag:"pool-min-duration" validate:"duration"`
+		MaxDuration time.Duration `env:"POOL_MAX_DURATION" flag:"pool-max-duration" validate:"duration"`
+		ConnTimeout time.Duration `env:"POOL_CONN_TIMEOUT" flag:"pool-conn-timeout" validate:"duration"`
 	}
 	Web struct {
 		Address   string `env:"WEB_ADDRESS" flag:"web-address" desc:"http server address host:port" validate:"required,hostname_port"`
