@@ -3,20 +3,26 @@ package poolmock
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
 	"fmt"
+	"math/rand"
 	"net"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/gammazero/deque"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
 )
 
 const (
-	NOTIFY_INTERVAL   = 30 * time.Second
-	HANDSHAKE_TIMEOUT = 30 * time.Second
+	NOTIFY_INTERVAL        = 120 * time.Second // interval between new notify messages
+	HANDSHAKE_TIMEOUT      = 30 * time.Second  // if handshake takes more than specified - pool errors
+	VAR_DIFF_TIME          = 60 * time.Second  // if no submits during this duration difficulty will decrease
+	VAR_DIFF_AVERAGE_COUNT = 5                 // if average time of N last submits less than VAR_DIFF_TIME/2 difficulty will increase
 )
 
 type StratumV1MsgHandler = func(a stratumv1_message.MiningMessageToPool)
@@ -25,23 +31,39 @@ type OnSubmitHandler = func(workerName string, diff int64)
 type PoolMockConn struct {
 	conn        net.Conn
 	msgHandlers sync.Map
-	diff        int
-	diffCh      chan int
 	workerName  string
 	id          string
+
 	submitCount atomic.Int64
 	onSubmit    OnSubmitHandler
+
+	diff                 int
+	diffCh               chan int
+	varDiffRange         [2]int
+	varDiffCount         *VarDiff
+	isVarDiff            atomic.Bool
+	varDiffSubmitCh      chan int
+	varDiffSubmitCounter *deque.Deque[time.Time]
 
 	log interfaces.ILogger
 }
 
-func NewPoolMockConn(conn net.Conn, diff int, onSubmit OnSubmitHandler, log interfaces.ILogger) *PoolMockConn {
+func NewPoolMockConn(conn net.Conn, varDiffRange [2]int, onSubmit OnSubmitHandler, log interfaces.ILogger) *PoolMockConn {
+	isVarDiff := atomic.Bool{}
+	isVarDiff.Store(true)
+
 	return &PoolMockConn{
-		conn:     conn,
-		log:      log,
-		diff:     diff,
-		onSubmit: onSubmit,
-		id:       conn.RemoteAddr().String(),
+		conn:                 conn,
+		log:                  log,
+		varDiffRange:         varDiffRange,
+		diff:                 varDiffRange[0],
+		diffCh:               make(chan int),
+		isVarDiff:            isVarDiff,
+		onSubmit:             onSubmit,
+		id:                   conn.RemoteAddr().String(),
+		varDiffCount:         &VarDiff{},
+		varDiffSubmitCounter: deque.New[time.Time](8, 8),
+		varDiffSubmitCh:      make(chan int, 5),
 	}
 }
 
@@ -58,11 +80,17 @@ func (c *PoolMockConn) GetSubmitCount() int {
 }
 
 func (c *PoolMockConn) SetDifficulty(diff int) {
+	c.isVarDiff.Store(false)
+	c.log.Infof("new difficulty: %d", diff)
 	c.diffCh <- diff
 }
 
+func (c *PoolMockConn) EnableVarDiff() {
+	c.isVarDiff.Store(true)
+}
+
 func (c *PoolMockConn) Run(ctx context.Context) error {
-	errCh := make(chan error, 4)
+	errCh := make(chan error, 5)
 
 	handshakeCtx, cancel := context.WithTimeout(ctx, HANDSHAKE_TIMEOUT)
 	defer cancel()
@@ -85,6 +113,10 @@ func (c *PoolMockConn) Run(ctx context.Context) error {
 	}()
 
 	go func() {
+		errCh <- c.varDiff(ctx)
+	}()
+
+	go func() {
 		errCh <- c.watchNotify(ctx)
 	}()
 
@@ -99,9 +131,9 @@ func (c *PoolMockConn) watchNotify(ctx context.Context) error {
 		}
 
 		select {
-		case <-time.After(NOTIFY_INTERVAL):
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-time.After(NOTIFY_INTERVAL):
 		}
 	}
 }
@@ -120,6 +152,49 @@ func (c *PoolMockConn) watchDiff(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func (c *PoolMockConn) varDiff(ctx context.Context) error {
+	for {
+		// if pool gets submit between VAR_DIFF_TIME/2 and VAR_DIFF_TIME - noop
+		// if less than VAR_DIFF_TIME/2 - increase diff
+		// if more than VAR_DIFF_TIME - decrease diff
+		tillDiffDecrease := VAR_DIFF_TIME
+		select {
+		case <-time.After(tillDiffDecrease):
+			// decrease vardiff
+			c.log.Debugf("decreasing diff: VAR_DIFF_TIME elapsed (%s)", VAR_DIFF_TIME)
+			ok := c.varDiffCount.Dec()
+			if ok {
+				newDiff := c.varDiffCount.Val()
+				c.SetDifficulty(newDiff)
+				c.varDiffSubmitCounter.Clear()
+			}
+		case <-c.varDiffSubmitCh:
+			// get average time over 5 last submits
+			// increase vardiff
+			if c.varDiffSubmitCounter.Len() >= VAR_DIFF_AVERAGE_COUNT {
+				oldest := c.varDiffSubmitCounter.At(0)
+				elapsed := time.Since(oldest)
+				timePerSubmit := elapsed / time.Duration(VAR_DIFF_AVERAGE_COUNT)
+
+				if timePerSubmit < VAR_DIFF_TIME/2 {
+					c.log.Debugf("increasing diff: average submit time for (%d) recent submits is (%s) which is less than VAR_DIFF_TIME/2 (%s)",
+						VAR_DIFF_AVERAGE_COUNT, timePerSubmit, VAR_DIFF_TIME/2)
+
+					ok := c.varDiffCount.Inc()
+					if ok {
+						newDiff := c.varDiffCount.Val()
+						c.SetDifficulty(newDiff)
+						c.varDiffSubmitCounter.Clear()
+					}
+				}
+			}
+
 		case <-ctx.Done():
 			return ctx.Err()
 		}
@@ -182,7 +257,25 @@ func (c *PoolMockConn) handshake(ctx context.Context) func() error {
 }
 
 func (c *PoolMockConn) notify(ctx context.Context) error {
-	msg, _ := stratumv1_message.ParseMiningNotify([]byte(`{"id":null,"method":"mining.notify","params":["620e41a18","b56266ef4c94ba61562510b7656d132cacc928c50008488c0000000000000000","01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4b03795d0bfabe6d6d021f1a6edc2237ed5d6b5ce13c9b8516dcae143a5cf8a373fa0406c7ae06fb260100000000000000","181ae420062f736c7573682f00000000030f1b0a27000000001976a9147c154ed1dc59609e3d26abb2df2ea3d587cd8c4188ac00000000000000002c6a4c2952534b424c4f434b3ad6b225f8545c851f458a3f603c9a5bd63959ab646f977ff2fd8d1e2f004427dc0000000000000000266a24aa21a9ed46c37118ea57f6c2152b2f156e4df28edb997e21ea8fe5754e9a869f0287cfb800000000",["bed26bac18890c62ab48bdd913ab2b648326286607b3a159987cf36b6fe55d7e","8c39bd3ac4aeedc7b3c354008692ccb5e758a9cd9b1888a72090268365d9fbf0","00dca1b0b193f0298f155d32a9c04a79a49a2617853b787a79adc942cae74fed","fbb3b3a6bf5710f885fd377a2fde24fbb795933c9e6ceea67f91f1d90c532be2","ddd51d322b9c61621f762002dc179de1c24f4454e17943de172e24e9ad4be942","6fcffd6b0ebd01f15f57cb6ab3fabe151d757f1f71b45ef420b97b5fac0cc670","c28b6ef7c87ff5982bec0eaccb1855fff78397b2c732030dc792636a9492ba7c","afe4f418f45c78c36a848930b56323749fb7da453d557aa41c820a3170f7d20a","c61bab8479a8ada4c9761be0ce82e3183e7405b57b31925e0e411e73376fb22e","224b536c03f1379f708172970fca51160192bd8eded9cf578f7f5c3c8795eb33","fe4af4678dd3f66946738a1479627683e461bb832629a01978b4f2165490f460"],"20000004","1709a7af","62cea7e2",false]}`))
+	// creating different notify messages to simulate load for real miners (for example cpuminer)
+	jobIDHex := strconv.FormatInt(int64(rand.Int31()), 16)
+
+	// random 128 bit hex
+	h := sha256.New()
+	_, err := h.Write([]byte(jobIDHex))
+	if err != nil {
+		return err
+	}
+	rand128bitHex := fmt.Sprintf("%x", h.Sum(nil))
+
+	coinbase1 := fmt.Sprintf("%s%s%s", COINBASE1_PREFIX, rand128bitHex, COINBASE1_SUFFIX)
+	msg, _ := stratumv1_message.ParseMiningNotify([]byte(NOTIFY_MSG))
+
+	msg.SetJobID(jobIDHex)
+	msg.SetGen1(coinbase1)
+
+	defer c.log.Infof("notify sent")
+
 	return c.send(ctx, msg)
 }
 
@@ -232,6 +325,8 @@ func (c *PoolMockConn) readMessages(ctx context.Context) error {
 		case *stratumv1_message.MiningSubmit:
 			c.submitCount.Add(1)
 			c.onSubmit(c.workerName, int64(c.diff))
+			c.varDiff2(c.diff)
+
 			handler, ok := c.msgHandlers.LoadAndDelete(stratumv1_message.MethodMiningSubmit)
 			if ok {
 				handler.(StratumV1MsgHandler)(typedMessage)
@@ -266,4 +361,12 @@ func (c *PoolMockConn) send(ctx context.Context, msg stratumv1_message.MiningMes
 
 	c.log.Debugf("sent msg %s", string(msg.Serialize()))
 	return nil
+}
+
+func (c *PoolMockConn) varDiff2(diff int) {
+	if c.varDiffSubmitCounter.Len() >= VAR_DIFF_AVERAGE_COUNT {
+		_ = c.varDiffSubmitCounter.PopFront()
+	}
+	c.varDiffSubmitCounter.PushBack(time.Now())
+	c.varDiffSubmitCh <- diff
 }

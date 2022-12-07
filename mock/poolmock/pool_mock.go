@@ -12,15 +12,17 @@ import (
 )
 
 const (
-	DEFAULT_DIFF = 50000
+	VAR_DIFF_DEFAULT_MIN = 10000
+	VAR_DIFF_DEFAULT_MAX = 200000
 )
 
 type PoolMock struct {
 	listener net.Listener
 	log      interfaces.ILogger
 
-	port        int
-	defaultDiff int
+	port int
+
+	varDiffRange [2]int
 
 	connMap  sync.Map
 	workerHr sync.Map
@@ -29,14 +31,14 @@ type PoolMock struct {
 // NewPoolMock creates new mock pool. Set port to zero to auto-select available port. Watch also GetPort()
 func NewPoolMock(port int, log interfaces.ILogger) *PoolMock {
 	return &PoolMock{
-		log:         log,
-		port:        port,
-		defaultDiff: DEFAULT_DIFF,
+		port:         port,
+		varDiffRange: [2]int{VAR_DIFF_DEFAULT_MIN, VAR_DIFF_DEFAULT_MAX},
+		log:          log,
 	}
 }
 
-func (p *PoolMock) SetDefaultDiff(diff int) {
-	p.defaultDiff = diff
+func (p *PoolMock) SetVarDiff(min, max int) {
+	p.varDiffRange = [2]int{min, max}
 }
 
 func (p *PoolMock) Connect(ctx context.Context) error {
@@ -72,6 +74,9 @@ func (p *PoolMock) Run(ctx context.Context) error {
 }
 
 func (p *PoolMock) run(ctx context.Context) error {
+	if p.listener == nil {
+		return fmt.Errorf("not connected, call Connect() first")
+	}
 	for {
 		conn, err := p.listener.Accept()
 		if err != nil {
@@ -82,7 +87,7 @@ func (p *PoolMock) run(ctx context.Context) error {
 			connID := conn.RemoteAddr().String()
 			p.log.Infof("new miner connection %s", connID)
 
-			poolMockConn := NewPoolMockConn(conn, p.defaultDiff, p.OnSubmit, p.log.Named(connID))
+			poolMockConn := NewPoolMockConn(conn, p.varDiffRange, p.OnSubmit, p.log.Named(connID))
 			p.storeConn(poolMockConn)
 
 			err = poolMockConn.Run(ctx)
@@ -147,5 +152,7 @@ func (p *PoolMock) close() {
 		return true
 	})
 
-	_ = p.listener.Close()
+	if p.listener != nil {
+		_ = p.listener.Close()
+	}
 }
