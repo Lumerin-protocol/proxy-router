@@ -8,7 +8,7 @@ import (
 )
 
 type Hashrate struct {
-	ema5mDyn    Counter
+	emaBase     Counter
 	ema5m       Counter
 	ema30m      Counter
 	ema1h       Counter
@@ -17,15 +17,15 @@ type Hashrate struct {
 
 func NewHashrate() *Hashrate {
 	return &Hashrate{
-		ema5mDyn: NewEmaPrimed(5*time.Minute, 10),
-		ema5m:    NewEma(5 * time.Minute),
-		ema30m:   NewEma(30 * time.Minute),
-		ema1h:    NewEma(1 * time.Hour),
+		emaBase: NewEmaPrimed(3*time.Minute, 10),
+		ema5m:   NewEma(5 * time.Minute),
+		ema30m:  NewEma(30 * time.Minute),
+		ema1h:   NewEma(1 * time.Hour),
 	}
 }
 
 func (h *Hashrate) OnSubmit(diff int64) {
-	h.ema5mDyn.Add(float64(diff))
+	h.emaBase.Add(float64(diff))
 	h.ema5m.Add(float64(diff))
 	h.ema30m.Add(float64(diff))
 	h.ema1h.Add(float64(diff))
@@ -37,7 +37,7 @@ func (h *Hashrate) GetTotalHashes() uint64 {
 }
 
 func (h *Hashrate) GetHashrateGHS() int {
-	return h.averageSubmitDiffToGHS(h.ema5mDyn.ValuePer(time.Second))
+	return h.averageSubmitDiffToGHS(h.emaBase.ValuePer(time.Second))
 }
 
 func (h *Hashrate) GetHashrate5minAvgGHS() int {

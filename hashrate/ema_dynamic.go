@@ -17,13 +17,13 @@ type emaDynamic struct {
 	lk           sync.RWMutex
 }
 
-// NewEmaDynamic creates a new EMA counter with dynamic avgInterval. It decreases the time
+// NewEmaDynamic creates a new EMA counter with dynamic half-life. It decreases the time
 // resulting values are averaged out, helping to reach avg value more quick at the beginning
-// of the measurment. Dynamic avgInterval starts from minAvgInterval and reaches avgInterval
-func NewEmaDynamic(avgInterval time.Duration, minAvgInterval time.Duration) *emaDynamic {
+// of the measurment. Dynamic half-life starts from minHalfLife and reaches halfLife
+func NewEmaDynamic(halfLife time.Duration, minHalfLife time.Duration) *emaDynamic {
 	return &emaDynamic{
-		avgInterval:    avgInterval,
-		minAvgInterval: minAvgInterval,
+		avgInterval:    halfLife,
+		minAvgInterval: minHalfLife,
 	}
 }
 

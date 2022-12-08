@@ -7,21 +7,21 @@ import (
 )
 
 type emaPrimed struct {
-	avgInterval time.Duration
-	lastValue   float64
-	lastTime    time.Time
-	startedAt   time.Time
-	lk          sync.RWMutex
+	halfLife  time.Duration
+	lastValue float64
+	lastTime  time.Time
+	startedAt time.Time
+	lk        sync.RWMutex
 
 	initSum       float64
 	primedObsLeft int
 }
 
-// NewEmaPrimed creates an EMA counter with the given avgInterval to be primed
+// NewEmaPrimed creates an EMA counter with the given half-life to be primed
 // with arithmetic average of obsCount first observations
-func NewEmaPrimed(avgInterval time.Duration, obsCount int) *emaPrimed {
+func NewEmaPrimed(halfLife time.Duration, obsCount int) *emaPrimed {
 	return &emaPrimed{
-		avgInterval:   avgInterval,
+		halfLife:      halfLife,
 		primedObsLeft: obsCount,
 	}
 }
@@ -64,12 +64,10 @@ func (c *emaPrimed) Add(v float64) {
 		c.initSum += v
 		if c.primedObsLeft == 0 {
 			elapsed := getNow().Sub(c.startedAt)
-			c.lastValue = c.initSum * (float64(c.avgInterval) / float64(elapsed))
+			c.lastValue = c.initSum * (float64(c.halfLife) / float64(elapsed))
 			c.lastTime = c.startedAt
-		} else {
-			return
-
 		}
+		return
 	}
 
 	c.lastValue = c.value() + v
@@ -92,5 +90,5 @@ func (c *emaPrimed) valueAfter(elapsed time.Duration) float64 {
 }
 
 func (c *emaPrimed) getAvgInterval() time.Duration {
-	return c.avgInterval
+	return c.halfLife
 }

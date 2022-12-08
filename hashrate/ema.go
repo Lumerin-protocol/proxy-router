@@ -5,6 +5,8 @@
 //
 // The counter holds the exponentially (by time) weighted average of all added
 // values.
+//
+// https://github.com/davidmz/avgcounter
 package hashrate
 
 import (
@@ -24,15 +26,15 @@ func getNow() time.Time {
 
 // Ema is an EMA (Exponential Moving Average) counter.
 type Ema struct {
-	lastValue   float64
-	lastTime    time.Time
-	avgInterval time.Duration
-	lk          sync.RWMutex
+	lastValue float64
+	lastTime  time.Time
+	halfLife  time.Duration
+	lk        sync.RWMutex
 }
 
-// NewEma creates a new Counter with the given avgInterval.
-func NewEma(avgInterval time.Duration) *Ema {
-	return &Ema{avgInterval: avgInterval}
+// NewEma creates a new Counter with the given half-life (time lag at which the exponential weights decay by one half)
+func NewEma(halfLife time.Duration) *Ema {
+	return &Ema{halfLife: halfLife}
 }
 
 // Value returns the current value of the counter.
@@ -52,11 +54,11 @@ func (c *Ema) LastValue() float64 {
 // ValuePer returns the current value of the counter, normalized to the given
 // interval. It is actually a Value() * interval / avgInterval.
 func (c *Ema) ValuePer(interval time.Duration) float64 {
-	return c.Value() * float64(interval) / float64(c.avgInterval)
+	return c.Value() * float64(interval) / float64(c.halfLife)
 }
 
 func (c *Ema) LastValuePer(interval time.Duration) float64 {
-	return c.valueAfter(0) * float64(interval) / float64(c.avgInterval)
+	return c.valueAfter(0) * float64(interval) / float64(c.halfLife)
 }
 
 // Add adds a new value to the counter.
@@ -80,5 +82,7 @@ func (c *Ema) valueAfter(elapsed time.Duration) float64 {
 		return 0
 	}
 
-	return c.lastValue * math.Exp(-float64(elapsed)/float64(c.avgInterval))
+	w := math.Exp(-float64(elapsed) / float64(c.halfLife))
+
+	return c.lastValue * w
 }
