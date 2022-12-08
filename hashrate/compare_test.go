@@ -29,7 +29,7 @@ func TestEmaV2(t *testing.T) {
 		"ema-primed-2.5m": NewEmaPrimed(interval/2, 10),
 	}
 	keys := []string{}
-	for name, _ := range emas {
+	for name := range emas {
 		keys = append(keys, name)
 	}
 	sort.Strings(keys)
@@ -69,10 +69,9 @@ func TestEmaV2(t *testing.T) {
 		b.Reset()
 
 		errValue := time.Duration((rand.Float64() - 0.5) * 2 * errMargin * float64(submitInt))
-		sleepTime = time.Duration(submitInt + errValue)
+		sleepTime = submitInt + errValue
 
 		nowTime = nowTime.Add(sleepTime)
-		// time.Sleep(time.Duration(r))
 	}
 }
 

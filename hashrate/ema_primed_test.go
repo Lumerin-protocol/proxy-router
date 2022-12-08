@@ -60,7 +60,7 @@ func testEma(maxObservations int, counter Counter, targetErr float64) (float64, 
 		}
 
 		errValue := time.Duration((rand.Float64() - 0.5) * 2 * addDelayErr * float64(avgAddDelay))
-		sleepTime := time.Duration(avgAddDelay + errValue)
+		sleepTime := avgAddDelay + errValue
 
 		nowTime = nowTime.Add(sleepTime)
 	}
