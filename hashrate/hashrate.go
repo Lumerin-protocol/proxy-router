@@ -54,10 +54,21 @@ func (h *Hashrate) GetHashrate1hAvgGHS() int {
 
 // averageSubmitDiffToGHS converts average value provided by ema to hashrate in GH/S
 func (h *Hashrate) averageSubmitDiffToGHS(averagePerSecond float64) int {
-	hashrateHS := uint64(averagePerSecond) * uint64(math.Pow(2, 32))
-	return HSToGHS(hashrateHS)
+	return HSToGHS(JobSubmittedToHS(averagePerSecond))
 }
 
-func HSToGHS(hashrateHS uint64) int {
-	return int(hashrateHS / uint64(math.Pow10(9)))
+func JobSubmittedToHS(jobSubmitted float64) float64 {
+	return jobSubmitted * math.Pow(2, 32)
+}
+
+func HSToJobSubmitted(hrHS float64) float64 {
+	return hrHS / math.Pow(2, 32)
+}
+
+func HSToGHS(hashrateHS float64) int {
+	return int(hashrateHS / math.Pow10(9))
+}
+
+func GHSToHS(hrGHS int) float64 {
+	return float64(hrGHS) * math.Pow10(9)
 }
