@@ -1,9 +1,8 @@
 package hashrate
 
 import (
-	"crypto/rand"
 	"fmt"
-	"math/big"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -12,10 +11,10 @@ import (
 )
 
 func TestEmaPrimedShouldReach5PercentErr(t *testing.T) {
-	avgInterval := time.Second
+	avgInterval := 5 * time.Minute
 	iterations := 200
-	targetErr := 0.1
-	targetAvgObs := 40.0
+	targetErr := 0.05
+	targetAvgObs := 40
 
 	avgObs := testEmaMulti(iterations, func() Counter {
 		return NewEmaPrimed(avgInterval, 10)
@@ -23,7 +22,7 @@ func TestEmaPrimedShouldReach5PercentErr(t *testing.T) {
 
 	fmt.Printf("finised with average %.2f attempts\n", avgObs)
 	require.NotZero(t, avgObs)
-	require.Lessf(t, avgObs, targetAvgObs, "expected average observations (%.2f) to be less than (%d)", avgObs, targetAvgObs)
+	require.Lessf(t, avgObs, float64(targetAvgObs), "expected average observations (%.2f) to be less than (%d)", avgObs, targetAvgObs)
 }
 
 func testEmaMulti(iterations int, factory func() Counter, targetErr float64) float64 {
@@ -45,8 +44,10 @@ func testEmaMulti(iterations int, factory func() Counter, targetErr float64) flo
 }
 
 func testEma(maxObservations int, counter Counter, targetErr float64) (float64, float64, int) {
-	diff := 10000.0
-	avgAddDelay := 30 * time.Millisecond
+	diff := 100000.0
+	avgAddDelay := 15 * time.Second
+	addDelayErr := 0.5
+
 	expectedAvg := diff / float64(avgAddDelay) * float64(time.Second)
 	actualAvg := 0.0
 
@@ -54,13 +55,14 @@ func testEma(maxObservations int, counter Counter, targetErr float64) (float64, 
 		counter.Add(diff)
 		actualAvg = counter.ValuePer(time.Second)
 
-		// fmt.Printf("%d  %.0f  %.0f  %.2f\n", i, actualAvg, expectedAvg, math.Abs(actualAvg-expectedAvg)/expectedAvg)
-
 		if lib.AlmostEqual(expectedAvg, actualAvg, targetErr) {
 			return expectedAvg, actualAvg, i
 		}
-		r, _ := rand.Int(rand.Reader, big.NewInt(int64(avgAddDelay)*2))
-		nowTime = nowTime.Add(time.Duration(r.Int64()))
+
+		errValue := time.Duration((rand.Float64() - 0.5) * 2 * addDelayErr * float64(avgAddDelay))
+		sleepTime := time.Duration(avgAddDelay + errValue)
+
+		nowTime = nowTime.Add(sleepTime)
 	}
 
 	return expectedAvg, actualAvg, 0

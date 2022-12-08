@@ -1,39 +1,81 @@
 package hashrate
 
 import (
-	"crypto/rand"
+	"bytes"
 	"fmt"
-	"math"
-	"math/big"
+	"math/rand"
+	"sort"
 	"testing"
+	"text/tabwriter"
 	"time"
 )
 
 func TestEmaV2(t *testing.T) {
-	t.Skip()
-	diff := 50000
-	interval := 2 * time.Minute
-	ema := NewEma(interval)
-	emaDyn := NewEmaDynamic(interval, 30*time.Second)
-	emaPrimed := NewEmaPrimed(interval, 10)
-	real := (float64(5*time.Minute) / float64(2*time.Second) * float64(diff)) / float64(5*time.Minute) * float64(time.Second)
-	go func() {
-		fmt.Printf("real value - %.2f\n", real)
-		fmt.Printf("ema\tema imprv\temav2\temav3\n")
-		for i := 0; ; i++ {
+	// t.Skip()
+	diff := 500000
+	interval := 5 * time.Minute
+	submitInt := 15 * time.Second
+	errMargin := 0.9
+	MAX_OBSERVATIONS := 200
+
+	startTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	nowTime = startTime
+
+	emas := map[string]Counter{
+		"ema":             NewEma(interval),
+		"ema-dyn-30s":     NewEmaDynamic(interval, 30*time.Second),
+		"ema-dyn-15s":     NewEmaDynamic(interval, 15*time.Second),
+		"ema-primed":      NewEmaPrimed(interval, 10),
+		"ema-primed-2.5m": NewEmaPrimed(interval/2, 10),
+	}
+	keys := []string{}
+	for name, _ := range emas {
+		keys = append(keys, name)
+	}
+	sort.Strings(keys)
+
+	real := (float64(5*time.Minute) / float64(submitInt) * float64(diff)) / float64(5*time.Minute) * float64(time.Second)
+
+	b := new(bytes.Buffer)
+
+	w := tabwriter.NewWriter(b, 25, 2, 1, ' ', 0)
+
+	fmt.Printf("real average value: %.2f\n", real)
+
+	// table header
+	fmt.Fprintf(w, "obs\telapsed\tdeltaT\t")
+	for _, name := range keys {
+		fmt.Fprintf(w, "%s\t", name)
+	}
+	fmt.Fprintf(w, "\n")
+
+	var sleepTime time.Duration // time between additions
+
+	// table rows
+	for i := 0; i < MAX_OBSERVATIONS; i++ {
+		fmt.Fprintf(w, "%d\t%s\t%s (%.2f)\t", i, getNow().Sub(startTime), sleepTime, delta(float64(sleepTime), float64(submitInt))) // observation number
+
+		for _, name := range keys {
+			ema := emas[name]
 			ema.Add(float64(diff))
-			emaDyn.Add(float64(diff))
-			emaPrimed.Add(float64(diff))
-			val1, val2, val3 := ema.ValuePer(time.Second), emaDyn.ValuePer(time.Second), emaPrimed.ValuePer(time.Second)
-			fmt.Printf("%d\t%.2f\t%.2f\t%.2f\n", i, val1, val2, val3)
-			fmt.Printf("\t%.2f\t%.2f\t%.2f\n\n", delta(val1, real), delta(val2, real), delta(val3, real))
-			r, _ := rand.Int(rand.Reader, big.NewInt(4000))
-			time.Sleep(time.Duration(r.Int64()) * time.Millisecond)
+			val := ema.ValuePer(time.Second)
+			fmt.Fprintf(w, "%.2f (%.2f)\t", val, delta(val, real))
 		}
-	}()
-	time.Sleep(time.Hour)
+		fmt.Fprintf(w, "\n")
+
+		_ = w.Flush()
+		fmt.Printf("%s", b.String())
+
+		b.Reset()
+
+		errValue := time.Duration((rand.Float64() - 0.5) * 2 * errMargin * float64(submitInt))
+		sleepTime = time.Duration(submitInt + errValue)
+
+		nowTime = nowTime.Add(sleepTime)
+		// time.Sleep(time.Duration(r))
+	}
 }
 
-func delta(v1, v2 float64) float64 {
-	return math.Abs(v1-v2) / v1
+func delta(act, exp float64) float64 {
+	return (act - exp) / exp
 }
