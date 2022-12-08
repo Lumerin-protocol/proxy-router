@@ -14,9 +14,11 @@ func TestEmaV2(t *testing.T) {
 	// t.Skip()
 	diff := 500000
 	interval := 5 * time.Minute
-	submitInt := 15 * time.Second
-	errMargin := 0.9
+	submitInt := 60 * time.Second
+	errMargin := 0.8
 	MAX_OBSERVATIONS := 200
+
+	rand.Seed(time.Now().UnixNano())
 
 	startTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	nowTime = startTime
