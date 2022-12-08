@@ -33,12 +33,24 @@ func (m *MiningNotify) GetJobID() string {
 	return string(m.Params[0])
 }
 
+func (m *MiningNotify) SetJobID(ID string) {
+	m.Params[0], _ = json.Marshal(ID)
+}
+
 func (m *MiningNotify) GetPrevBlockHash() string {
 	return string(m.Params[1])
 }
 
+func (m *MiningNotify) SetPrevBlockHash(hash string) {
+	m.Params[1], _ = json.Marshal(hash)
+}
+
 func (m *MiningNotify) GetGen1() string {
 	return string(m.Params[2])
+}
+
+func (m *MiningNotify) SetGen1(gen1 string) {
+	m.Params[2], _ = json.Marshal(gen1)
 }
 
 func (m *MiningNotify) GetGen2() string {

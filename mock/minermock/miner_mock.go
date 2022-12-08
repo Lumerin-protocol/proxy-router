@@ -4,11 +4,13 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"math/rand"
 	"net"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
@@ -30,6 +32,10 @@ type MinerMock struct {
 	resHandlers    sync.Map // map of ID to handler functions
 	diff           float64  // current difficulty
 	submitInterval time.Duration
+	hrGHS          int // miner max power
+	errVal         float64
+
+	hashrateMode atomic.Bool
 
 	log interfaces.ILogger
 }
@@ -43,6 +49,8 @@ func NewMinerMock(dest interfaces.IDestination, log interfaces.ILogger) *MinerMo
 		id:             id,
 		log:            log,
 		submitInterval: DEFAULT_SUBMIT_INTERVAL,
+		hashrateMode:   atomic.Bool{},
+		errVal:         0,
 	}
 }
 
@@ -50,8 +58,21 @@ func (m *MinerMock) GetWorkerName() string {
 	return m.dest.Username()
 }
 
+// SetMinerGHS sets target hashrate in GH/s, invalidates SetSubmitInterval
+func (m *MinerMock) SetMinerGHS(ghs int) {
+	m.hrGHS = ghs
+	m.hashrateMode.Store(true)
+}
+
+// SetSubmitInterval sets the interval between submits, invalidates SetMinerGHS
 func (m *MinerMock) SetSubmitInterval(interval time.Duration) {
 	m.submitInterval = interval
+	m.hashrateMode.Store(false)
+}
+
+// SetMinerError introduces variance in time needed to generate a submit in fraction (0 < errVal < 1)
+func (m *MinerMock) SetMinerError(errVal float64) {
+	m.errVal = errVal
 }
 
 func (m *MinerMock) Run(ctx context.Context) error {
@@ -115,10 +136,23 @@ func (m *MinerMock) Run(ctx context.Context) error {
 
 func (m *MinerMock) mine(ctx context.Context) error {
 	for {
+		isHashrateMode := m.hashrateMode.Load()
+
+		var wait time.Duration
+		if isHashrateMode {
+			wait = time.Duration(m.diff / hashrate.HSToJobSubmitted(hashrate.GHSToHS(m.hrGHS)) * float64(time.Second))
+		} else {
+			wait = m.submitInterval
+		}
+
+		errRange := m.errVal * float64(wait)                     // the absolute value of maximum error
+		randErr := errRange * 2 * rand.Float64()                 // the value of introduced error (doubled, cause it goes in two directions)
+		wait = time.Duration(float64(wait) + randErr - errRange) // waiting time
+
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(m.submitInterval):
+		case <-time.After(wait):
 		}
 
 		err := m.submit(ctx)
@@ -232,7 +266,7 @@ func (m *MinerMock) readMessages(ctx context.Context) error {
 
 		switch typedMessage := msg.(type) {
 		case *stratumv1_message.MiningNotify:
-			m.log.Debugf("received Notify")
+			m.log.Debugf("received Notify: %s", string(msg.Serialize()))
 
 		case *stratumv1_message.MiningSetDifficulty:
 			m.diff = typedMessage.GetDifficulty()
