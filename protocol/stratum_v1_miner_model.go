@@ -115,7 +115,7 @@ func (s *stratumV1MinerModel) Run(ctx context.Context) error {
 	s.poolConn.ResendRelevantNotifications(ctx)
 
 	subCtx, cancel := context.WithCancel(ctx)
-	errCh := make(chan error)
+	errCh := make(chan error, 2)
 	sendError := func(ctx context.Context, err error) {
 		select {
 		case errCh <- err:
@@ -208,7 +208,6 @@ func (s *stratumV1MinerModel) Run(ctx context.Context) error {
 
 	err = <-errCh
 	cancel()
-	close(errCh)
 
 	err = fmt.Errorf("miner model error: %w", err)
 	s.log.Error(err)

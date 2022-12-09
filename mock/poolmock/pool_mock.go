@@ -139,7 +139,7 @@ func (p *PoolMock) GetHRByWorkerName(workerName string) (hrGHS int, ok bool) {
 }
 
 func (p *PoolMock) OnSubmit(workerName string, msgID int, diff int64) {
-	hr, _ := p.workerHr.LoadOrStore(workerName, hashrate.NewHashrate(p.log))
+	hr, _ := p.workerHr.LoadOrStore(workerName, hashrate.NewHashrate())
 	workerHr := hr.(*hashrate.Hashrate)
 	workerHr.OnSubmit(diff)
 	p.log.Debugf("got submit from worker(%s), msgID(%d) hrGHS %d", workerName, msgID, workerHr.GetHashrate5minAvgGHS())
