@@ -10,11 +10,11 @@ type emaPrimed struct {
 	halfLife  time.Duration
 	lastValue float64
 	lastTime  time.Time
-	startedAt time.Time
-	lk        sync.RWMutex
+	mutex     sync.RWMutex
 
-	initSum       float64
-	primedObsLeft int
+	startedAt     time.Time
+	primerSum     float64 // sum of observations during priming period
+	primedObsLeft int     // observation left to collect the initial data for ema function primer
 }
 
 // NewEmaPrimed creates an EMA counter with the given half-life to be primed
@@ -28,15 +28,15 @@ func NewEmaPrimed(halfLife time.Duration, obsCount int) *emaPrimed {
 
 // Value returns the current value of the counter.
 func (c *emaPrimed) Value() float64 {
-	c.lk.RLock()
-	defer c.lk.RUnlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 	return c.value()
 }
 
 // LastValue returns last value of a counter excluding the value decay
 func (c *emaPrimed) LastValue() float64 {
-	c.lk.RLock()
-	defer c.lk.RUnlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 	return c.valueAfter(0)
 }
 
@@ -52,8 +52,8 @@ func (c *emaPrimed) LastValuePer(interval time.Duration) float64 {
 
 // Add adds a new value to the counter.
 func (c *emaPrimed) Add(v float64) {
-	c.lk.Lock()
-	defer c.lk.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	if c.startedAt.IsZero() {
 		c.startedAt = getNow()
@@ -61,10 +61,10 @@ func (c *emaPrimed) Add(v float64) {
 
 	if c.primedObsLeft > 0 {
 		c.primedObsLeft--
-		c.initSum += v
+		c.primerSum += v
 		if c.primedObsLeft == 0 {
 			elapsed := getNow().Sub(c.startedAt)
-			c.lastValue = c.initSum * (float64(c.halfLife) / float64(elapsed))
+			c.lastValue = c.primerSum * (float64(c.halfLife) / float64(elapsed))
 			c.lastTime = c.startedAt
 		}
 		return

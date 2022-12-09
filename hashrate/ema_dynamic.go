@@ -14,7 +14,7 @@ type emaDynamic struct {
 	lastTime     time.Time
 	lastInterval time.Duration
 	startedAt    time.Time
-	lk           sync.RWMutex
+	mutex        sync.RWMutex
 }
 
 // NewEmaDynamic creates a new EMA counter with dynamic half-life. It decreases the time
@@ -29,15 +29,15 @@ func NewEmaDynamic(halfLife time.Duration, minHalfLife time.Duration) *emaDynami
 
 // Value returns the current value of the counter.
 func (c *emaDynamic) Value() float64 {
-	c.lk.RLock()
-	defer c.lk.RUnlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 	return c.value()
 }
 
 // LastValue returns last value of a counter excluding the value decay
 func (c *emaDynamic) LastValue() float64 {
-	c.lk.RLock()
-	defer c.lk.RUnlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 	return c.valueAfter(0)
 }
 
@@ -53,8 +53,8 @@ func (c *emaDynamic) LastValuePer(interval time.Duration) float64 {
 
 // Add adds a new value to the counter.
 func (c *emaDynamic) Add(v float64) {
-	c.lk.Lock()
-	defer c.lk.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	if c.startedAt.IsZero() {
 		c.startedAt = getNow()

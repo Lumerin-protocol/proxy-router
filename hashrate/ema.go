@@ -29,7 +29,7 @@ type Ema struct {
 	lastValue float64
 	lastTime  time.Time
 	halfLife  time.Duration
-	lk        sync.RWMutex
+	mutex     sync.RWMutex
 }
 
 // NewEma creates a new Counter with the given half-life (time lag at which the exponential weights decay by one half)
@@ -39,15 +39,15 @@ func NewEma(halfLife time.Duration) *Ema {
 
 // Value returns the current value of the counter.
 func (c *Ema) Value() float64 {
-	c.lk.RLock()
-	defer c.lk.RUnlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 	return c.value()
 }
 
 // LastValue returns last value of a counter excluding the value decay
 func (c *Ema) LastValue() float64 {
-	c.lk.RLock()
-	defer c.lk.RUnlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 	return c.valueAfter(0)
 }
 
@@ -63,8 +63,8 @@ func (c *Ema) LastValuePer(interval time.Duration) float64 {
 
 // Add adds a new value to the counter.
 func (c *Ema) Add(v float64) {
-	c.lk.Lock()
-	defer c.lk.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	c.lastValue = c.value() + v
 	c.lastTime = getNow()
