@@ -114,7 +114,7 @@ func (c *ProxyController) CheckMinersConnected(miners map[int]*minermock.MinerMo
 		if !isOk {
 			return fmt.Errorf("miner(%s) not connected", m.GetWorkerName())
 		}
-		if mn.TotalHashrateGHS == 0 {
+		if mn.HashrateAvgGHS.T5m == 0 {
 			return fmt.Errorf("miner(%s) not providing hashrate", m.GetWorkerName())
 		}
 	}
