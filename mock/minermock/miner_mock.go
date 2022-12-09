@@ -21,7 +21,7 @@ type StratumV1ResultHandler = func(a stratumv1_message.MiningResult)
 const (
 	INIT_TIMEOUT            = 5 * time.Second
 	DEFAULT_SUBMIT_INTERVAL = 5 * time.Second
-	RESPONSE_TIMEOUT        = time.Minute
+	RESPONSE_TIMEOUT        = 15 * time.Second
 )
 
 type MinerMock struct {
@@ -204,7 +204,6 @@ func (m *MinerMock) configure(ctx context.Context) error {
 
 func (m *MinerMock) submit(ctx context.Context) error {
 	msg := stratumv1_message.NewMiningSubmit(m.dest.Username(), "620daf25f", "0000000000000000", "62cea7a6", "f9b40000")
-	m.log.Info("new submit")
 	return m.sendAndAwait(ctx, msg)
 }
 
@@ -216,10 +215,16 @@ func (m *MinerMock) sendAndAwait(ctx context.Context, msg stratumv1_message.Mini
 	ID := m.acquireID()
 	msg.SetID(ID)
 
+	if _, ok := msg.(*stratumv1_message.MiningSubmit); ok {
+		m.log.Infof("new mining submit msgID(%d) id(%s)", ID, m.conn.LocalAddr())
+	}
+
 	errCh := make(chan error)
+	// we need to be sure that handler registered before writing, not at the same time
+	await := m.awaitResponse(ID)
 
 	go func() {
-		_, err := m.awaitResponse(ID)
+		_, err := await()
 		errCh <- err
 		close(errCh)
 	}()
@@ -293,7 +298,7 @@ func (m *MinerMock) registerHandler(ID int, f StratumV1ResultHandler) {
 	m.resHandlers.Store(ID, f)
 }
 
-func (m *MinerMock) awaitResponse(ID int) (stratumv1_message.MiningResult, error) {
+func (m *MinerMock) awaitResponse(ID int) func() (stratumv1_message.MiningResult, error) {
 	msgCh := make(chan stratumv1_message.MiningResult)
 
 	m.registerHandler(ID, func(a stratumv1_message.MiningResult) {
@@ -301,10 +306,13 @@ func (m *MinerMock) awaitResponse(ID int) (stratumv1_message.MiningResult, error
 		close(msgCh)
 	})
 
-	select {
-	case msg := <-msgCh:
-		return msg, nil
-	case <-time.After(RESPONSE_TIMEOUT):
-		return stratumv1_message.MiningResult{}, fmt.Errorf("pool response timeout")
+	return func() (stratumv1_message.MiningResult, error) {
+		select {
+		case msg := <-msgCh:
+			m.log.Infof("miner got submit response, minerID(%s) connID(%s) msgID(%d)", m.GetWorkerName(), m.conn.LocalAddr().String(), ID)
+			return msg, nil
+		case <-time.After(RESPONSE_TIMEOUT):
+			return stratumv1_message.MiningResult{}, fmt.Errorf("pool response timeout, minerID(%s) connID(%s) msgID(%d)", m.GetWorkerName(), m.conn.LocalAddr().String(), ID)
+		}
 	}
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sync/atomic"
-	"time"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
@@ -37,7 +36,7 @@ func (c *MinersController) Run(ctx context.Context) error {
 	return c.errGrp.Wait()
 }
 
-func (c *MinersController) AddMiners(ctx context.Context, count int, destPort int) error {
+func (c *MinersController) AddMiners(ctx context.Context, count int, destPort int, hrGHS int, hrError float64) error {
 	for i := 0; i < count; i++ {
 		minerId := c.counter.Add(1)
 		workerName := fmt.Sprintf("mock-miner-%d", minerId)
@@ -45,7 +44,8 @@ func (c *MinersController) AddMiners(ctx context.Context, count int, destPort in
 			"stratum+tcp://%s:123@0.0.0.0:%d", workerName, destPort,
 		))
 		miner := minermock.NewMinerMock(dest, c.log.Named(workerName))
-		miner.SetSubmitInterval(10 * time.Second)
+		miner.SetMinerGHS(hrGHS)
+		miner.SetMinerError(hrError)
 		c.miners[i] = miner
 	}
 

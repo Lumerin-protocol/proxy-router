@@ -18,8 +18,12 @@ const (
 
 	CONTRACT_WORKER_NAME = "contract"
 	HASHRATE_WAIT_TIME   = 2 * time.Minute
-	CONTRACT_HASHRATE    = 20000
+	CONTRACT_HASHRATE    = 120000
 	CONTRACT_DURATION    = 15 * time.Minute
+
+	MINER_HASHRATE     = 100000
+	MINER_HASHRATE_ERR = 0.7
+	MINER_COUNT        = 10
 )
 
 // Dont forget to build executable before running this test
@@ -74,7 +78,7 @@ func TestHashrateDelivery(t *testing.T) {
 	//
 	// start miners
 	//
-	_ = minersCtl.AddMiners(ctx, 10, HASHROUTER_STRATUM_PORT)
+	_ = minersCtl.AddMiners(ctx, MINER_COUNT, HASHROUTER_STRATUM_PORT, MINER_HASHRATE, MINER_HASHRATE_ERR)
 	errGrp.Go(func() error {
 		return minersCtl.Run(subCtx)
 	})
