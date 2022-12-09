@@ -22,17 +22,31 @@ type stratumV1MinerModel struct {
 
 	configureMsgReq *stratumv1_message.MiningConfigure
 
+	unansweredMsg      sync.WaitGroup // inverted semaphore that counts messages that were unanswered
+	pauseMinerReadCh   chan any
+	unpauseMinerReadCh chan any
+	pausePoolReadCh    chan any
+	unpausePoolReadCh  chan any
+
 	workerName string
 
 	log interfaces.ILogger
 }
 
+const MAX_PAUSE_READ_DURATION = 15 * time.Second
+
 func NewStratumV1MinerModel(poolPool StratumV1DestConn, minerConn StratumV1SourceConn, validator *hashrate.Hashrate, log interfaces.ILogger) *stratumV1MinerModel {
 	return &stratumV1MinerModel{
-		poolConn:  poolPool,
-		minerConn: minerConn,
-		validator: validator,
-		log:       log,
+		poolConn:           poolPool,
+		minerConn:          minerConn,
+		validator:          validator,
+		unansweredMsg:      sync.WaitGroup{},
+		pauseMinerReadCh:   make(chan any),
+		unpauseMinerReadCh: make(chan any),
+		pausePoolReadCh:    make(chan any),
+		unpausePoolReadCh:  make(chan any),
+
+		log: log,
 	}
 }
 
@@ -114,6 +128,13 @@ func (s *stratumV1MinerModel) Run(ctx context.Context) error {
 			select {
 			case <-subCtx.Done():
 				return
+			case <-s.pausePoolReadCh:
+				select {
+				case <-s.unpausePoolReadCh:
+				case <-subCtx.Done():
+				case <-time.After(MAX_PAUSE_READ_DURATION):
+					s.log.Warnf("max pause time reached (%s), unpaused", MAX_PAUSE_READ_DURATION)
+				}
 			default:
 			}
 
@@ -131,10 +152,18 @@ func (s *stratumV1MinerModel) Run(ctx context.Context) error {
 			default:
 			}
 
+			rr, ok := msg.(*stratumv1_message.MiningResult)
+			if ok {
+				s.log.Infof("got result response from pool, msgID(%d)", rr.ID)
+			}
+
 			err = s.minerConn.Write(subCtx, msg)
 			if err != nil {
 				sendError(subCtx, fmt.Errorf("miner write err: %w", err))
 				return
+			}
+			if ok {
+				s.log.Infof("sent result response from pool, msgID(%d)", rr.ID)
 			}
 		}
 	}()
@@ -144,6 +173,14 @@ func (s *stratumV1MinerModel) Run(ctx context.Context) error {
 			select {
 			case <-subCtx.Done():
 				return
+			// enable pause reading function
+			case <-s.pauseMinerReadCh:
+				select {
+				case <-s.unpauseMinerReadCh:
+				case <-subCtx.Done():
+				case <-time.After(MAX_PAUSE_READ_DURATION):
+					s.log.Warnf("max pause time reached (%s), unpaused", MAX_PAUSE_READ_DURATION)
+				}
 			default:
 			}
 
@@ -181,7 +218,11 @@ func (s *stratumV1MinerModel) Run(ctx context.Context) error {
 func (s *stratumV1MinerModel) minerInterceptor(msg stratumv1_message.MiningMessageGeneric) {
 	switch typed := msg.(type) {
 	case *stratumv1_message.MiningSubmit:
+		s.unansweredMsg.Add(1)
+
 		s.poolConn.RegisterResultHandler(typed.GetID(), func(a stratumv1_message.MiningResult) stratumv1_message.MiningMessageGeneric {
+			s.unansweredMsg.Done()
+
 			if a.IsError() {
 				s.log.Warnf("error during submit: %s msg ID %d", a.GetError(), a.ID)
 				return &a
@@ -209,11 +250,21 @@ func (s *stratumV1MinerModel) poolInterceptor(msg stratumv1_message.MiningMessag
 }
 
 func (s *stratumV1MinerModel) ChangeDest(ctx context.Context, dest interfaces.IDestination, onSubmit interfaces.IHashrate) error {
+	s.pauseMinerReadCh <- struct{}{}
+
+	s.unansweredMsg.Wait() // waiting for all responses
+
+	s.pausePoolReadCh <- struct{}{}
+
 	err := s.poolConn.SetDest(ctx, dest, s.configureMsgReq)
 	if err != nil {
 		return err
 	}
 	s.setOnSubmit(onSubmit)
+
+	s.unpausePoolReadCh <- struct{}{}
+	s.unpauseMinerReadCh <- struct{}{}
+
 	return nil
 }
 
