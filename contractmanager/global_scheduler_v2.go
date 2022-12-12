@@ -120,7 +120,7 @@ func (s *GlobalSchedulerV2) update(contractID string, targetHrGHS int, dest inte
 	}
 
 	if !isAccurate {
-		s.log.Errorf("allocation wasn't totally accurate")
+		s.log.Warnf("allocation wasn't totally accurate, expected(%d), actual(%d)", targetHrGHS, allocCollection.GetAllocatedGHS())
 	}
 
 	allocCollection = s.adjustAllocCollection(allocCollection, snap)
