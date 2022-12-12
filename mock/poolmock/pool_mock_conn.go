@@ -26,7 +26,7 @@ const (
 )
 
 type StratumV1MsgHandler = func(a stratumv1_message.MiningMessageToPool)
-type OnSubmitHandler = func(workerName string, diff int64)
+type OnSubmitHandler = func(workerName string, msgID int, diff int64)
 
 type PoolMockConn struct {
 	conn        net.Conn
@@ -39,7 +39,6 @@ type PoolMockConn struct {
 
 	diff                 int
 	diffCh               chan int
-	varDiffRange         [2]int
 	varDiffCount         *VarDiff
 	isVarDiff            atomic.Bool
 	varDiffSubmitCh      chan int
@@ -55,13 +54,12 @@ func NewPoolMockConn(conn net.Conn, varDiffRange [2]int, onSubmit OnSubmitHandle
 	return &PoolMockConn{
 		conn:                 conn,
 		log:                  log,
-		varDiffRange:         varDiffRange,
 		diff:                 varDiffRange[0],
 		diffCh:               make(chan int),
 		isVarDiff:            isVarDiff,
 		onSubmit:             onSubmit,
 		id:                   conn.RemoteAddr().String(),
-		varDiffCount:         &VarDiff{},
+		varDiffCount:         NewVarDiff(varDiffRange),
 		varDiffSubmitCounter: deque.New[time.Time](8, 8),
 		varDiffSubmitCh:      make(chan int, 5),
 	}
@@ -324,7 +322,7 @@ func (c *PoolMockConn) readMessages(ctx context.Context) error {
 
 		case *stratumv1_message.MiningSubmit:
 			c.submitCount.Add(1)
-			c.onSubmit(c.workerName, int64(c.diff))
+			c.onSubmit(c.workerName, msg.GetID(), int64(c.diff))
 			c.varDiff2(c.diff)
 
 			handler, ok := c.msgHandlers.LoadAndDelete(stratumv1_message.MethodMiningSubmit)

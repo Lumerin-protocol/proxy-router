@@ -76,6 +76,9 @@ func TestConnectMocksSubmitInterval(t *testing.T) {
 }
 
 func TestConnectMocksHashrate(t *testing.T) {
+	hashrateGHS := 20000
+	hashrateErr := 0.2
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -88,7 +91,7 @@ func TestConnectMocksHashrate(t *testing.T) {
 		t.Log(err)
 	}
 
-	MinerNumber := 1
+	MinerNumber := 50
 	miners := make(map[string]*minermock.MinerMock, MinerNumber)
 
 	for i := 0; i < MinerNumber; i++ {
@@ -97,8 +100,8 @@ func TestConnectMocksHashrate(t *testing.T) {
 			"stratum+tcp://%s:123@0.0.0.0:%d", workerName, pool.GetPort(),
 		))
 		miner := minermock.NewMinerMock(dest, log.Named(workerName))
-		miner.SetMinerGHS(20000)
-		miner.SetMinerError(0.2)
+		miner.SetMinerGHS(hashrateGHS)
+		miner.SetMinerError(hashrateErr)
 		miners[workerName] = miner
 	}
 
@@ -126,15 +129,12 @@ func TestConnectMocksHashrate(t *testing.T) {
 	<-time.After(10000 * time.Second)
 
 	for workerName := range miners {
-		poolConn := pool.GetConnByWorkerName(workerName)
-		if poolConn == nil {
+		hr, ok := pool.GetHRByWorkerName(workerName)
+		if !ok {
 			t.Errorf("miner %s not found", workerName)
 			continue
 		}
 
-		submitCount := poolConn.GetSubmitCount()
-		if submitCount == 0 {
-			t.Errorf("no submits sent for miner %s", workerName)
-		}
+		fmt.Printf("hashrate %d", hr)
 	}
 }
