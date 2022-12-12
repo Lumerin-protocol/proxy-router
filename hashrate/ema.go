@@ -86,3 +86,5 @@ func (c *Ema) valueAfter(elapsed time.Duration) float64 {
 
 	return c.lastValue * w
 }
+
+var _ Counter = new(Ema)
