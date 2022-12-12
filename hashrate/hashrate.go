@@ -12,24 +12,42 @@ type Hashrate struct {
 	ema5m       Counter
 	ema30m      Counter
 	ema1h       Counter
+	custom      map[time.Duration]Counter
 	totalHashes atomic.Uint64
 }
 
-func NewHashrate() *Hashrate {
-	return &Hashrate{
+func NewHashrate(durations ...time.Duration) *Hashrate {
+	instance := &Hashrate{
 		emaBase: NewEmaPrimed(5*time.Minute, 10),
 		ema5m:   NewEma(5 * time.Minute),
 		ema30m:  NewEma(30 * time.Minute),
 		ema1h:   NewEma(1 * time.Hour),
 	}
+
+	if len(durations) > 0 {
+		custom := make(map[time.Duration]Counter, len(durations))
+		for _, duration := range durations {
+			custom[duration] = NewEma(duration)
+		}
+		instance.custom = custom
+	}
+
+	return instance
+
 }
 
 func (h *Hashrate) OnSubmit(diff int64) {
-	h.emaBase.Add(float64(diff))
-	h.ema5m.Add(float64(diff))
-	h.ema30m.Add(float64(diff))
-	h.ema1h.Add(float64(diff))
+	diffFloat := float64(diff)
+
+	h.emaBase.Add(diffFloat)
+	h.ema5m.Add(diffFloat)
+	h.ema30m.Add(diffFloat)
+	h.ema1h.Add(diffFloat)
 	h.totalHashes.Add(uint64(diff))
+
+	for _, item := range h.custom {
+		item.Add(diffFloat)
+	}
 }
 
 func (h *Hashrate) GetTotalHashes() uint64 {
@@ -55,6 +73,14 @@ func (h *Hashrate) GetHashrate1hAvgGHS() int {
 // averageSubmitDiffToGHS converts average value provided by ema to hashrate in GH/S
 func (h *Hashrate) averageSubmitDiffToGHS(averagePerSecond float64) int {
 	return HSToGHS(JobSubmittedToHS(averagePerSecond))
+}
+
+func (h *Hashrate) GetHashrateAvgGHSCustom(avg time.Duration) (hrGHS int, ok bool) {
+	ema, ok := h.custom[avg]
+	if !ok {
+		return 0, false
+	}
+	return h.averageSubmitDiffToGHS(ema.ValuePer(time.Second)), true
 }
 
 func JobSubmittedToHS(jobSubmitted float64) float64 {
