@@ -10,8 +10,3 @@ Current working repository is in Gitlab (https://gitlab.com/TitanInd/proxy/proxy
 1. Create a new tag `git tag 0.0.x`
 1. Push it to remote `git push --tags`
 1. The CI job that runs on tag push should release the artifacts
-
-## How to run integration test
-
-1. Run `make build`. Make sure hashrouter executable is located in root
-1. Run `go test -tags wireinject -run ^TestHashrateDelivery$ gitlab.com/TitanInd/hashrouter/test/fakeminerpool -v -count=1 -timeout=120m`
