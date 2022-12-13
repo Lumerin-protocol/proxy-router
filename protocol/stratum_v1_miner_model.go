@@ -33,7 +33,7 @@ type stratumV1MinerModel struct {
 	log interfaces.ILogger
 }
 
-const MAX_PAUSE_READ_DURATION = 15 * time.Second
+const MAX_PAUSE_DURATION = 15 * time.Second
 
 func NewStratumV1MinerModel(poolPool StratumV1DestConn, minerConn StratumV1SourceConn, validator *hashrate.Hashrate, log interfaces.ILogger) *stratumV1MinerModel {
 	return &stratumV1MinerModel{
@@ -317,8 +317,8 @@ func (s *stratumV1MinerModel) pauseUnpause(ctx context.Context, pauseChan, unpau
 				break INNER
 			case <-ctx.Done():
 				return ctx.Err()
-			case <-time.After(MAX_PAUSE_READ_DURATION):
-				s.log.Warnf("max pause time reached (%s), unpaused", MAX_PAUSE_READ_DURATION)
+			case <-time.After(MAX_PAUSE_DURATION):
+				s.log.Warnf("max pause time reached (%s), unpaused", MAX_PAUSE_DURATION)
 				break INNER
 			}
 		}
