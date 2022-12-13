@@ -125,17 +125,8 @@ func (s *stratumV1MinerModel) Run(ctx context.Context) error {
 
 	go func() {
 		for {
-			select {
-			case <-subCtx.Done():
+			if s.pauseUnpause(subCtx, s.pausePoolReadCh, s.unpausePoolReadCh) != nil {
 				return
-			case <-s.pausePoolReadCh:
-				select {
-				case <-s.unpausePoolReadCh:
-				case <-subCtx.Done():
-				case <-time.After(MAX_PAUSE_READ_DURATION):
-					s.log.Warnf("max pause time reached (%s), unpaused", MAX_PAUSE_READ_DURATION)
-				}
-			default:
 			}
 
 			msg, err := s.poolConn.Read(subCtx)
@@ -170,18 +161,8 @@ func (s *stratumV1MinerModel) Run(ctx context.Context) error {
 
 	go func() {
 		for {
-			select {
-			case <-subCtx.Done():
+			if s.pauseUnpause(subCtx, s.pauseMinerReadCh, s.unpauseMinerReadCh) != nil {
 				return
-			// enable pause reading function
-			case <-s.pauseMinerReadCh:
-				select {
-				case <-s.unpauseMinerReadCh:
-				case <-subCtx.Done():
-				case <-time.After(MAX_PAUSE_READ_DURATION):
-					s.log.Warnf("max pause time reached (%s), unpaused", MAX_PAUSE_READ_DURATION)
-				}
-			default:
 			}
 
 			msg, err := s.minerConn.Read(subCtx)
@@ -318,4 +299,33 @@ func (s *stratumV1MinerModel) Cleanup() {
 		}
 	}
 	s.onSubmit = nil
+}
+
+// pauseUnpause pauses execution after receiving signal on pauseChan, and blocks until unpause signal is not received
+// It supports context, and on cancellation returns error
+func (s *stratumV1MinerModel) pauseUnpause(ctx context.Context, pauseChan, unpauseChan chan any) (err error) {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-pauseChan:
+	INNER:
+		for {
+			select {
+			case <-pauseChan:
+				// do nothing, block in the loop
+			case <-unpauseChan:
+				break INNER
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(MAX_PAUSE_READ_DURATION):
+				s.log.Warnf("max pause time reached (%s), unpaused", MAX_PAUSE_READ_DURATION)
+				break INNER
+			}
+		}
+
+	case <-unpauseChan: // unblock
+	default:
+	}
+
+	return nil
 }
