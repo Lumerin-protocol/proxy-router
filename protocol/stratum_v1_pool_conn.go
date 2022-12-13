@@ -344,6 +344,7 @@ func (s *StratumV1PoolConn) Deadline(cleanupCb func()) {
 		for {
 			select {
 			case <-deadlineChan:
+				cleanupCb()
 
 				s.newDeadlineMutex.Lock()
 				newDeadlineRef := s.newDeadline
@@ -355,7 +356,7 @@ func (s *StratumV1PoolConn) Deadline(cleanupCb func()) {
 				if err != nil {
 					s.log.Errorf("deadline connection closeout error %s", err)
 				}
-				cleanupCb()
+
 				return
 			case deadline := <-s.newDeadline:
 				if deadline.IsZero() {
