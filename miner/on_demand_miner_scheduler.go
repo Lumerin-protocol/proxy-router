@@ -143,7 +143,7 @@ func (m *OnDemandMinerScheduler) SetDestSplit(destSplit *DestSplit) {
 		m.restartDestCycle <- struct{}{}
 	}
 
-	m.log.Infof("new destination split: %s", m.destSplit.String())
+	m.log.Infof("new destination split: %s", destSplit.String())
 }
 
 // ChangeDest forcefully change destination regardless of the split. The destination will be overrided back on next split item
