@@ -136,7 +136,15 @@ func (m *OnDemandMinerScheduler) GetUpcomingDestSplit() *DestSplit {
 
 // SetDestSplit sets upcoming destination split which will be used on next cycle
 func (m *OnDemandMinerScheduler) SetDestSplit(destSplit *DestSplit) {
-	shouldRestartDestCycle := m.destSplit.IsEmpty()
+	shouldRestartDestCycle := false
+
+	if m.destSplit.IsEmpty() {
+		shouldRestartDestCycle = true
+	} else {
+		if m.destSplit.Iter()[0].Fraction == 1 {
+			shouldRestartDestCycle = true
+		}
+	}
 
 	m.upcomingDestSplit = destSplit.Copy()
 	if shouldRestartDestCycle {
