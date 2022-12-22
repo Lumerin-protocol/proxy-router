@@ -43,7 +43,7 @@ func (d *DestSplit) Copy() *DestSplit {
 
 func (d *DestSplit) Allocate(ID string, percentage float64, dest interfaces.IDestination, onSubmit interfaces.IHashrate) (*DestSplit, error) {
 	if percentage > 1 || percentage == 0 {
-		return nil, fmt.Errorf("percentage should be withing range 0..1")
+		return nil, fmt.Errorf("percentage(%.2f) should be withing range 0..1", percentage)
 	}
 
 	if percentage > d.GetUnallocated() {
