@@ -4,11 +4,17 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
+)
+
+const (
+	MAX_PAUSE_DURATION             = 15 * time.Second
+	DEFAULT_SUBMIT_ERR_COUNT_LIMIT = 15
 )
 
 type stratumV1MinerModel struct {
@@ -28,14 +34,21 @@ type stratumV1MinerModel struct {
 	pausePoolReadCh    chan any
 	unpausePoolReadCh  chan any
 
+	submitErrCount atomic.Int32 // counter of successive submit errors, it is the case when set_extranonce is not supported
+	submitErrLimit int          // after this amount of errors miner will be considered faulty
+	isFaulty       bool         // true when number of successive errors exceeded limit, miner will be exculded from fulfilling contracts
+	onFault        func(ctx context.Context)
+
 	workerName string
 
 	log interfaces.ILogger
 }
 
-const MAX_PAUSE_DURATION = 15 * time.Second
+func NewStratumV1MinerModel(poolPool StratumV1DestConn, minerConn StratumV1SourceConn, validator *hashrate.Hashrate, submitErrLimit int, log interfaces.ILogger) *stratumV1MinerModel {
+	if submitErrLimit == 0 {
+		submitErrLimit = DEFAULT_SUBMIT_ERR_COUNT_LIMIT
+	}
 
-func NewStratumV1MinerModel(poolPool StratumV1DestConn, minerConn StratumV1SourceConn, validator *hashrate.Hashrate, log interfaces.ILogger) *stratumV1MinerModel {
 	return &stratumV1MinerModel{
 		poolConn:           poolPool,
 		minerConn:          minerConn,
@@ -45,6 +58,9 @@ func NewStratumV1MinerModel(poolPool StratumV1DestConn, minerConn StratumV1Sourc
 		unpauseMinerReadCh: make(chan any),
 		pausePoolReadCh:    make(chan any),
 		unpausePoolReadCh:  make(chan any),
+		submitErrCount:     atomic.Int32{},
+		submitErrLimit:     submitErrLimit,
+		isFaulty:           false,
 
 		log: log,
 	}
@@ -187,6 +203,14 @@ func (s *stratumV1MinerModel) Run(ctx context.Context) error {
 	return err
 }
 
+func (s *stratumV1MinerModel) OnFault(cb func(ctx context.Context)) {
+	s.onFault = cb
+}
+
+func (s *stratumV1MinerModel) IsFaulty() bool {
+	return s.isFaulty
+}
+
 func (s *stratumV1MinerModel) minerInterceptor(msg stratumv1_message.MiningMessageGeneric) {
 	switch typed := msg.(type) {
 	case *stratumv1_message.MiningSubmit:
@@ -197,8 +221,18 @@ func (s *stratumV1MinerModel) minerInterceptor(msg stratumv1_message.MiningMessa
 
 			if a.IsError() {
 				s.log.Warnf("error during submit: %s msg ID %d", a.GetError(), a.ID)
+				errCount := s.submitErrCount.Add(1)
+				if errCount > int32(s.submitErrLimit) {
+					s.log.Warnf("consecutive submit error count(%d) exceded limit(%d)", errCount, s.submitErrLimit)
+					s.isFaulty = true
+					if s.onFault != nil {
+						s.onFault(context.Background())
+					}
+					s.submitErrCount.Store(0)
+				}
 				return &a
 			}
+			s.submitErrCount.Store(0)
 			s.validator.OnSubmit(s.difficulty)
 
 			s.onSubmitMutex.RLock()

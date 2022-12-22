@@ -41,6 +41,7 @@ type MinersResponse struct {
 	BusyMiners    int
 	FreeMiners    int
 	VettingMiners int
+	FaultyMiners  int
 
 	Miners []Miner
 }
@@ -61,6 +62,7 @@ type Miner struct {
 	UptimeSeconds         int
 	ActivePoolConnections *map[string]string `json:",omitempty"`
 	History               *[]HistoryItem     `json:",omitempty"`
+	IsFaulty              bool
 }
 
 type HashrateAvgGHS struct {
@@ -213,6 +215,7 @@ func (c *ApiController) GetMiners() *MinersResponse {
 		BusyMiners    int
 		FreeMiners    int
 		VettingMiners int
+		FaultyMiners  int
 	)
 
 	c.miners.Range(func(m miner.MinerScheduler) bool {
@@ -230,6 +233,10 @@ func (c *ApiController) GetMiners() *MinersResponse {
 			VettingMiners += 1
 		case miner.MinerStatusBusy:
 			BusyMiners += 1
+		}
+
+		if m.IsFaulty() {
+			FaultyMiners += 1
 		}
 
 		miner := c.MapMiner(m)
@@ -431,6 +438,7 @@ func (c *ApiController) MapMiner(m miner.MinerScheduler) *Miner {
 		WorkerName:           m.GetWorkerName(),
 		ConnectedAt:          m.GetConnectedAt().Format(time.RFC3339),
 		UptimeSeconds:        int(m.GetUptime().Seconds()),
+		IsFaulty:             m.IsFaulty(),
 	}
 }
 

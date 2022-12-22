@@ -15,26 +15,27 @@ type Hashrate interface {
 
 type MinerModel interface {
 	Run(ctx context.Context) error // shouldn't be available as public method, should be called when new miner announced
-	GetID() string                 // get miner unique id (host:port for example)
-
-	GetDest() interfaces.IDestination
 	ChangeDest(ctx context.Context, dest interfaces.IDestination, onSubmit interfaces.IHashrate) error
-	GetCurrentDifficulty() int
+	OnFault(func(ctx context.Context))
 
+	GetID() string // get miner unique id (host:port for example)
+	GetDest() interfaces.IDestination
+	GetCurrentDifficulty() int
 	GetWorkerName() string
 	GetHashRateGHS() int
 	GetHashRate() interfaces.Hashrate
 	GetConnectedAt() time.Time
+	IsFaulty() bool
 
 	RangeDestConn(f func(key any, value any) bool)
 }
 
 type MinerScheduler interface {
+	ChangeDest(ctx context.Context, dest interfaces.IDestination, ID string, onSubmit interfaces.IHashrate) error
 	Run(context.Context) error
-	GetID() string // get miner unique id (host:port for example)
 
-	IsVetted() bool
 	GetStatus() MinerStatus
+	GetID() string // get miner unique id (host:port for example)
 
 	GetCurrentDestSplit() *DestSplit
 	GetDestSplit() *DestSplit
@@ -42,7 +43,6 @@ type MinerScheduler interface {
 	SetDestSplit(*DestSplit)
 
 	GetCurrentDest() interfaces.IDestination // get miner total hashrate in GH/s
-	ChangeDest(ctx context.Context, dest interfaces.IDestination, ID string, onSubmit interfaces.IHashrate) error
 	GetCurrentDifficulty() int
 	GetWorkerName() string
 	GetHashRateGHS() int
@@ -50,6 +50,9 @@ type MinerScheduler interface {
 	GetUnallocatedHashrateGHS() int // get hashrate which is directed to default pool in GH/s
 	GetConnectedAt() time.Time
 	GetUptime() time.Duration
+
+	IsVetting() bool
+	IsFaulty() bool
 
 	RangeDestConn(f func(key any, value any) bool)
 	RangeHistory(f func(item HistoryItem) bool)

@@ -33,7 +33,7 @@ func NewOnDemandMinerScheduler(minerModel MinerModel, destSplit *DestSplit, log 
 	history := NewDestHistory(DestHistorySize)
 	history.Add(defaultDest, DefaultDestID, nil)
 
-	return &OnDemandMinerScheduler{
+	scheduler := &OnDemandMinerScheduler{
 		minerModel:         minerModel,
 		destSplit:          destSplit,
 		log:                log,
@@ -44,6 +44,10 @@ func NewOnDemandMinerScheduler(minerModel MinerModel, destSplit *DestSplit, log 
 		history:            history,
 		restartDestCycle:   make(chan struct{}, 1),
 	}
+
+	minerModel.OnFault(scheduler.onFault)
+
+	return scheduler
 }
 
 func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
@@ -140,6 +144,8 @@ func (m *OnDemandMinerScheduler) SetDestSplit(destSplit *DestSplit) {
 
 	if m.destSplit.IsEmpty() {
 		shouldRestartDestCycle = true
+	} else if destSplit.IsEmpty() {
+		shouldRestartDestCycle = true
 	} else {
 		if m.destSplit.Iter()[0].Fraction == 1 {
 			shouldRestartDestCycle = true
@@ -198,12 +204,16 @@ func (s *OnDemandMinerScheduler) GetUptime() time.Duration {
 	return time.Since(s.GetConnectedAt())
 }
 
-func (s *OnDemandMinerScheduler) IsVetted() bool {
-	return time.Since(s.GetConnectedAt()) >= s.minerVettingPeriod
+func (s *OnDemandMinerScheduler) IsVetting() bool {
+	return time.Since(s.GetConnectedAt()) <= s.minerVettingPeriod
+}
+
+func (s *OnDemandMinerScheduler) IsFaulty() bool {
+	return s.minerModel.IsFaulty()
 }
 
 func (s *OnDemandMinerScheduler) GetStatus() MinerStatus {
-	if !s.IsVetted() {
+	if s.IsVetting() {
 		return MinerStatusVetting
 	}
 	if s.destSplit.IsEmpty() {
@@ -222,6 +232,10 @@ func (s *OnDemandMinerScheduler) RangeHistory(f func(item HistoryItem) bool) {
 
 func (s *OnDemandMinerScheduler) RangeHistoryContractID(contractID string, f func(item HistoryItem) bool) {
 	s.history.RangeContractID(contractID, f)
+}
+
+func (s *OnDemandMinerScheduler) onFault(ctx context.Context) {
+	s.SetDestSplit(NewDestSplit())
 }
 
 var _ MinerScheduler = new(OnDemandMinerScheduler)

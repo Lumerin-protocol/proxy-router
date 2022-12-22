@@ -278,7 +278,10 @@ func CreateCurrentMinerSnapshot(minerCollection interfaces.ICollection[miner.Min
 	snapshot := NewAllocSnap()
 
 	minerCollection.Range(func(miner miner.MinerScheduler) bool {
-		if !miner.IsVetted() {
+		if miner.IsVetting() {
+			return true
+		}
+		if miner.IsFaulty() {
 			return true
 		}
 
@@ -302,7 +305,10 @@ func CreateMinerSnapshot(minerCollection interfaces.ICollection[miner.MinerSched
 	snapshot := NewAllocSnap()
 
 	minerCollection.Range(func(miner miner.MinerScheduler) bool {
-		if !miner.IsVetted() {
+		if miner.IsVetting() {
+			return true
+		}
+		if miner.IsFaulty() {
 			return true
 		}
 
