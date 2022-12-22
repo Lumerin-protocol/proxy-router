@@ -357,7 +357,11 @@ func (s *GlobalSchedulerV2) waitTask(tsk task) error {
 }
 
 func (s *GlobalSchedulerV2) fulfillTask(ctx context.Context, tsk task) {
-	tsk.errCh <- s.update(tsk.contractID, tsk.hashrateGHS, tsk.dest, tsk.onSubmit)
+	err := s.update(tsk.contractID, tsk.hashrateGHS, tsk.dest, tsk.onSubmit)
+	if err != nil {
+		s.log.Error(err)
+	}
+	tsk.errCh <- err
 }
 
 func (s *GlobalSchedulerV2) IsDeliveringAdequateHashrate(ctx context.Context, targetHashrateGHS int, dest interfaces.IDestination, hashrateDiffThreshold float64) bool {

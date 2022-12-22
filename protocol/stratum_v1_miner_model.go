@@ -143,18 +143,10 @@ func (s *stratumV1MinerModel) Run(ctx context.Context) error {
 			default:
 			}
 
-			rr, ok := msg.(*stratumv1_message.MiningResult)
-			if ok {
-				s.log.Debugf("got result response from pool, msgID(%d)", rr.ID)
-			}
-
 			err = s.minerConn.Write(subCtx, msg)
 			if err != nil {
 				sendError(subCtx, fmt.Errorf("miner write err: %w", err))
 				return
-			}
-			if ok {
-				s.log.Debugf("sent result response from pool, msgID(%d)", rr.ID)
 			}
 		}
 	}()
