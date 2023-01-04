@@ -20,14 +20,14 @@ type App struct {
 	MinerController *miner.MinerController
 	Server          *api.Server
 	ContractManager *contractmanager.ContractManager
+	GlobalScheduler *contractmanager.GlobalSchedulerV2
 	Logger          interfaces.ILogger
 	Config          *config.Config
-	// EventsRouter    interfaces.IEventsRouter
 }
 
-func (a *App) Run() {
+func (a *App) Run(ctx context.Context) {
 	a.Logger.Debugf("config: %+v\n", a.Config)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 
 	shutdownChan := make(chan os.Signal, 1)
 	signal.Notify(shutdownChan, syscall.SIGINT, syscall.SIGTERM)
@@ -42,11 +42,7 @@ func (a *App) Run() {
 	}()
 
 	defer func() {
-		err := a.Logger.Sync()
-		if err != nil {
-			a.Logger.Infof("Logger sync failed :%s", err)
-			os.Exit(1)
-		}
+		_ = a.Logger.Sync()
 	}()
 
 	g, subCtx := errgroup.WithContext(ctx)
@@ -57,21 +53,23 @@ func (a *App) Run() {
 		return a.TCPServer.Run(subCtx)
 	})
 
-	// Bootstrap contracts layer
-	g.Go(func() error {
-		err := a.ContractManager.Run(subCtx)
-		a.Logger.Debugf("contract error: %v", err)
-		return err
-	})
+	if !a.Config.Contract.Disable {
+		// Bootstrap contracts layer
+		g.Go(func() error {
+			err := a.ContractManager.Run(subCtx)
+			a.Logger.Debugf("contract error: %v", err)
+			return err
+		})
+	}
 
-	//Bootstrap API
+	// Bootstrap API
 	g.Go(func() error {
 		return a.Server.Run(subCtx)
 	})
 
-	// g.Go(func() error {
-	// 	return a.EventsRouter.Run()
-	// })
+	g.Go(func() error {
+		return a.GlobalScheduler.Run(subCtx)
+	})
 
 	err := g.Wait()
 

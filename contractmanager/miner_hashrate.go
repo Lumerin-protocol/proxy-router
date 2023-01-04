@@ -5,11 +5,12 @@ import (
 	"fmt"
 )
 
+// deprecated TODO: replace it with *AllocCollection
 type HashrateListItem struct {
 	Hashrate      int
 	TotalHashrate int
 	MinerID       string
-	Percentage    float64
+	Fraction      float64
 }
 
 func (m HashrateListItem) GetHashrateGHS() int {
@@ -25,7 +26,7 @@ func (m HashrateListItem) GetSourceID() string {
 	return m.MinerID
 }
 
-func (m HashrateListItem) GetPercentage() float64 {
+func (m HashrateListItem) GetFraction() float64 {
 	return float64(m.Hashrate) / float64(m.TotalHashrate)
 }
 
@@ -48,8 +49,8 @@ func (m HashrateList) String() string {
 	for _, item := range m {
 		fmt.Fprintf(
 			&b,
-			"id %s HR %d TOTAL HR %d PERCENT %.3f\n\n",
-			item.MinerID, item.Hashrate, item.TotalHashrate, item.GetPercentage(),
+			"id %s HR %d TOTAL HR %d FRACTION %.2f\n\n",
+			item.MinerID, item.Hashrate, item.TotalHashrate, item.GetFraction(),
 		)
 	}
 	return b.String()

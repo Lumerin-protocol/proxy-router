@@ -16,23 +16,37 @@ type stratumV1MinerModel struct {
 	minerConn StratumV1SourceConn
 	validator *hashrate.Hashrate
 
-	difficulty int64
-	onSubmit   []OnSubmitHandler
-	mutex      sync.RWMutex // guards onSubmit
+	difficulty    int64
+	onSubmit      interfaces.IHashrate
+	onSubmitMutex sync.RWMutex // guards onSubmit
 
 	configureMsgReq *stratumv1_message.MiningConfigure
+
+	unansweredMsg      sync.WaitGroup // inverted semaphore that counts messages that were unanswered
+	pauseMinerReadCh   chan any
+	unpauseMinerReadCh chan any
+	pausePoolReadCh    chan any
+	unpausePoolReadCh  chan any
 
 	workerName string
 
 	log interfaces.ILogger
 }
 
-func NewStratumV1MinerModel(poolPool StratumV1DestConn, miner StratumV1SourceConn, validator *hashrate.Hashrate, log interfaces.ILogger) *stratumV1MinerModel {
+const MAX_PAUSE_DURATION = 15 * time.Second
+
+func NewStratumV1MinerModel(poolPool StratumV1DestConn, minerConn StratumV1SourceConn, validator *hashrate.Hashrate, log interfaces.ILogger) *stratumV1MinerModel {
 	return &stratumV1MinerModel{
-		poolConn:  poolPool,
-		minerConn: miner,
-		validator: validator,
-		log:       log,
+		poolConn:           poolPool,
+		minerConn:          minerConn,
+		validator:          validator,
+		unansweredMsg:      sync.WaitGroup{},
+		pauseMinerReadCh:   make(chan any),
+		unpauseMinerReadCh: make(chan any),
+		pausePoolReadCh:    make(chan any),
+		unpausePoolReadCh:  make(chan any),
+
+		log: log,
 	}
 }
 
@@ -101,7 +115,7 @@ func (s *stratumV1MinerModel) Run(ctx context.Context) error {
 	s.poolConn.ResendRelevantNotifications(ctx)
 
 	subCtx, cancel := context.WithCancel(ctx)
-	errCh := make(chan error)
+	errCh := make(chan error, 2)
 	sendError := func(ctx context.Context, err error) {
 		select {
 		case errCh <- err:
@@ -111,10 +125,8 @@ func (s *stratumV1MinerModel) Run(ctx context.Context) error {
 
 	go func() {
 		for {
-			select {
-			case <-subCtx.Done():
+			if s.pauseUnpause(subCtx, s.pausePoolReadCh, s.unpausePoolReadCh) != nil {
 				return
-			default:
 			}
 
 			msg, err := s.poolConn.Read(subCtx)
@@ -141,10 +153,8 @@ func (s *stratumV1MinerModel) Run(ctx context.Context) error {
 
 	go func() {
 		for {
-			select {
-			case <-subCtx.Done():
+			if s.pauseUnpause(subCtx, s.pauseMinerReadCh, s.unpauseMinerReadCh) != nil {
 				return
-			default:
 			}
 
 			msg, err := s.minerConn.Read(subCtx)
@@ -171,7 +181,6 @@ func (s *stratumV1MinerModel) Run(ctx context.Context) error {
 
 	err = <-errCh
 	cancel()
-	close(errCh)
 
 	err = fmt.Errorf("miner model error: %w", err)
 	s.log.Error(err)
@@ -181,18 +190,23 @@ func (s *stratumV1MinerModel) Run(ctx context.Context) error {
 func (s *stratumV1MinerModel) minerInterceptor(msg stratumv1_message.MiningMessageGeneric) {
 	switch typed := msg.(type) {
 	case *stratumv1_message.MiningSubmit:
+		s.unansweredMsg.Add(1)
+
 		s.poolConn.RegisterResultHandler(typed.GetID(), func(a stratumv1_message.MiningResult) stratumv1_message.MiningMessageGeneric {
+			s.unansweredMsg.Done()
+
 			if a.IsError() {
 				s.log.Warnf("error during submit: %s msg ID %d", a.GetError(), a.ID)
 				return &a
 			}
 			s.validator.OnSubmit(s.difficulty)
-			s.mutex.RLock()
-			defer s.mutex.RUnlock()
 
-			for _, handler := range s.onSubmit {
-				handler(uint64(s.difficulty), s.poolConn.GetDest())
+			s.onSubmitMutex.RLock()
+			defer s.onSubmitMutex.RUnlock()
+			if s.onSubmit != nil {
+				s.onSubmit.OnSubmit(s.difficulty)
 			}
+
 			return &a
 		})
 
@@ -207,8 +221,23 @@ func (s *stratumV1MinerModel) poolInterceptor(msg stratumv1_message.MiningMessag
 	}
 }
 
-func (s *stratumV1MinerModel) ChangeDest(dest interfaces.IDestination) error {
-	return s.poolConn.SetDest(dest, s.configureMsgReq)
+func (s *stratumV1MinerModel) ChangeDest(ctx context.Context, dest interfaces.IDestination, onSubmit interfaces.IHashrate) error {
+	s.pauseMinerReadCh <- struct{}{}
+
+	s.unansweredMsg.Wait() // waiting for all responses
+
+	s.pausePoolReadCh <- struct{}{}
+
+	err := s.poolConn.SetDest(ctx, dest, s.configureMsgReq)
+	if err != nil {
+		return err
+	}
+	s.setOnSubmit(onSubmit)
+
+	s.unpausePoolReadCh <- struct{}{}
+	s.unpauseMinerReadCh <- struct{}{}
+
+	return nil
 }
 
 func (s *stratumV1MinerModel) GetDest() interfaces.IDestination {
@@ -223,7 +252,7 @@ func (s *stratumV1MinerModel) GetHashRateGHS() int {
 	return s.validator.GetHashrateGHS()
 }
 
-func (s *stratumV1MinerModel) GetHashRate() Hashrate {
+func (s *stratumV1MinerModel) GetHashRate() interfaces.Hashrate {
 	return s.validator
 }
 
@@ -231,23 +260,15 @@ func (s *stratumV1MinerModel) GetCurrentDifficulty() int {
 	return int(s.difficulty)
 }
 
-func (s *stratumV1MinerModel) OnSubmit(cb OnSubmitHandler) ListenerHandle {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+func (s *stratumV1MinerModel) setOnSubmit(onSubmit interfaces.IHashrate) {
+	s.onSubmitMutex.Lock()
+	defer s.onSubmitMutex.Unlock()
 
-	s.onSubmit = append(s.onSubmit, cb)
-	return ListenerHandle(len(s.onSubmit))
+	s.onSubmit = onSubmit
 }
 
 func (s *stratumV1MinerModel) GetWorkerName() string {
 	return s.workerName
-}
-
-func (s *stratumV1MinerModel) RemoveListener(h ListenerHandle) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	s.onSubmit[h] = nil
 }
 
 func (s *stratumV1MinerModel) GetConnectedAt() time.Time {
@@ -270,4 +291,33 @@ func (s *stratumV1MinerModel) Cleanup() {
 		}
 	}
 	s.onSubmit = nil
+}
+
+// pauseUnpause pauses execution after receiving signal on pauseChan, and blocks until unpause signal is not received
+// It supports context, and on cancellation returns error
+func (s *stratumV1MinerModel) pauseUnpause(ctx context.Context, pauseChan, unpauseChan chan any) (err error) {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-pauseChan:
+	INNER:
+		for {
+			select {
+			case <-pauseChan:
+				// do nothing, block in the loop
+			case <-unpauseChan:
+				break INNER
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(MAX_PAUSE_DURATION):
+				s.log.Warnf("max pause time reached (%s), unpaused", MAX_PAUSE_DURATION)
+				break INNER
+			}
+		}
+
+	case <-unpauseChan: // unblock
+	default:
+	}
+
+	return nil
 }

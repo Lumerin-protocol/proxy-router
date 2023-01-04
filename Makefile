@@ -7,15 +7,14 @@ build:
 run:
 	wire && go run .
 
-test:
-	go test ./...
+test-unit:
+	go test -v -p 1 -count 1 $$(go list ./... | grep -v /test) 
 
 fmt:
 	go fmt ./...
 
 lint:
-	go fmt ./...
-	go vet ./...
+	golangci-lint run -v
 
 tidy:
 	go mod tidy
