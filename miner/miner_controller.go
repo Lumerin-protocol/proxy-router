@@ -62,7 +62,7 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	logMiner := p.log.Named(incomingConn.RemoteAddr().String())
 
 	poolPool := protocol.NewStratumV1PoolPool(logMiner, p.poolConnTimeout, p.logStratum)
-	err = poolPool.SetDest(p.defaultDest, nil)
+	err = poolPool.SetDest(context.TODO(), p.defaultDest, nil)
 	if err != nil {
 		p.log.Error(err)
 		return err
@@ -70,19 +70,18 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	extranonce, size := poolPool.GetExtranonce()
 	msg := stratumv1_message.NewMiningSubscribeResult(extranonce, size)
 	miner := protocol.NewStratumV1MinerConn(incomingConn, logMiner, msg, p.logStratum, time.Now())
-	validator := hashrate.NewHashrate(logMiner)
+	validator := hashrate.NewHashrate()
 	minerModel := protocol.NewStratumV1MinerModel(poolPool, miner, validator, logMiner)
 
 	destSplit := NewDestSplit()
 
 	minerScheduler := NewOnDemandMinerScheduler(minerModel, destSplit, logMiner, p.defaultDest, p.minerVettingPeriod, p.poolMinDuration, p.poolMaxDuration)
-	// try to connect to dest before running
 
 	p.collection.Store(minerScheduler)
 
 	err = minerScheduler.Run(ctx)
 
-	p.log.Errorf("Miner disconnected %s", incomingConn.RemoteAddr(), err)
+	p.log.Warnf("Miner disconnected %s %s", incomingConn.RemoteAddr(), err)
 	p.collection.Delete(minerScheduler.GetID())
 
 	return err
@@ -92,9 +91,11 @@ func (p *MinerController) ChangeDestAll(dest interfaces.IDestination) error {
 	p.collection.Range(func(miner MinerScheduler) bool {
 		p.log.Infof("changing pool to %s for minerID %s", dest.GetHost(), miner.GetID())
 
-		_, err := miner.Allocate("API_TEST", 1, dest)
+		split := NewDestSplit()
+		split, _ = split.Allocate("API_TEST", 1, dest, nil)
+		miner.SetDestSplit(split)
 
-		return err == nil
+		return true
 	})
 
 	return nil
