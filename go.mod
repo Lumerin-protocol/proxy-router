@@ -5,6 +5,7 @@ go 1.18
 require (
 	github.com/btcsuite/btcd v0.21.0-beta
 	github.com/ethereum/go-ethereum v1.10.17
+	github.com/gammazero/deque v0.2.1
 	github.com/gin-gonic/gin v1.8.1
 	github.com/go-playground/validator/v10 v10.11.0
 	github.com/google/uuid v1.2.0

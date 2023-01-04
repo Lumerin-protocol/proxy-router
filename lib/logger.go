@@ -34,16 +34,16 @@ func bToMb(b uint64) uint64 {
 	return b / 1024 / 1024
 }
 
-func NewLogger(isProduction bool) (*Logger, error) {
+func NewLogger(isProduction bool, level string, logToFile bool, color bool) (*Logger, error) {
 	var (
 		log *zap.Logger
 		err error
 	)
 
 	if isProduction {
-		log, err = newProductionLogger()
+		log, err = newProductionLogger(level)
 	} else {
-		log, err = newDevelopmentLogger()
+		log, err = NewDevelopmentLogger(level, logToFile, color, true)
 	}
 	if err != nil {
 		return nil, err
@@ -54,54 +54,60 @@ func NewLogger(isProduction bool) (*Logger, error) {
 
 // NewTestLogger logs only to stdout
 func NewTestLogger() *zap.SugaredLogger {
-	consoleEncoderCfg := zap.NewDevelopmentEncoderConfig()
-	consoleEncoderCfg.EncodeTime = zapcore.TimeEncoderOfLayout("2006-01-02 15:04:05")
-	consoleEncoderCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	consoleEncoder := zapcore.NewConsoleEncoder(consoleEncoderCfg)
-
-	core := zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), zap.DebugLevel)
-
-	opts := []zap.Option{
-		zap.Development(),
-		zap.AddCaller(),
-		zap.AddStacktrace(zap.ErrorLevel),
-	}
-
-	return zap.New(core, opts...).Sugar()
+	log, _ := NewDevelopmentLogger("debug", false, false, false)
+	return log.Sugar()
 }
 
-func newDevelopmentLogger() (*zap.Logger, error) {
+func NewDevelopmentLogger(levelStr string, logToFile bool, color bool, addCaller bool) (*zap.Logger, error) {
 	consoleEncoderCfg := zap.NewDevelopmentEncoderConfig()
 	consoleEncoderCfg.EncodeTime = zapcore.TimeEncoderOfLayout("2006-01-02 15:04:05")
-	consoleEncoderCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	if color {
+		consoleEncoderCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	}
 	consoleEncoder := zapcore.NewConsoleEncoder(consoleEncoderCfg)
 
-	fileEncoderCfg := zap.NewDevelopmentEncoderConfig()
-	fileEncoderCfg.EncodeTime = zapcore.TimeEncoderOfLayout("2006-01-02 15:04:05")
-	fileEncoder := zapcore.NewConsoleEncoder(fileEncoderCfg)
-
-	file, err := os.OpenFile("logfile.log", os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+	var core zapcore.Core
+	level, err := zapcore.ParseLevel(levelStr)
 	if err != nil {
 		return nil, err
 	}
 
-	core := zapcore.NewTee(
-		zapcore.NewCore(fileEncoder, zapcore.AddSync(file), zap.DebugLevel),
-		zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), zap.DebugLevel),
-	)
+	if logToFile {
+		fileEncoderCfg := zap.NewDevelopmentEncoderConfig()
+		fileEncoderCfg.EncodeTime = zapcore.TimeEncoderOfLayout("2006-01-02 15:04:05")
+		fileEncoder := zapcore.NewConsoleEncoder(fileEncoderCfg)
+
+		file, err := os.OpenFile("logfile.log", os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+		if err != nil {
+			return nil, err
+		}
+
+		core = zapcore.NewTee(
+			zapcore.NewCore(fileEncoder, zapcore.AddSync(file), level),
+			zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), level),
+		)
+	} else {
+		core = zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), level)
+	}
 
 	opts := []zap.Option{
 		zap.Development(),
-		zap.AddCaller(),
 		zap.AddStacktrace(zap.ErrorLevel),
+	}
+	if addCaller {
+		opts = append(opts, zap.AddCaller())
 	}
 
 	return zap.New(core, opts...), nil
 }
 
-func newProductionLogger() (*zap.Logger, error) {
+func newProductionLogger(levelStr string) (*zap.Logger, error) {
 	cfg := zap.NewProductionConfig()
-	cfg.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	level, err := zapcore.ParseLevel(levelStr)
+	if err != nil {
+		return nil, err
+	}
+	cfg.Level = zap.NewAtomicLevelAt(level)
 	l, err := cfg.Build()
 	if err != nil {
 		return nil, err

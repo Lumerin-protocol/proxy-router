@@ -1,5 +1,4 @@
 //go:build wireinject
-// +build wireinject
 
 package main
 
@@ -32,7 +31,7 @@ func main() {
 		panic(err)
 	}
 
-	appInstance.Run()
+	appInstance.Run(context.Background())
 }
 
 var networkSet = wire.NewSet(provideTCPServer, provideApiServer)
@@ -53,8 +52,8 @@ func InitApp() (*app.App, error) {
 	return nil, nil
 }
 
-func provideGlobalScheduler(cfg *config.Config, miners interfaces.ICollection[miner.MinerScheduler], log interfaces.ILogger) *contractmanager.GlobalSchedulerService {
-	return contractmanager.NewGlobalScheduler(miners, log, cfg.Pool.MinDuration, cfg.Pool.MaxDuration)
+func provideGlobalScheduler(cfg *config.Config, miners interfaces.ICollection[miner.MinerScheduler], log interfaces.ILogger) *contractmanager.GlobalSchedulerV2 {
+	return contractmanager.NewGlobalSchedulerV2(miners, log, cfg.Pool.MinDuration, cfg.Pool.MaxDuration, cfg.Contract.HashrateDiffThreshold)
 }
 
 func provideMinerCollection() interfaces.ICollection[miner.MinerScheduler] {
@@ -74,15 +73,19 @@ func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo inter
 	return miner.NewMinerController(destination, repo, l, cfg.Proxy.LogStratum, cfg.Miner.VettingDuration, cfg.Pool.MinDuration, cfg.Pool.MaxDuration, cfg.Pool.ConnTimeout), nil
 }
 
-func provideApiController(cfg *config.Config, miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerService) (*gin.Engine, error) {
-
+func provideApiController(cfg *config.Config, miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerV2) (*gin.Engine, error) {
 	dest, err := lib.ParseDest(cfg.Pool.Address)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return api.NewApiController(miners, contracts, log, gs, cfg.Contract.IsBuyer, cfg.Contract.HashrateDiffThreshold, cfg.Contract.ValidationBufferPeriod, dest), nil
+	publicUrl := cfg.Web.PublicUrl
+	if publicUrl == "" {
+		publicUrl = fmt.Sprintf("http://%s", cfg.Web.Address)
+	}
+
+	return api.NewApiController(miners, contracts, log, gs, cfg.Contract.IsBuyer, cfg.Contract.HashrateDiffThreshold, cfg.Contract.ValidationBufferPeriod, dest, publicUrl), nil
 }
 
 func provideTCPServer(cfg *config.Config, l interfaces.ILogger) *tcpserver.TCPServer {
@@ -98,6 +101,9 @@ func provideEthClient(cfg *config.Config, log interfaces.ILogger) (*ethclient.Cl
 }
 
 func provideEthWallet(cfg *config.Config) (*blockchain.EthereumWallet, error) {
+	if cfg.Contract.Disable {
+		return nil, nil
+	}
 	if cfg.Contract.WalletAddress != "" && cfg.Contract.WalletPrivateKey != "" {
 		return blockchain.NewEthereumWalletFromPrivateKey(cfg.Contract.WalletAddress, cfg.Contract.WalletPrivateKey)
 	}
@@ -110,6 +116,10 @@ func provideEthWallet(cfg *config.Config) (*blockchain.EthereumWallet, error) {
 }
 
 func provideEthGateway(cfg *config.Config, ethClient *ethclient.Client, ethWallet *blockchain.EthereumWallet, log interfaces.ILogger) (*blockchain.EthereumGateway, error) {
+	if cfg.Contract.Disable {
+		return nil, nil
+	}
+
 	backoff := lib.NewLinearBackoff(2*time.Second, nil, lib.Of(15*time.Second))
 	g, err := blockchain.NewEthereumGateway(ethClient, ethWallet.GetPrivateKey(), cfg.Contract.Address, log, backoff)
 	if err != nil {
@@ -129,10 +139,14 @@ func provideContractManager(
 	cfg *config.Config,
 	ethGateway *blockchain.EthereumGateway,
 	ethWallet *blockchain.EthereumWallet,
-	globalScheduler *contractmanager.GlobalSchedulerService,
+	globalScheduler *contractmanager.GlobalSchedulerV2,
 	contracts interfaces.ICollection[contractmanager.IContractModel],
 	log interfaces.ILogger,
 ) (*contractmanager.ContractManager, error) {
+	if cfg.Contract.Disable {
+		return nil, nil
+	}
+
 	destination, err := lib.ParseDest(cfg.Pool.Address)
 	if err != nil {
 		return nil, err
@@ -142,7 +156,7 @@ func provideContractManager(
 }
 
 func provideLogger(cfg *config.Config) (interfaces.ILogger, error) {
-	return lib.NewLogger(cfg.Environment == "production")
+	return lib.NewLogger(cfg.Environment == "production", cfg.Log.Level, cfg.Log.LogToFile, cfg.Log.Color)
 }
 
 func provideConfig() (*config.Config, error) {

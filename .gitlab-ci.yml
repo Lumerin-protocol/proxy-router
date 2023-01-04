@@ -1,4 +1,4 @@
-variables:
+variables: # keep this list alphabetically sorted
   CI_AWS_TASK: "proxy-router"
   ENVIRONMENT: "production" # production makes logs in json and not panics when calling DPanic
   HASHRATE_DIFF_THRESHOLD: "0.1"
@@ -6,14 +6,14 @@ variables:
   MINER_VETTING_DURATION: 5m
   NODE_DEF: "prt"
   POOL_MIN_DURATION: 2m
-  POOL_MAX_DURATION: 5m
+  POOL_MAX_DURATION: 7m
   POOL_CONN_TIMEOUT: 10m
   PROXY_ADDRESS: "0.0.0.0:3333"
   PROXY_LOG_STRATUM: "false"
+  SOCKET_MINER_CONNECTION_LIMIT: 1000
+  STRATUM_SOCKET_BUFFER_SIZE: 5
   WEB_ADDRESS: "0.0.0.0:8080"
   VALIDATION_BUFFER_PERIOD: 20m
-  STRATUM_SOCKET_BUFFER_SIZE: 5
-  SOCKET_MINER_CONNECTION_LIMIT: 1000
 
 stages:
   - test
@@ -23,46 +23,24 @@ stages:
 lint:
   inherit:
     default: false
-  image: golangci/golangci-lint:v1.49
-  variables:
-    DOCKER_DRIVER: overlay2
-    DOCKER_HOST: tcp://docker:2376
-    DOCKER_TLS_CERTDIR: "/certs"
-    DOCKER_TLS_VERIFY: 1
-    DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
+  image: golangci/golangci-lint:v1.50.1-alpine
   stage: test
-  # tags:
-  #- devops
-  #- bedrock
-  #- titanio-dev
-  #- docker
   only:
     - branches
     - tags
-  image: golangci/golangci-lint:v1.49
+    - merge_requests
   script:
     - golangci-lint run -v
 
 test:
   inherit:
     default: false
-  image: golang:1.18-alpine
-  variables:
-    DOCKER_DRIVER: overlay2
-    DOCKER_HOST: tcp://docker:2376
-    DOCKER_TLS_CERTDIR: "/certs"
-    DOCKER_TLS_VERIFY: 1
-    DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
+  image: golang:1.19.3-alpine
   stage: test
-  #tags:
-  # - devops
-  #- bedrock
-  #- titanio-dev
-  #- docker
   only:
     - branches
     - tags
-  image: golang:1.18-alpine
+    - merge_requests
   script:
     - apk add --no-cache git make musl-dev gcc
     - go version
@@ -105,7 +83,9 @@ test:
   --build-arg POOL_MAX_DURATION=$POOL_MAX_DURATION \
   --build-arg VALIDATION_BUFFER_PERIOD=$VALIDATION_BUFFER_PERIOD \
   --build-arg HASHRATE_DIFF_THRESHOLD=$HASHRATE_DIFF_THRESHOLD \
-  --build-arg STRATUM_SOCKET_BUFFER_SIZE=$STRATUM_SOCKET_BUFFER_SIZE
+  --build-arg STRATUM_SOCKET_BUFFER_SIZE=$STRATUM_SOCKET_BUFFER_SIZE \
+  --build-arg WEB_PUBLIC_URL=$WEB_PUBLIC_URL \
+  --build-arg LOG_LEVEL=$LOG_LEVEL
   echo "**************************"
   echo "*** Push Image"
   echo "**************************"
@@ -217,8 +197,15 @@ bedrock-02-DEV-buyer:
 bedrock-03-STG-seller:
   stage: deploy
   environment: stg
-  only:
-    - stg
+  rules:
+  - if: $CI_COMMIT_BRANCH == "stg"
+    when: always
+  - if: $CI_COMMIT_BRANCH != "stg"
+    when: manual
+  - if: $CI_MERGE_REQUEST_ID
+    when: never
+  # only:
+  #   - stg
   tags:
     - devops
     - bedrock
@@ -235,8 +222,15 @@ bedrock-03-STG-seller:
 bedrock-03-STG-buyer:
   stage: deploy
   environment: stg
-  only:
-    - stg
+  rules:
+  - if: $CI_COMMIT_BRANCH == "stg"
+    when: always
+  - if: $CI_COMMIT_BRANCH != "stg"
+    when: manual
+  - if: $CI_MERGE_REQUEST_ID
+    when: never
+  # only:
+  #   - stg
   tags:
     - devops
     - bedrock
@@ -253,8 +247,15 @@ bedrock-03-STG-buyer:
 bedrock-04-PRD-seller:
   stage: deploy
   environment: lmn
-  only:
-    - main
+  rules:
+  - if: $CI_COMMIT_BRANCH == "main"
+    when: always
+  - if: $CI_COMMIT_BRANCH != "main"
+    when: manual
+  - if: $CI_MERGE_REQUEST_ID
+    when: never
+  # only:
+  #   - main
   tags:
     - devops
     - bedrock
@@ -272,8 +273,15 @@ bedrock-04-PRD-seller:
 bedrock-04-PRD-buyer:
   stage: deploy
   environment: lmn
-  only:
-    - main
+  rules:
+  - if: $CI_COMMIT_BRANCH == "main"
+    when: always
+  - if: $CI_COMMIT_BRANCH != "main"
+    when: manual
+  - if: $CI_MERGE_REQUEST_ID
+    when: never
+  # only:
+  #   - main
   tags:
     - devops
     - bedrock
