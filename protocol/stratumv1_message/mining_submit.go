@@ -11,6 +11,14 @@ type MiningSubmit struct {
 	Params []string `json:"params"` // worker_name, job_id, extranonce2, ntime, nonce and optional version_bits (BIP_0310)
 }
 
+func NewMiningSubmit(workerName string, jobId string, extranonce2 string, ntime string, nonce string) *MiningSubmit {
+	return &MiningSubmit{
+		ID:     0,
+		Method: MethodMiningSubmit,
+		Params: []string{workerName, jobId, extranonce2, ntime, nonce},
+	}
+}
+
 func ParseMiningSubmit(b []byte) (*MiningSubmit, error) {
 	m := &MiningSubmit{}
 	return m, json.Unmarshal(b, m)

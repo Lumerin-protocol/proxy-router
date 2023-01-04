@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"context"
+	"errors"
 	"net"
 	"sync"
 	"time"
@@ -40,7 +41,17 @@ func (p *StratumV1PoolConnPool) GetDest() interfaces.IDestination {
 	return p.conn.GetDest()
 }
 
-func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination, configure *stratumv1_message.MiningConfigure) error {
+func (p *StratumV1PoolConnPool) SetDest(ctx context.Context, dest interfaces.IDestination, configure *stratumv1_message.MiningConfigure) error {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	go func() {
+		<-ctx.Done()
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			p.log.Errorf("setDest context timeouted %s", ctx.Err())
+		}
+	}()
+
 	p.mu.Lock()
 	if p.conn != nil {
 		if p.conn.GetDest().IsEqual(dest) {
@@ -81,18 +92,20 @@ func (p *StratumV1PoolConnPool) SetDest(dest interfaces.IDestination, configure 
 
 	go func() {
 		err := conn.Run(context.TODO())
-		if err != nil {
-			p.log.Errorf("pool connection error, %s", err)
-		}
-		err = conn.Close()
-		if err != nil {
-			p.log.Errorf("cannot close pool connection, %s", err)
+		err2 := conn.Close()
+		if err2 != nil {
+			p.log.Errorf("pool connection closeout error, %s", err2)
+		} else {
+			p.log.Warnf("pool connection closed: %s", err)
 		}
 		p.pool.Delete(dest.String())
 	}()
 
 	ID := conn.GetDest().String()
 	conn.Deadline(func() {
+		// TODO: check if connection is not active before deleting
+		// cause it may have not yet sent a submit but could be cleaned
+		// causing miner to disconnect
 		p.pool.Delete(ID)
 		p.log.Debugf("connection was cleaned %s", ID)
 	})

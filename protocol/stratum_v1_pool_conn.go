@@ -69,11 +69,7 @@ func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDe
 
 // Run enables proxying and handling pool messages
 func (s *StratumV1PoolConn) Run(ctx context.Context) error {
-	err := s.run(ctx)
-	if err != nil {
-		s.log.Error(err)
-	}
-	return err
+	return s.run(ctx)
 }
 
 func (s *StratumV1PoolConn) run(ctx context.Context) error {
@@ -239,8 +235,8 @@ func (m *StratumV1PoolConn) Write(ctx context.Context, msg stratumv1_message.Min
 		}
 	}
 
-	b := fmt.Sprintf("%s\n", msg.Serialize())
-	_, err := m.conn.Write([]byte(b))
+	b := append(msg.Serialize(), lib.CharNewLine)
+	_, err := m.conn.Write(b)
 
 	if err != nil {
 		return err
@@ -348,6 +344,7 @@ func (s *StratumV1PoolConn) Deadline(cleanupCb func()) {
 		for {
 			select {
 			case <-deadlineChan:
+				cleanupCb()
 
 				s.newDeadlineMutex.Lock()
 				newDeadlineRef := s.newDeadline
@@ -359,7 +356,7 @@ func (s *StratumV1PoolConn) Deadline(cleanupCb func()) {
 				if err != nil {
 					s.log.Errorf("deadline connection closeout error %s", err)
 				}
-				cleanupCb()
+
 				return
 			case deadline := <-s.newDeadline:
 				if deadline.IsZero() {
