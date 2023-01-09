@@ -2,15 +2,13 @@ package data
 
 import (
 	"sync"
-
-	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
 
-type Collection[T interfaces.IModel] struct {
+type Collection[T IModel] struct {
 	items sync.Map
 }
 
-func NewCollection[T interfaces.IModel]() *Collection[T] {
+func NewCollection[T IModel]() *Collection[T] {
 	return &Collection[T]{
 		items: sync.Map{},
 	}

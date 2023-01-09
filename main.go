@@ -85,7 +85,7 @@ func provideApiController(cfg *config.Config, miners interfaces.ICollection[mine
 		publicUrl = fmt.Sprintf("http://%s", cfg.Web.Address)
 	}
 
-	return api.NewApiController(miners, contracts, log, gs, cfg.Contract.IsBuyer, cfg.Contract.HashrateDiffThreshold, cfg.Contract.ValidationBufferPeriod, dest, publicUrl), nil
+	return api.NewApiController(miners, contracts, log, gs, cfg.Contract.IsBuyer, cfg.Contract.HashrateDiffThreshold, cfg.Contract.ValidationBufferPeriod, dest, publicUrl, cfg.Contract.CycleDuration), nil
 }
 
 func provideTCPServer(cfg *config.Config, l interfaces.ILogger) *tcpserver.TCPServer {
@@ -152,7 +152,7 @@ func provideContractManager(
 		return nil, err
 	}
 
-	return contractmanager.NewContractManager(ethGateway, globalScheduler, log, contracts, ethWallet.GetAccountAddress(), ethWallet.GetPrivateKey(), cfg.Contract.IsBuyer, cfg.Contract.HashrateDiffThreshold, cfg.Contract.ValidationBufferPeriod, destination), nil
+	return contractmanager.NewContractManager(ethGateway, globalScheduler, log, contracts, ethWallet.GetAccountAddress(), ethWallet.GetPrivateKey(), cfg.Contract.IsBuyer, cfg.Contract.HashrateDiffThreshold, cfg.Contract.ValidationBufferPeriod, destination, cfg.Contract.CycleDuration), nil
 }
 
 func provideLogger(cfg *config.Config) (interfaces.ILogger, error) {

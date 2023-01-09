@@ -51,3 +51,18 @@ func NewContractData(addr, buyer, seller common.Address, state uint8, price, lim
 		dest,
 	}
 }
+
+func (d *ContractData) Copy() ContractData {
+	return ContractData{
+		Addr:                   d.Addr,
+		Buyer:                  d.Buyer,
+		Seller:                 d.Seller,
+		State:                  d.State,
+		Price:                  d.Price,
+		Limit:                  d.Limit,
+		Speed:                  d.Speed,
+		Length:                 d.Length,
+		StartingBlockTimestamp: d.StartingBlockTimestamp,
+		Dest:                   d.Dest,
+	}
+}

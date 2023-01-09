@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"gitlab.com/TitanInd/hashrouter/data"
+	snap "gitlab.com/TitanInd/hashrouter/data"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/miner"
 	"gitlab.com/TitanInd/hashrouter/protocol"
@@ -249,30 +250,30 @@ func TestGetMinerSnapshot(t *testing.T) {
 	globalScheduler := NewGlobalSchedulerV2(miners, &lib.LoggerMock{}, 0, 0, 0)
 	snapshot := globalScheduler.GetMinerSnapshot()
 
-	if len(snapshot.minerIDHashrateGHS) != 1 {
+	if _, ok := snapshot.Miner("2"); ok {
 		t.Fatal("should filter out recently connected miner")
 	}
-	if _, ok := snapshot.minerIDHashrateGHS["1"]; !ok {
+	if _, ok := snapshot.Miner("1"); !ok {
 		t.Fatal("a miner 1 should be available")
 	}
 }
 
 func TestTryReduceMiners(t *testing.T) {
 	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 3, 5, 0.1)
-	col := NewAllocCollection()
-	col.Add("miner-1", &AllocItem{
+	col := snap.NewAllocCollection()
+	col.Add("miner-1", &snap.AllocItem{
 		MinerID:    "miner-1",
 		ContractID: "contract",
 		Fraction:   0.5,
 		TotalGHS:   10000,
 	})
-	col.Add("miner-2", &AllocItem{
+	col.Add("miner-2", &snap.AllocItem{
 		MinerID:    "miner-2",
 		ContractID: "contract",
 		Fraction:   0.3,
 		TotalGHS:   10000,
 	})
-	col.Add("miner-3", &AllocItem{
+	col.Add("miner-3", &snap.AllocItem{
 		MinerID:    "miner-3",
 		ContractID: "contract",
 		Fraction:   0.1,
@@ -290,14 +291,14 @@ func TestTryReduceMiners(t *testing.T) {
 
 func TestTryReduceMinersNotReduced(t *testing.T) {
 	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 3, 5, 0.1)
-	col := NewAllocCollection()
-	col.Add("miner-1", &AllocItem{
+	col := snap.NewAllocCollection()
+	col.Add("miner-1", &snap.AllocItem{
 		MinerID:    "miner-1",
 		ContractID: "contract",
 		Fraction:   0.5,
 		TotalGHS:   10000,
 	})
-	col.Add("miner-2", &AllocItem{
+	col.Add("miner-2", &snap.AllocItem{
 		MinerID:    "miner-2",
 		ContractID: "contract",
 		Fraction:   0.3,
@@ -319,14 +320,14 @@ func TestTryReduceMinersNotReduced(t *testing.T) {
 
 func TestTryAdjustRedZonesLeft(t *testing.T) {
 	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1)
-	col := NewAllocCollection()
-	col.Add("miner-1", &AllocItem{
+	col := snap.NewAllocCollection()
+	col.Add("miner-1", &snap.AllocItem{
 		MinerID:    "miner-1",
 		ContractID: "contract",
 		Fraction:   0.6,
 		TotalGHS:   10000,
 	})
-	col.Add("miner-2", &AllocItem{
+	col.Add("miner-2", &snap.AllocItem{
 		MinerID:    "miner-2",
 		ContractID: "contract",
 		Fraction:   0.1,
@@ -343,14 +344,14 @@ func TestTryAdjustRedZonesLeft(t *testing.T) {
 
 func TestTryAdjustRedZonesLeftNotPossible(t *testing.T) {
 	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1)
-	col := NewAllocCollection()
-	col.Add("miner-1", &AllocItem{
+	col := snap.NewAllocCollection()
+	col.Add("miner-1", &snap.AllocItem{
 		MinerID:    "miner-1",
 		ContractID: "contract",
 		Fraction:   0.7,
 		TotalGHS:   5000,
 	})
-	col.Add("miner-2", &AllocItem{
+	col.Add("miner-2", &snap.AllocItem{
 		MinerID:    "miner-2",
 		ContractID: "contract",
 		Fraction:   0.1,
@@ -369,7 +370,7 @@ func TestTryAdjustRedZonesLeftNotPossible(t *testing.T) {
 func TestTryAdjustRedZonesRightWFreeMiner(t *testing.T) {
 	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1)
 
-	snap := NewAllocSnap()
+	snap := snap.NewAllocSnap()
 	snap.SetMiner("miner-2", 10000)
 	snap.Set("miner-1", "contract", 0.88, 10000)
 
@@ -387,7 +388,7 @@ func TestTryAdjustRedZonesRightWFreeMiner(t *testing.T) {
 func TestTryAdjustRedZonesRightWBusyMiner(t *testing.T) {
 	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1)
 
-	snap := NewAllocSnap()
+	snap := snap.NewAllocSnap()
 	snap.Set("miner-2", "contract", 0.3, 10000)
 	snap.Set("miner-1", "contract", 0.88, 10000)
 
@@ -405,7 +406,7 @@ func TestTryAdjustRedZonesRightWBusyMiner(t *testing.T) {
 func TestTryAdjustRedZonesRightNotPossible(t *testing.T) {
 	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1)
 
-	snap := NewAllocSnap()
+	snap := snap.NewAllocSnap()
 	snap.SetMiner("miner-2", 1000)
 	snap.Set("miner-1", "contract", 0.88, 10000)
 

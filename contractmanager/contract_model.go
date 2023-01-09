@@ -26,13 +26,14 @@ const (
 type BTCHashrateContract struct {
 	// dependencies
 	blockchain      interfaces.IBlockchainGateway
-	globalScheduler *GlobalSchedulerV2
+	globalScheduler interfaces.IGlobalScheduler
 
 	data                   blockchain.ContractData
 	FullfillmentStartTime  *time.Time
 	isBuyer                bool
 	hashrateDiffThreshold  float64
 	validationBufferPeriod time.Duration
+	cycleDuration          time.Duration // duration of the contract cycle that verifies the hashrate
 
 	state ContractState // internal state of the contract (within hashrouter)
 
@@ -46,12 +47,13 @@ type BTCHashrateContract struct {
 func NewContract(
 	data blockchain.ContractData,
 	blockchain interfaces.IBlockchainGateway,
-	globalScheduler *GlobalSchedulerV2,
+	globalScheduler interfaces.IGlobalScheduler,
 	log interfaces.ILogger,
 	hr *hashrate.Hashrate,
 	hashrateDiffThreshold float64,
 	validationBufferPeriod time.Duration,
 	defaultDestination interfaces.IDestination,
+	cycleDuration time.Duration,
 ) *BTCHashrateContract {
 
 	if hr == nil {
@@ -69,6 +71,7 @@ func NewContract(
 		globalScheduler:        globalScheduler,
 		state:                  convertBlockchainStatusToApplicationStatus(data.State),
 		defaultDestination:     defaultDestination,
+		cycleDuration:          cycleDuration,
 	}
 
 	return contract
@@ -117,7 +120,7 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			c.log.Errorf("unsubscribing from contract %v", c.GetID())
+			c.log.Warnf("context cancelled: unsubscribing from contract %v", c.GetID())
 			sub.Unsubscribe()
 			return ctx.Err()
 		case err := <-sub.Err():
@@ -128,7 +131,7 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 			eventHex := e.Topics[0].Hex()
 			err := c.eventsController(ctx, eventHex)
 			if err != nil {
-				c.log.Error("blockchain event handling error: %s", err)
+				c.log.Errorf("blockchain event handling error: %s", err)
 			}
 		}
 	}
@@ -143,6 +146,7 @@ func (c *BTCHashrateContract) eventsController(ctx context.Context, eventHex str
 		if err != nil {
 			return err
 		}
+		// TODO: check if already fulfilling
 		go c.FulfillAndClose(ctx)
 
 	// Contract updated on buyer side
@@ -245,7 +249,7 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 			return ctx.Err()
 		case <-c.stopFullfillment:
 			return fmt.Errorf("contract was stopped: %s", c.GetID())
-		case <-time.After(30 * time.Second):
+		case <-time.After(c.cycleDuration):
 			continue
 		}
 	}

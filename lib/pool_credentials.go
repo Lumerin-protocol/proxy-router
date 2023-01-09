@@ -3,12 +3,14 @@ package lib
 import (
 	"fmt"
 	"net/url"
-
-	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
 
 type Dest struct {
 	url url.URL
+}
+
+type DestString interface {
+	String() string
 }
 
 func ParseDest(uri string) (Dest, error) {
@@ -50,7 +52,7 @@ func (v Dest) GetHost() string {
 	return v.url.Host
 }
 
-func (v Dest) IsEqual(target interfaces.IDestination) bool {
+func (v Dest) IsEqual(target DestString) bool {
 	return v.String() == target.String()
 }
 

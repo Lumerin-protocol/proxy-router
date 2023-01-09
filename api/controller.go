@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
+	"gitlab.com/TitanInd/hashrouter/data"
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
@@ -104,7 +105,7 @@ type HistoryItem struct {
 	TimestampString string
 }
 
-func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerV2, isBuyer bool, hashrateDiffThreshold float64, validationBufferPeriod time.Duration, defaultDestination interfaces.IDestination, apiPublicUrl string) *gin.Engine {
+func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerV2, isBuyer bool, hashrateDiffThreshold float64, validationBufferPeriod time.Duration, defaultDestination interfaces.IDestination, apiPublicUrl string, contractCycleDuration time.Duration) *gin.Engine {
 	publicUrl, _ := url.Parse(apiPublicUrl)
 
 	controller := ApiController{
@@ -186,7 +187,7 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 			Length:                 int64(duration.Seconds()),
 			Dest:                   dest,
 			StartingBlockTimestamp: time.Now().Unix(),
-		}, nil, gs, log, hashrate.NewHashrate(), hashrateDiffThreshold, validationBufferPeriod, controller.defaultDestination)
+		}, nil, gs, log, hashrate.NewHashrate(), hashrateDiffThreshold, validationBufferPeriod, controller.defaultDestination, contractCycleDuration)
 
 		go func() {
 			err := contract.FulfillContract(context.Background())
@@ -337,7 +338,7 @@ func (c *ApiController) changeDestAll(destStr string) error {
 }
 
 func (c *ApiController) GetContracts() []Contract {
-	snap := contractmanager.CreateCurrentMinerSnapshot(c.miners)
+	snap := CreateCurrentMinerSnapshot(c.miners)
 
 	data := []Contract{}
 	c.contracts.Range(func(item contractmanager.IContractModel) bool {
@@ -480,4 +481,28 @@ func TimePtrToStringPtr(t *time.Time) *string {
 		return &a
 	}
 	return nil
+}
+
+// CreateCurrentMinerSnapshot returns current state of the miners
+func CreateCurrentMinerSnapshot(minerCollection interfaces.ICollection[miner.MinerScheduler]) data.AllocSnap {
+	snapshot := data.NewAllocSnap()
+
+	minerCollection.Range(func(miner miner.MinerScheduler) bool {
+		if !miner.IsVetted() {
+			return true
+		}
+
+		hashrateGHS := miner.GetHashRateGHS()
+		minerID := miner.GetID()
+
+		snapshot.SetMiner(minerID, hashrateGHS)
+
+		for _, splitItem := range miner.GetCurrentDestSplit().Iter() {
+			snapshot.Set(minerID, splitItem.ID, splitItem.Fraction, hashrateGHS)
+		}
+
+		return true
+	})
+
+	return snapshot
 }
