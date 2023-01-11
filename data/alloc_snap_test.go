@@ -1,4 +1,4 @@
-package contractmanager
+package data
 
 import (
 	"math"

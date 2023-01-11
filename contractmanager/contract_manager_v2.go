@@ -16,7 +16,7 @@ type ContractManager struct {
 	// dependencies
 	blockchain      interfaces.IBlockchainGateway
 	log             interfaces.ILogger
-	globalScheduler *GlobalSchedulerV2
+	globalScheduler interfaces.IGlobalScheduler
 
 	// configuration parameters
 	isBuyer                bool
@@ -26,6 +26,7 @@ type ContractManager struct {
 	walletAddr             interop.BlockchainAddress
 	walletPrivateKey       string
 	defaultDest            lib.Dest
+	contractCycleDuration  time.Duration
 
 	// internal state
 	contracts interfaces.ICollection[IContractModel]
@@ -33,7 +34,7 @@ type ContractManager struct {
 
 func NewContractManager(
 	blockchain interfaces.IBlockchainGateway,
-	globalScheduler *GlobalSchedulerV2,
+	globalScheduler interfaces.IGlobalScheduler,
 	log interfaces.ILogger,
 	contracts interfaces.ICollection[IContractModel],
 	walletAddr interop.BlockchainAddress,
@@ -42,7 +43,12 @@ func NewContractManager(
 	hashrateDiffThreshold float64,
 	validationBufferPeriod time.Duration,
 	defaultDest lib.Dest,
+	contractCycleDuration time.Duration,
 ) *ContractManager {
+	if contractCycleDuration == 0 {
+		contractCycleDuration = 30 * time.Second
+	}
+
 	return &ContractManager{
 		blockchain:      blockchain,
 		globalScheduler: globalScheduler,
@@ -55,6 +61,7 @@ func NewContractManager(
 		claimFunds:             false,
 		walletAddr:             walletAddr,
 		walletPrivateKey:       walletPrivateKey,
+		contractCycleDuration:  contractCycleDuration,
 	}
 }
 
@@ -143,9 +150,9 @@ func (m *ContractManager) handleContract(ctx context.Context, contractAddr commo
 
 		var contract IContractModel
 		if m.isBuyer {
-			contract = NewBuyerContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest)
+			contract = NewBuyerContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration)
 		} else {
-			contract = NewContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest)
+			contract = NewContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration)
 		}
 
 		if !contract.IsValidWallet(m.walletAddr) {

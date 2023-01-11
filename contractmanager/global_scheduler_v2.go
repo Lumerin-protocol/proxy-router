@@ -5,6 +5,7 @@ import (
 	"math"
 	"time"
 
+	"gitlab.com/TitanInd/hashrouter/data"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/miner"
@@ -61,9 +62,28 @@ func (s *GlobalSchedulerV2) Run(ctx context.Context) error {
 	}
 }
 
-func (s *GlobalSchedulerV2) GetMinerSnapshot() *AllocSnap {
-	snap := CreateMinerSnapshot(s.minerCollection)
-	return &snap
+// GetMinerSnapshot returns current or upcoming state of the miners is available
+func (s *GlobalSchedulerV2) GetMinerSnapshot() *data.AllocSnap {
+	snapshot := data.NewAllocSnap()
+
+	s.minerCollection.Range(func(miner miner.MinerScheduler) bool {
+		if !miner.IsVetted() {
+			return true
+		}
+
+		hashrateGHS := miner.GetHashRateGHS()
+		minerID := miner.GetID()
+
+		snapshot.SetMiner(minerID, hashrateGHS)
+
+		for _, splitItem := range miner.GetDestSplit().Iter() {
+			snapshot.Set(minerID, splitItem.ID, splitItem.Fraction, hashrateGHS)
+		}
+
+		return true
+	})
+
+	return &snapshot
 }
 
 // Update publishes adjusts contract hashrate task. Set hashrateGHS to 0 to deallocate miners.
@@ -90,7 +110,7 @@ func (s *GlobalSchedulerV2) update(contractID string, targetHrGHS int, dest inte
 	currentHrGHS := 0
 	miners, ok := snap.Contract(contractID)
 	if !ok {
-		miners = NewAllocCollection()
+		miners = data.NewAllocCollection()
 	}
 
 	if ok {
@@ -106,7 +126,7 @@ func (s *GlobalSchedulerV2) update(contractID string, targetHrGHS int, dest inte
 	}
 
 	var (
-		allocCollection *AllocCollection
+		allocCollection *data.AllocCollection
 		isAccurate      bool
 	)
 
@@ -129,7 +149,7 @@ func (s *GlobalSchedulerV2) update(contractID string, targetHrGHS int, dest inte
 	return s.applyAllocCollection(contractID, allocCollection, dest, onSubmit)
 }
 
-func (s *GlobalSchedulerV2) increaseHr(snap *AllocSnap, hrToIncreaseGHS int, contractID string, dest interfaces.IDestination) (coll *AllocCollection, isAccurate bool) {
+func (s *GlobalSchedulerV2) increaseHr(snap *data.AllocSnap, hrToIncreaseGHS int, contractID string, dest interfaces.IDestination) (coll *data.AllocCollection, isAccurate bool) {
 	s.log.Debugf("increasing allocation contractID(%s) hrToIncrease(%d)", lib.AddrShort(contractID), hrToIncreaseGHS)
 	remainingToAddGHS := hrToIncreaseGHS
 
@@ -146,7 +166,7 @@ func (s *GlobalSchedulerV2) increaseHr(snap *AllocSnap, hrToIncreaseGHS int, con
 			return allocItems, true
 		}
 	} else {
-		allocItems = NewAllocCollection()
+		allocItems = data.NewAllocCollection()
 	}
 
 	// 2. find additional miners that can fulfill the contract
@@ -162,7 +182,7 @@ func (s *GlobalSchedulerV2) increaseHr(snap *AllocSnap, hrToIncreaseGHS int, con
 }
 
 // maxoutExisting tries to increase existing allocation up to 100%, returns GHS that is remaining
-func (s *GlobalSchedulerV2) maxoutExisting(allocItems *AllocCollection, toAddGHS int) int {
+func (s *GlobalSchedulerV2) maxoutExisting(allocItems *data.AllocCollection, toAddGHS int) int {
 	// adjust existing items to max out their percentage
 	for _, item := range allocItems.GetItems() {
 		if toAddGHS == 0 {
@@ -179,7 +199,7 @@ func (s *GlobalSchedulerV2) maxoutExisting(allocItems *AllocCollection, toAddGHS
 	return toAddGHS
 }
 
-func (s *GlobalSchedulerV2) addNewMiners(allocItems *AllocCollection, freeMiners *AllocCollection, toAddGHS int, contractID string) (remainingGHS int) {
+func (s *GlobalSchedulerV2) addNewMiners(allocItems *data.AllocCollection, freeMiners *data.AllocCollection, toAddGHS int, contractID string) (remainingGHS int) {
 	combination, delta := FindCombinations(freeMiners, toAddGHS)
 
 	if combination.Len() == 0 {
@@ -199,7 +219,7 @@ func (s *GlobalSchedulerV2) addNewMiners(allocItems *AllocCollection, freeMiners
 	s.log.Debugf("added miners: %s", combination.String())
 
 	for _, ai := range combination.GetItems() {
-		allocItems.Add(ai.MinerID, &AllocItem{
+		allocItems.Add(ai.MinerID, &data.AllocItem{
 			MinerID:    ai.MinerID,
 			ContractID: contractID,
 			Fraction:   ai.Fraction,
@@ -210,11 +230,11 @@ func (s *GlobalSchedulerV2) addNewMiners(allocItems *AllocCollection, freeMiners
 	return 0
 }
 
-func (s *GlobalSchedulerV2) decreaseHr(snap *AllocSnap, hrToDecreaseGHS int, contractID string, dest interfaces.IDestination) (coll *AllocCollection, isAccurate bool) {
+func (s *GlobalSchedulerV2) decreaseHr(snap *data.AllocSnap, hrToDecreaseGHS int, contractID string, dest interfaces.IDestination) (coll *data.AllocCollection, isAccurate bool) {
 	s.log.Debugf("decreasing allocation contractID(%s) hrToDecrease(%d)", lib.AddrShort(contractID), hrToDecreaseGHS)
 
 	remainingToRemoveGHS := hrToDecreaseGHS
-	newContractItems := NewAllocCollection()
+	newContractItems := data.NewAllocCollection()
 	allocItems, ok := snap.Contract(contractID)
 	if !ok {
 		s.log.DPanicf("contract(%s) not found", lib.AddrShort(contractID))
@@ -224,7 +244,7 @@ func (s *GlobalSchedulerV2) decreaseHr(snap *AllocSnap, hrToDecreaseGHS int, con
 	for _, item := range allocItems.SortByAllocatedGHS() {
 		if remainingToRemoveGHS == 0 {
 			// just add item into target collection without changes
-			newContractItems.Add(item.MinerID, &AllocItem{
+			newContractItems.Add(item.MinerID, &data.AllocItem{
 				ContractID: contractID,
 				MinerID:    item.MinerID,
 				Fraction:   item.Fraction,
@@ -240,7 +260,7 @@ func (s *GlobalSchedulerV2) decreaseHr(snap *AllocSnap, hrToDecreaseGHS int, con
 			toRemoveFraction = item.Fraction // avoid float comparison error
 		}
 
-		newContractItems.Add(item.MinerID, &AllocItem{
+		newContractItems.Add(item.MinerID, &data.AllocItem{
 			ContractID: contractID,
 			MinerID:    item.MinerID,
 			Fraction:   item.Fraction - toRemoveFraction, // it can fall into unavailable interval, will be adjusted later, zero means deallocate
@@ -273,7 +293,7 @@ func (s *GlobalSchedulerV2) checkRedZones(fraction float64) int {
 	return 0
 }
 
-func (s *GlobalSchedulerV2) applyAllocCollection(contractID string, coll *AllocCollection, dest interfaces.IDestination, onSubmit interfaces.IHashrate) error {
+func (s *GlobalSchedulerV2) applyAllocCollection(contractID string, coll *data.AllocCollection, dest interfaces.IDestination, onSubmit interfaces.IHashrate) error {
 	for _, item := range coll.GetItems() {
 		miner, ok := s.minerCollection.Load(item.GetSourceID())
 		if !ok {
@@ -290,7 +310,7 @@ func (s *GlobalSchedulerV2) applyAllocCollection(contractID string, coll *AllocC
 		}
 
 		destSplitItem, ok := miner.GetDestSplit().GetByID(contractID)
-		isNotChanged := ok && destSplitItem.Dest.IsEqual(dest) && destSplitItem.Fraction == item.Fraction
+		isNotChanged := ok && lib.IsEqualDest(destSplitItem.Dest, dest) && destSplitItem.Fraction == item.Fraction
 
 		if isNotChanged {
 			s.log.Debugf("miners update skipped due to no changes")
@@ -306,7 +326,7 @@ func (s *GlobalSchedulerV2) applyAllocCollection(contractID string, coll *AllocC
 	return nil
 }
 
-func (s *GlobalSchedulerV2) deallocate(coll *AllocCollection) {
+func (s *GlobalSchedulerV2) deallocate(coll *data.AllocCollection) {
 	for _, item := range coll.GetItems() {
 		miner, ok := s.minerCollection.Load(item.GetSourceID())
 		if !ok {
@@ -374,19 +394,24 @@ func (s *GlobalSchedulerV2) IsDeliveringAdequateHashrate(ctx context.Context, ta
 		return true
 	})
 
-	deltaGHS := targetHashrateGHS - actualHashrate
-	s.log.Debugf("target hashrate %d, actual hashrate %d, delta %d", targetHashrateGHS, actualHashrate, deltaGHS)
+	hrError := lib.RelativeError(actualHashrate, targetHashrateGHS)
+	s.log.Infof("worker name %s, target hashrate %d, actual hashrate %d, error %.0f%%", dest.Username(), targetHashrateGHS, actualHashrate, hrError*100)
 
-	if deltaGHS < 0 || math.Abs(float64(deltaGHS))/float64(targetHashrateGHS) < hashrateDiffThreshold {
-		s.log.Debugf("contract delivering enough hashrate")
-		return true
+	if hrError > hashrateDiffThreshold {
+		if actualHashrate < targetHashrateGHS {
+			s.log.Warnf("contract is underdelivering by %.0f%%, threshold(%.0f%%)", hrError*100, hashrateDiffThreshold*100)
+			return false
+		}
+		// contract overdelivery is fine for buyer
+		s.log.Warnf("contract is overdelivering by %.0f%%, threshold(%.0f%%)", hrError*100, hashrateDiffThreshold*100)
 	}
 
-	return false
+	s.log.Debugf("contract delivering enough hashrate")
+	return true
 }
 
 // adjustAllocCollection adjusts percentage for each allocation item so it wont fall in red zone
-func (s *GlobalSchedulerV2) adjustAllocCollection(coll *AllocCollection, snap *AllocSnap) *AllocCollection {
+func (s *GlobalSchedulerV2) adjustAllocCollection(coll *data.AllocCollection, snap *data.AllocSnap) *data.AllocCollection {
 	// check if miner amount can be reduced, by allocating more percentage for existing miners
 	// if difference is 1 it is likely a deliberate split to avoid red zones
 	coll = s.tryReduceMiners(coll)
@@ -405,13 +430,13 @@ func (s *GlobalSchedulerV2) adjustAllocCollection(coll *AllocCollection, snap *A
 	return coll
 }
 
-func (s *GlobalSchedulerV2) tryReduceMiners(coll *AllocCollection) *AllocCollection {
+func (s *GlobalSchedulerV2) tryReduceMiners(coll *data.AllocCollection) *data.AllocCollection {
 	hrCounter := 0
 	totalHR := coll.GetAllocatedGHS()
-	newColl := NewAllocCollection()
+	newColl := data.NewAllocCollection()
 	for _, item := range coll.SortByAllocatedGHSInv() {
 		if totalHR <= hrCounter+item.TotalGHS {
-			newColl.Add(item.MinerID, &AllocItem{
+			newColl.Add(item.MinerID, &data.AllocItem{
 				MinerID:    item.MinerID,
 				ContractID: item.ContractID,
 				Fraction:   float64(totalHR-hrCounter) / float64(item.TotalGHS),
@@ -420,7 +445,7 @@ func (s *GlobalSchedulerV2) tryReduceMiners(coll *AllocCollection) *AllocCollect
 			break
 		}
 		hrCounter += item.TotalGHS
-		newColl.Add(item.MinerID, &AllocItem{
+		newColl.Add(item.MinerID, &data.AllocItem{
 			MinerID:    item.MinerID,
 			ContractID: item.ContractID,
 			Fraction:   1,
@@ -436,7 +461,7 @@ func (s *GlobalSchedulerV2) tryReduceMiners(coll *AllocCollection) *AllocCollect
 	return coll
 }
 
-func (s *GlobalSchedulerV2) tryAdjustRedZones(coll *AllocCollection, snap *AllocSnap) {
+func (s *GlobalSchedulerV2) tryAdjustRedZones(coll *data.AllocCollection, snap *data.AllocSnap) {
 	s.log.Debugf("before red zone adjustment: \n %s", coll.String())
 
 	for _, item := range coll.SortByAllocatedGHS() {
@@ -463,7 +488,7 @@ func (s *GlobalSchedulerV2) tryAdjustRedZones(coll *AllocCollection, snap *Alloc
 	s.log.Debugf("after red zone adjustment: \n %s", coll.String())
 }
 
-func (s *GlobalSchedulerV2) adjustLeftRedZone(item *AllocItem, coll *AllocCollection) bool {
+func (s *GlobalSchedulerV2) adjustLeftRedZone(item *data.AllocItem, coll *data.AllocCollection) bool {
 	for _, item2 := range coll.GetItems() {
 		if item2.MinerID == item.MinerID {
 			continue
@@ -480,8 +505,8 @@ func (s *GlobalSchedulerV2) adjustLeftRedZone(item *AllocItem, coll *AllocCollec
 	return false
 }
 
-func (s *GlobalSchedulerV2) adjustRightRedZone(item *AllocItem, snap *AllocSnap, coll *AllocCollection) bool {
-	var existingAndFreeMiners []*AllocItem
+func (s *GlobalSchedulerV2) adjustRightRedZone(item *data.AllocItem, snap *data.AllocSnap, coll *data.AllocCollection) bool {
+	var existingAndFreeMiners []*data.AllocItem
 	_, freeMiners := snap.GetUnallocatedGHS()
 
 	existingAndFreeMiners = append(existingAndFreeMiners, coll.SortByAllocatedGHS()...)
@@ -504,7 +529,7 @@ func (s *GlobalSchedulerV2) adjustRightRedZone(item *AllocItem, snap *AllocSnap,
 			continue
 		}
 
-		newItem2 := &AllocItem{
+		newItem2 := &data.AllocItem{
 			MinerID:    item2.MinerID,
 			ContractID: item.ContractID,
 			Fraction:   item2.Fraction,
