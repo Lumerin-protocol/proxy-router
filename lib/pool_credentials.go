@@ -9,7 +9,7 @@ type Dest struct {
 	url url.URL
 }
 
-type DestString interface {
+type Stringable interface {
 	String() string
 }
 
@@ -52,10 +52,10 @@ func (v Dest) GetHost() string {
 	return v.url.Host
 }
 
-func (v Dest) IsEqual(target DestString) bool {
-	return v.String() == target.String()
-}
-
 func (v Dest) String() string {
 	return v.url.String()
+}
+
+func IsEqualDest(dest1, dest2 Stringable) bool {
+	return dest1.String() == dest2.String()
 }

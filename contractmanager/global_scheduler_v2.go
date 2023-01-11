@@ -310,7 +310,7 @@ func (s *GlobalSchedulerV2) applyAllocCollection(contractID string, coll *data.A
 		}
 
 		destSplitItem, ok := miner.GetDestSplit().GetByID(contractID)
-		isNotChanged := ok && destSplitItem.Dest.IsEqual(dest) && destSplitItem.Fraction == item.Fraction
+		isNotChanged := ok && lib.IsEqualDest(destSplitItem.Dest, dest) && destSplitItem.Fraction == item.Fraction
 
 		if isNotChanged {
 			s.log.Debugf("miners update skipped due to no changes")
