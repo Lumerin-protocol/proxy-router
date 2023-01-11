@@ -30,14 +30,18 @@ type EthereumGateway struct {
 	cloneFactory           *clonefactory.Clonefactory
 	sellerPrivateKeyString string
 	cloneFactoryAddr       common.Address
-	log                    interfaces.ILogger
+	// legacyTx specifies whether to use legacy transactions (pre eip-1559, London), used for tests, because hardhat does not
+	// support eth_maxPriorityFeePerGas, which used for gasTipCap estimation for not legacy transactions
+	// TODO: fix it by using eth_feehistory to manually specify gasTipCap avoiding call to eth_maxPriorityFeePerGas
+	legacyTx bool
+	log      interfaces.ILogger
 
 	startCloseout chan *closeout
 	endCloseout   chan error
 	retry         lib.RetryFn
 }
 
-func NewEthereumGateway(ethClient EthereumClient, privateKeyString string, cloneFactoryAddrStr string, log interfaces.ILogger, retry lib.RetryFn) (*EthereumGateway, error) {
+func NewEthereumGateway(ethClient EthereumClient, privateKeyString string, cloneFactoryAddrStr string, log interfaces.ILogger, retry lib.RetryFn, lefacyTx bool) (*EthereumGateway, error) {
 	// TODO: extract it to dependency injection, because we'll going to have only one cloneFactory per project
 	cloneFactoryAddr := common.HexToAddress(cloneFactoryAddrStr)
 	cloneFactory, err := clonefactory.NewClonefactory(cloneFactoryAddr, ethClient)
@@ -54,6 +58,7 @@ func NewEthereumGateway(ethClient EthereumClient, privateKeyString string, clone
 		startCloseout:          make(chan *closeout),
 		endCloseout:            make(chan error),
 		retry:                  retry,
+		legacyTx:               lefacyTx,
 	}
 
 	go func() {
@@ -255,12 +260,6 @@ func (g *EthereumGateway) setContractCloseOut(fromAddress string, contractAddres
 		g.log.Error(err)
 		return err
 	}
-	//TODO: deal with likely gasPrice issue so our transaction processes before another pending nonce.
-	// gasPrice, err := g.client.SuggestGasPrice(ctx)
-	// if err != nil {
-	// 	g.log.Error(err)
-	// 	return err
-	// }
 
 	nonce, err := g.client.PendingNonceAt(ctx, common.HexToAddress(fromAddress))
 
@@ -273,9 +272,18 @@ func (g *EthereumGateway) setContractCloseOut(fromAddress string, contractAddres
 		return err
 	}
 
+	// TODO: deal with likely gasPrice issue so our transaction processes before another pending nonce.
+	if g.legacyTx {
+		gasPrice, err := g.client.SuggestGasPrice(ctx)
+		if err != nil {
+			g.log.Error(err)
+			return err
+		}
+		options.GasPrice = gasPrice
+	}
+
 	options.GasLimit = uint64(3000000) // in units
 	options.Value = big.NewInt(0)      // in wei
-	// options.GasPrice = gasPrice
 	options.Nonce = big.NewInt(int64(nonce))
 	g.log.Debugf("closeout type: %v; nonce: %v", closeoutType, nonce)
 

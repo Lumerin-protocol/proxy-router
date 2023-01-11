@@ -22,7 +22,8 @@ type Config struct {
 	}
 	Environment string `env:"ENVIRONMENT" flag:"environment"`
 	EthNode     struct {
-		Address string `env:"ETH_NODE_ADDRESS" flag:"eth-node-address" validate:"required,url"`
+		Address  string `env:"ETH_NODE_ADDRESS" flag:"eth-node-address" validate:"required,url"`
+		LegacyTx bool   `env:"ETH_NODE_LEGACY_TX" flag:"eth-node-legacy-tx" desc:"use it to disable EIP-1559 transactions"`
 	}
 	Miner struct {
 		VettingDuration time.Duration `env:"MINER_VETTING_DURATION" flag:"miner-vetting-duration" validate:"duration"`
