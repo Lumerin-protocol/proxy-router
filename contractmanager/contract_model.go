@@ -263,9 +263,7 @@ func (c *BTCHashrateContract) Close(ctx context.Context) error {
 	c.log.Debugf("closing contract %v", c.GetID())
 	c.Stop(ctx)
 
-	closeoutAccount := c.GetCloseoutAccount()
-
-	err := c.blockchain.SetContractCloseOut(closeoutAccount, c.GetAddress(), int64(c.GetCloseoutType()))
+	err := c.blockchain.SetContractCloseOut(c.GetAddress(), int64(c.GetCloseoutType()))
 	if err != nil {
 		c.log.Error("cannot close contract", err)
 		return err
@@ -351,10 +349,6 @@ func (c *BTCHashrateContract) GetDest() interfaces.IDestination {
 
 func (c *BTCHashrateContract) GetCloseoutType() constants.CloseoutType {
 	return constants.CloseoutTypeWithoutClaim
-}
-
-func (c *BTCHashrateContract) GetCloseoutAccount() string {
-	return c.GetSellerAddress()
 }
 
 func (c *BTCHashrateContract) GetStatusInternal() string {
