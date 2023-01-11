@@ -106,11 +106,6 @@ func (c *BTCHashrateContract) IsValidWallet(walletAddress common.Address) bool {
 	return c.data.Seller == walletAddress
 }
 
-// Sets contract dest to default dest for buyer node
-func (c *BTCHashrateContract) setDestToDefault(defaultDest interfaces.IDestination) {
-	c.data.Dest = defaultDest
-}
-
 func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 	eventsCh, sub, err := c.blockchain.SubscribeToContractEvents(ctx, common.HexToAddress(c.GetAddress()))
 	if err != nil {
@@ -233,7 +228,7 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 		}
 
 		// TODO hashrate monitoring
-		c.log.Infof("contract (%s) is running for %.0f seconds", c.GetID(), time.Since(*c.GetStartTime()).Seconds())
+		c.log.Infof("contract (%s) is running for %s seconds", c.GetID(), time.Since(*c.GetStartTime()))
 
 		err := c.globalScheduler.Update(c.GetID(), c.GetHashrateGHS(), c.GetDest(), c.hashrate)
 		if err != nil {
@@ -330,7 +325,6 @@ func (c *BTCHashrateContract) GetDuration() time.Duration {
 
 func (c *BTCHashrateContract) GetStartTime() *time.Time {
 	startTime := time.Unix(c.data.StartingBlockTimestamp, 0)
-
 	return &startTime
 }
 

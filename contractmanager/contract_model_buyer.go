@@ -48,7 +48,6 @@ func NewBuyerContract(
 			cycleDuration:          cycleDuration,
 		},
 	}
-
 	return contract
 }
 
@@ -58,8 +57,6 @@ func (c *BTCBuyerHashrateContract) Run(ctx context.Context) error {
 		// TODO: refactor to ensure there is only one fulfillAndClose goroutine per instance
 		go c.FulfillAndClose(ctx)
 	}
-	// buyer node points contracts to default
-	c.setDestToDefault(c.defaultDestination)
 
 	return c.listenContractEvents(ctx)
 }
@@ -86,11 +83,11 @@ func (c *BTCBuyerHashrateContract) FulfillBuyerContract(ctx context.Context) err
 		}
 
 		// TODO hashrate monitoring
-		c.log.Infof("contract (%s) is running for %.0f seconds", c.GetID(), time.Since(*c.GetStartTime()).Seconds())
+		c.log.Infof("contract (%s) is running for %s seconds", c.GetID(), time.Since(*c.GetStartTime()))
 
 		if !c.globalScheduler.IsDeliveringAdequateHashrate(ctx, c.GetHashrateGHS(), c.GetDest(), c.hashrateDiffThreshold) {
 			// cancel
-			c.log.Info("Contract %s not delivering adequete hashrate", c.GetAddress())
+			c.log.Infof("contract %s not delivering adequete hashrate", c.GetAddress())
 			return fmt.Errorf("contract under delivering hashrate")
 		}
 
