@@ -14,7 +14,7 @@ func contractManagerSetup() (*data.Collection[IContractModel], *ContractManager)
 	Setup()
 	contractCollection := NewContractCollection()
 	return contractCollection,
-		NewContractManager(blockchainGateway, globalScheduler, log, contractCollection, interop.AddressStringToSlice(""), "", false, 0, 1*time.Second, lib.Dest{})
+		NewContractManager(blockchainGateway, globalScheduler, log, contractCollection, interop.AddressStringToSlice(""), "", false, 0, 1*time.Second, lib.Dest{}, 30*time.Second)
 }
 
 func TestContractShouldExist(t *testing.T) {

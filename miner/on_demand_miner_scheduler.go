@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/lib"
 )
 
 // DefaultDestID is used as destinationID / contractID for split serving default pool
@@ -65,7 +66,7 @@ current dest %s
 upcoming dest %s
 `, m.minerModel.GetID(), destinations.String(), m.minerModel.GetDest(), splitItem.Dest)
 
-			if !m.minerModel.GetDest().IsEqual(splitItem.Dest) {
+			if !lib.IsEqualDest(m.minerModel.GetDest(), splitItem.Dest) {
 				m.log.Debugf("changing dest to %s", m.minerModel.GetDest())
 
 				err := m.ChangeDest(context.TODO(), splitItem.Dest, splitItem.ID, splitItem.OnSubmit)

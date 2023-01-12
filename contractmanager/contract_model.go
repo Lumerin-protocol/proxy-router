@@ -26,13 +26,14 @@ const (
 type BTCHashrateContract struct {
 	// dependencies
 	blockchain      interfaces.IBlockchainGateway
-	globalScheduler *GlobalSchedulerV2
+	globalScheduler interfaces.IGlobalScheduler
 
 	data                   blockchain.ContractData
 	FullfillmentStartTime  *time.Time
 	isBuyer                bool
 	hashrateDiffThreshold  float64
 	validationBufferPeriod time.Duration
+	cycleDuration          time.Duration // duration of the contract cycle that verifies the hashrate
 
 	state ContractState // internal state of the contract (within hashrouter)
 
@@ -46,12 +47,13 @@ type BTCHashrateContract struct {
 func NewContract(
 	data blockchain.ContractData,
 	blockchain interfaces.IBlockchainGateway,
-	globalScheduler *GlobalSchedulerV2,
+	globalScheduler interfaces.IGlobalScheduler,
 	log interfaces.ILogger,
 	hr *hashrate.Hashrate,
 	hashrateDiffThreshold float64,
 	validationBufferPeriod time.Duration,
 	defaultDestination interfaces.IDestination,
+	cycleDuration time.Duration,
 ) *BTCHashrateContract {
 
 	if hr == nil {
@@ -69,6 +71,7 @@ func NewContract(
 		globalScheduler:        globalScheduler,
 		state:                  convertBlockchainStatusToApplicationStatus(data.State),
 		defaultDestination:     defaultDestination,
+		cycleDuration:          cycleDuration,
 	}
 
 	return contract
@@ -103,11 +106,6 @@ func (c *BTCHashrateContract) IsValidWallet(walletAddress common.Address) bool {
 	return c.data.Seller == walletAddress
 }
 
-// Sets contract dest to default dest for buyer node
-func (c *BTCHashrateContract) setDestToDefault(defaultDest interfaces.IDestination) {
-	c.data.Dest = defaultDest
-}
-
 func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 	eventsCh, sub, err := c.blockchain.SubscribeToContractEvents(ctx, common.HexToAddress(c.GetAddress()))
 	if err != nil {
@@ -117,7 +115,7 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			c.log.Errorf("unsubscribing from contract %v", c.GetID())
+			c.log.Warnf("context cancelled: unsubscribing from contract %v", c.GetID())
 			sub.Unsubscribe()
 			return ctx.Err()
 		case err := <-sub.Err():
@@ -128,7 +126,7 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 			eventHex := e.Topics[0].Hex()
 			err := c.eventsController(ctx, eventHex)
 			if err != nil {
-				c.log.Error("blockchain event handling error: %s", err)
+				c.log.Errorf("blockchain event handling error: %s", err)
 			}
 		}
 	}
@@ -143,6 +141,7 @@ func (c *BTCHashrateContract) eventsController(ctx context.Context, eventHex str
 		if err != nil {
 			return err
 		}
+		// TODO: check if already fulfilling
 		go c.FulfillAndClose(ctx)
 
 	// Contract updated on buyer side
@@ -229,7 +228,7 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 		}
 
 		// TODO hashrate monitoring
-		c.log.Infof("contract (%s) is running for %.0f seconds", c.GetID(), time.Since(*c.GetStartTime()).Seconds())
+		c.log.Infof("contract (%s) is running for %s seconds", c.GetID(), time.Since(*c.GetStartTime()))
 
 		err := c.globalScheduler.Update(c.GetID(), c.GetHashrateGHS(), c.GetDest(), c.hashrate)
 		if err != nil {
@@ -245,7 +244,7 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 			return ctx.Err()
 		case <-c.stopFullfillment:
 			return fmt.Errorf("contract was stopped: %s", c.GetID())
-		case <-time.After(30 * time.Second):
+		case <-time.After(c.cycleDuration):
 			continue
 		}
 	}
@@ -259,9 +258,7 @@ func (c *BTCHashrateContract) Close(ctx context.Context) error {
 	c.log.Debugf("closing contract %v", c.GetID())
 	c.Stop(ctx)
 
-	closeoutAccount := c.GetCloseoutAccount()
-
-	err := c.blockchain.SetContractCloseOut(closeoutAccount, c.GetAddress(), int64(c.GetCloseoutType()))
+	err := c.blockchain.SetContractCloseOut(c.GetAddress(), int64(c.GetCloseoutType()))
 	if err != nil {
 		c.log.Error("cannot close contract", err)
 		return err
@@ -328,7 +325,6 @@ func (c *BTCHashrateContract) GetDuration() time.Duration {
 
 func (c *BTCHashrateContract) GetStartTime() *time.Time {
 	startTime := time.Unix(c.data.StartingBlockTimestamp, 0)
-
 	return &startTime
 }
 
@@ -347,10 +343,6 @@ func (c *BTCHashrateContract) GetDest() interfaces.IDestination {
 
 func (c *BTCHashrateContract) GetCloseoutType() constants.CloseoutType {
 	return constants.CloseoutTypeWithoutClaim
-}
-
-func (c *BTCHashrateContract) GetCloseoutAccount() string {
-	return c.GetSellerAddress()
 }
 
 func (c *BTCHashrateContract) GetStatusInternal() string {

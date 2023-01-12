@@ -20,7 +20,7 @@ func TestSubscribeToContractEventsReconnectOnInit(t *testing.T) {
 		},
 	}
 
-	ethGateway, err := NewEthereumGateway(ethClientMock, "", "", lib.NewTestLogger(), nil)
+	ethGateway, err := NewEthereumGateway(ethClientMock, "", "", lib.NewTestLogger(), nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestSubscribeToContractEventsReconnectOnRead(t *testing.T) {
 		},
 	}
 
-	ethGateway, err := NewEthereumGateway(ethClientMock, "", "", lib.NewTestLogger(), nil)
+	ethGateway, err := NewEthereumGateway(ethClientMock, "", "", lib.NewTestLogger(), nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}
