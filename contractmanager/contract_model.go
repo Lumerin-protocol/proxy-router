@@ -233,7 +233,7 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 		}
 
 		// TODO hashrate monitoring
-		c.log.Infof("contract (%s) is running for %.0f seconds", c.GetID(), time.Since(*c.GetStartTime()).Seconds())
+		c.log.Infof("contract (%s) is running for %s seconds", c.GetID(), time.Since(*c.GetStartTime()))
 
 		err := c.globalScheduler.Update(c.GetID(), c.GetHashrateGHS(), c.GetDest(), c.hashrate)
 		if err != nil {
@@ -263,9 +263,7 @@ func (c *BTCHashrateContract) Close(ctx context.Context) error {
 	c.log.Debugf("closing contract %v", c.GetID())
 	c.Stop(ctx)
 
-	closeoutAccount := c.GetCloseoutAccount()
-
-	err := c.blockchain.SetContractCloseOut(closeoutAccount, c.GetAddress(), int64(c.GetCloseoutType()))
+	err := c.blockchain.SetContractCloseOut(c.GetAddress(), int64(c.GetCloseoutType()))
 	if err != nil {
 		c.log.Error("cannot close contract", err)
 		return err
@@ -332,7 +330,6 @@ func (c *BTCHashrateContract) GetDuration() time.Duration {
 
 func (c *BTCHashrateContract) GetStartTime() *time.Time {
 	startTime := time.Unix(c.data.StartingBlockTimestamp, 0)
-
 	return &startTime
 }
 
@@ -351,10 +348,6 @@ func (c *BTCHashrateContract) GetDest() interfaces.IDestination {
 
 func (c *BTCHashrateContract) GetCloseoutType() constants.CloseoutType {
 	return constants.CloseoutTypeWithoutClaim
-}
-
-func (c *BTCHashrateContract) GetCloseoutAccount() string {
-	return c.GetSellerAddress()
 }
 
 func (c *BTCHashrateContract) GetStatusInternal() string {

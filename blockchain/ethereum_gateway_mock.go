@@ -37,7 +37,7 @@ func (m *EthereumGatewayMock) ReadContracts(addr common.Address, isBuyer bool) (
 	return nil, nil
 }
 
-func (m *EthereumGatewayMock) SetContractCloseOut(fromAddress string, contractAddress string, closeoutType int64) error {
+func (m *EthereumGatewayMock) SetContractCloseOut(contractAddress string, closeoutType int64) error {
 	m.SetContractCloseOutCalled = true
 	return m.SetContractCloseOutErr
 }

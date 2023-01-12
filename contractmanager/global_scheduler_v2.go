@@ -310,7 +310,7 @@ func (s *GlobalSchedulerV2) applyAllocCollection(contractID string, coll *data.A
 		}
 
 		destSplitItem, ok := miner.GetDestSplit().GetByID(contractID)
-		isNotChanged := ok && destSplitItem.Dest.IsEqual(dest) && destSplitItem.Fraction == item.Fraction
+		isNotChanged := ok && lib.IsEqualDest(destSplitItem.Dest, dest) && destSplitItem.Fraction == item.Fraction
 
 		if isNotChanged {
 			s.log.Debugf("miners update skipped due to no changes")
@@ -394,15 +394,20 @@ func (s *GlobalSchedulerV2) IsDeliveringAdequateHashrate(ctx context.Context, ta
 		return true
 	})
 
-	deltaGHS := targetHashrateGHS - actualHashrate
-	s.log.Debugf("target hashrate %d, actual hashrate %d, delta %d", targetHashrateGHS, actualHashrate, deltaGHS)
+	hrError := lib.RelativeError(actualHashrate, targetHashrateGHS)
+	s.log.Infof("worker name %s, target hashrate %d, actual hashrate %d, error %.0f%%", dest.Username(), targetHashrateGHS, actualHashrate, hrError*100)
 
-	if deltaGHS < 0 || math.Abs(float64(deltaGHS))/float64(targetHashrateGHS) < hashrateDiffThreshold {
-		s.log.Debugf("contract delivering enough hashrate")
-		return true
+	if hrError > hashrateDiffThreshold {
+		if actualHashrate < targetHashrateGHS {
+			s.log.Warnf("contract is underdelivering by %.0f%%, threshold(%.0f%%)", hrError*100, hashrateDiffThreshold*100)
+			return false
+		}
+		// contract overdelivery is fine for buyer
+		s.log.Warnf("contract is overdelivering by %.0f%%, threshold(%.0f%%)", hrError*100, hashrateDiffThreshold*100)
 	}
 
-	return false
+	s.log.Debugf("contract delivering enough hashrate")
+	return true
 }
 
 // adjustAllocCollection adjusts percentage for each allocation item so it wont fall in red zone

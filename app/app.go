@@ -71,7 +71,15 @@ func (a *App) Run(ctx context.Context) {
 		return a.GlobalScheduler.Run(subCtx)
 	})
 
+	a.Logger.Infof("proxyrouter is running in %s mode", getModeString(a.Config.Contract.IsBuyer))
 	err := g.Wait()
 
 	a.Logger.Warnf("App exited due to %v", err)
+}
+
+func getModeString(isBuyer bool) string {
+	if isBuyer {
+		return "BUYER"
+	}
+	return "SELLER"
 }

@@ -48,31 +48,23 @@ func NewBuyerContract(
 			cycleDuration:          cycleDuration,
 		},
 	}
-
 	return contract
 }
 
 func (c *BTCBuyerHashrateContract) Run(ctx context.Context) error {
 	// contract was purchased before the node started, may be result of the restart
 	if c.data.State == blockchain.ContractBlockchainStateRunning {
-		go func() {
-			time.Sleep(c.validationBufferPeriod)
-			c.FulfillAndClose(ctx)
-		}()
+		// TODO: refactor to ensure there is only one fulfillAndClose goroutine per instance
+		go c.FulfillAndClose(ctx)
 	}
-	// buyer node points contracts to default
-	c.SetDest(c.defaultDestination)
 
 	return c.listenContractEvents(ctx)
 }
 
 func (c *BTCBuyerHashrateContract) FulfillBuyerContract(ctx context.Context) error {
 	c.state = ContractStatePurchased
-
-	if c.ContractIsExpired() {
-		c.log.Warn("contract is expired %s", c.GetID())
-		return fmt.Errorf("contract is expired")
-	}
+	c.log.Debugf("waiting for validation buffer period (%s) for contract %s", c.validationBufferPeriod, c.GetID())
+	time.Sleep(c.validationBufferPeriod)
 
 	// running cycle checks combination every N seconds
 	for {
@@ -91,11 +83,11 @@ func (c *BTCBuyerHashrateContract) FulfillBuyerContract(ctx context.Context) err
 		}
 
 		// TODO hashrate monitoring
-		c.log.Infof("contract (%s) is running for %.0f seconds", c.GetID(), time.Since(*c.GetStartTime()).Seconds())
+		c.log.Infof("contract (%s) is running for %s seconds", c.GetID(), time.Since(*c.GetStartTime()))
 
 		if !c.globalScheduler.IsDeliveringAdequateHashrate(ctx, c.GetHashrateGHS(), c.GetDest(), c.hashrateDiffThreshold) {
 			// cancel
-			c.log.Info("Contract %s not delivering adequete hashrate", c.GetAddress())
+			c.log.Infof("contract %s not delivering adequete hashrate", c.GetAddress())
 			return fmt.Errorf("contract under delivering hashrate")
 		}
 
@@ -127,10 +119,6 @@ func (c *BTCBuyerHashrateContract) FulfillAndClose(ctx context.Context) {
 			c.log.Errorf("error during contract closeout: %s", err)
 		}
 	}
-}
-
-func (c *BTCBuyerHashrateContract) GetCloseoutAccount() string {
-	return c.GetBuyerAddress()
 }
 
 func (c *BTCBuyerHashrateContract) IsValidWallet(walletAddress common.Address) bool {
@@ -214,5 +202,18 @@ func (c *BTCBuyerHashrateContract) eventsController(ctx context.Context, eventHe
 		c.log.Info("received unknown blockchain event %s", eventHex)
 	}
 
+	return nil
+}
+
+func (c *BTCBuyerHashrateContract) Close(ctx context.Context) error {
+	c.log.Debugf("closing contract %v", c.GetID())
+	c.Stop(ctx)
+
+	err := c.blockchain.SetContractCloseOut(c.GetAddress(), int64(c.GetCloseoutType()))
+	if err != nil {
+		c.log.Error("cannot close contract", err)
+		return err
+	}
+	c.state = ContractStateAvailable
 	return nil
 }

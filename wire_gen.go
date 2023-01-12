@@ -167,7 +167,7 @@ func provideEthGateway(cfg *config.Config, ethClient *ethclient.Client, ethWalle
 	}
 
 	backoff := lib.NewLinearBackoff(2*time.Second, nil, lib.Of(15*time.Second))
-	g, err := blockchain.NewEthereumGateway(ethClient, ethWallet.GetPrivateKey(), cfg.Contract.Address, log, backoff)
+	g, err := blockchain.NewEthereumGateway(ethClient, ethWallet.GetPrivateKey(), cfg.Contract.Address, log, backoff, cfg.EthNode.LegacyTx)
 	if err != nil {
 		return nil, err
 	}
