@@ -61,7 +61,7 @@ func (c *BTCBuyerHashrateContract) Run(ctx context.Context) error {
 		}()
 	}
 	// buyer node points contracts to default
-	c.setDestToDefault(c.defaultDestination)
+	c.SetDest(c.defaultDestination)
 
 	return c.listenContractEvents(ctx)
 }

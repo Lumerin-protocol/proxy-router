@@ -107,8 +107,8 @@ func (c *BTCHashrateContract) IsValidWallet(walletAddress common.Address) bool {
 }
 
 // Sets contract dest to default dest for buyer node
-func (c *BTCHashrateContract) setDestToDefault(defaultDest interfaces.IDestination) {
-	c.data.Dest = defaultDest
+func (c *BTCHashrateContract) SetDest(dest interfaces.IDestination) {
+	c.data.Dest = dest
 }
 
 func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
