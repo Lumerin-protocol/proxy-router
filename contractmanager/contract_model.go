@@ -106,6 +106,11 @@ func (c *BTCHashrateContract) IsValidWallet(walletAddress common.Address) bool {
 	return c.data.Seller == walletAddress
 }
 
+// Sets contract dest to default dest for buyer node
+func (c *BTCHashrateContract) SetDest(dest interfaces.IDestination) {
+	c.data.Dest = dest
+}
+
 func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 	eventsCh, sub, err := c.blockchain.SubscribeToContractEvents(ctx, common.HexToAddress(c.GetAddress()))
 	if err != nil {

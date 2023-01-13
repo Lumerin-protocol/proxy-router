@@ -202,6 +202,20 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 		contracts.Store(contract)
 	})
 
+	// for tests
+	r.POST("/contracts/:id/dest", func(ctx *gin.Context) {
+		dest, err := lib.ParseDest(ctx.Query("dest"))
+		if err != nil {
+			ctx.AbortWithStatus(http.StatusBadRequest)
+		}
+		contract, ok := controller.contracts.Load(ctx.Param("id"))
+		if !ok {
+			ctx.Status(http.StatusNotFound)
+			return
+		}
+		contract.SetDest(dest)
+	})
+
 	return r
 }
 
