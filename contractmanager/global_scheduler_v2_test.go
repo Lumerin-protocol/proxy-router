@@ -1,11 +1,13 @@
 package contractmanager
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/TitanInd/hashrouter/data"
 	snap "gitlab.com/TitanInd/hashrouter/data"
@@ -447,4 +449,70 @@ func TestFindMidpointSplitWRedzones(t *testing.T) {
 			require.Truef(t, minFraction < f2 && f2 < maxFraction, "should not be in red zone %.3d", f2)
 		})
 	}
+}
+
+func TestUpdateChangeDest(t *testing.T) {
+	dest1 := lib.MustParseDest("stratum+tcp://user:pwd@host.com:3333")
+	dest2 := lib.MustParseDest("stratum+tcp://user2:pwd@host.com:3333")
+	destDefault := lib.MustParseDest("stratum+tcp://default:pwd@host.com:3333")
+	contractID := "contract"
+	hrGHS := 10000
+	minTime := 2 * time.Minute
+	maxTime := 5 * time.Minute
+	vettingPeriod := time.Second * 10
+
+	miner1 := &protocol.MinerModelMock{
+		ID:          "1",
+		Dest:        destDefault,
+		HashrateGHS: 10000,
+		ConnectedAt: time.Now().Add(-time.Hour),
+	}
+	miner2 := &protocol.MinerModelMock{
+		ID:          "2",
+		Dest:        destDefault,
+		HashrateGHS: 20000,
+		ConnectedAt: time.Now(),
+	}
+
+	l, _ := lib.NewDevelopmentLogger("info", false, false, false)
+	log := l.Sugar()
+
+	scheduler1 := miner.NewOnDemandMinerScheduler(miner1, miner.NewDestSplit(), log, destDefault, vettingPeriod, minTime, maxTime)
+	scheduler2 := miner.NewOnDemandMinerScheduler(miner2, miner.NewDestSplit(), log, destDefault, vettingPeriod, minTime, maxTime)
+
+	go scheduler1.Run(context.Background())
+	go scheduler2.Run(context.Background())
+
+	miners := miner.NewMinerCollection()
+	miners.Store(scheduler1)
+	miners.Store(scheduler2)
+
+	gs := NewGlobalSchedulerV2(miners, log, minTime, maxTime, 0.1)
+
+	err := gs.update(contractID, hrGHS, dest1, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = gs.update(contractID, hrGHS, dest2, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(1 * time.Second)
+
+	// search if change dest was called
+	found := false
+	for _, arg := range miner1.ChangeDestCalledWith {
+		if arg.String() == dest2.String() {
+			found = true
+		}
+	}
+	for _, arg := range miner2.ChangeDestCalledWith {
+		if arg.String() == dest2.String() {
+			found = true
+		}
+	}
+
+	assert.True(t, found)
 }
