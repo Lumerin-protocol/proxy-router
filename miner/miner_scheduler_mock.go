@@ -89,8 +89,12 @@ func (s *MinerSchedulerMock) GetStatus() MinerStatus {
 	return MinerStatusFree
 }
 
-func (s *MinerSchedulerMock) IsVetted() bool {
-	return true
+func (s *MinerSchedulerMock) IsVetting() bool {
+	return false
+}
+
+func (s *MinerSchedulerMock) IsFaulty() bool {
+	return false
 }
 
 func (s *MinerSchedulerMock) GetUptime() time.Duration {
