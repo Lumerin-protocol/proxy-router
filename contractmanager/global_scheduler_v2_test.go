@@ -480,8 +480,12 @@ func TestUpdateChangeDest(t *testing.T) {
 	scheduler1 := miner.NewOnDemandMinerScheduler(miner1, miner.NewDestSplit(), log, destDefault, vettingPeriod, minTime, maxTime)
 	scheduler2 := miner.NewOnDemandMinerScheduler(miner2, miner.NewDestSplit(), log, destDefault, vettingPeriod, minTime, maxTime)
 
-	go scheduler1.Run(context.Background())
-	go scheduler2.Run(context.Background())
+	go func() {
+		_ = scheduler1.Run(context.Background())
+	}()
+	go func() {
+		_ = scheduler2.Run(context.Background())
+	}()
 
 	miners := miner.NewMinerCollection()
 	miners.Store(scheduler1)
