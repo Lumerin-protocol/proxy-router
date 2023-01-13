@@ -4,7 +4,6 @@ import (
 	"os"
 	"runtime"
 
-	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -115,7 +114,7 @@ func newProductionLogger(levelStr string) (*zap.Logger, error) {
 	return l, nil
 }
 
-func LogMsg(isMiner bool, isRead bool, addr string, payload []byte, l interfaces.ILogger) {
+func LogMsg(isMiner bool, isRead bool, addr string, payload []byte, l interface{}) {
 	// return
 	var (
 		source string

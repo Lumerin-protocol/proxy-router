@@ -176,7 +176,7 @@ func (g *testBlockchainGateway) ReadContracts(walletAddr interop.BlockchainAddre
 }
 
 // SetContractCloseOut closes the contract with specified closeoutType
-func (g *testBlockchainGateway) SetContractCloseOut(fromAddress string, contractAddress string, closeoutType int64) error {
+func (g *testBlockchainGateway) SetContractCloseOut(contractAddress string, closeoutType int64) error {
 	defer g.send(g.contractCloseoutCalled)
 	return nil
 }

@@ -1,13 +1,11 @@
-package contractmanager
+package data
 
 import (
 	"bytes"
 	"fmt"
 	"text/tabwriter"
 
-	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
-	"gitlab.com/TitanInd/hashrouter/miner"
 	"golang.org/x/exp/slices"
 )
 
@@ -271,58 +269,4 @@ func (m *AllocSnap) String() string {
 	}
 	_ = w.Flush()
 	return b.String()
-}
-
-// CreateCurrentMinerSnapshot returns current state of the miners
-func CreateCurrentMinerSnapshot(minerCollection interfaces.ICollection[miner.MinerScheduler]) AllocSnap {
-	snapshot := NewAllocSnap()
-
-	minerCollection.Range(func(miner miner.MinerScheduler) bool {
-		if miner.IsVetting() {
-			return true
-		}
-		if miner.IsFaulty() {
-			return true
-		}
-
-		hashrateGHS := miner.GetHashRateGHS()
-		minerID := miner.GetID()
-
-		snapshot.SetMiner(minerID, hashrateGHS)
-
-		for _, splitItem := range miner.GetCurrentDestSplit().Iter() {
-			snapshot.Set(minerID, splitItem.ID, splitItem.Fraction, hashrateGHS)
-		}
-
-		return true
-	})
-
-	return snapshot
-}
-
-// CreateMinerSnapshot returns current or upcoming state of the miners is available
-func CreateMinerSnapshot(minerCollection interfaces.ICollection[miner.MinerScheduler]) AllocSnap {
-	snapshot := NewAllocSnap()
-
-	minerCollection.Range(func(miner miner.MinerScheduler) bool {
-		if miner.IsVetting() {
-			return true
-		}
-		if miner.IsFaulty() {
-			return true
-		}
-
-		hashrateGHS := miner.GetHashRateGHS()
-		minerID := miner.GetID()
-
-		snapshot.SetMiner(minerID, hashrateGHS)
-
-		for _, splitItem := range miner.GetDestSplit().Iter() {
-			snapshot.Set(minerID, splitItem.ID, splitItem.Fraction, hashrateGHS)
-		}
-
-		return true
-	})
-
-	return snapshot
 }

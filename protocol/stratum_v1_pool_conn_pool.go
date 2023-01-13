@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
 )
 
@@ -54,7 +55,7 @@ func (p *StratumV1PoolConnPool) SetDest(ctx context.Context, dest interfaces.IDe
 
 	p.mu.Lock()
 	if p.conn != nil {
-		if p.conn.GetDest().IsEqual(dest) {
+		if lib.IsEqualDest(p.conn.GetDest(), dest) {
 			// noop if connection is the same
 			p.log.Debug("dest wasn't changed, as it is the same")
 			p.mu.Unlock()
