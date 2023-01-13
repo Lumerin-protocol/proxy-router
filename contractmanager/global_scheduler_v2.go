@@ -67,7 +67,10 @@ func (s *GlobalSchedulerV2) GetMinerSnapshot() *data.AllocSnap {
 	snapshot := data.NewAllocSnap()
 
 	s.minerCollection.Range(func(miner miner.MinerScheduler) bool {
-		if !miner.IsVetted() {
+		if miner.IsVetting() {
+			return true
+		}
+		if miner.IsFaulty() {
 			return true
 		}
 

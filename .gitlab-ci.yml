@@ -4,6 +4,7 @@ variables: # keep this list alphabetically sorted
   HASHRATE_DIFF_THRESHOLD: "0.1"
   IS_BUYER: "false"
   MINER_VETTING_DURATION: 5m
+  MINER_SUBMIT_ERR_LIMIT: 15
   NODE_DEF: "prt"
   POOL_MIN_DURATION: 2m
   POOL_MAX_DURATION: 7m

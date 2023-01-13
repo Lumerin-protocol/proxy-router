@@ -51,3 +51,7 @@ func (m *MinerModelMock) GetConnectedAt() time.Time {
 	return m.ConnectedAt
 }
 func (m *MinerModelMock) RangeDestConn(f func(key any, value any) bool) {}
+func (m *MinerModelMock) IsFaulty() bool {
+	return false
+}
+func (m *MinerModelMock) OnFault(func(ctx context.Context)) {}
