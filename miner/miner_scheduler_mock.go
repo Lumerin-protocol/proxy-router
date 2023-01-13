@@ -51,7 +51,7 @@ func (s *MinerSchedulerMock) GetUpcomingDestSplit() *DestSplit {
 	return nil
 }
 
-func (S *MinerSchedulerMock) SetDestSplit(*DestSplit) {}
+func (s *MinerSchedulerMock) SetDestSplit(*DestSplit) {}
 
 func (s *MinerSchedulerMock) GetCurrentDest() interfaces.IDestination {
 	return s.Dest

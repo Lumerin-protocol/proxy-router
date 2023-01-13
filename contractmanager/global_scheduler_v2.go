@@ -127,7 +127,7 @@ func (s *GlobalSchedulerV2) update(contractID string, targetHrGHS int, dest inte
 
 	var (
 		allocCollection *data.AllocCollection
-		isAccurate      bool
+		isAccurate      bool = true
 	)
 
 	if lib.AlmostEqual(targetHrGHS, currentHrGHS, s.hashrateDiffThreshold) {
@@ -145,7 +145,6 @@ func (s *GlobalSchedulerV2) update(contractID string, targetHrGHS int, dest inte
 
 	allocCollection = s.adjustAllocCollection(allocCollection, snap)
 	s.log.Debugf("allocation for contractID(%s) after: %s", lib.AddrShort(contractID), allocCollection.String())
-
 	return s.applyAllocCollection(contractID, allocCollection, dest, onSubmit)
 }
 
