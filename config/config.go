@@ -17,14 +17,17 @@ type Config struct {
 		LumerinTokenAddress    string
 		ValidatorAddress       string
 		ProxyAddress           string
-		Disable                bool `env:"CONTRACT_DISABLE" flag:"contract-disable"`
+		Disable                bool          `env:"CONTRACT_DISABLE" flag:"contract-disable"`
+		CycleDuration          time.Duration `env:"CONTRACT_CYCLE_DURATION" flag:"contract-cycle-duration"`
 	}
 	Environment string `env:"ENVIRONMENT" flag:"environment"`
 	EthNode     struct {
-		Address string `env:"ETH_NODE_ADDRESS" flag:"eth-node-address" validate:"required,url"`
+		Address  string `env:"ETH_NODE_ADDRESS" flag:"eth-node-address" validate:"required,url"`
+		LegacyTx bool   `env:"ETH_NODE_LEGACY_TX" flag:"eth-node-legacy-tx" desc:"use it to disable EIP-1559 transactions"`
 	}
 	Miner struct {
 		VettingDuration time.Duration `env:"MINER_VETTING_DURATION" flag:"miner-vetting-duration" validate:"duration"`
+		SubmitErrLimit  int           `env:"MINER_SUBMIT_ERR_LIMIT" flag:"miner-submit-err-limit" desc:"amount of consecutive submit errors to consider miner faulty and exclude it from contracts"`
 	}
 	Log struct {
 		Syslog    bool   `env:"LOG_SYSLOG" flag:"log-syslog"`
