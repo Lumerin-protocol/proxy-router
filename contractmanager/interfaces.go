@@ -24,4 +24,5 @@ type IContractModel interface {
 	GetStatusInternal() string
 	GetDest() interfaces.IDestination
 	IsValidWallet(walletAddress common.Address) bool
+	SetDest(dest interfaces.IDestination)
 }

@@ -51,7 +51,7 @@ func (s *MinerSchedulerMock) GetUpcomingDestSplit() *DestSplit {
 	return nil
 }
 
-func (S *MinerSchedulerMock) SetDestSplit(*DestSplit) {}
+func (s *MinerSchedulerMock) SetDestSplit(*DestSplit) {}
 
 func (s *MinerSchedulerMock) GetCurrentDest() interfaces.IDestination {
 	return s.Dest
@@ -89,8 +89,12 @@ func (s *MinerSchedulerMock) GetStatus() MinerStatus {
 	return MinerStatusFree
 }
 
-func (s *MinerSchedulerMock) IsVetted() bool {
-	return true
+func (s *MinerSchedulerMock) IsVetting() bool {
+	return false
+}
+
+func (s *MinerSchedulerMock) IsFaulty() bool {
+	return false
 }
 
 func (s *MinerSchedulerMock) GetUptime() time.Duration {

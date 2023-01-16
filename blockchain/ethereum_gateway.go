@@ -20,7 +20,6 @@ import (
 )
 
 type closeout struct {
-	fromAddress     string
 	contractAddress string
 	closeoutType    int64
 }
@@ -30,14 +29,18 @@ type EthereumGateway struct {
 	cloneFactory           *clonefactory.Clonefactory
 	sellerPrivateKeyString string
 	cloneFactoryAddr       common.Address
-	log                    interfaces.ILogger
+	// legacyTx specifies whether to use legacy transactions (pre eip-1559, London), used for tests, because hardhat does not
+	// support eth_maxPriorityFeePerGas, which used for gasTipCap estimation for not legacy transactions
+	// TODO: fix it by using eth_feehistory to manually specify gasTipCap avoiding call to eth_maxPriorityFeePerGas
+	legacyTx bool
+	log      interfaces.ILogger
 
 	startCloseout chan *closeout
 	endCloseout   chan error
 	retry         lib.RetryFn
 }
 
-func NewEthereumGateway(ethClient EthereumClient, privateKeyString string, cloneFactoryAddrStr string, log interfaces.ILogger, retry lib.RetryFn) (*EthereumGateway, error) {
+func NewEthereumGateway(ethClient EthereumClient, privateKeyString string, cloneFactoryAddrStr string, log interfaces.ILogger, retry lib.RetryFn, lefacyTx bool) (*EthereumGateway, error) {
 	// TODO: extract it to dependency injection, because we'll going to have only one cloneFactory per project
 	cloneFactoryAddr := common.HexToAddress(cloneFactoryAddrStr)
 	cloneFactory, err := clonefactory.NewClonefactory(cloneFactoryAddr, ethClient)
@@ -54,12 +57,13 @@ func NewEthereumGateway(ethClient EthereumClient, privateKeyString string, clone
 		startCloseout:          make(chan *closeout),
 		endCloseout:            make(chan error),
 		retry:                  retry,
+		legacyTx:               lefacyTx,
 	}
 
 	go func() {
 		for {
 			closeout := <-g.startCloseout
-			g.endCloseout <- g.setContractCloseOut(closeout.fromAddress, closeout.contractAddress, closeout.closeoutType)
+			g.endCloseout <- g.setContractCloseOut(closeout.contractAddress, closeout.closeoutType)
 		}
 	}()
 
@@ -226,16 +230,16 @@ func (g *EthereumGateway) ReadContracts(walletAddr interop.BlockchainAddress, is
 }
 
 // SetContractCloseOut closes the contract with specified closeoutType
-func (g *EthereumGateway) SetContractCloseOut(fromAddress string, contractAddress string, closeoutType int64) error {
-	g.startCloseout <- &closeout{fromAddress, contractAddress, closeoutType}
+func (g *EthereumGateway) SetContractCloseOut(contractAddress string, closeoutType int64) error {
+	g.startCloseout <- &closeout{contractAddress, closeoutType}
 
 	err := <-g.endCloseout
 
 	return err
 }
 
-func (g *EthereumGateway) setContractCloseOut(fromAddress string, contractAddress string, closeoutType int64) error {
-	g.log.Debugf("starting closeout, %v; %v; %v", fromAddress, contractAddress, closeoutType)
+func (g *EthereumGateway) setContractCloseOut(contractAddress string, closeoutType int64) error {
+	g.log.Debugf("starting closeout of the contract(%s) with type (%s)", contractAddress, closeoutType)
 	ctx := context.TODO()
 
 	instance, err := implementation.NewImplementation(common.HexToAddress(contractAddress), g.client)
@@ -255,41 +259,36 @@ func (g *EthereumGateway) setContractCloseOut(fromAddress string, contractAddres
 		g.log.Error(err)
 		return err
 	}
-	//TODO: deal with likely gasPrice issue so our transaction processes before another pending nonce.
-	// gasPrice, err := g.client.SuggestGasPrice(ctx)
-	// if err != nil {
-	// 	g.log.Error(err)
-	// 	return err
-	// }
-
-	nonce, err := g.client.PendingNonceAt(ctx, common.HexToAddress(fromAddress))
-
-	if err != nil {
-		return err
-	}
 
 	options, err := bind.NewKeyedTransactorWithChainID(privateKey, chainId)
 	if err != nil {
 		return err
 	}
 
+	// TODO: deal with likely gasPrice issue so our transaction processes before another pending nonce.
+	if g.legacyTx {
+		gasPrice, err := g.client.SuggestGasPrice(ctx)
+		if err != nil {
+			g.log.Error(err)
+			return err
+		}
+		options.GasPrice = gasPrice
+	}
+
 	options.GasLimit = uint64(3000000) // in units
 	options.Value = big.NewInt(0)      // in wei
-	// options.GasPrice = gasPrice
-	options.Nonce = big.NewInt(int64(nonce))
-	g.log.Debugf("closeout type: %v; nonce: %v", closeoutType, nonce)
 
 	//TODO: retry if price is too low
 	tx, err := instance.SetContractCloseOut(options, big.NewInt(closeoutType))
 
 	if err != nil {
-		g.log.Errorf("cannot close transaction: %s tx: %s fromAddr: %s contractAddr: %s", err, tx, fromAddress, contractAddress)
+		g.log.Errorf("cannot close transaction: %s fromAddr: %s contractAddr: %s", err, contractAddress)
 		return err
 	}
 	time.Sleep(30 * time.Second)
 	g.log.Infof("contract %s closed, tx: %s", contractAddress, tx.Hash().Hex())
 
-	g.log.Debugf("ending closeout, %v; %v; %v", fromAddress, contractAddress, closeoutType)
+	g.log.Debugf("ending closeout, %v; %v; %v", contractAddress, closeoutType)
 	return nil
 }
 
