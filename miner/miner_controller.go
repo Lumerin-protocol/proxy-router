@@ -22,11 +22,20 @@ type MinerController struct {
 	poolMaxDuration    time.Duration
 	poolConnTimeout    time.Duration
 
+	submitErrLimit int
+
 	log        interfaces.ILogger
 	logStratum bool
 }
 
-func NewMinerController(defaultDest interfaces.IDestination, collection interfaces.ICollection[MinerScheduler], log interfaces.ILogger, logStratum bool, minerVettingPeriod time.Duration, poolMinDuration, poolMaxDuration time.Duration, poolConnTimeout time.Duration) *MinerController {
+func NewMinerController(
+	defaultDest interfaces.IDestination,
+	collection interfaces.ICollection[MinerScheduler],
+	log interfaces.ILogger,
+	logStratum bool,
+	minerVettingPeriod, poolMinDuration, poolMaxDuration, poolConnTimeout time.Duration,
+	submitErrLimit int,
+) *MinerController {
 	return &MinerController{
 		defaultDest:        defaultDest,
 		log:                log,
@@ -36,6 +45,7 @@ func NewMinerController(defaultDest interfaces.IDestination, collection interfac
 		poolMinDuration:    poolMinDuration,
 		poolMaxDuration:    poolMaxDuration,
 		poolConnTimeout:    poolConnTimeout,
+		submitErrLimit:     submitErrLimit,
 	}
 }
 
@@ -57,7 +67,7 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 
 	incomingConn = buffered
 
-	p.log.Warnf("Miner connected %s", incomingConn.RemoteAddr())
+	p.log.Warnf("Miner connected %s->%s", incomingConn.RemoteAddr(), incomingConn.LocalAddr())
 
 	logMiner := p.log.Named(incomingConn.RemoteAddr().String())
 
@@ -71,7 +81,7 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	msg := stratumv1_message.NewMiningSubscribeResult(extranonce, size)
 	miner := protocol.NewStratumV1MinerConn(incomingConn, logMiner, msg, p.logStratum, time.Now())
 	validator := hashrate.NewHashrate()
-	minerModel := protocol.NewStratumV1MinerModel(poolPool, miner, validator, logMiner)
+	minerModel := protocol.NewStratumV1MinerModel(poolPool, miner, validator, p.submitErrLimit, logMiner)
 
 	destSplit := NewDestSplit()
 

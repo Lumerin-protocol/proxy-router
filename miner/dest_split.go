@@ -65,14 +65,14 @@ func (d *DestSplit) Allocate(ID string, percentage float64, dest interfaces.IDes
 }
 
 func (d *DestSplit) UpsertFractionByID(ID string, fraction float64, dest interfaces.IDestination, onSubmit interfaces.IHashrate) (*DestSplit, error) {
-	destSplit, ok := d.SetFractionByID(ID, fraction, onSubmit)
+	destSplit, ok := d.SetFractionByID(ID, fraction, dest, onSubmit)
 	if ok {
 		return destSplit, nil
 	}
 	return d.Allocate(ID, fraction, dest, onSubmit)
 }
 
-func (d *DestSplit) SetFractionByID(ID string, fraction float64, onSubmit interfaces.IHashrate) (*DestSplit, bool) {
+func (d *DestSplit) SetFractionByID(ID string, fraction float64, dest interfaces.IDestination, onSubmit interfaces.IHashrate) (*DestSplit, bool) {
 	newDestSplit := d.Copy()
 
 	for i, item := range newDestSplit.split {
@@ -80,7 +80,7 @@ func (d *DestSplit) SetFractionByID(ID string, fraction float64, onSubmit interf
 			newDestSplit.split[i] = SplitItem{
 				ID:       ID,
 				Fraction: fraction,
-				Dest:     item.Dest,
+				Dest:     dest,
 				OnSubmit: onSubmit,
 			}
 			return newDestSplit, true

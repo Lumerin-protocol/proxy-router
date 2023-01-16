@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
+	"gitlab.com/TitanInd/hashrouter/data"
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
@@ -41,6 +42,7 @@ type MinersResponse struct {
 	BusyMiners    int
 	FreeMiners    int
 	VettingMiners int
+	FaultyMiners  int
 
 	Miners []Miner
 }
@@ -61,6 +63,7 @@ type Miner struct {
 	UptimeSeconds         int
 	ActivePoolConnections *map[string]string `json:",omitempty"`
 	History               *[]HistoryItem     `json:",omitempty"`
+	IsFaulty              bool
 }
 
 type HashrateAvgGHS struct {
@@ -104,7 +107,7 @@ type HistoryItem struct {
 	TimestampString string
 }
 
-func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerV2, isBuyer bool, hashrateDiffThreshold float64, validationBufferPeriod time.Duration, defaultDestination interfaces.IDestination, apiPublicUrl string) *gin.Engine {
+func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerV2, isBuyer bool, hashrateDiffThreshold float64, validationBufferPeriod time.Duration, defaultDestination interfaces.IDestination, apiPublicUrl string, contractCycleDuration time.Duration) *gin.Engine {
 	publicUrl, _ := url.Parse(apiPublicUrl)
 
 	controller := ApiController{
@@ -186,7 +189,7 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 			Length:                 int64(duration.Seconds()),
 			Dest:                   dest,
 			StartingBlockTimestamp: time.Now().Unix(),
-		}, nil, gs, log, hashrate.NewHashrate(), hashrateDiffThreshold, validationBufferPeriod, controller.defaultDestination)
+		}, nil, gs, log, hashrate.NewHashrate(), hashrateDiffThreshold, validationBufferPeriod, controller.defaultDestination, contractCycleDuration)
 
 		go func() {
 			err := contract.FulfillContract(context.Background())
@@ -197,6 +200,20 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 		}()
 
 		contracts.Store(contract)
+	})
+
+	// for tests
+	r.POST("/contracts/:id/dest", func(ctx *gin.Context) {
+		dest, err := lib.ParseDest(ctx.Query("dest"))
+		if err != nil {
+			ctx.AbortWithStatus(http.StatusBadRequest)
+		}
+		contract, ok := controller.contracts.Load(ctx.Param("id"))
+		if !ok {
+			ctx.Status(http.StatusNotFound)
+			return
+		}
+		contract.SetDest(dest)
 	})
 
 	return r
@@ -213,6 +230,7 @@ func (c *ApiController) GetMiners() *MinersResponse {
 		BusyMiners    int
 		FreeMiners    int
 		VettingMiners int
+		FaultyMiners  int
 	)
 
 	c.miners.Range(func(m miner.MinerScheduler) bool {
@@ -230,6 +248,10 @@ func (c *ApiController) GetMiners() *MinersResponse {
 			VettingMiners += 1
 		case miner.MinerStatusBusy:
 			BusyMiners += 1
+		}
+
+		if m.IsFaulty() {
+			FaultyMiners += 1
 		}
 
 		miner := c.MapMiner(m)
@@ -337,7 +359,7 @@ func (c *ApiController) changeDestAll(destStr string) error {
 }
 
 func (c *ApiController) GetContracts() []Contract {
-	snap := contractmanager.CreateCurrentMinerSnapshot(c.miners)
+	snap := CreateCurrentMinerSnapshot(c.miners)
 
 	data := []Contract{}
 	c.contracts.Range(func(item contractmanager.IContractModel) bool {
@@ -431,6 +453,7 @@ func (c *ApiController) MapMiner(m miner.MinerScheduler) *Miner {
 		WorkerName:           m.GetWorkerName(),
 		ConnectedAt:          m.GetConnectedAt().Format(time.RFC3339),
 		UptimeSeconds:        int(m.GetUptime().Seconds()),
+		IsFaulty:             m.IsFaulty(),
 	}
 }
 
@@ -480,4 +503,31 @@ func TimePtrToStringPtr(t *time.Time) *string {
 		return &a
 	}
 	return nil
+}
+
+// CreateCurrentMinerSnapshot returns current state of the miners
+func CreateCurrentMinerSnapshot(minerCollection interfaces.ICollection[miner.MinerScheduler]) data.AllocSnap {
+	snapshot := data.NewAllocSnap()
+
+	minerCollection.Range(func(miner miner.MinerScheduler) bool {
+		if miner.IsVetting() {
+			return true
+		}
+		if miner.IsFaulty() {
+			return true
+		}
+
+		hashrateGHS := miner.GetHashRateGHS()
+		minerID := miner.GetID()
+
+		snapshot.SetMiner(minerID, hashrateGHS)
+
+		for _, splitItem := range miner.GetCurrentDestSplit().Iter() {
+			snapshot.Set(minerID, splitItem.ID, splitItem.Fraction, hashrateGHS)
+		}
+
+		return true
+	})
+
+	return snapshot
 }

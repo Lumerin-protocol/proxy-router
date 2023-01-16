@@ -66,6 +66,13 @@ func (a *ApiClient) PostContract(dest interfaces.IDestination, hrGHS int, durati
 	return err
 }
 
+func (a *ApiClient) PostContractDest(address string, dest interfaces.IDestination) error {
+	qs := url.Values{}
+	qs.Add("dest", dest.String())
+	_, err := post[any](a.baseUrl, fmt.Sprintf("/contracts/%s/dest", address), qs)
+	return err
+}
+
 func checkStatus(resp *http.Response) error {
 	if resp.StatusCode != http.StatusOK {
 		b, err := io.ReadAll(resp.Body)
