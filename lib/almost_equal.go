@@ -9,7 +9,12 @@ type Number interface {
 }
 
 func AlmostEqual[T Number](a, b T, tolerance float64) bool {
-	return float64(Abs(a-b))/float64(a) < tolerance
+	return RelativeError(a, b) < tolerance
+}
+
+// RelativeError returns relative error between two values
+func RelativeError[T Number](target, actual T) float64 {
+	return Abs(float64(actual)-float64(target)) / float64(Abs(target))
 }
 
 func Abs[T Number](a T) T {

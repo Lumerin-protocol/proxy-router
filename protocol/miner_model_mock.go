@@ -16,12 +16,14 @@ type MinerModelMock struct {
 	HashrateGHS int
 	ConnectedAt time.Time
 
-	RunErr        error
-	ChangeDestErr error
+	RunErr               error
+	ChangeDestErr        error
+	ChangeDestCalledWith []interfaces.IDestination
 }
 
 func (m *MinerModelMock) Run(ctx context.Context) error {
-	return nil
+	<-ctx.Done()
+	return ctx.Err()
 }
 func (m *MinerModelMock) GetID() string {
 	return m.ID
@@ -30,6 +32,7 @@ func (m *MinerModelMock) GetDest() interfaces.IDestination {
 	return m.Dest
 }
 func (m *MinerModelMock) ChangeDest(ctx context.Context, dest interfaces.IDestination, onSubmit interfaces.IHashrate) error {
+	m.ChangeDestCalledWith = append(m.ChangeDestCalledWith, dest)
 	return m.ChangeDestErr
 }
 func (m *MinerModelMock) GetCurrentDifficulty() int {
@@ -48,3 +51,7 @@ func (m *MinerModelMock) GetConnectedAt() time.Time {
 	return m.ConnectedAt
 }
 func (m *MinerModelMock) RangeDestConn(f func(key any, value any) bool) {}
+func (m *MinerModelMock) IsFaulty() bool {
+	return false
+}
+func (m *MinerModelMock) OnFault(func(ctx context.Context)) {}

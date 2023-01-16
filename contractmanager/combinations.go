@@ -2,17 +2,19 @@ package contractmanager
 
 import (
 	"sort"
+
+	snap "gitlab.com/TitanInd/hashrouter/data"
 )
 
 // FindCombinations returns any number of miner splits that together have a target hashrate or more
-func FindCombinations(list *AllocCollection, targetHashrate int) (*AllocCollection, int) {
+func FindCombinations(list *snap.AllocCollection, targetHashrate int) (*snap.AllocCollection, int) {
 
 	combination, delta := FindClosestMinerCombination(list, targetHashrate)
 
 	return combination, delta
 }
 
-func FindClosestMinerCombination(list *AllocCollection, target int) (lst *AllocCollection, delta int) {
+func FindClosestMinerCombination(list *snap.AllocCollection, target int) (lst *snap.AllocCollection, delta int) {
 	keys := make([]string, 0)
 	for k := range list.GetItems() {
 		keys = append(keys, k)
@@ -26,7 +28,7 @@ func FindClosestMinerCombination(list *AllocCollection, target int) (lst *AllocC
 	}
 	indexes, delta := ClosestSubsetSumRGLI(hashrates, target)
 
-	res := &AllocCollection{items: make(map[string]*AllocItem, len(indexes))}
+	res := snap.NewAllocCollection()
 
 	for _, index := range indexes {
 		key := keys[index]
