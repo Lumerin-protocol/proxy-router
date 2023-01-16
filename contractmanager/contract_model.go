@@ -16,6 +16,8 @@ import (
 // TODO: consider renaming to ContractInternalState to avoid collision with the state which is in blockchain
 type ContractState = uint8
 
+const CYCLE_DURATION_DEFAULT = 30 * time.Second
+
 const (
 	ContractStateAvailable ContractState = iota // contract was created and the system is following its updates
 	ContractStatePurchased                      // contract was purchased but not yet picked up by miners
@@ -58,6 +60,10 @@ func NewContract(
 
 	if hr == nil {
 		hr = hashrate.NewHashrate()
+	}
+
+	if cycleDuration == 0 {
+		cycleDuration = CYCLE_DURATION_DEFAULT
 	}
 
 	contract := &BTCHashrateContract{

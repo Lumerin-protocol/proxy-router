@@ -45,10 +45,6 @@ func NewContractManager(
 	defaultDest lib.Dest,
 	contractCycleDuration time.Duration,
 ) *ContractManager {
-	if contractCycleDuration == 0 {
-		contractCycleDuration = 30 * time.Second
-	}
-
 	return &ContractManager{
 		blockchain:      blockchain,
 		globalScheduler: globalScheduler,
