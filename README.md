@@ -1,6 +1,6 @@
 # Lumerin
 
-Lumerin Node (aka ProxyRouter)
+Lumerin Node (aka Proxy Router)
 
 # Setup with Ganache Test Blockchain
 
