@@ -15,26 +15,35 @@ import (
 // BTCHashrateContract represents the collection of mining resources (collection of miners / parts of the miners) that work to fulfill single contract and monotoring tools of their performance
 type BTCBuyerHashrateContract struct {
 	*BTCHashrateContract
+
+	globalSubmitTracker interfaces.SubmitTracker
+	submitTimeout       time.Duration
 }
 
 func NewBuyerContract(
 	data blockchain.ContractData,
 	blockchain interfaces.IBlockchainGateway,
 	globalScheduler interfaces.IGlobalScheduler,
+	globalSubmitTracker interfaces.SubmitTracker,
 	log interfaces.ILogger,
 	hr *hashrate.Hashrate,
 	hashrateDiffThreshold float64,
 	validationBufferPeriod time.Duration,
 	defaultDestination interfaces.IDestination,
 	cycleDuration time.Duration,
+	submitTimeout time.Duration,
 ) *BTCBuyerHashrateContract {
 
 	if hr == nil {
 		hr = hashrate.NewHashrate()
 	}
 
+	if cycleDuration == 0 {
+		cycleDuration = CYCLE_DURATION_DEFAULT
+	}
+
 	contract := &BTCBuyerHashrateContract{
-		&BTCHashrateContract{
+		BTCHashrateContract: &BTCHashrateContract{
 			blockchain:             blockchain,
 			data:                   data,
 			hashrate:               hr,
@@ -47,7 +56,10 @@ func NewBuyerContract(
 			defaultDestination:     defaultDestination,
 			cycleDuration:          cycleDuration,
 		},
+		globalSubmitTracker: globalSubmitTracker,
+		submitTimeout:       submitTimeout,
 	}
+
 	return contract
 }
 
@@ -89,6 +101,13 @@ func (c *BTCBuyerHashrateContract) FulfillBuyerContract(ctx context.Context) err
 			// cancel
 			c.log.Infof("contract %s not delivering adequete hashrate", c.GetAddress())
 			return fmt.Errorf("contract under delivering hashrate")
+		}
+
+		lastSubmitTime, ok := c.globalSubmitTracker.GetLastSubmitTime(c.GetDest().Username())
+		if ok {
+			if time.Since(lastSubmitTime) > c.submitTimeout {
+				return fmt.Errorf("contract submit timeout %s", c.submitTimeout)
+			}
 		}
 
 		select {

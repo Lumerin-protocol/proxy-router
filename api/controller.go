@@ -26,9 +26,10 @@ type Resource struct {
 }
 
 type ApiController struct {
-	miners             interfaces.ICollection[miner.MinerScheduler]
-	contracts          interfaces.ICollection[contractmanager.IContractModel]
-	defaultDestination interfaces.IDestination
+	miners              interfaces.ICollection[miner.MinerScheduler]
+	contracts           interfaces.ICollection[contractmanager.IContractModel]
+	globalSubmitTracker interfaces.SubmitTracker
+	defaultDestination  interfaces.IDestination
 
 	publicUrl *url.URL
 }
@@ -107,14 +108,15 @@ type HistoryItem struct {
 	TimestampString string
 }
 
-func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerV2, isBuyer bool, hashrateDiffThreshold float64, validationBufferPeriod time.Duration, defaultDestination interfaces.IDestination, apiPublicUrl string, contractCycleDuration time.Duration) *gin.Engine {
+func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], globalSubmitTracker interfaces.SubmitTracker, log interfaces.ILogger, gs *contractmanager.GlobalSchedulerV2, isBuyer bool, hashrateDiffThreshold float64, validationBufferPeriod time.Duration, defaultDestination interfaces.IDestination, apiPublicUrl string, contractCycleDuration time.Duration) *gin.Engine {
 	publicUrl, _ := url.Parse(apiPublicUrl)
 
 	controller := ApiController{
-		miners:             miners,
-		contracts:          contracts,
-		defaultDestination: defaultDestination,
-		publicUrl:          publicUrl,
+		miners:              miners,
+		contracts:           contracts,
+		globalSubmitTracker: globalSubmitTracker,
+		defaultDestination:  defaultDestination,
+		publicUrl:           publicUrl,
 	}
 
 	r := gin.Default()
@@ -148,6 +150,11 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 			ctx.Status(http.StatusNotFound)
 			return
 		}
+		ctx.JSON(http.StatusOK, data)
+	})
+
+	r.GET("/buyer-last-submits", func(ctx *gin.Context) {
+		data := controller.GetBuyerLastSubmits()
 		ctx.JSON(http.StatusOK, data)
 	})
 
@@ -428,6 +435,10 @@ func (c *ApiController) GetContract(ID string) (*Contract, bool) {
 	item.History = &history
 
 	return item, true
+}
+
+func (c *ApiController) GetBuyerLastSubmits() map[string]time.Time {
+	return c.globalSubmitTracker.GetAll()
 }
 
 func (c *ApiController) MapMiner(m miner.MinerScheduler) *Miner {

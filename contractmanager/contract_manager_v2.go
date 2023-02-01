@@ -14,9 +14,10 @@ import (
 
 type ContractManager struct {
 	// dependencies
-	blockchain      interfaces.IBlockchainGateway
-	log             interfaces.ILogger
-	globalScheduler interfaces.IGlobalScheduler
+	blockchain          interfaces.IBlockchainGateway
+	log                 interfaces.ILogger
+	globalScheduler     interfaces.IGlobalScheduler
+	globalSubmitTracker interfaces.SubmitTracker
 
 	// configuration parameters
 	isBuyer                bool
@@ -27,6 +28,7 @@ type ContractManager struct {
 	walletPrivateKey       string
 	defaultDest            lib.Dest
 	contractCycleDuration  time.Duration
+	submitTimeout          time.Duration
 
 	// internal state
 	contracts interfaces.ICollection[IContractModel]
@@ -35,6 +37,7 @@ type ContractManager struct {
 func NewContractManager(
 	blockchain interfaces.IBlockchainGateway,
 	globalScheduler interfaces.IGlobalScheduler,
+	globalSubmitTracker interfaces.SubmitTracker,
 	log interfaces.ILogger,
 	contracts interfaces.ICollection[IContractModel],
 	walletAddr interop.BlockchainAddress,
@@ -44,12 +47,14 @@ func NewContractManager(
 	validationBufferPeriod time.Duration,
 	defaultDest lib.Dest,
 	contractCycleDuration time.Duration,
+	submitTimeout time.Duration,
 ) *ContractManager {
 	return &ContractManager{
-		blockchain:      blockchain,
-		globalScheduler: globalScheduler,
-		contracts:       contracts,
-		log:             log,
+		blockchain:          blockchain,
+		globalScheduler:     globalScheduler,
+		globalSubmitTracker: globalSubmitTracker,
+		contracts:           contracts,
+		log:                 log,
 
 		isBuyer:                isBuyer,
 		hashrateDiffThreshold:  hashrateDiffThreshold,
@@ -58,6 +63,7 @@ func NewContractManager(
 		walletAddr:             walletAddr,
 		walletPrivateKey:       walletPrivateKey,
 		contractCycleDuration:  contractCycleDuration,
+		submitTimeout:          submitTimeout,
 	}
 }
 
@@ -146,7 +152,7 @@ func (m *ContractManager) handleContract(ctx context.Context, contractAddr commo
 
 		var contract IContractModel
 		if m.isBuyer {
-			contract = NewBuyerContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration)
+			contract = NewBuyerContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.globalSubmitTracker, m.log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration, m.submitTimeout)
 		} else {
 			contract = NewContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration)
 		}

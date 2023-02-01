@@ -261,10 +261,6 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 	}
 }
 
-func (c *BTCHashrateContract) onSubmit(diff int) {
-	c.hashrate.OnSubmit(int64(diff))
-}
-
 func (c *BTCHashrateContract) Close(ctx context.Context) error {
 	c.log.Debugf("closing contract %v", c.GetID())
 	c.Stop(ctx)

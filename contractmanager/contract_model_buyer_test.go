@@ -28,6 +28,7 @@ func TestContractCloseout(t *testing.T) {
 		Speed:                  10,
 		Length:                 int64(contractDurationSeconds),
 		StartingBlockTimestamp: time.Now().Unix(),
+		Dest:                   lib.MustParseDest("stratum+tcp://user:pass@host.com:3333"),
 	}
 
 	ethGateway := blockchain.NewEthereumGatewayMock()
@@ -36,7 +37,7 @@ func TestContractCloseout(t *testing.T) {
 		IsDeliveringAdequateHashrateRes: true,
 	}
 	defaultDest := lib.MustParseDest("stratum+tcp://default:dest@pool.io:1234")
-	contract := NewBuyerContract(data, ethGateway, globalScheduler, log, hashrate.NewHashrate(), 0.1, 0, defaultDest, cycleDuration)
+	contract := NewBuyerContract(data, ethGateway, globalScheduler, NewSubmitTracker(), log, hashrate.NewHashrate(), 0.1, 0, defaultDest, cycleDuration, 7*time.Minute)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -83,6 +84,7 @@ func TestContractCloseoutAlreadyStarted(t *testing.T) {
 		Limit:                  0,
 		Speed:                  10,
 		Length:                 int64(contractDurationSeconds),
+		Dest:                   lib.MustParseDest("stratum+tcp://user:pass@host.com:3333"),
 		StartingBlockTimestamp: time.Now().Unix(),
 	}
 
@@ -92,7 +94,7 @@ func TestContractCloseoutAlreadyStarted(t *testing.T) {
 		IsDeliveringAdequateHashrateRes: true,
 	}
 	defaultDest := lib.MustParseDest("stratum+tcp://default:dest@pool.io:1234")
-	contract := NewBuyerContract(data, ethGateway, globalScheduler, log, hashrate.NewHashrate(), 0.1, 0, defaultDest, cycleDuration)
+	contract := NewBuyerContract(data, ethGateway, globalScheduler, NewSubmitTracker(), log, hashrate.NewHashrate(), 0.1, 0, defaultDest, cycleDuration, 7*time.Minute)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
