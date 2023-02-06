@@ -25,7 +25,7 @@ func FindClosestMinerCombination(list *snap.AllocCollection, target int) (lst *s
 
 	sort.Strings(keys)
 
-	hashrates := make([]int, len(list.GetItems()))
+	hashrates := make([]int, len(keys))
 	for i, key := range keys {
 		hashrates[i] = list.GetItems()[key].AllocatedGHS()
 	}

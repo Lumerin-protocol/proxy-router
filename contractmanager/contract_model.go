@@ -239,7 +239,7 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 		}
 
 		// TODO hashrate monitoring
-		c.log.Infof("contract (%s) is running for %s seconds", c.GetID(), time.Since(*c.GetStartTime()))
+		c.log.Infof("contract (%s) is running for %s seconds, dest %s", c.GetID(), time.Since(*c.GetStartTime()), c.GetDest())
 
 		err := c.globalScheduler.Update(c.GetID(), c.GetHashrateGHS(), c.GetDest(), c.hashrate)
 		if err != nil {

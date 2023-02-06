@@ -95,7 +95,7 @@ func (m AllocCollection) String() string {
 		fmt.Fprintf(w, "%s\t%s\t%d\t%.2f\t%d\n", lib.AddrShort(alloc.ContractID), alloc.MinerID, alloc.TotalGHS, alloc.Fraction, alloc.AllocatedGHS())
 	}
 	if len(m.items) == 0 {
-		fmt.Fprintf(w, "no miners")
+		fmt.Fprintf(w, "no miners\n")
 	}
 	_ = w.Flush()
 	fmt.Fprintf(b, "========\nTotal: %d", m.GetAllocatedGHS())
