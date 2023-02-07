@@ -391,7 +391,11 @@ func (s *GlobalSchedulerV2) IsDeliveringAdequateHashrate(ctx context.Context, ta
 
 	s.minerCollection.Range(func(miner miner.MinerScheduler) bool {
 		if miner.GetWorkerName() == dest.Username() {
-			actualHashrate += miner.GetHashRateGHS()
+			hr, ok := miner.GetHashRate().GetHashrateAvgGHSCustom(time.Duration(0))
+			if !ok {
+				panic("custom hashrate not found")
+			}
+			actualHashrate += hr
 		}
 		return true
 	})

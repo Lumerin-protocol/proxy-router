@@ -30,7 +30,7 @@ func NewBuyerContract(
 ) *BTCBuyerHashrateContract {
 
 	if hr == nil {
-		hr = hashrate.NewHashrate()
+		hr = hashrate.NewHashrateV2(hashrate.NewSma(9 * time.Minute))
 	}
 
 	contract := &BTCBuyerHashrateContract{
