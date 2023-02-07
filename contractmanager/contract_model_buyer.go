@@ -122,7 +122,9 @@ func (c *BTCBuyerHashrateContract) FulfillAndClose(ctx context.Context) {
 }
 
 func (c *BTCBuyerHashrateContract) IsValidWallet(walletAddress common.Address) bool {
-	return c.data.Buyer == walletAddress
+	// because buyer is not unset after contract closed it is important that only running contracts
+	// are picked up by buyer (buyer field may change on every purchase unlike seller field)
+	return c.data.Buyer == walletAddress && c.data.State == blockchain.ContractBlockchainStateRunning
 }
 
 func (c *BTCBuyerHashrateContract) GetCloseoutType() constants.CloseoutType {
