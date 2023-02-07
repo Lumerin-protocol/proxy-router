@@ -33,6 +33,10 @@ func NewBuyerContract(
 		hr = hashrate.NewHashrateV2(hashrate.NewSma(9 * time.Minute))
 	}
 
+	if cycleDuration == 0 {
+		cycleDuration = CYCLE_DURATION_DEFAULT
+	}
+
 	contract := &BTCBuyerHashrateContract{
 		&BTCHashrateContract{
 			blockchain:             blockchain,

@@ -11,6 +11,10 @@ type GlobalSchedulerMock struct {
 	IsDeliveringAdequateHashrateRes bool
 }
 
+func NewGlobalSchedulerMock() *GlobalSchedulerMock {
+	return &GlobalSchedulerMock{}
+}
+
 func (s *GlobalSchedulerMock) Run(ctx context.Context) error {
 	return nil
 }

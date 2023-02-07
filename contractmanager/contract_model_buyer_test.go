@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/stretchr/testify/assert"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/lib"
@@ -116,4 +117,45 @@ func TestContractCloseoutAlreadyStarted(t *testing.T) {
 	if !ethGateway.SetContractCloseOutCalled {
 		t.Fatal("SetContractCloseOut not called")
 	}
+}
+
+func TestBuyerContractIsValid(t *testing.T) {
+	buyer := lib.GetRandomAddr()
+
+	data := blockchain.ContractData{
+		Addr:                   lib.GetRandomAddr(),
+		Buyer:                  buyer,
+		Seller:                 lib.GetRandomAddr(),
+		State:                  blockchain.ContractBlockchainStateAvailable,
+		Price:                  10,
+		Limit:                  0,
+		Speed:                  10,
+		Length:                 int64(100),
+		StartingBlockTimestamp: time.Now().Unix(),
+	}
+
+	contract := NewBuyerContract(
+		data,
+		blockchain.NewEthereumGatewayMock(),
+		NewGlobalSchedulerMock(),
+		lib.NewTestLogger(),
+		hashrate.NewHashrate(),
+		0.1,
+		0,
+		lib.MustParseDest("stratum+tcp://default:dest@pool.io:1234"),
+		15*time.Minute,
+	)
+
+	contract.data.State = blockchain.ContractBlockchainStateAvailable
+	isValid := contract.IsValidWallet(buyer)
+	assert.False(t, isValid, "buyer contract shouldn't be valid to run: invalid state available")
+
+	contract.data.State = blockchain.ContractBlockchainStateRunning
+	isValid = contract.IsValidWallet(buyer)
+	assert.True(t, isValid, "buyer contract should be valid to run")
+
+	contract.data.State = blockchain.ContractBlockchainStateRunning
+	contract.data.Buyer = lib.GetRandomAddr()
+	isValid = contract.IsValidWallet(buyer)
+	assert.False(t, isValid, "buyer contract shouldn't be valid to run: buyer address doesn't match")
 }
