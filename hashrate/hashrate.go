@@ -33,7 +33,20 @@ func NewHashrate(durations ...time.Duration) *Hashrate {
 	}
 
 	return instance
+}
 
+func NewHashrateV2(counters ...Counter) *Hashrate {
+	instance := NewHashrate()
+
+	if len(counters) > 0 {
+		custom := make(map[time.Duration]Counter, len(counters))
+		for i, counter := range counters {
+			custom[time.Duration(i)] = counter
+		}
+		instance.custom = custom
+	}
+
+	return instance
 }
 
 func (h *Hashrate) OnSubmit(diff int64) {

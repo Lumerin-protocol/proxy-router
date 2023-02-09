@@ -67,9 +67,10 @@ type Miner struct {
 }
 
 type HashrateAvgGHS struct {
-	T5m  int `json:"5m"`
-	T30m int `json:"30m"`
-	T1h  int `json:"1h"`
+	T5m   int `json:"5m"`
+	T30m  int `json:"30m"`
+	T1h   int `json:"1h"`
+	SMA9m int `json:"SMA9m"`
 }
 
 type DestItem struct {
@@ -189,7 +190,7 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 			Length:                 int64(duration.Seconds()),
 			Dest:                   dest,
 			StartingBlockTimestamp: time.Now().Unix(),
-		}, nil, gs, log, hashrate.NewHashrate(), hashrateDiffThreshold, validationBufferPeriod, controller.defaultDestination, contractCycleDuration)
+		}, nil, gs, log, hashrate.NewHashrateV2(hashrate.NewSma(9*time.Minute)), hashrateDiffThreshold, validationBufferPeriod, controller.defaultDestination, contractCycleDuration)
 
 		go func() {
 			err := contract.FulfillContract(context.Background())
@@ -434,6 +435,7 @@ func (c *ApiController) MapMiner(m miner.MinerScheduler) *Miner {
 	hashrate := m.GetHashRate()
 	destItems, _ := mapDestItems(m.GetCurrentDestSplit(), m.GetHashRateGHS())
 	upcomingDest, _ := mapDestItems(m.GetUpcomingDestSplit(), m.GetHashRateGHS())
+	SMA9m, _ := hashrate.GetHashrateAvgGHSCustom(0)
 	return &Miner{
 		Resource: Resource{
 			Self: c.publicUrl.JoinPath(fmt.Sprintf("/miners/%s", m.GetID())).String(),
@@ -443,9 +445,10 @@ func (c *ApiController) MapMiner(m miner.MinerScheduler) *Miner {
 		TotalHashrateGHS:  m.GetHashRateGHS(),
 		CurrentDifficulty: m.GetCurrentDifficulty(),
 		HashrateAvgGHS: HashrateAvgGHS{
-			T5m:  hashrate.GetHashrate5minAvgGHS(),
-			T30m: hashrate.GetHashrate30minAvgGHS(),
-			T1h:  hashrate.GetHashrate1hAvgGHS(),
+			T5m:   hashrate.GetHashrate5minAvgGHS(),
+			T30m:  hashrate.GetHashrate30minAvgGHS(),
+			T1h:   hashrate.GetHashrate1hAvgGHS(),
+			SMA9m: SMA9m,
 		},
 		Destinations:         destItems,
 		UpcomingDestinations: upcomingDest,

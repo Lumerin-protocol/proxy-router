@@ -59,7 +59,7 @@ func NewContract(
 ) *BTCHashrateContract {
 
 	if hr == nil {
-		hr = hashrate.NewHashrate()
+		hr = hashrate.NewHashrateV2(hashrate.NewSma(9 * time.Minute))
 	}
 
 	if cycleDuration == 0 {
