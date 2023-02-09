@@ -13,19 +13,8 @@ import (
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
 
-// TODO: consider renaming to ContractInternalState to avoid collision with the state which is in blockchain
-type ContractState = uint8
-
-const CYCLE_DURATION_DEFAULT = 30 * time.Second
-
-const (
-	ContractStateAvailable ContractState = iota // contract was created and the system is following its updates
-	ContractStatePurchased                      // contract was purchased but not yet picked up by miners
-	ContractStateRunning                        // contract is fulfilling
-)
-
-// BTCHashrateContract represents the collection of mining resources (collection of miners / parts of the miners) that work to fulfill single contract and monotoring tools of their performance
-type BTCHashrateContract struct {
+// BTCHashrateContractSeller represents the collection of mining resources (collection of miners / parts of the miners) that work to fulfill single contract and monotoring tools of their performance
+type BTCHashrateContractSeller struct {
 	// dependencies
 	blockchain      interfaces.IBlockchainGateway
 	globalScheduler interfaces.IGlobalScheduler
@@ -56,7 +45,7 @@ func NewContract(
 	validationBufferPeriod time.Duration,
 	defaultDestination interfaces.IDestination,
 	cycleDuration time.Duration,
-) *BTCHashrateContract {
+) *BTCHashrateContractSeller {
 
 	if hr == nil {
 		hr = hashrate.NewHashrateV2(hashrate.NewSma(9 * time.Minute))
@@ -66,7 +55,7 @@ func NewContract(
 		cycleDuration = CYCLE_DURATION_DEFAULT
 	}
 
-	contract := &BTCHashrateContract{
+	contract := &BTCHashrateContractSeller{
 		blockchain:             blockchain,
 		data:                   data,
 		hashrate:               hr,
@@ -95,7 +84,7 @@ func convertBlockchainStatusToApplicationStatus(status blockchain.ContractBlockc
 }
 
 // Runs goroutine that monitors the contract events and replace the miners which are out
-func (c *BTCHashrateContract) Run(ctx context.Context) error {
+func (c *BTCHashrateContractSeller) Run(ctx context.Context) error {
 
 	// contract was purchased before the node started, may be result of the restart
 	if c.data.State == blockchain.ContractBlockchainStateRunning {
@@ -108,16 +97,11 @@ func (c *BTCHashrateContract) Run(ctx context.Context) error {
 }
 
 // Ignore checks if contract should be ignored by the node
-func (c *BTCHashrateContract) IsValidWallet(walletAddress common.Address) bool {
+func (c *BTCHashrateContractSeller) IsValidWallet(walletAddress common.Address) bool {
 	return c.data.Seller == walletAddress
 }
 
-// Sets contract dest to default dest for buyer node
-func (c *BTCHashrateContract) SetDest(dest interfaces.IDestination) {
-	c.data.Dest = dest
-}
-
-func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
+func (c *BTCHashrateContractSeller) listenContractEvents(ctx context.Context) error {
 	eventsCh, sub, err := c.blockchain.SubscribeToContractEvents(ctx, common.HexToAddress(c.GetAddress()))
 	if err != nil {
 		return fmt.Errorf("cannot subscribe for contract events %w", err)
@@ -143,7 +127,7 @@ func (c *BTCHashrateContract) listenContractEvents(ctx context.Context) error {
 	}
 }
 
-func (c *BTCHashrateContract) eventsController(ctx context.Context, eventHex string) error {
+func (c *BTCHashrateContractSeller) eventsController(ctx context.Context, eventHex string) error {
 	switch eventHex {
 
 	// Contract Purchased
@@ -175,7 +159,7 @@ func (c *BTCHashrateContract) eventsController(ctx context.Context, eventHex str
 		}
 
 	// Contract closed
-	case blockchain.ContractClosedSigHex:
+	case blockchain.ContractClosedHex:
 		c.log.Info("received contract closed event ", c.data.Addr)
 
 		err := c.LoadBlockchainContract()
@@ -193,7 +177,7 @@ func (c *BTCHashrateContract) eventsController(ctx context.Context, eventHex str
 	return nil
 }
 
-func (c *BTCHashrateContract) LoadBlockchainContract() error {
+func (c *BTCHashrateContractSeller) LoadBlockchainContract() error {
 	data, err := c.blockchain.ReadContract(c.data.Addr)
 	if err != nil {
 		return fmt.Errorf("cannot read contract: %s, address (%s)", err, c.data.Addr)
@@ -210,7 +194,7 @@ func (c *BTCHashrateContract) LoadBlockchainContract() error {
 	return nil
 }
 
-func (c *BTCHashrateContract) FulfillAndClose(ctx context.Context) {
+func (c *BTCHashrateContractSeller) FulfillAndClose(ctx context.Context) {
 	err := c.FulfillContract(ctx)
 	c.log.Infof("contract(%s) fulfillment finished: %s", c.GetID(), err)
 
@@ -223,7 +207,7 @@ func (c *BTCHashrateContract) FulfillAndClose(ctx context.Context) {
 }
 
 // FulfillContract fulfills contract and returns error when contract is finished (NO CLOSEOUT)
-func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
+func (c *BTCHashrateContractSeller) FulfillContract(ctx context.Context) error {
 	c.state = ContractStatePurchased
 
 	if c.ContractIsExpired() {
@@ -261,11 +245,7 @@ func (c *BTCHashrateContract) FulfillContract(ctx context.Context) error {
 	}
 }
 
-func (c *BTCHashrateContract) onSubmit(diff int) {
-	c.hashrate.OnSubmit(int64(diff))
-}
-
-func (c *BTCHashrateContract) Close(ctx context.Context) error {
+func (c *BTCHashrateContractSeller) Close(ctx context.Context) error {
 	c.log.Debugf("closing contract %v", c.GetID())
 	c.Stop(ctx)
 
@@ -279,7 +259,7 @@ func (c *BTCHashrateContract) Close(ctx context.Context) error {
 }
 
 // Stops fulfilling the contract by miners
-func (c *BTCHashrateContract) Stop(ctx context.Context) {
+func (c *BTCHashrateContractSeller) Stop(ctx context.Context) {
 	c.log.Infof("attempting to stop contract %v; with state %v", c.GetID(), c.state)
 	if c.state == ContractStateRunning {
 		c.log.Infof("Stopping contract %v", c.GetID())
@@ -302,7 +282,7 @@ func (c *BTCHashrateContract) Stop(ctx context.Context) {
 	c.log.Warnf("contract (%s) stopped", c.GetID())
 }
 
-func (c *BTCHashrateContract) ContractIsExpired() bool {
+func (c *BTCHashrateContractSeller) ContractIsExpired() bool {
 	endTime := c.GetEndTime()
 	if endTime == nil {
 		return false
@@ -310,58 +290,67 @@ func (c *BTCHashrateContract) ContractIsExpired() bool {
 	return time.Now().After(*endTime)
 }
 
-func (c *BTCHashrateContract) GetBuyerAddress() string {
+func (c *BTCHashrateContractSeller) GetBuyerAddress() string {
 	return c.data.Buyer.String()
 }
 
-func (c *BTCHashrateContract) GetSellerAddress() string {
+func (c *BTCHashrateContractSeller) GetSellerAddress() string {
 	return c.data.Seller.String()
 }
 
-func (c *BTCHashrateContract) GetID() string {
+func (c *BTCHashrateContractSeller) GetID() string {
 	return c.GetAddress()
 }
 
-func (c *BTCHashrateContract) GetAddress() string {
+func (c *BTCHashrateContractSeller) GetAddress() string {
 	return c.data.Addr.String()
 }
 
-func (c *BTCHashrateContract) GetHashrateGHS() int {
+func (c *BTCHashrateContractSeller) GetHashrateGHS() int {
 	return int(c.data.Speed / int64(math.Pow10(9)))
 }
 
-func (c *BTCHashrateContract) GetDuration() time.Duration {
+func (c *BTCHashrateContractSeller) GetDuration() time.Duration {
 	return time.Duration(c.data.Length) * time.Second
 }
 
-func (c *BTCHashrateContract) GetStartTime() *time.Time {
+func (c *BTCHashrateContractSeller) GetStartTime() *time.Time {
 	startTime := time.Unix(c.data.StartingBlockTimestamp, 0)
 	return &startTime
 }
 
-func (c *BTCHashrateContract) GetEndTime() *time.Time {
+func (c *BTCHashrateContractSeller) GetEndTime() *time.Time {
 	endTime := c.GetStartTime().Add(c.GetDuration())
 	return &endTime
 }
 
-func (c *BTCHashrateContract) GetState() ContractState {
+func (c *BTCHashrateContractSeller) GetState() ContractState {
 	return c.state
 }
 
-func (c *BTCHashrateContract) GetDest() interfaces.IDestination {
+func (c *BTCHashrateContractSeller) GetDest() interfaces.IDestination {
 	return c.data.Dest
 }
 
-func (c *BTCHashrateContract) GetCloseoutType() constants.CloseoutType {
+func (c *BTCHashrateContractSeller) SetDest(dest interfaces.IDestination) {
+	c.data.Dest = dest
+}
+
+func (c *BTCHashrateContractSeller) GetCloseoutType() constants.CloseoutType {
 	return constants.CloseoutTypeWithoutClaim
 }
 
-func (c *BTCHashrateContract) GetStatusInternal() string {
+func (c *BTCHashrateContractSeller) GetStatusInternal() string {
 	return c.data.State.String()
 }
 
-func (c *BTCHashrateContract) GetDeliveredHashrate() interfaces.Hashrate {
+func (c *BTCHashrateContractSeller) GetDeliveredHashrate() interfaces.Hashrate {
 	return c.hashrate
 }
 
-var _ interfaces.IModel = (*BTCHashrateContract)(nil)
+func (c *BTCHashrateContractSeller) IsBuyer() bool {
+	return false
+}
+
+var _ interfaces.IModel = (*BTCHashrateContractSeller)(nil)
+var _ IContractModel = (*BTCHashrateContractSeller)(nil)

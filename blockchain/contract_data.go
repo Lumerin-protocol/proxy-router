@@ -1,6 +1,9 @@
 package blockchain
 
 import (
+	"math"
+	"time"
+
 	"github.com/ethereum/go-ethereum/common"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
@@ -64,4 +67,54 @@ func (d *ContractData) Copy() ContractData {
 		StartingBlockTimestamp: d.StartingBlockTimestamp,
 		Dest:                   d.Dest,
 	}
+}
+
+func (c *ContractData) ContractIsExpired() bool {
+	endTime := c.GetEndTime()
+	if endTime == nil {
+		return false
+	}
+	return time.Now().After(*endTime)
+}
+
+func (c *ContractData) GetBuyerAddress() string {
+	return c.Buyer.String()
+}
+
+func (c *ContractData) GetSellerAddress() string {
+	return c.Seller.String()
+}
+
+func (c *ContractData) GetID() string {
+	return c.GetAddress()
+}
+
+func (c *ContractData) GetAddress() string {
+	return c.Addr.String()
+}
+
+func (c *ContractData) GetHashrateGHS() int {
+	return int(c.Speed / int64(math.Pow10(9)))
+}
+
+func (c *ContractData) GetDuration() time.Duration {
+	return time.Duration(c.Length) * time.Second
+}
+
+func (c *ContractData) GetStartTime() *time.Time {
+	startTime := time.Unix(c.StartingBlockTimestamp, 0)
+	return &startTime
+}
+
+func (c *ContractData) GetEndTime() *time.Time {
+	endTime := c.GetStartTime().Add(c.GetDuration())
+	return &endTime
+}
+
+func (c *ContractData) GetDest() interfaces.IDestination {
+	return c.Dest
+}
+
+func (c *ContractData) GetStatusInternal() string {
+	return c.State.String()
 }

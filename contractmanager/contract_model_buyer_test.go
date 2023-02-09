@@ -10,32 +10,25 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
 	"gitlab.com/TitanInd/hashrouter/hashrate"
+	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
 )
 
-func TestContractCloseout(t *testing.T) {
+func TestCloseoutOnContractEnd(t *testing.T) {
 	contractDurationSeconds := 1
-	cycleDuration := 1 * time.Second
-	allowance := 1 * time.Second
+	cycleDuration := time.Duration(contractDurationSeconds) * time.Second / 10
+	allowance := 2 * cycleDuration
 
 	log := lib.NewTestLogger()
-	data := blockchain.ContractData{
-		Addr:                   lib.GetRandomAddr(),
-		Buyer:                  lib.GetRandomAddr(),
-		Seller:                 lib.GetRandomAddr(),
-		State:                  blockchain.ContractBlockchainStateAvailable,
-		Price:                  10,
-		Limit:                  0,
-		Speed:                  10,
-		Length:                 int64(contractDurationSeconds),
-		StartingBlockTimestamp: time.Now().Unix(),
-	}
+
+	data := blockchain.GetSampleContractData()
+	data.State = blockchain.ContractBlockchainStateRunning
+	data.Length = int64(contractDurationSeconds)
 
 	ethGateway := blockchain.NewEthereumGatewayMock()
+	globalScheduler := NewGlobalSchedulerMock()
+	globalScheduler.IsDeliveringAdequateHashrateRes = true
 
-	var globalScheduler = &GlobalSchedulerMock{
-		IsDeliveringAdequateHashrateRes: true,
-	}
 	defaultDest := lib.MustParseDest("stratum+tcp://default:dest@pool.io:1234")
 	contract := NewBuyerContract(data, ethGateway, globalScheduler, log, hashrate.NewHashrate(), 0.1, 0, defaultDest, cycleDuration)
 
@@ -44,54 +37,86 @@ func TestContractCloseout(t *testing.T) {
 
 	errCh := make(chan error)
 	go func() {
-		// init contract listener
 		errCh <- contract.Run(ctx)
 	}()
 
-	// setup mock
-	data2 := data.Copy()
-	data2.State = blockchain.ContractBlockchainStateRunning
-	ethGateway.ReadContractRes = data2
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Duration(contractDurationSeconds)*time.Second + allowance):
+	}
 
-	// emit purchase event
+	assert.Equal(t, 1, ethGateway.SetContractCloseOutCalledTimes, "SetContractCloseOut should be called once")
+}
+
+func TestContractCloseoutOnEvent(t *testing.T) {
+	contractDurationSeconds := 1
+	cycleDuration := time.Duration(contractDurationSeconds) * time.Second / 10
+	allowance := 3 * cycleDuration
+
+	log := lib.NewTestLogger()
+
+	data := blockchain.GetSampleContractData()
+	data.State = blockchain.ContractBlockchainStateRunning
+	data.Length = int64(contractDurationSeconds)
+
+	ethGateway := blockchain.NewEthereumGatewayMock()
+
+	readContractRes := data.Copy()
+	readContractRes.State = blockchain.ContractBlockchainStateAvailable
+	ethGateway.ReadContractRes = readContractRes
+
+	globalScheduler := NewGlobalSchedulerMock()
+	globalScheduler.IsDeliveringAdequateHashrateRes = true
+
+	defaultDest := lib.MustParseDest("stratum+tcp://default:dest@pool.io:1234")
+	contract := NewBuyerContract(data, ethGateway, globalScheduler, log, hashrate.NewHashrate(), 0.1, 0, defaultDest, cycleDuration)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	errCh := make(chan error)
+	go func() {
+		errCh <- contract.Run(ctx)
+	}()
+
 	ethGateway.EmitEvent(types.Log{
-		Topics: []common.Hash{blockchain.ContractPurchasedHash},
+		Topics: []common.Hash{blockchain.ContractClosedHash},
 	})
 
 	select {
 	case err := <-errCh:
-		t.Fatal(err)
-	case <-time.After(time.Duration(contractDurationSeconds)*time.Second + allowance):
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(cycleDuration*5 + allowance):
+		assert.Fail(t, "should stop fulfilling buyer contract right away")
 	}
-
-	if !ethGateway.SetContractCloseOutCalled {
-		t.Fatal("SetContractCloseOut not called")
-	}
+	assert.Equal(t, 0, ethGateway.SetContractCloseOutCalledTimes, "SetContractCloseOut should not be called")
 }
 
-func TestContractCloseoutAlreadyStarted(t *testing.T) {
+func TestBuyerEditContractEvent(t *testing.T) {
 	contractDurationSeconds := 1
-	cycleDuration := 1 * time.Second
-	allowance := 1 * time.Second
+	cycleDuration := time.Duration(contractDurationSeconds) * time.Second / 10
+	allowance := 3 * cycleDuration
 
 	log := lib.NewTestLogger()
-	data := blockchain.ContractData{
-		Addr:                   lib.GetRandomAddr(),
-		Buyer:                  lib.GetRandomAddr(),
-		Seller:                 lib.GetRandomAddr(),
-		State:                  blockchain.ContractBlockchainStateRunning,
-		Price:                  10,
-		Limit:                  0,
-		Speed:                  10,
-		Length:                 int64(contractDurationSeconds),
-		StartingBlockTimestamp: time.Now().Unix(),
-	}
+
+	data := blockchain.GetSampleContractData()
+	data.State = blockchain.ContractBlockchainStateRunning
+	data.Length = int64(contractDurationSeconds)
 
 	ethGateway := blockchain.NewEthereumGatewayMock()
 
-	var globalScheduler = &GlobalSchedulerMock{
-		IsDeliveringAdequateHashrateRes: true,
-	}
+	readContractRes := data.Copy()
+	readContractRes.Dest = lib.MustParseDest("stratum+tcp://updatedworker:@pool.titan.io:3333")
+	ethGateway.ReadContractRes = readContractRes
+
+	globalScheduler := NewGlobalSchedulerMock()
+	globalScheduler.IsDeliveringAdequateHashrateRes = true
+
 	defaultDest := lib.MustParseDest("stratum+tcp://default:dest@pool.io:1234")
 	contract := NewBuyerContract(data, ethGateway, globalScheduler, log, hashrate.NewHashrate(), 0.1, 0, defaultDest, cycleDuration)
 
@@ -100,39 +125,74 @@ func TestContractCloseoutAlreadyStarted(t *testing.T) {
 
 	errCh := make(chan error)
 	go func() {
-		// init contract listener
 		errCh <- contract.Run(ctx)
 	}()
 
-	// setup mock
-	data2 := data.Copy()
-	ethGateway.ReadContractRes = data2
+	ethGateway.EmitEvent(types.Log{
+		Topics: []common.Hash{blockchain.ContractCipherTextUpdatedHash},
+	})
 
-	select {
-	case err := <-errCh:
-		t.Fatal(err)
-	case <-time.After(time.Duration(contractDurationSeconds)*time.Second + allowance):
-	}
+	<-time.After(cycleDuration*2 + allowance)
+	assert.True(t, lib.IsEqualDest(contract.GetDest(), readContractRes.Dest), "should update destination on buyer edit event")
 
-	if !ethGateway.SetContractCloseOutCalled {
-		t.Fatal("SetContractCloseOut not called")
-	}
+	callArgs := globalScheduler.IsDeliveringAdequateHashrateResArgs
+	lastCallDest := callArgs[len(callArgs)-1][2].(interfaces.IDestination)
+	assert.True(t, lib.IsEqualDest(lastCallDest, readContractRes.Dest), "should call IsDeliveringAdequateHashrate with updated dest")
+}
+
+func TestValidationBufferPeriod(t *testing.T) {
+	contractDurationSeconds := 5
+	cycleDuration := 100 * time.Millisecond
+	allowance := 3 * cycleDuration
+	validationBufferPeriod := 4 * cycleDuration
+
+	log := lib.NewTestLogger()
+
+	data := blockchain.GetSampleContractData()
+	data.State = blockchain.ContractBlockchainStateRunning
+	data.Length = int64(contractDurationSeconds)
+
+	ethGateway := blockchain.NewEthereumGatewayMock()
+	globalScheduler := NewGlobalSchedulerMock()
+	globalScheduler.IsDeliveringAdequateHashrateRes = false
+
+	contract := NewBuyerContract(
+		data,
+		ethGateway,
+		globalScheduler,
+		log,
+		hashrate.NewHashrate(),
+		0.1,
+		validationBufferPeriod,
+		lib.MustParseDest("stratum+tcp://default:dest@pool.io:1234"),
+		cycleDuration,
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	errCh := make(chan error)
+	go func() {
+		errCh <- contract.Run(ctx)
+	}()
+
+	<-time.After(validationBufferPeriod - cycleDuration*2)
+
+	assert.NotEqual(t, ContractStateAvailable, contract.state, "shouldn't close during validation buffer period")
+	assert.Equal(t, 0, ethGateway.SetContractCloseOutCalledTimes, "shouldn't close during validation buffer period")
+
+	<-time.After(cycleDuration*2 + allowance)
+
+	assert.Equal(t, ContractStateAvailable, contract.state, "should close right after validation buffer period")
+	assert.Equal(t, 1, ethGateway.SetContractCloseOutCalledTimes, "should close right after validation buffer period")
 }
 
 func TestBuyerContractIsValid(t *testing.T) {
 	buyer := lib.GetRandomAddr()
 
-	data := blockchain.ContractData{
-		Addr:                   lib.GetRandomAddr(),
-		Buyer:                  buyer,
-		Seller:                 lib.GetRandomAddr(),
-		State:                  blockchain.ContractBlockchainStateAvailable,
-		Price:                  10,
-		Limit:                  0,
-		Speed:                  10,
-		Length:                 int64(100),
-		StartingBlockTimestamp: time.Now().Unix(),
-	}
+	data := blockchain.GetSampleContractData()
+	data.Buyer = buyer
+	data.State = blockchain.ContractBlockchainStateAvailable
 
 	contract := NewBuyerContract(
 		data,

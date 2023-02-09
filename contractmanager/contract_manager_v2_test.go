@@ -20,7 +20,7 @@ func contractManagerSetup() (*data.Collection[IContractModel], *ContractManager)
 func TestContractShouldExist(t *testing.T) {
 	collection, contractManager := contractManagerSetup()
 
-	collection.Store(&BTCHashrateContract{data: blockchain.ContractData{Addr: interop.AddressStringToSlice("0x1")}})
+	collection.Store(&BTCHashrateContractSeller{data: blockchain.ContractData{Addr: interop.AddressStringToSlice("0x1")}})
 
 	contractExists := contractManager.ContractExists(interop.AddressStringToSlice("0x1"))
 
@@ -32,7 +32,7 @@ func TestContractShouldExist(t *testing.T) {
 func TestContractShouldNotExist(t *testing.T) {
 	collection, contractManager := contractManagerSetup()
 
-	collection.Store(&BTCHashrateContract{data: blockchain.ContractData{Addr: interop.AddressStringToSlice("0x1")}})
+	collection.Store(&BTCHashrateContractSeller{data: blockchain.ContractData{Addr: interop.AddressStringToSlice("0x1")}})
 	contractExists := contractManager.ContractExists(interop.AddressStringToSlice("0x2"))
 
 	if contractExists {
