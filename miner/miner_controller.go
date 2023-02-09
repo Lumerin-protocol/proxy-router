@@ -2,8 +2,8 @@ package miner
 
 import (
 	"context"
+	"fmt"
 	"net"
-	"strings"
 	"time"
 
 	"gitlab.com/TitanInd/hashrouter/hashrate"
@@ -14,16 +14,28 @@ import (
 )
 
 type MinerController struct {
-	defaultDest        interfaces.IDestination
-	collection         interfaces.ICollection[MinerScheduler]
-	log                interfaces.ILogger
-	logStratum         bool
+	defaultDest interfaces.IDestination
+	collection  interfaces.ICollection[MinerScheduler]
+
 	minerVettingPeriod time.Duration
 	poolMinDuration    time.Duration
 	poolMaxDuration    time.Duration
+	poolConnTimeout    time.Duration
+
+	submitErrLimit int
+
+	log        interfaces.ILogger
+	logStratum bool
 }
 
-func NewMinerController(defaultDest interfaces.IDestination, collection interfaces.ICollection[MinerScheduler], log interfaces.ILogger, logStratum bool, minerVettingPeriod time.Duration, poolMinDuration, poolMaxDuration time.Duration) *MinerController {
+func NewMinerController(
+	defaultDest interfaces.IDestination,
+	collection interfaces.ICollection[MinerScheduler],
+	log interfaces.ILogger,
+	logStratum bool,
+	minerVettingPeriod, poolMinDuration, poolMaxDuration, poolConnTimeout time.Duration,
+	submitErrLimit int,
+) *MinerController {
 	return &MinerController{
 		defaultDest:        defaultDest,
 		log:                log,
@@ -32,38 +44,35 @@ func NewMinerController(defaultDest interfaces.IDestination, collection interfac
 		minerVettingPeriod: minerVettingPeriod,
 		poolMinDuration:    poolMinDuration,
 		poolMaxDuration:    poolMaxDuration,
+		poolConnTimeout:    poolConnTimeout,
+		submitErrLimit:     submitErrLimit,
 	}
 }
 
 func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net.Conn) error {
-	p.log.Infof("incoming miner connection: %s", incomingConn.RemoteAddr().String())
-	// TODO: peek if incoming connection is stratum connection
-
 	buffered := tcpserver.NewBufferedConn(incomingConn)
-	bytes, err := tcpserver.PeekJSON(buffered)
+	bytes, err := tcpserver.PeekNewLine(buffered)
 	if err != nil {
-		err2 := buffered.Close()
-		if err2 != nil {
-			return err2
-		}
+		// connection is closed in the invoking function
 		return err
 	}
-	peakedMsg := strings.ToLower(string(bytes))
 
-	if !(strings.Contains(peakedMsg, "id") &&
-		strings.Contains(peakedMsg, "mining") &&
-		strings.Contains(peakedMsg, "params")) {
-		p.log.Infof("invalid incoming message: %s", peakedMsg)
-		err := buffered.Close()
-		return err
+	m, err := stratumv1_message.ParseMessageToPool(bytes, p.log)
+	if err != nil {
+		return fmt.Errorf("invalid incoming message %s", string(bytes))
+	}
+	if _, ok := m.(*stratumv1_message.MiningUnknown); ok {
+		return fmt.Errorf("invalid incoming message %s", string(bytes))
 	}
 
 	incomingConn = buffered
 
+	p.log.Warnf("Miner connected %s->%s", incomingConn.RemoteAddr(), incomingConn.LocalAddr())
+
 	logMiner := p.log.Named(incomingConn.RemoteAddr().String())
 
-	poolPool := protocol.NewStratumV1PoolPool(logMiner, p.logStratum)
-	err = poolPool.SetDest(p.defaultDest, nil)
+	poolPool := protocol.NewStratumV1PoolPool(logMiner, p.poolConnTimeout, p.logStratum)
+	err = poolPool.SetDest(context.TODO(), p.defaultDest, nil)
 	if err != nil {
 		p.log.Error(err)
 		return err
@@ -71,27 +80,32 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	extranonce, size := poolPool.GetExtranonce()
 	msg := stratumv1_message.NewMiningSubscribeResult(extranonce, size)
 	miner := protocol.NewStratumV1MinerConn(incomingConn, logMiner, msg, p.logStratum, time.Now())
-	validator := hashrate.NewHashrate(logMiner)
-	minerModel := protocol.NewStratumV1MinerModel(poolPool, miner, validator, logMiner)
+	validator := hashrate.NewHashrateV2(hashrate.NewSma(p.poolMinDuration + p.poolMaxDuration))
+	minerModel := protocol.NewStratumV1MinerModel(poolPool, miner, validator, p.submitErrLimit, logMiner)
 
 	destSplit := NewDestSplit()
 
 	minerScheduler := NewOnDemandMinerScheduler(minerModel, destSplit, logMiner, p.defaultDest, p.minerVettingPeriod, p.poolMinDuration, p.poolMaxDuration)
-	// try to connect to dest before running
 
 	p.collection.Store(minerScheduler)
-	defer p.collection.Delete(minerScheduler.GetID())
 
-	return minerScheduler.Run(ctx)
+	err = minerScheduler.Run(ctx)
+
+	p.log.Warnf("Miner disconnected %s %s", incomingConn.RemoteAddr(), err)
+	p.collection.Delete(minerScheduler.GetID())
+
+	return err
 }
 
 func (p *MinerController) ChangeDestAll(dest interfaces.IDestination) error {
 	p.collection.Range(func(miner MinerScheduler) bool {
 		p.log.Infof("changing pool to %s for minerID %s", dest.GetHost(), miner.GetID())
 
-		_, err := miner.Allocate("API_TEST", 1, dest)
+		split := NewDestSplit()
+		split, _ = split.Allocate("API_TEST", 1, dest, nil)
+		miner.SetDestSplit(split)
 
-		return err == nil
+		return true
 	})
 
 	return nil

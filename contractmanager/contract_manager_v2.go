@@ -3,6 +3,7 @@ package contractmanager
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
@@ -13,31 +14,50 @@ import (
 
 type ContractManager struct {
 	// dependencies
-	blockchain      *blockchain.EthereumGateway
+	blockchain      interfaces.IBlockchainGateway
 	log             interfaces.ILogger
-	globalScheduler *GlobalSchedulerService
+	globalScheduler interfaces.IGlobalScheduler
 
 	// configuration parameters
-	isBuyer          bool
-	claimFunds       bool
-	walletAddr       interop.BlockchainAddress
-	walletPrivateKey string
-	defaultDest      lib.Dest
+	isBuyer                bool
+	hashrateDiffThreshold  float64
+	validationBufferPeriod time.Duration
+	claimFunds             bool
+	walletAddr             interop.BlockchainAddress
+	walletPrivateKey       string
+	defaultDest            lib.Dest
+	contractCycleDuration  time.Duration
 
 	// internal state
 	contracts interfaces.ICollection[IContractModel]
 }
 
-func NewContractManager(blockchain *blockchain.EthereumGateway, globalScheduler *GlobalSchedulerService, log interfaces.ILogger, contracts interfaces.ICollection[IContractModel], walletAddr interop.BlockchainAddress, walletPrivateKey string, isBuyer bool, defaultDest lib.Dest) *ContractManager {
+func NewContractManager(
+	blockchain interfaces.IBlockchainGateway,
+	globalScheduler interfaces.IGlobalScheduler,
+	log interfaces.ILogger,
+	contracts interfaces.ICollection[IContractModel],
+	walletAddr interop.BlockchainAddress,
+	walletPrivateKey string,
+	isBuyer bool,
+	hashrateDiffThreshold float64,
+	validationBufferPeriod time.Duration,
+	defaultDest lib.Dest,
+	contractCycleDuration time.Duration,
+) *ContractManager {
 	return &ContractManager{
 		blockchain:      blockchain,
 		globalScheduler: globalScheduler,
 		contracts:       contracts,
 		log:             log,
 
-		claimFunds:       false,
-		walletAddr:       walletAddr,
-		walletPrivateKey: walletPrivateKey,
+		isBuyer:                isBuyer,
+		hashrateDiffThreshold:  hashrateDiffThreshold,
+		validationBufferPeriod: validationBufferPeriod,
+		claimFunds:             false,
+		walletAddr:             walletAddr,
+		walletPrivateKey:       walletPrivateKey,
+		contractCycleDuration:  contractCycleDuration,
 	}
 }
 
@@ -109,26 +129,41 @@ func (m *ContractManager) runExistingContracts() error {
 	return nil
 }
 
+func (m *ContractManager) ContractExists(contractAddr common.Address) bool {
+	_, ok := m.contracts.Load(contractAddr.Hex())
+
+	return ok
+}
+
 func (m *ContractManager) handleContract(ctx context.Context, contractAddr common.Address) error {
-	data, err := m.blockchain.ReadContract(contractAddr)
-	if err != nil {
-		return fmt.Errorf("cannot read created contract %w", err)
+
+	if !m.ContractExists(contractAddr) {
+
+		data, err := m.blockchain.ReadContract(contractAddr)
+		if err != nil {
+			return fmt.Errorf("cannot read created contract %w", err)
+		}
+
+		var contract IContractModel
+		if m.isBuyer {
+			contract = NewBuyerContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration)
+		} else {
+			contract = NewContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration)
+		}
+
+		if !contract.IsValidWallet(m.walletAddr) {
+			// contract will be ignored by this node
+			return nil
+		}
+
+		m.log.Infof("handling contract \n%+v", data)
+
+		go func() {
+			err := contract.Run(ctx)
+			m.log.Warn("contract error: ", err)
+		}()
+		m.contracts.Store(contract)
 	}
-
-	contract := NewContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, m.isBuyer)
-
-	if contract.Ignore(m.walletAddr, m.defaultDest) {
-		// contract will be ignored by this node
-		return nil
-	}
-
-	m.log.Infof("handling contract \n%+v", data)
-
-	go func() {
-		err := contract.Run(ctx)
-		m.log.Warn("contract error: ", err)
-	}()
-	m.contracts.Store(contract)
 
 	return nil
 }

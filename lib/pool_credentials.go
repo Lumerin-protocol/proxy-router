@@ -1,13 +1,16 @@
 package lib
 
 import (
+	"fmt"
 	"net/url"
-
-	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
 
 type Dest struct {
 	url url.URL
+}
+
+type Stringable interface {
+	String() string
 }
 
 func ParseDest(uri string) (Dest, error) {
@@ -17,6 +20,23 @@ func ParseDest(uri string) (Dest, error) {
 	}
 	res.Scheme = "" // drop stratum+tcp prefix to avoid comparison issues
 	return Dest{*res}, nil
+}
+
+func MustParseDest(uri string) Dest {
+	res, err := ParseDest(uri)
+	if err != nil {
+		panic(err)
+	}
+	return res
+}
+
+func NewDest(workerName string, pwd string, host string, port int) *Dest {
+	return &Dest{
+		url.URL{
+			User: url.UserPassword(workerName, pwd),
+			Host: fmt.Sprintf("%s:%d", host, port),
+		},
+	}
 }
 
 func (v Dest) Username() string {
@@ -32,10 +52,10 @@ func (v Dest) GetHost() string {
 	return v.url.Host
 }
 
-func (v Dest) IsEqual(target interfaces.IDestination) bool {
-	return v.String() == target.String()
-}
-
 func (v Dest) String() string {
 	return v.url.String()
+}
+
+func IsEqualDest(dest1, dest2 Stringable) bool {
+	return dest1.String() == dest2.String()
 }

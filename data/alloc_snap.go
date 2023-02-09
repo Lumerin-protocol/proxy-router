@@ -1,11 +1,11 @@
-package contractmanager
+package data
 
 import (
 	"bytes"
 	"fmt"
+	"text/tabwriter"
 
-	"gitlab.com/TitanInd/hashrouter/interfaces"
-	"gitlab.com/TitanInd/hashrouter/miner"
+	"gitlab.com/TitanInd/hashrouter/lib"
 	"golang.org/x/exp/slices"
 )
 
@@ -16,7 +16,7 @@ type AllocItem struct {
 	TotalGHS   int
 }
 
-func (m *AllocItem) GetSourceId() string {
+func (m *AllocItem) GetSourceID() string {
 	return m.MinerID
 }
 
@@ -26,8 +26,10 @@ func (m *AllocItem) AllocatedGHS() int {
 
 func (m *AllocItem) String() string {
 	b := new(bytes.Buffer)
-	fmt.Fprintf(b, "\nContractID\tMinerID\tFraction\tTotalGHS\n")
-	fmt.Fprintf(b, "%s\t%s\t%.2f\t%d\n", m.ContractID, m.MinerID, m.Fraction, m.TotalGHS)
+	w := tabwriter.NewWriter(b, 1, 1, 1, ' ', 0)
+	fmt.Fprintf(w, "\nContractID\tMinerID\tTotalGHS\tFraction\tHashrateGHS\n")
+	fmt.Fprintf(w, "%s\t%s\t%d\t%.2f\t%d\n", lib.AddrShort(m.ContractID), m.MinerID, m.TotalGHS, m.Fraction, m.AllocatedGHS())
+	_ = w.Flush()
 	return b.String()
 }
 
@@ -57,25 +59,46 @@ func (m AllocCollection) FilterFullyAvailable() *AllocCollection {
 	return fullyAvailable
 }
 
-func (m AllocCollection) SortByAllocatedGHS() []AllocItem {
-	items := make([]AllocItem, len(m.items))
+func (m AllocCollection) SortByAllocatedGHS() []*AllocItem {
+	items := make([]*AllocItem, len(m.items))
 	i := 0
 	for _, item := range m.items {
-		items[i] = *item
+		items[i] = item
 		i++
 	}
-	slices.SortStableFunc(items, func(a, b AllocItem) bool {
+	slices.SortStableFunc(items, func(a, b *AllocItem) bool {
 		return a.AllocatedGHS() < b.AllocatedGHS()
+	})
+	return items
+}
+
+func (m AllocCollection) SortByAllocatedGHSInv() []*AllocItem {
+	items := make([]*AllocItem, len(m.items))
+	i := 0
+	for _, item := range m.items {
+		items[i] = item
+		i++
+	}
+	slices.SortStableFunc(items, func(a, b *AllocItem) bool {
+		return a.AllocatedGHS() > b.AllocatedGHS()
 	})
 	return items
 }
 
 func (m AllocCollection) String() string {
 	b := new(bytes.Buffer)
-	fmt.Fprintf(b, "\nContractID\tMinerID\tFraction\tTotalGHS\n")
+
+	w := tabwriter.NewWriter(b, 1, 1, 1, ' ', 0)
+
+	fmt.Fprintf(w, "\nContractID\tMinerID\tTotalGHS\tFraction\tHashrateGHS\n")
 	for _, alloc := range m.items {
-		fmt.Fprintf(b, "%s\t%s\t%.2f\t%d\n", alloc.ContractID, alloc.MinerID, alloc.Fraction, alloc.TotalGHS)
+		fmt.Fprintf(w, "%s\t%s\t%d\t%.2f\t%d\n", lib.AddrShort(alloc.ContractID), alloc.MinerID, alloc.TotalGHS, alloc.Fraction, alloc.AllocatedGHS())
 	}
+	if len(m.items) == 0 {
+		fmt.Fprintf(w, "no miners\n")
+	}
+	_ = w.Flush()
+	fmt.Fprintf(b, "========\nTotal: %d", m.GetAllocatedGHS())
 	return b.String()
 }
 
@@ -90,20 +113,30 @@ func (m AllocCollection) IDs() []string {
 		minerIDs[i] = item.MinerID
 		i++
 	}
+	slices.Sort(minerIDs)
 	return minerIDs
 }
 
 func (m *AllocCollection) Get(id string) (*AllocItem, bool) {
 	item, ok := m.items[id]
-
 	return item, ok
+}
+
+func (m *AllocCollection) Iter() []*AllocItem {
+	items := make([]*AllocItem, len(m.items))
+	i := 0
+	for _, item := range m.items {
+		items[i] = item
+		i++
+	}
+	return items
 }
 
 func (m *AllocCollection) Add(id string, item *AllocItem) {
 	m.items[id] = item
 }
 
-func (m AllocCollection) GetUnallocatedGHS() (int, *AllocItem) {
+func (m *AllocCollection) GetUnallocatedGHS() (int, *AllocItem) {
 	var allocatedFrac float64 = 0
 	var allocItemAvailable *AllocItem
 	var minerID string
@@ -124,6 +157,14 @@ func (m AllocCollection) GetUnallocatedGHS() (int, *AllocItem) {
 	}
 
 	return allocItemAvailable.AllocatedGHS(), allocItemAvailable
+}
+
+func (m *AllocCollection) GetAllocatedGHS() int {
+	allocatedGHS := 0
+	for _, miner := range m.items {
+		allocatedGHS += miner.AllocatedGHS()
+	}
+	return allocatedGHS
 }
 
 type AllocSnap struct {
@@ -186,19 +227,18 @@ func (m *AllocSnap) Get(minerID string, contractID string) (AllocItem, bool) {
 	return *item, true
 }
 
-func (m *AllocSnap) Miner(minerID string) (*AllocCollection, bool) {
-	res, ok := m.minerIDcontractIDMap[minerID]
-	return res, ok
+func (m *AllocSnap) Miner(minerID string) (coll *AllocCollection, ok bool) {
+	coll, ok = m.minerIDcontractIDMap[minerID]
+	return coll, ok
 }
 
-func (m *AllocSnap) Contract(contractID string) (*AllocCollection, bool) {
-	res, ok := m.contractIDMinerIDMap[contractID]
-	return res, ok
+func (m *AllocSnap) Contract(contractID string) (coll *AllocCollection, ok bool) {
+	coll, ok = m.contractIDMinerIDMap[contractID]
+	return coll, ok
 }
 
-func (s *AllocSnap) GetUnallocatedGHS() (int, *AllocCollection) {
-	var unallocatedHashrateGHS int = 0
-	allocItemsAvailable := NewAllocCollection()
+func (s *AllocSnap) GetUnallocatedGHS() (unallocatedHrGHS int, allocItemsAvailable *AllocCollection) {
+	allocItemsAvailable = NewAllocCollection()
 
 	for minerID, miner := range s.minerIDcontractIDMap {
 		_, allocItem := miner.GetUnallocatedGHS()
@@ -211,42 +251,22 @@ func (s *AllocSnap) GetUnallocatedGHS() (int, *AllocCollection) {
 				TotalGHS:   s.minerIDHashrateGHS[minerID],
 			}
 			allocItemsAvailable.Add(minerID, item)
-			unallocatedHashrateGHS += item.AllocatedGHS()
+			unallocatedHrGHS += item.AllocatedGHS()
 		}
 	}
 
-	return unallocatedHashrateGHS, allocItemsAvailable
+	return unallocatedHrGHS, allocItemsAvailable
 }
 
 func (m *AllocSnap) String() string {
 	b := new(bytes.Buffer)
-	fmt.Fprintf(b, "\nContractID\tMinerID\tFraction\tTotalGHS\n")
+	w := tabwriter.NewWriter(b, 1, 1, 1, ' ', 0)
+	fmt.Fprintf(w, "\nContractID\tMinerID\tTotalGHS\tFraction\tHashrateGHS\n")
 	for _, item := range m.contractIDMinerIDMap {
 		for _, alloc := range item.GetItems() {
-			fmt.Fprintf(b, "%s\t%s\t%.2f\t%d\n", alloc.ContractID, alloc.MinerID, alloc.Fraction, alloc.TotalGHS)
+			fmt.Fprintf(w, "%s\t%s\t%d\t%.2f\t%d\n", lib.AddrShort(alloc.ContractID), alloc.MinerID, alloc.TotalGHS, alloc.Fraction, alloc.AllocatedGHS())
 		}
 	}
+	_ = w.Flush()
 	return b.String()
-}
-
-func CreateMinerSnapshot(minerCollection interfaces.ICollection[miner.MinerScheduler]) AllocSnap {
-	snapshot := NewAllocSnap()
-
-	minerCollection.Range(func(miner miner.MinerScheduler) bool {
-		if !miner.IsVetted() {
-			return true
-		}
-
-		hashrateGHS := miner.GetHashRateGHS()
-		minerID := miner.GetID()
-
-		snapshot.SetMiner(minerID, hashrateGHS)
-
-		for _, splitItem := range miner.GetDestSplit().Iter() {
-			snapshot.Set(minerID, splitItem.ID, splitItem.Percentage, hashrateGHS)
-		}
-
-		return true
-	})
-	return snapshot
 }

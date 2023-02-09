@@ -10,17 +10,20 @@ import (
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
 
-type TCPServer struct {
-	serverAddr string
-	handler    ConnectionHandler
+// const kb = 1024 //temp
 
-	log interfaces.ILogger
+type TCPServer struct {
+	serverAddr           string
+	handler              ConnectionHandler
+	connectionBufferSize int
+	log                  interfaces.ILogger
 }
 
-func NewTCPServer(serverAddr string, log interfaces.ILogger) *TCPServer {
+func NewTCPServer(serverAddr string, connectionBufferSize int, log interfaces.ILogger) *TCPServer {
 	return &TCPServer{
-		serverAddr: serverAddr,
-		log:        log,
+		serverAddr:           serverAddr,
+		log:                  log,
+		connectionBufferSize: connectionBufferSize,
 	}
 }
 
@@ -34,7 +37,8 @@ func (p *TCPServer) Run(ctx context.Context) error {
 		return fmt.Errorf("invalid server address %s %w", p.serverAddr, err)
 	}
 
-	listener, err := net.ListenTCP("tcp", net.TCPAddrFromAddrPort(add))
+	listener, err := net.Listen("tcp", add.String())
+
 	if err != nil {
 		return fmt.Errorf("listener error %s %w", p.serverAddr, err)
 	}
@@ -62,32 +66,61 @@ func (p *TCPServer) Run(ctx context.Context) error {
 	return err
 }
 
-func (p *TCPServer) startAccepting(ctx context.Context, listener *net.TCPListener) error {
+func (p *TCPServer) startAccepting(ctx context.Context, listener net.Listener) error {
+
 	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
 		conn, err := listener.Accept()
+
 		if errors.Is(err, net.ErrClosed) {
-			return nil
+			return errors.New("incoming connection listener was closed")
 		}
 		if err != nil {
-			p.log.Errorf("incoming connection accept error: %w", err)
+			p.log.Errorf("incoming connection accept error: %s", err)
+
+			continue
 		}
 
 		if p.handler != nil {
 			go func(conn net.Conn) {
-				err := p.handler.HandleConnection(ctx, conn)
-				if err != nil {
-					p.log.Warn("connection handler error: %w", err)
-				}
+				// err = conn.(*net.TCPConn).SetReadBuffer(p.connectionBufferSize * kb)
 
-				err = conn.Close()
+				// if err != nil {
+				// 	p.log.Warnf("error setting connection read buffer: %s", err)
+				// 	return
+				// }
+
+				// err = conn.(*net.TCPConn).SetWriteBuffer(p.connectionBufferSize * kb)
+
+				// if err != nil {
+				// 	p.log.Warnf("error setting connection write buffer: %s", err)
+				// 	return
+				// }
+
+				err = conn.(*net.TCPConn).SetLinger(0)
+
 				if err != nil {
-					p.log.Warn("error during closing connection", err)
+					p.log.Warnf("error updating connection linger setting: %s", err)
 					return
 				}
 
-				p.log.Info("connection closed: %s", conn.RemoteAddr())
+				// removed logging for each of the incoming connections (healthchecks etc)
+				// HandleConnection will log errors for connections which are established from miner
+				_ = p.handler.HandleConnection(ctx, conn)
 
+				err = conn.Close()
+				if err != nil {
+					p.log.Warnf("error during closing connection: %s", err)
+					return
+				}
 			}(conn)
+		} else {
+			conn.Close()
 		}
 	}
 }

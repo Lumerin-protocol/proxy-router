@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -15,33 +16,80 @@ import (
 	"gitlab.com/TitanInd/hashrouter/miner"
 )
 
-func TestListenContractEvents(t *testing.T) {
-	t.Skip()
+func TestShouldCancelAfterExpiration(t *testing.T) {
+	Setup()
 
-	errChannel := make(chan error)
-	eventChannel := make(chan interop.BlockchainEvent)
-	eventSubscriptionChannel := testSubscription{
+	go func(t *testing.T, channel chan interop.BlockchainEvent, subscribeToCloneFactoryEventsCalled chan struct{}, contractCloseoutCalled chan struct{}) {
+		<-subscribeToContractEventsCalled
+
+		t.Logf("subscribeToContractEventsCalled")
+
+		topics := []interop.BlockchainHash{blockchain.ContractPurchasedHash}
+
+		t.Logf("sending topic 1: %#+v\n\n", topics[0])
+		channel <- interop.BlockchainEvent{
+			Topics: topics,
+		}
+
+		<-contractCloseoutCalled
+		t.Logf("called setContractCloseout")
+	}(t, eventChannel, subscribeToContractEventsCalled, contractCloseoutCalled)
+
+	go func() {
+		err := contract.listenContractEvents(testContext)
+
+		if err != nil {
+			t.Errorf("Expected listenContractEvents to not return an error: %v", err)
+		}
+	}()
+
+	<-time.After(1 * time.Second)
+}
+
+var errChannel chan error
+
+var eventChannel chan interop.BlockchainEvent
+
+var eventSubscriptionChannel testSubscription
+var contractCloseoutCalled chan struct{}
+var subscribeToContractEventsCalled chan struct{}
+var blockchainGateway *testBlockchainGateway
+var globalScheduler *GlobalSchedulerV2
+var log *lib.LoggerMock
+var contract *BTCHashrateContract
+var testContext context.Context
+
+func Setup() {
+
+	errChannel = make(chan error)
+	eventChannel = make(chan interop.BlockchainEvent)
+	eventSubscriptionChannel = testSubscription{
 		errChannel: errChannel,
 	}
 
-	contractCloseoutCalled := make(chan struct{})
-	subscribeToContractEventsCalled := make(chan struct{})
+	contractCloseoutCalled = make(chan struct{})
+	subscribeToContractEventsCalled = make(chan struct{})
 
-	blockchainGateway := &testBlockchainGateway{
+	blockchainGateway = &testBlockchainGateway{
 		eventChannel:                    eventChannel,
 		eventSubscriptionChannel:        eventSubscriptionChannel,
 		contractCloseoutCalled:          contractCloseoutCalled,
 		subscribeToContractEventsCalled: subscribeToContractEventsCalled,
 	}
-	log := &lib.LoggerMock{}
+	log = &lib.LoggerMock{}
 
-	contract := &BTCHashrateContract{
+	globalScheduler := NewGlobalSchedulerV2(miner.NewMinerCollection(), log, 0, 0, 0)
+	contract = &BTCHashrateContract{
 		log:             log,
 		blockchain:      blockchainGateway,
-		globalScheduler: NewGlobalScheduler(miner.NewMinerCollection(), log, 0, 0),
+		globalScheduler: globalScheduler,
 	}
 
-	testContext := context.TODO()
+	testContext = context.TODO()
+}
+
+func TestShouldRunMultiplePurchases(t *testing.T) {
+	Setup()
 
 	go func(t *testing.T, channel chan interop.BlockchainEvent, subscribeToCloneFactoryEventsCalled chan struct{}, contractCloseoutCalled chan struct{}) {
 		<-subscribeToContractEventsCalled
@@ -71,11 +119,15 @@ func TestListenContractEvents(t *testing.T) {
 
 	}(t, eventChannel, subscribeToContractEventsCalled, contractCloseoutCalled)
 
-	err := contract.listenContractEvents(testContext)
+	go func() {
+		err := contract.listenContractEvents(testContext)
 
-	if err != nil {
-		t.Errorf("Expected listenContractEvents to not return an error: %v", err)
-	}
+		if err != nil {
+			t.Errorf("Expected listenContractEvents to not return an error: %v", err)
+		}
+	}()
+
+	<-time.After(1 * time.Second)
 }
 
 type testSubscription struct {
@@ -124,7 +176,7 @@ func (g *testBlockchainGateway) ReadContracts(walletAddr interop.BlockchainAddre
 }
 
 // SetContractCloseOut closes the contract with specified closeoutType
-func (g *testBlockchainGateway) SetContractCloseOut(fromAddress string, contractAddress string, closeoutType int64) error {
+func (g *testBlockchainGateway) SetContractCloseOut(contractAddress string, closeoutType int64) error {
 	defer g.send(g.contractCloseoutCalled)
 	return nil
 }

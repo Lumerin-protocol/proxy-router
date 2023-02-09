@@ -4,20 +4,25 @@ import (
 	"context"
 	"time"
 
-	"gitlab.com/TitanInd/hashrouter/lib"
+	"github.com/ethereum/go-ethereum/common"
+	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
 
 type IContractModel interface {
 	Run(ctx context.Context) error
-	Stop()
+	Stop(ctx context.Context)
 	GetBuyerAddress() string
 	GetSellerAddress() string
 	GetID() string
 	GetAddress() string
+	GetDeliveredHashrate() interfaces.Hashrate
 	GetHashrateGHS() int
 	GetStartTime() *time.Time
 	GetDuration() time.Duration
 	GetEndTime() *time.Time
 	GetState() ContractState
-	GetDest() lib.Dest
+	GetStatusInternal() string
+	GetDest() interfaces.IDestination
+	IsValidWallet(walletAddress common.Address) bool
+	SetDest(dest interfaces.IDestination)
 }

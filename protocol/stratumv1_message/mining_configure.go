@@ -13,6 +13,19 @@ type MiningConfigure struct {
 
 type miningConfigureParams = []json.RawMessage
 
+func NewMiningConfigure(features []string, params map[string]any) *MiningConfigure {
+	Features, _ := json.Marshal(features)
+	Params, _ := json.Marshal(params)
+	return &MiningConfigure{
+		ID:     0,
+		Method: MethodMiningConfigure,
+		Params: &[]json.RawMessage{
+			json.RawMessage(Features),
+			json.RawMessage(Params),
+		},
+	}
+}
+
 func ParseMiningConfigure(b []byte) (*MiningConfigure, error) {
 	m := &MiningConfigure{}
 	return m, json.Unmarshal(b, m)

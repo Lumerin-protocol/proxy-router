@@ -5,68 +5,99 @@ import (
 	"time"
 
 	"gitlab.com/TitanInd/hashrouter/interfaces"
-	"gitlab.com/TitanInd/hashrouter/protocol"
+	"gitlab.com/TitanInd/hashrouter/lib"
 )
 
+// DefaultDestID is used as destinationID / contractID for split serving default pool
 const DefaultDestID = "default-dest"
+const DestHistorySize = 2048
 
-// OnDemandMinerScheduler is responsible for distributing the resources of a single miner across multiple destinations
-// and falling back to default pool for unallocated resources
+// OnDemandMinerScheduler distributes the hashpower of a single miner in time for multiple destinations
 type OnDemandMinerScheduler struct {
-	minerModel       MinerModel
-	destSplit        *DestSplit // may be not allocated fully, the remaining will be directed to defaultDest
-	log              interfaces.ILogger
-	defaultDest      interfaces.IDestination // the default destination that is used for unallocated part of destSplit
+	minerModel MinerModel
+	log        interfaces.ILogger
+
+	destSplit         *DestSplit // current hashrate distribution without default pool, watch also getDestSplitWithDefault()
+	upcomingDestSplit *DestSplit // DestSplit that will be enabled on the next destination cycle
+
+	history          *DestHistory // destination history log
 	lastDestChangeAt time.Time
+	restartDestCycle chan struct{} // discards current dest item and starts over the cycle
 
-	minerVettingPeriod time.Duration
-	destMinUptime      time.Duration
-	destMaxUptime      time.Duration
-
-	restartDestCycle chan struct{}
+	defaultDest        interfaces.IDestination // the default destination that is used for unallocated part of destSplit
+	minerVettingPeriod time.Duration           // duration during which miner wont fulfill any contract (its state is vetting) right after its connection
+	destMinUptime      time.Duration           // minimum time miner allowed to be pointed to the destination pool to get some job done
+	destMaxDowntime    time.Duration           // maximum time miner allowed not to provide submits to the destination pool to be considered online
 }
 
-func NewOnDemandMinerScheduler(minerModel MinerModel, destSplit *DestSplit, log interfaces.ILogger, defaultDest interfaces.IDestination, minerVettingPeriod, destMinUptime, destMaxUptime time.Duration) *OnDemandMinerScheduler {
-	return &OnDemandMinerScheduler{
+func NewOnDemandMinerScheduler(minerModel MinerModel, destSplit *DestSplit, log interfaces.ILogger, defaultDest interfaces.IDestination, minerVettingPeriod, destMinUptime, destMaxDowntime time.Duration) *OnDemandMinerScheduler {
+	history := NewDestHistory(DestHistorySize)
+	history.Add(defaultDest, DefaultDestID, nil)
+
+	scheduler := &OnDemandMinerScheduler{
 		minerModel:         minerModel,
 		destSplit:          destSplit,
 		log:                log,
 		defaultDest:        defaultDest,
 		minerVettingPeriod: minerVettingPeriod,
 		destMinUptime:      destMinUptime,
-		destMaxUptime:      destMaxUptime,
+		destMaxDowntime:    destMaxDowntime,
+		history:            history,
 		restartDestCycle:   make(chan struct{}, 1),
 	}
+
+	minerModel.OnFault(scheduler.onFault)
+
+	return scheduler
 }
 
 func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 	minerModelErr := make(chan error)
-	go m.minerModel.Run(ctx, minerModelErr)
+	go func() {
+		minerModelErr <- m.minerModel.Run(ctx)
+	}()
 
 	for {
-		destinations := m.getDest().Iter()
-		m.log.Infof("new scheduler cycle for miner(%s), destinations(%d)", m.GetID(), len(destinations))
+		destinations := m.getUpdatedDestSplitWithDefault()
 
 	DEST_CYCLE:
-		for _, splitItem := range destinations {
-			if !m.minerModel.GetDest().IsEqual(splitItem.Dest) {
-				m.log.Infof("changing destination to %s", splitItem.Dest)
-				err := m.minerModel.ChangeDest(splitItem.Dest)
+		for _, splitItem := range destinations.Iter() {
+			m.log.Debugf(`
+New dest cycle for miner %s 
+All destinations: %s
+
+current dest %s
+upcoming dest %s
+`, m.minerModel.GetID(), destinations.String(), m.minerModel.GetDest(), splitItem.Dest)
+
+			if !lib.IsEqualDest(m.minerModel.GetDest(), splitItem.Dest) {
+				m.log.Debugf("changing dest to %s", splitItem.Dest)
+
+				err := m.ChangeDest(context.TODO(), splitItem.Dest, splitItem.ID, splitItem.OnSubmit)
 				if err != nil {
-					return err
+					// if change dest fails then it is likely something wrong with the dest pool
+					m.log.Errorf("cannot change dest to %s %s", splitItem.Dest, err)
+					m.log.Warnf("falling back to default dest for current split item")
+					err := m.ChangeDest(context.TODO(), m.defaultDest, splitItem.ID, splitItem.OnSubmit)
+					if err != nil {
+						return err
+					}
 				}
+				m.log.Debugf("miner %s dest changed to %s", m.minerModel.GetID(), m.minerModel.GetDest())
 				m.lastDestChangeAt = time.Now()
 			}
 
-			splitDuration := time.Duration(float64(m.getCycleDuration()) * splitItem.Percentage)
+			splitDuration := time.Duration(float64(m.getCycleDuration()) * splitItem.Fraction)
 			m.log.Infof("destination %s for %.2f seconds", splitItem.Dest, splitDuration.Seconds())
 
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
 			case err := <-minerModelErr:
+				m.log.Errorf("miner scheduler error %s", err)
 				return err
 			case <-m.restartDestCycle:
+				m.log.Infof("destination cycle restarted")
 				break DEST_CYCLE
 			case <-time.After(splitDuration):
 			}
@@ -75,84 +106,83 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 }
 
 func (m *OnDemandMinerScheduler) getCycleDuration() time.Duration {
-	return m.destMinUptime + m.destMaxUptime
+	return m.destMinUptime + m.destMaxDowntime
 }
 
 func (m *OnDemandMinerScheduler) GetID() string {
 	return m.minerModel.GetID()
 }
 
-// GetUnallocatedPercentage returns the percentage of power of a miner available to fulfill some contact
-func (m *OnDemandMinerScheduler) GetUnallocatedPercentage() float64 {
-	return m.destSplit.GetUnallocated()
-}
-
 // GetUnallocatedHashrate returns the available miner hashrate
-// TODO: discuss with a team. As hashpower may fluctuate, define some kind of expected hashpower being
-// the average hashpower value excluding the periods potential drop during reconnection
 func (m *OnDemandMinerScheduler) GetUnallocatedHashrateGHS() int {
 	// the remainder should be small enough to ignore
 	return int(m.destSplit.GetUnallocated() * float64(m.minerModel.GetHashRateGHS()))
 }
 
+// GetDestSplit Returns current or upcoming destination split if available
+func (m *OnDemandMinerScheduler) GetCurrentDestSplit() *DestSplit {
+	return m.destSplit.Copy()
+}
+
+// GetDestSplit Returns current or upcoming destination split if available
 func (m *OnDemandMinerScheduler) GetDestSplit() *DestSplit {
-	return m.destSplit
+	if m.upcomingDestSplit != nil {
+		return m.upcomingDestSplit.Copy()
+	}
+	return m.destSplit.Copy()
 }
 
-// Allocate directs miner resources to the destination
-func (m *OnDemandMinerScheduler) Allocate(ID string, percentage float64, dest interfaces.IDestination) (*Split, error) {
-	oldDestSplit := m.destSplit.Copy()
-	split, err := m.destSplit.Allocate(ID, percentage, dest)
-	if err != nil {
-		return nil, err
+func (m *OnDemandMinerScheduler) GetUpcomingDestSplit() *DestSplit {
+	if m.upcomingDestSplit != nil {
+		return m.upcomingDestSplit.Copy()
 	}
-	// if miner was pointing only to default pool
-	if len(oldDestSplit.Iter()) == 0 {
-		m.restartDestCycle <- struct{}{}
-	}
-	return split, nil
+	return nil
 }
 
-func (m *OnDemandMinerScheduler) Deallocate(ID string) (ok bool) {
-	ok = false
+// SetDestSplit sets upcoming destination split which will be used on next cycle
+func (m *OnDemandMinerScheduler) SetDestSplit(destSplit *DestSplit) {
+	shouldRestartDestCycle := false
 
-	for i, item := range m.destSplit.Iter() {
-		if item.ID == ID {
-			newSplit := append(m.destSplit.split[:i], m.destSplit.split[i+1:]...)
-			m.destSplit.mutex.Lock()
-			m.destSplit.split = newSplit
-			m.destSplit.mutex.Unlock()
-
-			ok = true
+	if m.destSplit.IsEmpty() {
+		shouldRestartDestCycle = true
+	} else if destSplit.IsEmpty() {
+		shouldRestartDestCycle = true
+	} else {
+		if m.destSplit.Iter()[0].Fraction == 1 {
+			shouldRestartDestCycle = true
 		}
 	}
 
-	return ok
+	m.upcomingDestSplit = destSplit.Copy()
+	if shouldRestartDestCycle {
+		m.restartDestCycle <- struct{}{}
+	}
+
+	m.log.Infof("new destination split: %s", destSplit.String())
 }
 
-// ChangeDest forcefully change destination
-// may cause issues when split is enabled
-func (m *OnDemandMinerScheduler) ChangeDest(dest interfaces.IDestination) error {
-	return m.minerModel.ChangeDest(dest)
+// ChangeDest forcefully change destination regardless of the split. The destination will be overrided back on next split item
+func (m *OnDemandMinerScheduler) ChangeDest(ctx context.Context, dest interfaces.IDestination, ID string, onSubmit interfaces.IHashrate) error {
+	m.history.Add(dest, ID, nil)
+	return m.minerModel.ChangeDest(ctx, dest, onSubmit)
 }
 
 func (m *OnDemandMinerScheduler) GetHashRateGHS() int {
 	return m.minerModel.GetHashRateGHS()
 }
 
-func (m *OnDemandMinerScheduler) GetHashRate() protocol.Hashrate {
+func (m *OnDemandMinerScheduler) GetHashRate() interfaces.Hashrate {
 	return m.minerModel.GetHashRate()
 }
 
-// getDest adds default destination to remaining part of destination split
-func (m *OnDemandMinerScheduler) getDest() *DestSplit {
-	dest := m.destSplit.Copy()
-	dest.AllocateRemaining(DefaultDestID, m.defaultDest)
-	return dest
-}
+// getUpdatedDestSplitWithDefault activates upcomingDestSplit and points remaining hashpower to default destination
+func (m *OnDemandMinerScheduler) getUpdatedDestSplitWithDefault() *DestSplit {
+	if m.upcomingDestSplit != nil {
+		m.destSplit = m.upcomingDestSplit
+		m.upcomingDestSplit = nil
+	}
 
-func (m *OnDemandMinerScheduler) OnSubmit(cb protocol.OnSubmitHandler) protocol.ListenerHandle {
-	return m.minerModel.OnSubmit(cb)
+	return m.destSplit.AllocateRemaining(DefaultDestID, m.defaultDest, nil)
 }
 
 func (m *OnDemandMinerScheduler) GetCurrentDest() interfaces.IDestination {
@@ -175,18 +205,38 @@ func (s *OnDemandMinerScheduler) GetUptime() time.Duration {
 	return time.Since(s.GetConnectedAt())
 }
 
-func (s *OnDemandMinerScheduler) IsVetted() bool {
-	return time.Since(s.GetConnectedAt()) >= s.minerVettingPeriod
+func (s *OnDemandMinerScheduler) IsVetting() bool {
+	return time.Since(s.GetConnectedAt()) <= s.minerVettingPeriod
+}
+
+func (s *OnDemandMinerScheduler) IsFaulty() bool {
+	return s.minerModel.IsFaulty()
 }
 
 func (s *OnDemandMinerScheduler) GetStatus() MinerStatus {
-	if !s.IsVetted() {
+	if s.IsVetting() {
 		return MinerStatusVetting
 	}
-	if len(s.destSplit.split) == 0 {
+	if s.destSplit.IsEmpty() {
 		return MinerStatusFree
 	}
 	return MinerStatusBusy
+}
+
+func (s *OnDemandMinerScheduler) RangeDestConn(f func(key any, value any) bool) {
+	s.minerModel.RangeDestConn(f)
+}
+
+func (s *OnDemandMinerScheduler) RangeHistory(f func(item HistoryItem) bool) {
+	s.history.Range(f)
+}
+
+func (s *OnDemandMinerScheduler) RangeHistoryContractID(contractID string, f func(item HistoryItem) bool) {
+	s.history.RangeContractID(contractID, f)
+}
+
+func (s *OnDemandMinerScheduler) onFault(ctx context.Context) {
+	s.SetDestSplit(NewDestSplit())
 }
 
 var _ MinerScheduler = new(OnDemandMinerScheduler)

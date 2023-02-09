@@ -54,8 +54,8 @@ func (m *StratumV1Miner) write(ctx context.Context, msg stratumv1_message.Mining
 			lib.LogMsg(true, false, m.conn.RemoteAddr().String(), msg.Serialize(), m.log)
 		}
 
-		b := fmt.Sprintf("%s\n", msg.Serialize())
-		_, err := m.conn.Write([]byte(b))
+		b := append(msg.Serialize(), lib.CharNewLine)
+		_, err := m.conn.Write(b)
 		return err
 	}
 
@@ -65,9 +65,16 @@ func (m *StratumV1Miner) write(ctx context.Context, msg stratumv1_message.Mining
 func (s *StratumV1Miner) Read(ctx context.Context) (stratumv1_message.MiningMessageGeneric, error) {
 	for {
 		line, isPrefix, err := s.reader.ReadLine()
+
 		if isPrefix {
 			return nil, fmt.Errorf("line is too long")
 		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		err = s.conn.SetReadDeadline(time.Now().Add(5 * time.Minute))
 
 		if err != nil {
 			return nil, err
@@ -77,7 +84,7 @@ func (s *StratumV1Miner) Read(ctx context.Context) (stratumv1_message.MiningMess
 			lib.LogMsg(true, true, s.conn.RemoteAddr().String(), line, s.log)
 		}
 
-		m, err := stratumv1_message.ParseMessageToPool(line)
+		m, err := stratumv1_message.ParseMessageToPool(line, s.log)
 
 		if err != nil {
 			s.log.Errorf("unknown miner message: %s", string(line))

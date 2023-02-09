@@ -6,7 +6,6 @@ import (
 
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
-	"gitlab.com/TitanInd/hashrouter/lib"
 )
 
 type MinerModelMock struct {
@@ -17,14 +16,14 @@ type MinerModelMock struct {
 	HashrateGHS int
 	ConnectedAt time.Time
 
-	OnSubmitListenerHandle int
-
-	RunErr        error
-	ChangeDestErr error
+	RunErr               error
+	ChangeDestErr        error
+	ChangeDestCalledWith []interfaces.IDestination
 }
 
-func (m *MinerModelMock) Run(ctx context.Context, errCh chan error) {
-	// <- m.RunErr
+func (m *MinerModelMock) Run(ctx context.Context) error {
+	<-ctx.Done()
+	return ctx.Err()
 }
 func (m *MinerModelMock) GetID() string {
 	return m.ID
@@ -32,7 +31,8 @@ func (m *MinerModelMock) GetID() string {
 func (m *MinerModelMock) GetDest() interfaces.IDestination {
 	return m.Dest
 }
-func (m *MinerModelMock) ChangeDest(dest interfaces.IDestination) error {
+func (m *MinerModelMock) ChangeDest(ctx context.Context, dest interfaces.IDestination, onSubmit interfaces.IHashrate) error {
+	m.ChangeDestCalledWith = append(m.ChangeDestCalledWith, dest)
 	return m.ChangeDestErr
 }
 func (m *MinerModelMock) GetCurrentDifficulty() int {
@@ -44,12 +44,14 @@ func (m *MinerModelMock) GetWorkerName() string {
 func (m *MinerModelMock) GetHashRateGHS() int {
 	return m.HashrateGHS
 }
-func (m *MinerModelMock) GetHashRate() Hashrate {
-	return hashrate.NewHashrate(&lib.LoggerMock{})
+func (m *MinerModelMock) GetHashRate() interfaces.Hashrate {
+	return hashrate.NewHashrate()
 }
 func (m *MinerModelMock) GetConnectedAt() time.Time {
 	return m.ConnectedAt
 }
-func (m *MinerModelMock) OnSubmit(cb OnSubmitHandler) ListenerHandle {
-	return ListenerHandle(m.OnSubmitListenerHandle)
+func (m *MinerModelMock) RangeDestConn(f func(key any, value any) bool) {}
+func (m *MinerModelMock) IsFaulty() bool {
+	return false
 }
+func (m *MinerModelMock) OnFault(func(ctx context.Context)) {}

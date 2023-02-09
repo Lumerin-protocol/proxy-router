@@ -8,6 +8,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
@@ -22,6 +23,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/miner"
 	"gitlab.com/TitanInd/hashrouter/tcpserver"
 	"os"
+	"time"
 )
 
 // Injectors from main.go:
@@ -43,8 +45,11 @@ func InitApp() (*app.App, error) {
 		return nil, err
 	}
 	interfacesICollection := provideContractCollection()
-	globalSchedulerService := provideGlobalScheduler(config, iCollection, iLogger)
-	engine := provideApiController(iCollection, interfacesICollection, iLogger, globalSchedulerService)
+	globalSchedulerV2 := provideGlobalScheduler(config, iCollection, iLogger)
+	engine, err := provideApiController(config, iCollection, interfacesICollection, iLogger, globalSchedulerV2)
+	if err != nil {
+		return nil, err
+	}
 	server := provideApiServer(config, iLogger, engine)
 	client, err := provideEthClient(config, iLogger)
 	if err != nil {
@@ -58,7 +63,7 @@ func InitApp() (*app.App, error) {
 	if err != nil {
 		return nil, err
 	}
-	contractManager, err := provideContractManager(config, ethereumGateway, ethereumWallet, globalSchedulerService, interfacesICollection, iLogger)
+	contractManager, err := provideContractManager(config, ethereumGateway, ethereumWallet, globalSchedulerV2, interfacesICollection, iLogger)
 	if err != nil {
 		return nil, err
 	}
@@ -67,6 +72,7 @@ func InitApp() (*app.App, error) {
 		MinerController: minerController,
 		Server:          server,
 		ContractManager: contractManager,
+		GlobalScheduler: globalSchedulerV2,
 		Logger:          iLogger,
 		Config:          config,
 	}
@@ -83,7 +89,7 @@ func main() {
 		panic(err)
 	}
 
-	appInstance.Run()
+	appInstance.Run(context.Background())
 }
 
 var networkSet = wire.NewSet(provideTCPServer, provideApiServer)
@@ -92,8 +98,8 @@ var protocolSet = wire.NewSet(provideMinerCollection, provideMinerController, ev
 
 var contractsSet = wire.NewSet(provideGlobalScheduler, provideContractCollection, provideEthClient, provideEthWallet, provideEthGateway, provideContractManager)
 
-func provideGlobalScheduler(cfg *config.Config, miners interfaces.ICollection[miner.MinerScheduler], log interfaces.ILogger) *contractmanager.GlobalSchedulerService {
-	return contractmanager.NewGlobalScheduler(miners, log, cfg.Pool.MinDuration, cfg.Pool.MaxDuration)
+func provideGlobalScheduler(cfg *config.Config, miners interfaces.ICollection[miner.MinerScheduler], log interfaces.ILogger) *contractmanager.GlobalSchedulerV2 {
+	return contractmanager.NewGlobalSchedulerV2(miners, log, cfg.Pool.MinDuration, cfg.Pool.MaxDuration, cfg.Contract.HashrateDiffThreshold)
 }
 
 func provideMinerCollection() interfaces.ICollection[miner.MinerScheduler] {
@@ -110,15 +116,26 @@ func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo inter
 		return nil, err
 	}
 
-	return miner.NewMinerController(destination, repo, l, cfg.Proxy.LogStratum, cfg.Miner.VettingDuration, cfg.Pool.MinDuration, cfg.Pool.MaxDuration), nil
+	return miner.NewMinerController(destination, repo, l, cfg.Proxy.LogStratum, cfg.Miner.VettingDuration, cfg.Pool.MinDuration, cfg.Pool.MaxDuration, cfg.Pool.ConnTimeout, cfg.Miner.SubmitErrLimit), nil
 }
 
-func provideApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerService) *gin.Engine {
-	return api.NewApiController(miners, contracts, log, gs)
+func provideApiController(cfg *config.Config, miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], log interfaces.ILogger, gs *contractmanager.GlobalSchedulerV2) (*gin.Engine, error) {
+	dest, err := lib.ParseDest(cfg.Pool.Address)
+
+	if err != nil {
+		return nil, err
+	}
+
+	publicUrl := cfg.Web.PublicUrl
+	if publicUrl == "" {
+		publicUrl = fmt.Sprintf("http://%s", cfg.Web.Address)
+	}
+
+	return api.NewApiController(miners, contracts, log, gs, cfg.Contract.IsBuyer, cfg.Contract.HashrateDiffThreshold, cfg.Contract.ValidationBufferPeriod, dest, publicUrl, cfg.Contract.CycleDuration), nil
 }
 
 func provideTCPServer(cfg *config.Config, l interfaces.ILogger) *tcpserver.TCPServer {
-	return tcpserver.NewTCPServer(cfg.Proxy.Address, l)
+	return tcpserver.NewTCPServer(cfg.Proxy.Address, cfg.Proxy.ConnectionBufferSize, l)
 }
 
 func provideApiServer(cfg *config.Config, l interfaces.ILogger, controller *gin.Engine) *api.Server {
@@ -130,11 +147,27 @@ func provideEthClient(cfg *config.Config, log interfaces.ILogger) (*ethclient.Cl
 }
 
 func provideEthWallet(cfg *config.Config) (*blockchain.EthereumWallet, error) {
-	return blockchain.NewEthereumWallet(cfg.Contract.Mnemonic, cfg.Contract.AccountIndex, cfg.Contract.WalletPrivateKey, cfg.Contract.WalletAddress)
+	if cfg.Contract.Disable {
+		return nil, nil
+	}
+	if cfg.Contract.WalletAddress != "" && cfg.Contract.WalletPrivateKey != "" {
+		return blockchain.NewEthereumWalletFromPrivateKey(cfg.Contract.WalletAddress, cfg.Contract.WalletPrivateKey)
+	}
+
+	if cfg.Contract.Mnemonic != "" {
+		return blockchain.NewEthereumWalletFromMnemonic(cfg.Contract.Mnemonic, cfg.Contract.AccountIndex)
+	}
+
+	return nil, fmt.Errorf("cannot create eth wallet, provide either mnemonic or private key")
 }
 
 func provideEthGateway(cfg *config.Config, ethClient *ethclient.Client, ethWallet *blockchain.EthereumWallet, log interfaces.ILogger) (*blockchain.EthereumGateway, error) {
-	g, err := blockchain.NewEthereumGateway(ethClient, ethWallet.GetPrivateKey(), cfg.Contract.Address, log)
+	if cfg.Contract.Disable {
+		return nil, nil
+	}
+
+	backoff := lib.NewLinearBackoff(2*time.Second, nil, lib.Of(15*time.Second))
+	g, err := blockchain.NewEthereumGateway(ethClient, ethWallet.GetPrivateKey(), cfg.Contract.Address, log, backoff, cfg.EthNode.LegacyTx)
 	if err != nil {
 		return nil, err
 	}
@@ -152,22 +185,24 @@ func provideContractManager(
 	cfg *config.Config,
 	ethGateway *blockchain.EthereumGateway,
 	ethWallet *blockchain.EthereumWallet,
-	globalScheduler *contractmanager.GlobalSchedulerService,
+	globalScheduler *contractmanager.GlobalSchedulerV2,
 	contracts interfaces.ICollection[contractmanager.IContractModel],
 	log interfaces.ILogger,
 ) (*contractmanager.ContractManager, error) {
+	if cfg.Contract.Disable {
+		return nil, nil
+	}
+
 	destination, err := lib.ParseDest(cfg.Pool.Address)
 	if err != nil {
 		return nil, err
 	}
 
-	return contractmanager.NewContractManager(ethGateway, globalScheduler, log, contracts, ethWallet.GetAccountAddress(), ethWallet.GetPrivateKey(), cfg.Contract.IsBuyer, destination), nil
+	return contractmanager.NewContractManager(ethGateway, globalScheduler, log, contracts, ethWallet.GetAccountAddress(), ethWallet.GetPrivateKey(), cfg.Contract.IsBuyer, cfg.Contract.HashrateDiffThreshold, cfg.Contract.ValidationBufferPeriod, destination, cfg.Contract.CycleDuration), nil
 }
 
 func provideLogger(cfg *config.Config) (interfaces.ILogger, error) {
-	logger, err := lib.NewLogger(cfg.Environment == "production")
-
-	return logger, err
+	return lib.NewLogger(cfg.Environment == "production", cfg.Log.Level, cfg.Log.LogToFile, cfg.Log.Color)
 }
 
 func provideConfig() (*config.Config, error) {

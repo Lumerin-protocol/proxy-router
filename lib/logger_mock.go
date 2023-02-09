@@ -1,7 +1,6 @@
 package lib
 
 import (
-	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"go.uber.org/zap"
 )
 
@@ -27,5 +26,3 @@ func (l *LoggerMock) Sync() error {
 func (l *LoggerMock) Named(name string) *zap.SugaredLogger {
 	return zap.NewNop().Sugar()
 }
-
-var _ interfaces.ILogger = new(LoggerMock)

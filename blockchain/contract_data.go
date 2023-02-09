@@ -2,7 +2,7 @@ package blockchain
 
 import (
 	"github.com/ethereum/go-ethereum/common"
-	"gitlab.com/TitanInd/hashrouter/lib"
+	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
 
 type ContractBlockchainState uint8
@@ -33,10 +33,10 @@ type ContractData struct {
 	Speed                  int64
 	Length                 int64
 	StartingBlockTimestamp int64
-	Dest                   lib.Dest
+	Dest                   interfaces.IDestination
 }
 
-func NewContractData(addr, buyer, seller common.Address, state uint8, price, limit, speed, length, startingBlockTimestamp int64, dest lib.Dest) ContractData {
+func NewContractData(addr, buyer, seller common.Address, state uint8, price, limit, speed, length, startingBlockTimestamp int64, dest interfaces.IDestination) ContractData {
 	return ContractData{
 		addr,
 		buyer,
@@ -48,5 +48,20 @@ func NewContractData(addr, buyer, seller common.Address, state uint8, price, lim
 		length,
 		startingBlockTimestamp,
 		dest,
+	}
+}
+
+func (d *ContractData) Copy() ContractData {
+	return ContractData{
+		Addr:                   d.Addr,
+		Buyer:                  d.Buyer,
+		Seller:                 d.Seller,
+		State:                  d.State,
+		Price:                  d.Price,
+		Limit:                  d.Limit,
+		Speed:                  d.Speed,
+		Length:                 d.Length,
+		StartingBlockTimestamp: d.StartingBlockTimestamp,
+		Dest:                   d.Dest,
 	}
 }
