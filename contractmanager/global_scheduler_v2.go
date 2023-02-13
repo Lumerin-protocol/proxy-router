@@ -2,6 +2,7 @@ package contractmanager
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"time"
 
@@ -146,8 +147,9 @@ func (s *GlobalSchedulerV2) update(contractID string, targetHrGHS int, dest inte
 		s.log.Warnf("allocation wasn't totally accurate, expected(%d), actual(%d)", targetHrGHS, allocCollection.GetAllocatedGHS())
 	}
 
+	s.log.Debugf("allocation for contractID(%s) before adjustment: %s", lib.AddrShort(contractID), allocCollection.String())
 	allocCollection = s.adjustAllocCollection(allocCollection, snap)
-	s.log.Debugf("allocation for contractID(%s) after: %s", lib.AddrShort(contractID), allocCollection.String())
+	s.log.Debugf("allocation for contractID(%s) after adjustment: %s", lib.AddrShort(contractID), allocCollection.String())
 	return s.applyAllocCollection(contractID, allocCollection, dest, onSubmit)
 }
 
@@ -191,7 +193,7 @@ func (s *GlobalSchedulerV2) maxoutExisting(allocItems *data.AllocCollection, toA
 			return toAddGHS
 		}
 
-		availableGHS := int((1 - item.Fraction) * float64(item.TotalGHS))
+		availableGHS := int((1.0 - item.Fraction) * float64(item.TotalGHS))
 		toAddGHSMiner := lib.MinInt(toAddGHS, availableGHS)
 		toAddFraction := float64(toAddGHSMiner) / float64(item.TotalGHS)
 		item.Fraction = item.Fraction + toAddFraction
@@ -401,18 +403,19 @@ func (s *GlobalSchedulerV2) IsDeliveringAdequateHashrate(ctx context.Context, ta
 	})
 
 	hrError := lib.RelativeError(targetHashrateGHS, actualHashrate)
-	s.log.Infof("worker name %s, target hashrate %d, actual hashrate %d, error %.0f%%", dest.Username(), targetHashrateGHS, actualHashrate, hrError*100)
+	hrMsg := fmt.Sprintf("worker %s, target HR %d, actual HR %d, error %.0f%%, threshold(%.0f%%)", dest.Username(), targetHashrateGHS, actualHashrate, hrError*100, hashrateDiffThreshold*100)
 
 	if hrError > hashrateDiffThreshold {
 		if actualHashrate < targetHashrateGHS {
-			s.log.Warnf("contract is underdelivering by %.0f%%, threshold(%.0f%%)", hrError*100, hashrateDiffThreshold*100)
+			s.log.Warnf("contract is underdelivering: %s", hrMsg)
 			return false
 		}
 		// contract overdelivery is fine for buyer
-		s.log.Warnf("contract is overdelivering by %.0f%%, threshold(%.0f%%)", hrError*100, hashrateDiffThreshold*100)
+		s.log.Infof("contract is overdelivering: %s", hrMsg)
+	} else {
+		s.log.Infof("contract is delivering accurately: %s", hrMsg)
 	}
 
-	s.log.Debugf("contract delivering enough hashrate")
 	return true
 }
 
@@ -441,22 +444,31 @@ func (s *GlobalSchedulerV2) tryReduceMiners(coll *data.AllocCollection) *data.Al
 	totalHR := coll.GetAllocatedGHS()
 	newColl := data.NewAllocCollection()
 	for _, item := range coll.SortByAllocatedGHSInv() {
-		if totalHR <= hrCounter+item.TotalGHS {
+		remainingHR := totalHR - hrCounter
+		if lib.AlmostEqual(totalHR, hrCounter, 0.001) {
+			newColl.Add(item.MinerID, &data.AllocItem{
+				MinerID:    item.MinerID,
+				ContractID: item.ContractID,
+				Fraction:   0,
+				TotalGHS:   item.TotalGHS,
+			})
+		} else if remainingHR <= item.TotalGHS {
 			newColl.Add(item.MinerID, &data.AllocItem{
 				MinerID:    item.MinerID,
 				ContractID: item.ContractID,
 				Fraction:   float64(totalHR-hrCounter) / float64(item.TotalGHS),
 				TotalGHS:   item.TotalGHS,
 			})
-			break
+			hrCounter = totalHR
+		} else {
+			hrCounter += item.TotalGHS
+			newColl.Add(item.MinerID, &data.AllocItem{
+				MinerID:    item.MinerID,
+				ContractID: item.ContractID,
+				Fraction:   1,
+				TotalGHS:   item.TotalGHS,
+			})
 		}
-		hrCounter += item.TotalGHS
-		newColl.Add(item.MinerID, &data.AllocItem{
-			MinerID:    item.MinerID,
-			ContractID: item.ContractID,
-			Fraction:   1,
-			TotalGHS:   item.TotalGHS,
-		})
 	}
 
 	if coll.Len()-newColl.Len() > 1 {
