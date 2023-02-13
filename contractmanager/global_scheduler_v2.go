@@ -210,13 +210,18 @@ func (s *GlobalSchedulerV2) addNewMiners(allocItems *data.AllocCollection, freeM
 		return toAddGHS
 	}
 
-	// one of the miners should be partially allocated to account for delta
-	for _, ai := range combination.SortByAllocatedGHS() {
-		if delta <= ai.TotalGHS {
-			fractionToRemove := float64(delta) / float64(ai.TotalGHS)
-			item, _ := combination.Get(ai.GetSourceID())
-			item.Fraction = ai.Fraction - fractionToRemove
-			break
+	overallocatedGHS := -delta
+
+	if overallocatedGHS > 0 {
+		// one of the miners should be partially allocated to account for delta
+		for _, ai := range combination.SortByAllocatedGHS() {
+			if overallocatedGHS <= ai.TotalGHS {
+				fractionToRemove := float64(delta) / float64(ai.TotalGHS)
+				item, _ := combination.Get(ai.GetSourceID())
+				item.Fraction = ai.Fraction - fractionToRemove
+				overallocatedGHS = 0
+				break
+			}
 		}
 	}
 
@@ -231,7 +236,7 @@ func (s *GlobalSchedulerV2) addNewMiners(allocItems *data.AllocCollection, freeM
 		})
 	}
 
-	return 0
+	return -overallocatedGHS
 }
 
 func (s *GlobalSchedulerV2) decreaseHr(snap *data.AllocSnap, hrToDecreaseGHS int, contractID string, dest interfaces.IDestination) (coll *data.AllocCollection, isAccurate bool) {

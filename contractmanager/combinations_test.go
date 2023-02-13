@@ -4,29 +4,14 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-// func TestCombinations(t *testing.T) {
-// 	t.Skip()
-// 	m := MinerList{
-// 		MinerHashrate{MinerID: "1", Hashrate: 100, Percentage: 0.1},
-// 		MinerHashrate{MinerID: "2", Hashrate: 200, Percentage: 0.2},
-// 		MinerHashrate{MinerID: "3", Hashrate: 300, Percentage: 1},
-// 		MinerHashrate{MinerID: "4", Hashrate: 400, Percentage: 0.4},
-// 	}
-// 	subsets := findSubsets(m, 310, 0.1)
-// 	for _, v := range subsets {
-// 		fmt.Printf("%+v\n", v)
-// 	}
-// 	fmt.Println("")
-// 	comb, _ := bestCombination(subsets, 310)
-// 	fmt.Printf("%+v\n", comb)
-// }
-
 func TestCombinationsv2(t *testing.T) {
-	t.Skip()
+	// t.Skip()
 	arr := []int{400, 300, 300, 100, 100, 300, 500, 600, 700, 800, 400, 300, 300, 100, 100, 300, 500, 600, 700, 800, 400}
-	res, delta := ClosestSubsetSum(arr, 2000)
+	res, delta := ClosestSubsetSum(arr, 200000)
 	fmt.Printf("%+v === %d\n", res, delta)
 }
 
@@ -42,9 +27,23 @@ func TestCombinationsv3(t *testing.T) {
 		total += r
 	}
 
-	res, delta := ClosestSubsetSumRGLI(randNums, total/2)
-	fmt.Printf("%+v\n", randNums)
-	fmt.Printf("%+v === %d total %d\n", res, delta, total)
+	target := 50
+	res, delta := ClosestSubsetSumRGLI(randNums, target)
+	fmt.Printf("input: %+v\n", randNums)
+	fmt.Printf("output: %+v\n delta: %d target: %d total: %d\n", res, delta, target, total)
+}
+
+func TestCombinationsv3Overallocation(t *testing.T) {
+	arr := []int{100, 100, 50, 50}
+	_, delta := ClosestSubsetSumRGLI(arr, 180)
+	assert.Equal(t, delta, -20, "should overallocate if possible")
+}
+
+func TestCombinationsv3NotEnoughHR(t *testing.T) {
+	arr := []int{100, 100, 50, 50}
+	res, delta := ClosestSubsetSumRGLI(arr, 350)
+	assert.Equal(t, len(arr), len(res), "should use all elements if not enough hashrate")
+	assert.Equal(t, delta, 50, "should return correct delta if not enough hashrate")
 }
 
 func TestCombinationsv3Larger(t *testing.T) {

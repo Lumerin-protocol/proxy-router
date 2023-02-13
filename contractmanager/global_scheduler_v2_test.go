@@ -131,6 +131,36 @@ func TestIncAllocation(t *testing.T) {
 	}
 }
 
+func TestIncAllocationNotEnoughHR(t *testing.T) {
+	dest, _ := lib.ParseDest("stratum+tcp://user:pwd@host.com:3333")
+	contractID := "test-contract"
+	contractGHS := 100000
+
+	miners := CreateMockMinerCollection(contractID, dest)
+	expectedGHS := 0
+	miners.Range(func(item miner.MinerScheduler) bool {
+		expectedGHS += item.GetHashRateGHS()
+		return true
+	})
+
+	globalScheduler := NewGlobalSchedulerV2(miners, &lib.LoggerMock{}, 0, 0, 0)
+
+	err := globalScheduler.update(contractID, contractGHS, dest, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	snapshot2 := globalScheduler.GetMinerSnapshot()
+	list, ok := snapshot2.Contract(contractID)
+	if !ok {
+		t.Fatalf("contract should show up in the snapshot")
+	}
+
+	if list.GetAllocatedGHS() != expectedGHS {
+		t.Fatalf("total hashrate (%d) should be %d", list.GetAllocatedGHS(), expectedGHS)
+	}
+}
+
 func TestIncAllocationAddMiner(t *testing.T) {
 	dest, _ := lib.ParseDest("stratum+tcp://user:pwd@host.com:3333")
 	contractID := "test-contract"
@@ -209,18 +239,21 @@ func TestDecrAllocationRemoveMiner(t *testing.T) {
 	miner1, _ := miners.Load("1")
 	miner2, _ := miners.Load("2")
 
-	destSplit1, ok1 := miner1.GetDestSplit().GetByID(contractID)
-	destSplit2, ok2 := miner2.GetDestSplit().GetByID(contractID)
+	splitItem1, ok1 := miner1.GetDestSplit().GetByID(contractID)
+	splitItem2, ok2 := miner2.GetDestSplit().GetByID(contractID)
 
 	if ok1 {
-		fmt.Println(destSplit1)
+		fmt.Println(splitItem1)
 		t.Fatal("should remove miner which was the least allocated for the contract")
 	}
 	if !ok2 {
 		t.Fatal("should not remove second miner")
 	}
-	if destSplit2.Fraction != 0.3 {
+	if splitItem2.Fraction != 0.3 {
 		t.Fatal("should not alter allocation of the second miner")
+	}
+	if !miner1.GetDestSplit().IsEmpty() {
+		t.Fatal("least allocated miner split should be empty")
 	}
 }
 
