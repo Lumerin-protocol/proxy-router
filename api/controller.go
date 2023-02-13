@@ -214,7 +214,11 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 			ctx.Status(http.StatusNotFound)
 			return
 		}
-		contract.SetDest(dest)
+		if contract.IsBuyer() {
+			ctx.Status(http.StatusConflict)
+			return
+		}
+		contract.(*contractmanager.BTCHashrateContractSeller).SetDest(dest)
 	})
 
 	return r

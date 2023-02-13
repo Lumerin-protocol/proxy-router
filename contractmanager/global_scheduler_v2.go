@@ -400,7 +400,7 @@ func (s *GlobalSchedulerV2) IsDeliveringAdequateHashrate(ctx context.Context, ta
 		return true
 	})
 
-	hrError := lib.RelativeError(actualHashrate, targetHashrateGHS)
+	hrError := lib.RelativeError(targetHashrateGHS, actualHashrate)
 	s.log.Infof("worker name %s, target hashrate %d, actual hashrate %d, error %.0f%%", dest.Username(), targetHashrateGHS, actualHashrate, hrError*100)
 
 	if hrError > hashrateDiffThreshold {

@@ -10,7 +10,6 @@ import (
 
 type IContractModel interface {
 	Run(ctx context.Context) error
-	Stop(ctx context.Context)
 	GetBuyerAddress() string
 	GetSellerAddress() string
 	GetID() string
@@ -24,5 +23,5 @@ type IContractModel interface {
 	GetStatusInternal() string
 	GetDest() interfaces.IDestination
 	IsValidWallet(walletAddress common.Address) bool
-	SetDest(dest interfaces.IDestination)
+	IsBuyer() bool
 }
