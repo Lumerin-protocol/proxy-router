@@ -288,7 +288,7 @@ func (g *EthereumGateway) setContractCloseOut(contractAddress string, closeoutTy
 	time.Sleep(30 * time.Second)
 	g.log.Infof("contract %s closed, tx: %s", contractAddress, tx.Hash().Hex())
 
-	g.log.Debugf("ending closeout, %v; %v; %v", contractAddress, closeoutType)
+	g.log.Debugf("ending closeout, contract address(%s), closeout type(%d)", contractAddress, closeoutType)
 	return nil
 }
 

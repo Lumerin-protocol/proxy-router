@@ -202,7 +202,7 @@ func (c *BTCHashrateContractSeller) FulfillAndClose(ctx context.Context) {
 	if err != nil {
 		c.log.Errorf("error during contract closeout: %s", err)
 	} else {
-		c.log.Infof("contract(%s) closed: %s", c.GetID(), err)
+		c.log.Infof("contract(%s) closed", c.GetID())
 	}
 }
 

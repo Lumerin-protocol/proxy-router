@@ -85,7 +85,7 @@ func (p *StratumV1PoolConnPool) SetDest(ctx context.Context, dest interfaces.IDe
 	if err != nil {
 		return err
 	}
-	p.log.Infof("dialed dest %s", dest)
+	p.log.Debugf("dialed dest %s", dest)
 
 	_ = c.(*net.TCPConn).SetLinger(60)
 
@@ -121,7 +121,7 @@ func (p *StratumV1PoolConnPool) SetDest(ctx context.Context, dest interfaces.IDe
 	p.setConn(conn)
 
 	p.store(dest.String(), conn)
-	p.log.Infof("dest was set %s", dest)
+	p.log.Debugf("dest was set %s", dest)
 	return nil
 }
 
