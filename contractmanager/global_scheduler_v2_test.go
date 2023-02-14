@@ -202,23 +202,28 @@ func TestDecrAllocation(t *testing.T) {
 	miners := CreateMockMinerCollection(contractID, dest)
 	globalScheduler := NewGlobalSchedulerV2(miners, &lib.LoggerMock{}, 0, 0, 0)
 
+	miner1, _ := miners.Load("1")
+	miner2, _ := miners.Load("2")
+	t.Log(miner1.GetDestSplit().GetByID(contractID))
+	t.Log(miner2.GetDestSplit().GetByID(contractID))
+
 	err := globalScheduler.update(contractID, newGHS, dest, nil)
 	if err != nil {
 		t.Fatal(err)
 		return
 	}
 
-	miner1, _ := miners.Load("1")
-	miner2, _ := miners.Load("2")
+	miner1, _ = miners.Load("1")
+	miner2, _ = miners.Load("2")
 
 	destSplit1, _ := miner1.GetDestSplit().GetByID(contractID)
 	destSplit2, _ := miner2.GetDestSplit().GetByID(contractID)
 
-	if destSplit1.Fraction != 0.2 {
-		t.Fatal("should use miner which was the least allocated for the contract")
+	if destSplit1.Fraction != 0 {
+		t.Fatal("should totally remove 1st miner from allocation")
 	}
-	if destSplit2.Fraction != 0.3 {
-		t.Fatal("should not alter allocation of the second miner")
+	if destSplit2.Fraction != 0.4 {
+		t.Fatal("should reduce 2nd miner allocation")
 	}
 }
 
@@ -316,12 +321,47 @@ func TestTryReduceMiners(t *testing.T) {
 	})
 
 	newCol := gs.tryReduceMiners(col)
-	require.Equal(t, 1, newCol.Len(), "expected miners to be reduced")
+	require.Equal(t, 2, newCol.GetZeroAllocatedCount(), "expected miners to be reduced")
+	require.Equal(t, 9000, newCol.GetAllocatedGHS(), "collection hashrate should not change")
 
-	item := newCol.Iter()[0]
+	item, _ := newCol.Get("miner-1")
 	require.Equal(t, 0.9, item.Fraction, "incorrect fraction")
 	require.Equal(t, 10000, item.TotalGHS, "incorrect totalGHS")
 	require.Equal(t, "contract", item.ContractID, "incorrect contract ID")
+}
+
+func TestTryReduceMiners2(t *testing.T) {
+	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 3, 5, 0.1)
+	col := snap.NewAllocCollection()
+	col.Add("miner-1", &snap.AllocItem{
+		MinerID:    "miner-1",
+		ContractID: "contract",
+		Fraction:   0.33,
+		TotalGHS:   94936,
+	})
+	col.Add("miner-2", &snap.AllocItem{
+		MinerID:    "miner-2",
+		ContractID: "contract",
+		Fraction:   0.32,
+		TotalGHS:   116675,
+	})
+	col.Add("miner-3", &snap.AllocItem{
+		MinerID:    "miner-3",
+		ContractID: "contract",
+		Fraction:   0.33,
+		TotalGHS:   96000,
+	})
+	col.Add("miner-4", &snap.AllocItem{
+		MinerID:    "miner-4",
+		ContractID: "contract",
+		Fraction:   1.0,
+		TotalGHS:   103970,
+	})
+
+	newCol := gs.tryReduceMiners(col)
+
+	require.Equal(t, 2, newCol.GetZeroAllocatedCount(), "expected miners to be reduced")
+	require.Equal(t, newCol.GetAllocatedGHS(), col.GetAllocatedGHS(), "total hashrate is different")
 }
 
 func TestTryReduceMinersNotReduced(t *testing.T) {
@@ -330,7 +370,7 @@ func TestTryReduceMinersNotReduced(t *testing.T) {
 	col.Add("miner-1", &snap.AllocItem{
 		MinerID:    "miner-1",
 		ContractID: "contract",
-		Fraction:   0.5,
+		Fraction:   0.9,
 		TotalGHS:   10000,
 	})
 	col.Add("miner-2", &snap.AllocItem{

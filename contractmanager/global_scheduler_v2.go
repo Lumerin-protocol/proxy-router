@@ -216,7 +216,7 @@ func (s *GlobalSchedulerV2) addNewMiners(allocItems *data.AllocCollection, freeM
 		// one of the miners should be partially allocated to account for delta
 		for _, ai := range combination.SortByAllocatedGHS() {
 			if overallocatedGHS <= ai.TotalGHS {
-				fractionToRemove := float64(delta) / float64(ai.TotalGHS)
+				fractionToRemove := float64(overallocatedGHS) / float64(ai.TotalGHS)
 				item, _ := combination.Get(ai.GetSourceID())
 				item.Fraction = ai.Fraction - fractionToRemove
 				overallocatedGHS = 0
@@ -445,29 +445,30 @@ func (s *GlobalSchedulerV2) adjustAllocCollection(coll *data.AllocCollection, sn
 }
 
 func (s *GlobalSchedulerV2) tryReduceMiners(coll *data.AllocCollection) *data.AllocCollection {
-	hrCounter := 0
+	allocatedHR := 0
 	totalHR := coll.GetAllocatedGHS()
-	newColl := data.NewAllocCollection()
+	reducedColl := data.NewAllocCollection()
+
 	for _, item := range coll.SortByAllocatedGHSInv() {
-		remainingHR := totalHR - hrCounter
-		if lib.AlmostEqual(totalHR, hrCounter, 0.001) {
-			newColl.Add(item.MinerID, &data.AllocItem{
+		remainingHR := totalHR - allocatedHR
+		if lib.AlmostEqual(totalHR, allocatedHR, 0.001) {
+			reducedColl.Add(item.MinerID, &data.AllocItem{
 				MinerID:    item.MinerID,
 				ContractID: item.ContractID,
 				Fraction:   0,
 				TotalGHS:   item.TotalGHS,
 			})
 		} else if remainingHR <= item.TotalGHS {
-			newColl.Add(item.MinerID, &data.AllocItem{
+			reducedColl.Add(item.MinerID, &data.AllocItem{
 				MinerID:    item.MinerID,
 				ContractID: item.ContractID,
-				Fraction:   float64(totalHR-hrCounter) / float64(item.TotalGHS),
+				Fraction:   float64(remainingHR) / float64(item.TotalGHS),
 				TotalGHS:   item.TotalGHS,
 			})
-			hrCounter = totalHR
+			allocatedHR = totalHR
 		} else {
-			hrCounter += item.TotalGHS
-			newColl.Add(item.MinerID, &data.AllocItem{
+			allocatedHR += item.TotalGHS
+			reducedColl.Add(item.MinerID, &data.AllocItem{
 				MinerID:    item.MinerID,
 				ContractID: item.ContractID,
 				Fraction:   1,
@@ -476,9 +477,11 @@ func (s *GlobalSchedulerV2) tryReduceMiners(coll *data.AllocCollection) *data.Al
 		}
 	}
 
-	if coll.Len()-newColl.Len() > 1 {
-		s.log.Debugf("redistributed successfully: \n===before\n %s \n===after %s", coll.String(), newColl.String())
-		coll = newColl
+	// only apply if we removed at least one miner from allocation
+	// otherwise avoid changing allocation
+	if reducedColl.GetZeroAllocatedCount() > 0 {
+		s.log.Debugf("redistributed successfully: \n===before\n %s \n===after %s", coll.String(), reducedColl.String())
+		coll = reducedColl
 	}
 
 	return coll

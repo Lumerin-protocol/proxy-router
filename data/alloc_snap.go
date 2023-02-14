@@ -85,6 +85,17 @@ func (m AllocCollection) SortByAllocatedGHSInv() []*AllocItem {
 	return items
 }
 
+// GetZeroAllocatedCount returns number of miners that have fraction set to 0 (which means disable)
+func (m AllocCollection) GetZeroAllocatedCount() int {
+	counter := 0
+	for _, item := range m.items {
+		if item.Fraction == 0 {
+			counter++
+		}
+	}
+	return counter
+}
+
 func (m AllocCollection) String() string {
 	b := new(bytes.Buffer)
 
