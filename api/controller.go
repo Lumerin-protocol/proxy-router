@@ -275,6 +275,7 @@ func (c *ApiController) GetMiners() *MinersResponse {
 		BusyMiners:    BusyMiners,
 		FreeMiners:    FreeMiners,
 		VettingMiners: VettingMiners,
+		FaultyMiners:  FaultyMiners,
 
 		TotalHashrateGHS:     TotalHashrateGHS,
 		AvailableHashrateGHS: TotalHashrateGHS - UsedHashrateGHS,
