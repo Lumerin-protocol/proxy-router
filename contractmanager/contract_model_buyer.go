@@ -31,18 +31,23 @@ type BTCBuyerHashrateContract struct {
 	// state
 	state                 ContractState // internal state of the contract (within hashrouter)
 	fullfillmentStartedAt time.Time
+
+	globalSubmitTracker interfaces.SubmitTracker
+	submitTimeout       time.Duration
 }
 
 func NewBuyerContract(
 	data blockchain.ContractData,
 	blockchain interfaces.IBlockchainGateway,
 	globalScheduler interfaces.IGlobalScheduler,
+	globalSubmitTracker interfaces.SubmitTracker,
 	log interfaces.ILogger,
 	hr *hashrate.Hashrate,
 	hashrateDiffThreshold float64,
 	validationBufferPeriod time.Duration,
 	defaultDestination interfaces.IDestination,
 	cycleDuration time.Duration,
+	submitTimeout time.Duration,
 ) *BTCBuyerHashrateContract {
 
 	if hr == nil {
@@ -64,7 +69,10 @@ func NewBuyerContract(
 		state:                  convertBlockchainStatusToApplicationStatus(data.State),
 		defaultDestination:     defaultDestination,
 		cycleDuration:          cycleDuration,
+		globalSubmitTracker:    globalSubmitTracker,
+		submitTimeout:          submitTimeout,
 	}
+
 	return contract
 }
 
@@ -115,6 +123,13 @@ func (c *BTCBuyerHashrateContract) FulfillBuyerContract(ctx context.Context) err
 		if c.state == ContractStateAvailable {
 			c.log.Info("contract switched to an available state")
 			return nil
+		}
+
+		lastSubmitTime, ok := c.globalSubmitTracker.GetLastSubmitTime(c.GetDest().Username())
+		if ok {
+			if time.Since(lastSubmitTime) > c.submitTimeout {
+				return nil
+			}
 		}
 
 		if !c.globalScheduler.IsDeliveringAdequateHashrate(ctx, c.GetHashrateGHS(), c.GetDest(), c.hashrateDiffThreshold) {

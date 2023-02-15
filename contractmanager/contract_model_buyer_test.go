@@ -30,7 +30,7 @@ func TestCloseoutOnContractEnd(t *testing.T) {
 	globalScheduler.IsDeliveringAdequateHashrateRes = true
 
 	defaultDest := lib.MustParseDest("stratum+tcp://default:dest@pool.io:1234")
-	contract := NewBuyerContract(data, ethGateway, globalScheduler, log, hashrate.NewHashrate(), 0.1, 0, defaultDest, cycleDuration)
+	contract := NewBuyerContract(data, ethGateway, globalScheduler, NewSubmitTracker(), log, hashrate.NewHashrate(), 0.1, 0, defaultDest, cycleDuration, 7*time.Minute)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -72,7 +72,7 @@ func TestContractCloseoutOnEvent(t *testing.T) {
 	globalScheduler.IsDeliveringAdequateHashrateRes = true
 
 	defaultDest := lib.MustParseDest("stratum+tcp://default:dest@pool.io:1234")
-	contract := NewBuyerContract(data, ethGateway, globalScheduler, log, hashrate.NewHashrate(), 0.1, 0, defaultDest, cycleDuration)
+	contract := NewBuyerContract(data, ethGateway, globalScheduler, NewSubmitTracker(), log, hashrate.NewHashrate(), 0.1, 0, defaultDest, cycleDuration, 7*time.Minute)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -118,7 +118,7 @@ func TestBuyerEditContractEvent(t *testing.T) {
 	globalScheduler.IsDeliveringAdequateHashrateRes = true
 
 	defaultDest := lib.MustParseDest("stratum+tcp://default:dest@pool.io:1234")
-	contract := NewBuyerContract(data, ethGateway, globalScheduler, log, hashrate.NewHashrate(), 0.1, 0, defaultDest, cycleDuration)
+	contract := NewBuyerContract(data, ethGateway, globalScheduler, NewSubmitTracker(), log, hashrate.NewHashrate(), 0.1, 0, defaultDest, cycleDuration, 10*time.Minute)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -160,12 +160,14 @@ func TestValidationBufferPeriod(t *testing.T) {
 		data,
 		ethGateway,
 		globalScheduler,
+		NewSubmitTracker(),
 		log,
 		hashrate.NewHashrate(),
 		0.1,
 		validationBufferPeriod,
 		lib.MustParseDest("stratum+tcp://default:dest@pool.io:1234"),
 		cycleDuration,
+		10*time.Minute,
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -198,12 +200,14 @@ func TestBuyerContractIsValid(t *testing.T) {
 		data,
 		blockchain.NewEthereumGatewayMock(),
 		NewGlobalSchedulerMock(),
+		NewSubmitTracker(),
 		lib.NewTestLogger(),
 		hashrate.NewHashrate(),
 		0.1,
 		0,
 		lib.MustParseDest("stratum+tcp://default:dest@pool.io:1234"),
 		15*time.Minute,
+		10*time.Minute,
 	)
 
 	contract.data.State = blockchain.ContractBlockchainStateAvailable
