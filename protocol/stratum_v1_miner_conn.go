@@ -17,6 +17,7 @@ type StratumV1Miner struct {
 	conn        net.Conn
 	reader      *bufio.Reader
 	connectedAt time.Time
+	connTimeout time.Duration
 
 	isWriting bool        // used to temporarily pause writing messages to miner
 	mu        *sync.Mutex // guards isWriting
@@ -28,7 +29,7 @@ type StratumV1Miner struct {
 	logStratum    bool
 }
 
-func NewStratumV1MinerConn(conn net.Conn, log interfaces.ILogger, extraNonce *stratumv1_message.MiningSubscribeResult, logStratum bool, connectedAt time.Time) *StratumV1Miner {
+func NewStratumV1MinerConn(conn net.Conn, log interfaces.ILogger, extraNonce *stratumv1_message.MiningSubscribeResult, logStratum bool, connectedAt time.Time, connTimeout time.Duration) *StratumV1Miner {
 	mu := new(sync.Mutex)
 	return &StratumV1Miner{
 		conn:          conn,
@@ -40,6 +41,7 @@ func NewStratumV1MinerConn(conn net.Conn, log interfaces.ILogger, extraNonce *st
 		extraNonceMsg: extraNonce,
 		log:           log,
 		logStratum:    logStratum,
+		connTimeout:   connTimeout,
 	}
 }
 
@@ -64,17 +66,16 @@ func (m *StratumV1Miner) write(ctx context.Context, msg stratumv1_message.Mining
 
 func (s *StratumV1Miner) Read(ctx context.Context) (stratumv1_message.MiningMessageGeneric, error) {
 	for {
+		err := s.conn.SetDeadline(time.Now().Add(s.connTimeout))
+		if err != nil {
+			return nil, err
+		}
+
 		line, isPrefix, err := s.reader.ReadLine()
 
 		if isPrefix {
 			return nil, fmt.Errorf("line is too long")
 		}
-
-		if err != nil {
-			return nil, err
-		}
-
-		err = s.conn.SetReadDeadline(time.Now().Add(5 * time.Minute))
 
 		if err != nil {
 			return nil, err

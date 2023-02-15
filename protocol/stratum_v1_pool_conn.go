@@ -243,7 +243,7 @@ func (m *StratumV1PoolConn) Write(ctx context.Context, msg stratumv1_message.Min
 	}
 
 	m.SetDeadline(time.Now().Add(m.connTimeout))
-	return m.conn.SetWriteDeadline(time.Now().Add(m.connTimeout)) // consider removing this, as it is not closing connection after deadline, it only errors the following writes
+	return nil
 }
 
 // Returns current extranonce values
