@@ -24,6 +24,8 @@ type MinerController struct {
 
 	submitErrLimit int
 
+	globalSubmitTracker interfaces.SubmitTracker
+
 	log        interfaces.ILogger
 	logStratum bool
 }
@@ -35,17 +37,19 @@ func NewMinerController(
 	logStratum bool,
 	minerVettingPeriod, poolMinDuration, poolMaxDuration, poolConnTimeout time.Duration,
 	submitErrLimit int,
+	globalSubmitTracker interfaces.SubmitTracker,
 ) *MinerController {
 	return &MinerController{
-		defaultDest:        defaultDest,
-		log:                log,
-		collection:         collection,
-		logStratum:         logStratum,
-		minerVettingPeriod: minerVettingPeriod,
-		poolMinDuration:    poolMinDuration,
-		poolMaxDuration:    poolMaxDuration,
-		poolConnTimeout:    poolConnTimeout,
-		submitErrLimit:     submitErrLimit,
+		defaultDest:         defaultDest,
+		log:                 log,
+		collection:          collection,
+		logStratum:          logStratum,
+		minerVettingPeriod:  minerVettingPeriod,
+		poolMinDuration:     poolMinDuration,
+		poolMaxDuration:     poolMaxDuration,
+		poolConnTimeout:     poolConnTimeout,
+		submitErrLimit:      submitErrLimit,
+		globalSubmitTracker: globalSubmitTracker,
 	}
 }
 
@@ -81,7 +85,7 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	msg := stratumv1_message.NewMiningSubscribeResult(extranonce, size)
 	miner := protocol.NewStratumV1MinerConn(incomingConn, logMiner, msg, p.logStratum, time.Now(), p.poolConnTimeout)
 	validator := hashrate.NewHashrateV2(hashrate.NewSma(p.poolMinDuration + p.poolMaxDuration))
-	minerModel := protocol.NewStratumV1MinerModel(poolPool, miner, validator, p.submitErrLimit, logMiner)
+	minerModel := protocol.NewStratumV1MinerModel(poolPool, miner, validator, p.submitErrLimit, p.globalSubmitTracker, logMiner)
 
 	destSplit := NewDestSplit()
 
