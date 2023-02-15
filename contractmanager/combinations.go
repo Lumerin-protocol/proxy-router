@@ -16,13 +16,16 @@ func FindCombinations(list *snap.AllocCollection, targetHashrate int) (*snap.All
 
 func FindClosestMinerCombination(list *snap.AllocCollection, target int) (lst *snap.AllocCollection, delta int) {
 	keys := make([]string, 0)
-	for k := range list.GetItems() {
-		keys = append(keys, k)
+	for k, item := range list.GetItems() {
+		// exclude miners with zero hashrate
+		if item.TotalGHS > 0 {
+			keys = append(keys, k)
+		}
 	}
 
 	sort.Strings(keys)
 
-	hashrates := make([]int, len(list.GetItems()))
+	hashrates := make([]int, len(keys))
 	for i, key := range keys {
 		hashrates[i] = list.GetItems()[key].AllocatedGHS()
 	}

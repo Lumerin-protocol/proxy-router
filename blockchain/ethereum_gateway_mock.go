@@ -12,11 +12,11 @@ import (
 )
 
 type EthereumGatewayMock struct {
-	ContractEventsChan        chan types.Log
-	ReadContractRes           interface{}
-	ReadContractErr           error
-	SetContractCloseOutErr    error
-	SetContractCloseOutCalled bool
+	ContractEventsChan             chan types.Log
+	ReadContractRes                interface{}
+	ReadContractErr                error
+	SetContractCloseOutErr         error
+	SetContractCloseOutCalledTimes int
 }
 
 func NewEthereumGatewayMock() *EthereumGatewayMock {
@@ -38,7 +38,7 @@ func (m *EthereumGatewayMock) ReadContracts(addr common.Address, isBuyer bool) (
 }
 
 func (m *EthereumGatewayMock) SetContractCloseOut(contractAddress string, closeoutType int64) error {
-	m.SetContractCloseOutCalled = true
+	m.SetContractCloseOutCalledTimes++
 	return m.SetContractCloseOutErr
 }
 

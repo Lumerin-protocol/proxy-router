@@ -71,7 +71,7 @@ upcoming dest %s
 `, m.minerModel.GetID(), destinations.String(), m.minerModel.GetDest(), splitItem.Dest)
 
 			if !lib.IsEqualDest(m.minerModel.GetDest(), splitItem.Dest) {
-				m.log.Debugf("changing dest to %s", m.minerModel.GetDest())
+				m.log.Debugf("changing dest to %s", splitItem.Dest)
 
 				err := m.ChangeDest(context.TODO(), splitItem.Dest, splitItem.ID, splitItem.OnSubmit)
 				if err != nil {

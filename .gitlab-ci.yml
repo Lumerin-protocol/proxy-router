@@ -19,7 +19,15 @@ variables: # keep this list alphabetically sorted
 stages:
   - test
   - deploy
+  - e2e-test
   - release
+
+e2e-test:
+  stage: e2e-test
+  trigger:
+    project: proxy/router-test
+    branch: $CI_COMMIT_BRANCH
+    strategy: depend
 
 lint:
   inherit:

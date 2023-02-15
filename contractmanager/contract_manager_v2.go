@@ -151,10 +151,14 @@ func (m *ContractManager) handleContract(ctx context.Context, contractAddr commo
 		}
 
 		var contract IContractModel
+		contractData := data.(blockchain.ContractData)
+
 		if m.isBuyer {
-			contract = NewBuyerContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.globalSubmitTracker, m.log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration, m.submitTimeout)
+			log := m.log.Named("BUYER  " + lib.AddrShort(contractData.Addr.String()))
+			contract = NewBuyerContract(contractData, m.blockchain, m.globalScheduler, m.globalSubmitTracker, log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration, m.submitTimeout)
 		} else {
-			contract = NewContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration)
+			log := m.log.Named("SELLER " + lib.AddrShort(contractData.Addr.String()))
+			contract = NewContract(contractData, m.blockchain, m.globalScheduler, log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration)
 		}
 
 		if !contract.IsValidWallet(m.walletAddr) {
@@ -162,12 +166,14 @@ func (m *ContractManager) handleContract(ctx context.Context, contractAddr commo
 			return nil
 		}
 
-		m.log.Infof("handling contract \n%+v", data)
-
 		go func() {
 			err := contract.Run(ctx)
-			m.log.Warn("contract error: ", err)
+			if err != nil {
+				m.log.Warn("contract error: ", err)
+			}
+			m.contracts.Delete(contract.GetID())
 		}()
+
 		m.contracts.Store(contract)
 	}
 

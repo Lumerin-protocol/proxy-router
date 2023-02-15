@@ -13,10 +13,10 @@ func GetRandomAddr() common.Address {
 }
 
 func AddrShort(addr string) string {
-	length := 5
+	ox, prefix, suffix := 2, 3, 3
 	l := len(addr)
-	if l >= length {
-		return fmt.Sprintf("0x..%s", addr[l-length:l])
+	if l >= (prefix + suffix + 2) {
+		return fmt.Sprintf("0x%s..%s", addr[ox:ox+prefix], addr[l-suffix:l])
 	}
 	return addr
 }

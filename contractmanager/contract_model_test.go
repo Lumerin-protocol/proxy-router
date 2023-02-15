@@ -56,7 +56,7 @@ var subscribeToContractEventsCalled chan struct{}
 var blockchainGateway *testBlockchainGateway
 var globalScheduler *GlobalSchedulerV2
 var log *lib.LoggerMock
-var contract *BTCHashrateContract
+var contract *BTCHashrateContractSeller
 var testContext context.Context
 
 func Setup() {
@@ -79,7 +79,7 @@ func Setup() {
 	log = &lib.LoggerMock{}
 
 	globalScheduler := NewGlobalSchedulerV2(miner.NewMinerCollection(), log, 0, 0, 0)
-	contract = &BTCHashrateContract{
+	contract = &BTCHashrateContractSeller{
 		log:             log,
 		blockchain:      blockchainGateway,
 		globalScheduler: globalScheduler,

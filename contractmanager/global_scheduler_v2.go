@@ -391,12 +391,16 @@ func (s *GlobalSchedulerV2) IsDeliveringAdequateHashrate(ctx context.Context, ta
 
 	s.minerCollection.Range(func(miner miner.MinerScheduler) bool {
 		if miner.GetWorkerName() == dest.Username() {
-			actualHashrate += miner.GetHashRateGHS()
+			hr, ok := miner.GetHashRate().GetHashrateAvgGHSCustom(time.Duration(0))
+			if !ok {
+				panic("custom hashrate not found")
+			}
+			actualHashrate += hr
 		}
 		return true
 	})
 
-	hrError := lib.RelativeError(actualHashrate, targetHashrateGHS)
+	hrError := lib.RelativeError(targetHashrateGHS, actualHashrate)
 	s.log.Infof("worker name %s, target hashrate %d, actual hashrate %d, error %.0f%%", dest.Username(), targetHashrateGHS, actualHashrate, hrError*100)
 
 	if hrError > hashrateDiffThreshold {
@@ -464,7 +468,7 @@ func (s *GlobalSchedulerV2) tryReduceMiners(coll *data.AllocCollection) *data.Al
 }
 
 func (s *GlobalSchedulerV2) tryAdjustRedZones(coll *data.AllocCollection, snap *data.AllocSnap) {
-	s.log.Debugf("before red zone adjustment: \n %s", coll.String())
+	s.log.Debugf("before red zone adjustment: %s", coll.String())
 
 	for _, item := range coll.SortByAllocatedGHS() {
 		if lib.AlmostEqual(item.Fraction, 0, 0.01) {
@@ -487,7 +491,7 @@ func (s *GlobalSchedulerV2) tryAdjustRedZones(coll *data.AllocCollection, snap *
 			s.log.Warnf("couldn't adjust red zone for minerID(%s), contractID(%s), fraction(%.2f)", item.MinerID, item.ContractID, item.Fraction)
 		}
 	}
-	s.log.Debugf("after red zone adjustment: \n %s", coll.String())
+	s.log.Debugf("after red zone adjustment: %s", coll.String())
 }
 
 func (s *GlobalSchedulerV2) adjustLeftRedZone(item *data.AllocItem, coll *data.AllocCollection) bool {
