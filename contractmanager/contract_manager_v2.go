@@ -17,7 +17,7 @@ type ContractManager struct {
 	blockchain          interfaces.IBlockchainGateway
 	log                 interfaces.ILogger
 	globalScheduler     interfaces.IGlobalScheduler
-	globalSubmitTracker interfaces.SubmitTracker
+	globalSubmitTracker interfaces.GlobalHashrate
 
 	// configuration parameters
 	isBuyer                bool
@@ -37,7 +37,7 @@ type ContractManager struct {
 func NewContractManager(
 	blockchain interfaces.IBlockchainGateway,
 	globalScheduler interfaces.IGlobalScheduler,
-	globalSubmitTracker interfaces.SubmitTracker,
+	globalSubmitTracker interfaces.GlobalHashrate,
 	log interfaces.ILogger,
 	contracts interfaces.ICollection[IContractModel],
 	walletAddr interop.BlockchainAddress,
@@ -155,7 +155,7 @@ func (m *ContractManager) handleContract(ctx context.Context, contractAddr commo
 
 		if m.isBuyer {
 			log := m.log.Named("BUYER  " + lib.AddrShort(contractData.Addr.String()))
-			contract = NewBuyerContract(contractData, m.blockchain, m.globalScheduler, m.globalSubmitTracker, log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration, m.submitTimeout)
+			contract = NewBuyerContract(contractData, m.blockchain, m.globalSubmitTracker, log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration, m.submitTimeout)
 		} else {
 			log := m.log.Named("SELLER " + lib.AddrShort(contractData.Addr.String()))
 			contract = NewContract(contractData, m.blockchain, m.globalScheduler, log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration)

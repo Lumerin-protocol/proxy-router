@@ -24,7 +24,7 @@ type MinerController struct {
 
 	submitErrLimit int
 
-	globalSubmitTracker interfaces.SubmitTracker
+	globalSubmitTracker interfaces.GlobalHashrate
 
 	log        interfaces.ILogger
 	logStratum bool
@@ -37,7 +37,7 @@ func NewMinerController(
 	logStratum bool,
 	minerVettingPeriod, poolMinDuration, poolMaxDuration, poolConnTimeout time.Duration,
 	submitErrLimit int,
-	globalSubmitTracker interfaces.SubmitTracker,
+	globalSubmitTracker interfaces.GlobalHashrate,
 ) *MinerController {
 	return &MinerController{
 		defaultDest:         defaultDest,

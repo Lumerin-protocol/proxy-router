@@ -17,10 +17,9 @@ import (
 // BTCBuyerHashrateContract represents the collection of mining resources (collection of miners / parts of the miners) that work to fulfill single contract and monotoring tools of their performance
 type BTCBuyerHashrateContract struct {
 	// dependencies
-	blockchain      interfaces.IBlockchainGateway
-	globalScheduler interfaces.IGlobalScheduler
-	hashrate        *hashrate.Hashrate // the counter of single contract
-	log             interfaces.ILogger
+	blockchain interfaces.IBlockchainGateway
+	hashrate   *hashrate.Hashrate // the counter of single contract
+	log        interfaces.ILogger
 
 	// config
 	data                   blockchain.ContractData
@@ -33,15 +32,14 @@ type BTCBuyerHashrateContract struct {
 	state                 ContractState // internal state of the contract (within hashrouter)
 	fullfillmentStartedAt time.Time
 
-	globalSubmitTracker interfaces.SubmitTracker
-	submitTimeout       time.Duration
+	globalHashrate interfaces.GlobalHashrate
+	submitTimeout  time.Duration
 }
 
 func NewBuyerContract(
 	data blockchain.ContractData,
 	blockchain interfaces.IBlockchainGateway,
-	globalScheduler interfaces.IGlobalScheduler,
-	globalSubmitTracker interfaces.SubmitTracker,
+	globalSubmitTracker interfaces.GlobalHashrate,
 	log interfaces.ILogger,
 	hr *hashrate.Hashrate,
 	hashrateDiffThreshold float64,
@@ -66,11 +64,10 @@ func NewBuyerContract(
 		log:                    log,
 		hashrateDiffThreshold:  hashrateDiffThreshold,
 		validationBufferPeriod: validationBufferPeriod,
-		globalScheduler:        globalScheduler,
 		state:                  convertBlockchainStatusToApplicationStatus(data.State),
 		defaultDestination:     defaultDestination,
 		cycleDuration:          cycleDuration,
-		globalSubmitTracker:    globalSubmitTracker,
+		globalHashrate:         globalSubmitTracker,
 		submitTimeout:          submitTimeout,
 	}
 
@@ -109,7 +106,7 @@ func (c *BTCBuyerHashrateContract) FulfillBuyerContract(ctx context.Context) err
 	ticker := time.NewTicker(c.cycleDuration)
 	defer ticker.Stop()
 
-	c.globalSubmitTracker.Reset(c.GetDest().Username())
+	c.globalHashrate.Reset(c.GetDest().Username())
 
 	// cycle checks incoming hashrate every c.cycleDuration seconds
 	for {
@@ -128,18 +125,20 @@ func (c *BTCBuyerHashrateContract) FulfillBuyerContract(ctx context.Context) err
 			return nil
 		}
 
-		lastSubmitTime, ok := c.globalSubmitTracker.GetLastSubmitTime(c.GetDest().Username())
+		lastSubmitTime, ok := c.globalHashrate.GetLastSubmitTime(c.GetDest().Username())
 		if ok {
 			if time.Since(lastSubmitTime) > c.submitTimeout {
+				c.log.Infof("contract last submit timeout (%s)", c.submitTimeout)
 				return nil
 			}
 		}
 
 		if !c.isDeliveringAccurateHashrate() {
-			c.log.Infof("contract is not delivering adequate hashrate")
 			if !c.IsValidationBufferPeriod() {
+				c.log.Infof("contract stopped due to delivering unaccurate hashrate after validation buffer period")
 				return nil
 			}
+			c.log.Infof("contract is not delivering accurate hashrate")
 		}
 
 		c.log.Infof("contract is running for %s / %s (internal/blockchain)", time.Since(c.fullfillmentStartedAt), time.Since(*c.GetStartTime()))
@@ -168,7 +167,7 @@ func (c *BTCBuyerHashrateContract) IsValidWallet(walletAddress common.Address) b
 
 func (c *BTCBuyerHashrateContract) isDeliveringAccurateHashrate() bool {
 	// ignoring ok cause actualHashrate will be zero then
-	actualHashrate, _ := c.globalSubmitTracker.GetHashRateGHS(c.GetDest().Username())
+	actualHashrate, _ := c.globalHashrate.GetHashRateGHS(c.GetDest().Username())
 	targetHashrateGHS := c.GetHashrateGHS()
 	hashrateDiffThreshold := 0.1
 
@@ -206,6 +205,10 @@ func (c *BTCBuyerHashrateContract) eventsController(ctx context.Context, e types
 		if err != nil {
 			return err
 		}
+
+		// setting new fulfilment start time because of validation buffer period that should
+		// be applied after workername change
+		c.fullfillmentStartedAt = time.Now()
 
 		c.log.Info("updated contract destination", c.GetDest())
 
@@ -277,7 +280,16 @@ func (c *BTCBuyerHashrateContract) GetID() string {
 }
 
 func (c *BTCBuyerHashrateContract) GetDeliveredHashrate() interfaces.Hashrate {
-	return c.hashrate
+	var hr interfaces.Hashrate
+	c.globalHashrate.Range(func(m any) bool {
+		workerHr := m.(WorkerHashrateModel)
+		if workerHr.ID == c.GetDest().Username() {
+			hr = workerHr.hr
+			return false
+		}
+		return true
+	})
+	return hr
 }
 
 func (c *BTCBuyerHashrateContract) GetState() ContractState {

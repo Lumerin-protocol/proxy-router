@@ -2,7 +2,7 @@ package interfaces
 
 import "time"
 
-type SubmitTracker interface {
+type GlobalHashrate interface {
 	OnSubmit(workerName string, diff int64)
 	Reset(workerName string)
 	GetHashRateGHS(workerName string) (hrGHS int, ok bool)

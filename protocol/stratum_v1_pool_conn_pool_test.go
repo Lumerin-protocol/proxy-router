@@ -58,7 +58,7 @@ func TestGetDestAfterConnectionClosed(t *testing.T) {
 }
 
 func TestTimeout(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
 	defer cancel()
 
 	go func() {
@@ -71,5 +71,5 @@ func TestTimeout(t *testing.T) {
 	}()
 
 	// cancel()
-	<-time.After(3 * time.Second)
+	<-time.After(500 * time.Millisecond)
 }

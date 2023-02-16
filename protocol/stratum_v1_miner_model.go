@@ -26,7 +26,7 @@ type stratumV1MinerModel struct {
 	onSubmit      interfaces.IHashrate
 	onSubmitMutex sync.RWMutex // guards onSubmit
 
-	globalSubmitTracker interfaces.SubmitTracker
+	globalHashrate interfaces.GlobalHashrate
 
 	configureMsgReq *stratumv1_message.MiningConfigure
 
@@ -46,24 +46,24 @@ type stratumV1MinerModel struct {
 	log interfaces.ILogger
 }
 
-func NewStratumV1MinerModel(poolPool StratumV1DestConn, minerConn StratumV1SourceConn, validator *hashrate.Hashrate, submitErrLimit int, globalSubmitTracker interfaces.SubmitTracker, log interfaces.ILogger) *stratumV1MinerModel {
+func NewStratumV1MinerModel(poolPool StratumV1DestConn, minerConn StratumV1SourceConn, validator *hashrate.Hashrate, submitErrLimit int, globalSubmitTracker interfaces.GlobalHashrate, log interfaces.ILogger) *stratumV1MinerModel {
 	if submitErrLimit == 0 {
 		submitErrLimit = DEFAULT_SUBMIT_ERR_COUNT_LIMIT
 	}
 
 	return &stratumV1MinerModel{
-		poolConn:            poolPool,
-		minerConn:           minerConn,
-		validator:           validator,
-		unansweredMsg:       sync.WaitGroup{},
-		pauseMinerReadCh:    make(chan any),
-		unpauseMinerReadCh:  make(chan any),
-		pausePoolReadCh:     make(chan any),
-		unpausePoolReadCh:   make(chan any),
-		submitErrCount:      atomic.Int32{},
-		submitErrLimit:      submitErrLimit,
-		isFaulty:            false,
-		globalSubmitTracker: globalSubmitTracker,
+		poolConn:           poolPool,
+		minerConn:          minerConn,
+		validator:          validator,
+		unansweredMsg:      sync.WaitGroup{},
+		pauseMinerReadCh:   make(chan any),
+		unpauseMinerReadCh: make(chan any),
+		pausePoolReadCh:    make(chan any),
+		unpausePoolReadCh:  make(chan any),
+		submitErrCount:     atomic.Int32{},
+		submitErrLimit:     submitErrLimit,
+		isFaulty:           false,
+		globalHashrate:     globalSubmitTracker,
 
 		log: log,
 	}
@@ -237,7 +237,7 @@ func (s *stratumV1MinerModel) minerInterceptor(msg stratumv1_message.MiningMessa
 			}
 			s.submitErrCount.Store(0)
 			s.validator.OnSubmit(s.difficulty)
-			s.globalSubmitTracker.OnSubmit(s.workerName, s.difficulty)
+			s.globalHashrate.OnSubmit(s.workerName, s.difficulty)
 
 			s.onSubmitMutex.RLock()
 			defer s.onSubmitMutex.RUnlock()

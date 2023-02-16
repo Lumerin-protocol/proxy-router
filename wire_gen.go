@@ -40,14 +40,14 @@ func InitApp() (*app.App, error) {
 	}
 	tcpServer := provideTCPServer(config, iLogger)
 	iCollection := provideMinerCollection()
-	submitTracker := provideGlobalSubmitTracker()
-	minerController, err := provideMinerController(config, iLogger, iCollection, submitTracker)
+	globalHashrate := provideGlobalHashrate()
+	minerController, err := provideMinerController(config, iLogger, iCollection, globalHashrate)
 	if err != nil {
 		return nil, err
 	}
 	interfacesICollection := provideContractCollection()
 	globalSchedulerV2 := provideGlobalScheduler(config, iCollection, iLogger)
-	engine, err := provideApiController(config, iCollection, interfacesICollection, submitTracker, iLogger, globalSchedulerV2)
+	engine, err := provideApiController(config, iCollection, interfacesICollection, globalHashrate, iLogger, globalSchedulerV2)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func InitApp() (*app.App, error) {
 	if err != nil {
 		return nil, err
 	}
-	contractManager, err := provideContractManager(config, ethereumGateway, ethereumWallet, globalSchedulerV2, submitTracker, interfacesICollection, iLogger)
+	contractManager, err := provideContractManager(config, ethereumGateway, ethereumWallet, globalSchedulerV2, globalHashrate, interfacesICollection, iLogger)
 	if err != nil {
 		return nil, err
 	}
@@ -111,11 +111,11 @@ func provideContractCollection() interfaces.ICollection[contractmanager.IContrac
 	return contractmanager.NewContractCollection()
 }
 
-func provideGlobalSubmitTracker() interfaces.SubmitTracker {
+func provideGlobalHashrate() interfaces.GlobalHashrate {
 	return contractmanager.NewGlobalHashrate()
 }
 
-func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo interfaces.ICollection[miner.MinerScheduler], globalSubmitTracker interfaces.SubmitTracker) (*miner.MinerController, error) {
+func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo interfaces.ICollection[miner.MinerScheduler], globalSubmitTracker interfaces.GlobalHashrate) (*miner.MinerController, error) {
 	destination, err := lib.ParseDest(cfg.Pool.Address)
 	if err != nil {
 		return nil, err
@@ -124,7 +124,7 @@ func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo inter
 	return miner.NewMinerController(destination, repo, l, cfg.Proxy.LogStratum, cfg.Miner.VettingDuration, cfg.Pool.MinDuration, cfg.Pool.MaxDuration, cfg.Pool.ConnTimeout, cfg.Miner.SubmitErrLimit, globalSubmitTracker), nil
 }
 
-func provideApiController(cfg *config.Config, miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], globalSubmitTracker interfaces.SubmitTracker, log interfaces.ILogger, gs *contractmanager.GlobalSchedulerV2) (*gin.Engine, error) {
+func provideApiController(cfg *config.Config, miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], globalSubmitTracker interfaces.GlobalHashrate, log interfaces.ILogger, gs *contractmanager.GlobalSchedulerV2) (*gin.Engine, error) {
 	dest, err := lib.ParseDest(cfg.Pool.Address)
 
 	if err != nil {
@@ -191,7 +191,7 @@ func provideContractManager(
 	ethGateway *blockchain.EthereumGateway,
 	ethWallet *blockchain.EthereumWallet,
 	globalScheduler *contractmanager.GlobalSchedulerV2,
-	globalSubmitTracker interfaces.SubmitTracker,
+	globalSubmitTracker interfaces.GlobalHashrate,
 	contracts interfaces.ICollection[contractmanager.IContractModel],
 	log interfaces.ILogger,
 ) (*contractmanager.ContractManager, error) {

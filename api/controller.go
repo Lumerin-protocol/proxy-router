@@ -28,7 +28,7 @@ type Resource struct {
 type ApiController struct {
 	miners              interfaces.ICollection[miner.MinerScheduler]
 	contracts           interfaces.ICollection[contractmanager.IContractModel]
-	globalSubmitTracker interfaces.SubmitTracker
+	globalSubmitTracker interfaces.GlobalHashrate
 	defaultDestination  interfaces.IDestination
 
 	publicUrl *url.URL
@@ -109,13 +109,13 @@ type HistoryItem struct {
 	TimestampString string
 }
 
-type GlobalSubmitTrackerItem struct {
+type GlobalHashrateItem struct {
 	WorkerName     string
 	HRGHS          int
 	LastSubmitTime time.Time
 }
 
-func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], globalSubmitTracker interfaces.SubmitTracker, log interfaces.ILogger, gs *contractmanager.GlobalSchedulerV2, isBuyer bool, hashrateDiffThreshold float64, validationBufferPeriod time.Duration, defaultDestination interfaces.IDestination, apiPublicUrl string, contractCycleDuration time.Duration) *gin.Engine {
+func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], globalSubmitTracker interfaces.GlobalHashrate, log interfaces.ILogger, gs *contractmanager.GlobalSchedulerV2, isBuyer bool, hashrateDiffThreshold float64, validationBufferPeriod time.Duration, defaultDestination interfaces.IDestination, apiPublicUrl string, contractCycleDuration time.Duration) *gin.Engine {
 	publicUrl, _ := url.Parse(apiPublicUrl)
 
 	controller := ApiController{
@@ -161,7 +161,7 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 	})
 
 	r.GET("/buyer-last-submits", func(ctx *gin.Context) {
-		data := controller.GetGlobalSubmitTracker()
+		data := controller.GetGlobalHashrate()
 		ctx.JSON(http.StatusOK, data)
 	})
 
@@ -449,12 +449,12 @@ func (c *ApiController) GetContract(ID string) (*Contract, bool) {
 	return item, true
 }
 
-func (c *ApiController) GetGlobalSubmitTracker() []GlobalSubmitTrackerItem {
-	res := []GlobalSubmitTrackerItem{}
+func (c *ApiController) GetGlobalHashrate() []GlobalHashrateItem {
+	res := []GlobalHashrateItem{}
 
 	c.globalSubmitTracker.Range(func(m any) bool {
 		item := m.(*contractmanager.WorkerHashrateModel)
-		res = append(res, GlobalSubmitTrackerItem{
+		res = append(res, GlobalHashrateItem{
 			WorkerName:     item.ID,
 			HRGHS:          item.GetHashRateGHS(),
 			LastSubmitTime: time.Now(),

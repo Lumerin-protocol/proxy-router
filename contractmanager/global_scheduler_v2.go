@@ -2,7 +2,6 @@ package contractmanager
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"time"
 
@@ -391,37 +390,6 @@ func (s *GlobalSchedulerV2) fulfillTask(ctx context.Context, tsk task) {
 		s.log.Error(err)
 	}
 	tsk.errCh <- err
-}
-
-func (s *GlobalSchedulerV2) IsDeliveringAdequateHashrate(ctx context.Context, targetHashrateGHS int, dest interfaces.IDestination, hashrateDiffThreshold float64) bool {
-	var actualHashrate int
-
-	s.minerCollection.Range(func(miner miner.MinerScheduler) bool {
-		if miner.GetWorkerName() == dest.Username() {
-			hr, ok := miner.GetHashRate().GetHashrateAvgGHSCustom(time.Duration(0))
-			if !ok {
-				panic("custom hashrate not found")
-			}
-			actualHashrate += hr
-		}
-		return true
-	})
-
-	hrError := lib.RelativeError(targetHashrateGHS, actualHashrate)
-	hrMsg := fmt.Sprintf("worker %s, target HR %d, actual HR %d, error %.0f%%, threshold(%.0f%%)", dest.Username(), targetHashrateGHS, actualHashrate, hrError*100, hashrateDiffThreshold*100)
-
-	if hrError > hashrateDiffThreshold {
-		if actualHashrate < targetHashrateGHS {
-			s.log.Warnf("contract is underdelivering: %s", hrMsg)
-			return false
-		}
-		// contract overdelivery is fine for buyer
-		s.log.Infof("contract is overdelivering: %s", hrMsg)
-	} else {
-		s.log.Infof("contract is delivering accurately: %s", hrMsg)
-	}
-
-	return true
 }
 
 // adjustAllocCollection adjusts percentage for each allocation item so it wont fall in red zone

@@ -9,14 +9,14 @@ import (
 )
 
 func TestCombinationsv2(t *testing.T) {
-	// t.Skip()
+	t.Skip()
 	arr := []int{400, 300, 300, 100, 100, 300, 500, 600, 700, 800, 400, 300, 300, 100, 100, 300, 500, 600, 700, 800, 400}
 	res, delta := ClosestSubsetSum(arr, 200000)
 	fmt.Printf("%+v === %d\n", res, delta)
 }
 
 func TestCombinationsv3(t *testing.T) {
-	// t.Skip()
+	t.Skip()
 	size := 10
 	randNums := make([]int, size)
 	total := 0

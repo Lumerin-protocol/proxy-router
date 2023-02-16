@@ -13,9 +13,9 @@ import (
 func contractManagerSetup() (*data.Collection[IContractModel], *ContractManager) {
 	Setup()
 	contractCollection := NewContractCollection()
-	submitTracker := NewGlobalHashrate()
+	globalHashrate := NewGlobalHashrate()
 	return contractCollection,
-		NewContractManager(blockchainGateway, globalScheduler, submitTracker, log, contractCollection, interop.AddressStringToSlice(""), "", false, 0, 1*time.Second, lib.Dest{}, 30*time.Second, 7*time.Minute)
+		NewContractManager(blockchainGateway, globalScheduler, globalHashrate, log, contractCollection, interop.AddressStringToSlice(""), "", false, 0, 1*time.Second, lib.Dest{}, 30*time.Second, 7*time.Minute)
 }
 
 func TestContractShouldExist(t *testing.T) {

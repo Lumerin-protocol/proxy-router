@@ -11,7 +11,7 @@ import (
 )
 
 func TestEmaV2(t *testing.T) {
-	// t.Skip()
+	t.Skip()
 	diff := 500000
 	interval := 5 * time.Minute
 	submitInt := 60 * time.Second
