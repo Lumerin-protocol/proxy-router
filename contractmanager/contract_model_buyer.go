@@ -11,6 +11,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/constants"
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/lib"
 )
 
 // BTCBuyerHashrateContract represents the collection of mining resources (collection of miners / parts of the miners) that work to fulfill single contract and monotoring tools of their performance
@@ -108,6 +109,8 @@ func (c *BTCBuyerHashrateContract) FulfillBuyerContract(ctx context.Context) err
 	ticker := time.NewTicker(c.cycleDuration)
 	defer ticker.Stop()
 
+	c.globalSubmitTracker.Reset(c.GetDest().Username())
+
 	// cycle checks incoming hashrate every c.cycleDuration seconds
 	for {
 		if c.state == ContractStatePurchased && !c.IsValidationBufferPeriod() {
@@ -132,7 +135,7 @@ func (c *BTCBuyerHashrateContract) FulfillBuyerContract(ctx context.Context) err
 			}
 		}
 
-		if !c.globalScheduler.IsDeliveringAdequateHashrate(ctx, c.GetHashrateGHS(), c.GetDest(), c.hashrateDiffThreshold) {
+		if !c.isDeliveringAccurateHashrate() {
 			c.log.Infof("contract is not delivering adequate hashrate")
 			if !c.IsValidationBufferPeriod() {
 				return nil
@@ -161,6 +164,29 @@ func (c *BTCBuyerHashrateContract) IsValidWallet(walletAddress common.Address) b
 	// because buyer is not unset after contract closed it is important that only running contracts
 	// are picked up by buyer (buyer field may change on every purchase unlike seller field)
 	return c.data.Buyer == walletAddress && c.data.State == blockchain.ContractBlockchainStateRunning
+}
+
+func (c *BTCBuyerHashrateContract) isDeliveringAccurateHashrate() bool {
+	// ignoring ok cause actualHashrate will be zero then
+	actualHashrate, _ := c.globalSubmitTracker.GetHashRateGHS(c.GetDest().Username())
+	targetHashrateGHS := c.GetHashrateGHS()
+	hashrateDiffThreshold := 0.1
+
+	hrError := lib.RelativeError(targetHashrateGHS, actualHashrate)
+	hrMsg := fmt.Sprintf("worker %s, target HR %d, actual HR %d, error %.0f%%, threshold(%.0f%%)", c.GetDest().Username(), targetHashrateGHS, actualHashrate, hrError*100, hashrateDiffThreshold*100)
+
+	if hrError > hashrateDiffThreshold {
+		if actualHashrate < targetHashrateGHS {
+			c.log.Warnf("contract is underdelivering: %s", hrMsg)
+			return false
+		}
+		// contract overdelivery is fine for buyer
+		c.log.Infof("contract is overdelivering: %s", hrMsg)
+	} else {
+		c.log.Infof("contract is delivering accurately: %s", hrMsg)
+	}
+
+	return true
 }
 
 func (c *BTCBuyerHashrateContract) getCloseoutType() constants.CloseoutType {

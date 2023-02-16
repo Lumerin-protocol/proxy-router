@@ -393,6 +393,37 @@ func TestTryReduceMinersNotReduced(t *testing.T) {
 	}
 }
 
+func TestTryAdjustRedZones(t *testing.T) {
+	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1)
+	col := snap.NewAllocCollection()
+	col.Add("miner-1", &snap.AllocItem{MinerID: "miner-1", ContractID: "contract", Fraction: 0.0, TotalGHS: 54030})
+	col.Add("miner-2", &snap.AllocItem{MinerID: "miner-2", ContractID: "contract", Fraction: 1.0, TotalGHS: 79941})
+	col.Add("miner-3", &snap.AllocItem{MinerID: "miner-3", ContractID: "contract", Fraction: 1.0, TotalGHS: 73335})
+	col.Add("miner-4", &snap.AllocItem{MinerID: "miner-4", ContractID: "contract", Fraction: 0.58, TotalGHS: 89324})
+	col.Add("miner-5", &snap.AllocItem{MinerID: "miner-5", ContractID: "contract", Fraction: 0.0, TotalGHS: 80706})
+
+	gs.tryAdjustRedZones(col, nil)
+
+	for _, item := range col.GetItems() {
+		require.Equal(t, 0, gs.checkRedZones(item.Fraction), "shouldn't go into red zone")
+	}
+	//todo check if fractions did not change
+}
+
+func TestTryAdjustRedZones2(t *testing.T) {
+	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1)
+	col := snap.NewAllocCollection()
+	col.Add("miner-1", &snap.AllocItem{MinerID: "miner-1", ContractID: "contract", Fraction: 0.46, TotalGHS: 138347})
+	col.Add("miner-2", &snap.AllocItem{MinerID: "miner-2", ContractID: "contract", Fraction: 1.0, TotalGHS: 142011})
+
+	gs.tryAdjustRedZones(col, nil)
+
+	for _, item := range col.GetItems() {
+		require.Equal(t, 0, gs.checkRedZones(item.Fraction), "shouldn't go into red zone")
+	}
+	//todo check if fractions did not change
+}
+
 func TestTryAdjustRedZonesLeft(t *testing.T) {
 	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1)
 	col := snap.NewAllocCollection()

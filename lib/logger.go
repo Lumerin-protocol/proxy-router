@@ -42,7 +42,7 @@ func NewLogger(isProduction bool, level string, logToFile bool, color bool) (*Lo
 	if isProduction {
 		log, err = newProductionLogger(level)
 	} else {
-		log, err = NewDevelopmentLogger(level, logToFile, color, true)
+		log, err = NewDevelopmentLogger(level, logToFile, color, false)
 	}
 	if err != nil {
 		return nil, err

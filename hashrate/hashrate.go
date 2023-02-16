@@ -8,12 +8,13 @@ import (
 )
 
 type Hashrate struct {
-	emaBase     Counter
-	ema5m       Counter
-	ema30m      Counter
-	ema1h       Counter
-	custom      map[time.Duration]Counter
-	totalHashes atomic.Uint64
+	emaBase        Counter
+	ema5m          Counter
+	ema30m         Counter
+	ema1h          Counter
+	custom         map[time.Duration]Counter
+	totalWork      atomic.Uint64
+	lastSubmitTime atomic.Int64 // stores last submit time in unix seconds
 }
 
 func NewHashrate(durations ...time.Duration) *Hashrate {
@@ -56,15 +57,25 @@ func (h *Hashrate) OnSubmit(diff int64) {
 	h.ema5m.Add(diffFloat)
 	h.ema30m.Add(diffFloat)
 	h.ema1h.Add(diffFloat)
-	h.totalHashes.Add(uint64(diff))
+
+	h.totalWork.Add(uint64(diff))
+	h.setLastSubmitTime(time.Now())
 
 	for _, item := range h.custom {
 		item.Add(diffFloat)
 	}
 }
 
-func (h *Hashrate) GetTotalHashes() uint64 {
-	return h.totalHashes.Load()
+func (h *Hashrate) GetTotalWork() uint64 {
+	return h.totalWork.Load()
+}
+
+func (h *Hashrate) GetLastSubmitTime() time.Time {
+	return time.Unix(h.lastSubmitTime.Load(), 0)
+}
+
+func (h *Hashrate) setLastSubmitTime(t time.Time) {
+	h.lastSubmitTime.Store(t.Unix())
 }
 
 func (h *Hashrate) GetHashrateGHS() int {

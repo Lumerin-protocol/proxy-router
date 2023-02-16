@@ -237,7 +237,7 @@ func (s *stratumV1MinerModel) minerInterceptor(msg stratumv1_message.MiningMessa
 			}
 			s.submitErrCount.Store(0)
 			s.validator.OnSubmit(s.difficulty)
-			s.globalSubmitTracker.OnSubmit(s.workerName)
+			s.globalSubmitTracker.OnSubmit(s.workerName, s.difficulty)
 
 			s.onSubmitMutex.RLock()
 			defer s.onSubmitMutex.RUnlock()

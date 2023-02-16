@@ -13,7 +13,7 @@ import (
 func contractManagerSetup() (*data.Collection[IContractModel], *ContractManager) {
 	Setup()
 	contractCollection := NewContractCollection()
-	submitTracker := NewSubmitTracker()
+	submitTracker := NewGlobalHashrate()
 	return contractCollection,
 		NewContractManager(blockchainGateway, globalScheduler, submitTracker, log, contractCollection, interop.AddressStringToSlice(""), "", false, 0, 1*time.Second, lib.Dest{}, 30*time.Second, 7*time.Minute)
 }

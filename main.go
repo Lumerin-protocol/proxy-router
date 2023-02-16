@@ -66,7 +66,7 @@ func provideContractCollection() interfaces.ICollection[contractmanager.IContrac
 }
 
 func provideGlobalSubmitTracker() interfaces.SubmitTracker {
-	return contractmanager.NewSubmitTracker()
+	return contractmanager.NewGlobalHashrate()
 }
 
 func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo interfaces.ICollection[miner.MinerScheduler], globalSubmitTracker interfaces.SubmitTracker) (*miner.MinerController, error) {

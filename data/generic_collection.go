@@ -36,6 +36,11 @@ func (p *Collection[T]) Store(item T) {
 	p.items.Store(item.GetID(), item)
 }
 
+func (p *Collection[T]) LoadOrStore(item T) (actual T, loaded bool) {
+	act, load := p.items.LoadOrStore(item.GetID(), item)
+	return act.(T), load
+}
+
 func (p *Collection[T]) Delete(ID string) {
 	p.items.Delete(ID)
 }

@@ -491,11 +491,11 @@ func (s *GlobalSchedulerV2) tryAdjustRedZones(coll *data.AllocCollection, snap *
 	s.log.Debugf("before red zone adjustment: %s", coll.String())
 
 	for _, item := range coll.SortByAllocatedGHS() {
-		if lib.AlmostEqual(item.Fraction, 0, 0.01) {
+		if item.Fraction < 0.001 {
 			item.Fraction = 0
 			continue
 		}
-		if lib.AlmostEqual(item.Fraction, 1, 0.01) {
+		if item.Fraction > 0.999 {
 			item.Fraction = 1
 			continue
 		}
