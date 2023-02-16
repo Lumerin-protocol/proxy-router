@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/assert"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
-	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/lib"
 )
 
@@ -34,7 +33,7 @@ func TestCloseoutOnContractEnd(t *testing.T) {
 	ethGateway := blockchain.NewEthereumGatewayMock()
 
 	defaultDest := lib.MustParseDest("stratum+tcp://default:dest@pool.io:1234")
-	contract := NewBuyerContract(data, ethGateway, globalHR, log, hashrate.NewHashrate(), 0.1, 0, defaultDest, cycleDuration, 7*time.Minute)
+	contract := NewBuyerContract(data, ethGateway, globalHR, log, 0.1, 0, defaultDest, cycleDuration, 7*time.Minute)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -80,7 +79,7 @@ func TestContractCloseoutOnEvent(t *testing.T) {
 	})
 
 	defaultDest := lib.MustParseDest("stratum+tcp://default:dest@pool.io:1234")
-	contract := NewBuyerContract(data, ethGateway, globalHR, log, hashrate.NewHashrate(), 0.1, 0, defaultDest, cycleDuration, 7*time.Minute)
+	contract := NewBuyerContract(data, ethGateway, globalHR, log, 0.1, 0, defaultDest, cycleDuration, 7*time.Minute)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -126,7 +125,7 @@ func TestBuyerEditContractEvent(t *testing.T) {
 	})
 
 	defaultDest := lib.MustParseDest("stratum+tcp://default:dest@pool.io:1234")
-	contract := NewBuyerContract(data, ethGateway, globalHR, log, hashrate.NewHashrate(), 0.1, 5*time.Minute, defaultDest, cycleDuration, 10*time.Minute)
+	contract := NewBuyerContract(data, ethGateway, globalHR, log, 0.1, 5*time.Minute, defaultDest, cycleDuration, 10*time.Minute)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -173,7 +172,7 @@ func TestValidationBufferPeriod(t *testing.T) {
 		ethGateway,
 		NewGlobalHashrate(),
 		log,
-		hashrate.NewHashrate(),
+
 		0.1,
 		validationBufferPeriod,
 		lib.MustParseDest("stratum+tcp://default:dest@pool.io:1234"),
@@ -212,7 +211,7 @@ func TestBuyerContractIsValid(t *testing.T) {
 		blockchain.NewEthereumGatewayMock(),
 		NewGlobalHashrate(),
 		lib.NewTestLogger(),
-		hashrate.NewHashrate(),
+
 		0.1,
 		0,
 		lib.MustParseDest("stratum+tcp://default:dest@pool.io:1234"),

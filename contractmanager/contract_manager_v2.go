@@ -155,7 +155,7 @@ func (m *ContractManager) handleContract(ctx context.Context, contractAddr commo
 
 		if m.isBuyer {
 			log := m.log.Named("BUYER  " + lib.AddrShort(contractData.Addr.String()))
-			contract = NewBuyerContract(contractData, m.blockchain, m.globalSubmitTracker, log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration, m.submitTimeout)
+			contract = NewBuyerContract(contractData, m.blockchain, m.globalSubmitTracker, log, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration, m.submitTimeout)
 		} else {
 			log := m.log.Named("SELLER " + lib.AddrShort(contractData.Addr.String()))
 			contract = NewContract(contractData, m.blockchain, m.globalScheduler, log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration)

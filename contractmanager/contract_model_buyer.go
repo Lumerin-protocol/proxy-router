@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
 	"gitlab.com/TitanInd/hashrouter/constants"
-	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
 )
@@ -17,9 +16,9 @@ import (
 // BTCBuyerHashrateContract represents the collection of mining resources (collection of miners / parts of the miners) that work to fulfill single contract and monotoring tools of their performance
 type BTCBuyerHashrateContract struct {
 	// dependencies
-	blockchain interfaces.IBlockchainGateway
-	hashrate   *hashrate.Hashrate // the counter of single contract
-	log        interfaces.ILogger
+	blockchain     interfaces.IBlockchainGateway
+	globalHashrate interfaces.GlobalHashrate
+	log            interfaces.ILogger
 
 	// config
 	data                   blockchain.ContractData
@@ -27,13 +26,11 @@ type BTCBuyerHashrateContract struct {
 	validationBufferPeriod time.Duration
 	cycleDuration          time.Duration // duration of the contract cycle that verifies the hashrate
 	defaultDestination     interfaces.IDestination
+	submitTimeout          time.Duration
 
 	// state
 	state                 ContractState // internal state of the contract (within hashrouter)
 	fullfillmentStartedAt time.Time
-
-	globalHashrate interfaces.GlobalHashrate
-	submitTimeout  time.Duration
 }
 
 func NewBuyerContract(
@@ -41,18 +38,12 @@ func NewBuyerContract(
 	blockchain interfaces.IBlockchainGateway,
 	globalSubmitTracker interfaces.GlobalHashrate,
 	log interfaces.ILogger,
-	hr *hashrate.Hashrate,
 	hashrateDiffThreshold float64,
 	validationBufferPeriod time.Duration,
 	defaultDestination interfaces.IDestination,
 	cycleDuration time.Duration,
 	submitTimeout time.Duration,
 ) *BTCBuyerHashrateContract {
-
-	if hr == nil {
-		hr = hashrate.NewHashrateV2(hashrate.NewSma(9 * time.Minute))
-	}
-
 	if cycleDuration == 0 {
 		cycleDuration = CYCLE_DURATION_DEFAULT
 	}
@@ -60,7 +51,6 @@ func NewBuyerContract(
 	contract := &BTCBuyerHashrateContract{
 		blockchain:             blockchain,
 		data:                   data,
-		hashrate:               hr,
 		log:                    log,
 		hashrateDiffThreshold:  hashrateDiffThreshold,
 		validationBufferPeriod: validationBufferPeriod,
@@ -169,12 +159,11 @@ func (c *BTCBuyerHashrateContract) isDeliveringAccurateHashrate() bool {
 	// ignoring ok cause actualHashrate will be zero then
 	actualHashrate, _ := c.globalHashrate.GetHashRateGHS(c.GetDest().Username())
 	targetHashrateGHS := c.GetHashrateGHS()
-	hashrateDiffThreshold := 0.1
 
 	hrError := lib.RelativeError(targetHashrateGHS, actualHashrate)
-	hrMsg := fmt.Sprintf("worker %s, target HR %d, actual HR %d, error %.0f%%, threshold(%.0f%%)", c.GetDest().Username(), targetHashrateGHS, actualHashrate, hrError*100, hashrateDiffThreshold*100)
+	hrMsg := fmt.Sprintf("worker %s, target HR %d, actual HR %d, error %.0f%%, threshold(%.0f%%)", c.GetDest().Username(), targetHashrateGHS, actualHashrate, hrError*100, c.hashrateDiffThreshold*100)
 
-	if hrError > hashrateDiffThreshold {
+	if hrError > c.hashrateDiffThreshold {
 		if actualHashrate < targetHashrateGHS {
 			c.log.Warnf("contract is underdelivering: %s", hrMsg)
 			return false
