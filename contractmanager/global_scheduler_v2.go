@@ -395,20 +395,11 @@ func (s *GlobalSchedulerV2) fulfillTask(ctx context.Context, tsk task) {
 // adjustAllocCollection adjusts percentage for each allocation item so it wont fall in red zone
 func (s *GlobalSchedulerV2) adjustAllocCollection(coll *data.AllocCollection, snap *data.AllocSnap) *data.AllocCollection {
 	// check if miner amount can be reduced, by allocating more percentage for existing miners
-	// if difference is 1 it is likely a deliberate split to avoid red zones
 	coll = s.tryReduceMiners(coll)
 
 	// check red zones
 	s.tryAdjustRedZones(coll, snap)
 
-	// TODO
-	// 0. check is alloc collection violates constraints
-
-	// 1. check if split items could be merged together with constraints
-
-	// 2. apply constraints by adding one more miner or reducing existing miners
-
-	// 3. attempt to drop everything and allocate from scratch and compare (but try to avoid unnecessary reallocations)
 	return coll
 }
 
@@ -448,7 +439,6 @@ func (s *GlobalSchedulerV2) tryReduceMiners(coll *data.AllocCollection) *data.Al
 	// only apply if we removed at least one miner from allocation
 	// otherwise avoid changing allocation
 	if reducedColl.GetZeroAllocatedCount() > 0 {
-		s.log.Debugf("redistributed successfully: \n===before\n %s \n===after %s", coll.String(), reducedColl.String())
 		coll = reducedColl
 	}
 
@@ -456,8 +446,6 @@ func (s *GlobalSchedulerV2) tryReduceMiners(coll *data.AllocCollection) *data.Al
 }
 
 func (s *GlobalSchedulerV2) tryAdjustRedZones(coll *data.AllocCollection, snap *data.AllocSnap) {
-	s.log.Debugf("before red zone adjustment: %s", coll.String())
-
 	for _, item := range coll.SortByAllocatedGHS() {
 		if item.Fraction < 0.001 {
 			item.Fraction = 0
@@ -479,7 +467,6 @@ func (s *GlobalSchedulerV2) tryAdjustRedZones(coll *data.AllocCollection, snap *
 			s.log.Warnf("couldn't adjust red zone for minerID(%s), contractID(%s), fraction(%.2f)", item.MinerID, item.ContractID, item.Fraction)
 		}
 	}
-	s.log.Debugf("after red zone adjustment: %s", coll.String())
 }
 
 func (s *GlobalSchedulerV2) adjustLeftRedZone(item *data.AllocItem, coll *data.AllocCollection) bool {

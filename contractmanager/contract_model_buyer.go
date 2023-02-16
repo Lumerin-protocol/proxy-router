@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
 	"gitlab.com/TitanInd/hashrouter/constants"
+	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
 )
@@ -156,12 +157,21 @@ func (c *BTCBuyerHashrateContract) IsValidWallet(walletAddress common.Address) b
 }
 
 func (c *BTCBuyerHashrateContract) isDeliveringAccurateHashrate() bool {
+	workerName := c.GetDest().Username()
 	// ignoring ok cause actualHashrate will be zero then
-	actualHashrate, _ := c.globalHashrate.GetHashRateGHS(c.GetDest().Username())
+	averageHR, _ := c.globalHashrate.GetHashRateGHS(workerName)
 	targetHashrateGHS := c.GetHashrateGHS()
 
+	totalWork, _ := c.globalHashrate.GetTotalWork(workerName)
+	wholeContractAverageGHS := hashrate.HSToGHS(hashrate.JobSubmittedToHS(float64(totalWork) / float64(time.Since(*c.GetStartTime()).Seconds())))
+
+	actualHashrate := wholeContractAverageGHS
 	hrError := lib.RelativeError(targetHashrateGHS, actualHashrate)
-	hrMsg := fmt.Sprintf("worker %s, target HR %d, actual HR %d, error %.0f%%, threshold(%.0f%%)", c.GetDest().Username(), targetHashrateGHS, actualHashrate, hrError*100, c.hashrateDiffThreshold*100)
+
+	hrMsg := fmt.Sprintf(
+		"worker %s, target HR %d, actual HR (9m SMA) %d, whole contract average HR %d, error %.0f%%, threshold(%.0f%%)",
+		workerName, targetHashrateGHS, averageHR, wholeContractAverageGHS, hrError*100, c.hashrateDiffThreshold*100,
+	)
 
 	if hrError > c.hashrateDiffThreshold {
 		if actualHashrate < targetHashrateGHS {

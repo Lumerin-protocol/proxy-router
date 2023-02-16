@@ -47,10 +47,6 @@ type stratumV1MinerModel struct {
 }
 
 func NewStratumV1MinerModel(poolPool StratumV1DestConn, minerConn StratumV1SourceConn, validator *hashrate.Hashrate, submitErrLimit int, globalSubmitTracker interfaces.GlobalHashrate, log interfaces.ILogger) *stratumV1MinerModel {
-	if submitErrLimit == 0 {
-		submitErrLimit = DEFAULT_SUBMIT_ERR_COUNT_LIMIT
-	}
-
 	return &stratumV1MinerModel{
 		poolConn:           poolPool,
 		minerConn:          minerConn,
@@ -224,6 +220,9 @@ func (s *stratumV1MinerModel) minerInterceptor(msg stratumv1_message.MiningMessa
 
 			if a.IsError() {
 				s.log.Warnf("error during submit: %s msg ID %d", a.GetError(), a.ID)
+				if s.submitErrLimit == 0 {
+					return &a
+				}
 				errCount := s.submitErrCount.Add(1)
 				if errCount > int32(s.submitErrLimit) {
 					s.log.Warnf("consecutive submit error count(%d) exceded limit(%d)", errCount, s.submitErrLimit)

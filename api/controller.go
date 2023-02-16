@@ -457,7 +457,7 @@ func (c *ApiController) GetGlobalHashrate() []GlobalHashrateItem {
 		res = append(res, GlobalHashrateItem{
 			WorkerName:     item.ID,
 			HRGHS:          item.GetHashRateGHS(),
-			LastSubmitTime: time.Now(),
+			LastSubmitTime: item.GetLastSubmitTime(),
 		})
 		return true
 	})

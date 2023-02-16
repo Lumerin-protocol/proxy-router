@@ -35,8 +35,7 @@ func (t *GlobalHashrate) GetHashRateGHS(workerName string) (hrGHS int, ok bool) 
 	if !ok {
 		return 0, false
 	}
-	hr, _ := record.hr.GetHashrateAvgGHSCustom(time.Duration(0))
-	return hr, true
+	return record.GetHashRateGHS(), true
 }
 
 func (t *GlobalHashrate) GetTotalWork(workerName string) (work uint64, ok bool) {
@@ -80,5 +79,10 @@ func (m *WorkerHashrateModel) OnSubmit(diff int64) {
 }
 
 func (m *WorkerHashrateModel) GetHashRateGHS() int {
-	return m.hr.GetHashrateGHS()
+	hr, _ := m.hr.GetHashrateAvgGHSCustom(time.Duration(0))
+	return hr
+}
+
+func (m *WorkerHashrateModel) GetLastSubmitTime() time.Time {
+	return m.hr.GetLastSubmitTime()
 }

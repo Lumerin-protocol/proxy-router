@@ -1,6 +1,7 @@
 package hashrate
 
 import (
+	"sync"
 	"time"
 
 	"github.com/gammazero/deque"
@@ -13,11 +14,11 @@ type measurement struct {
 
 // Sma is an SMA (Simple Moving Average) counter.
 type Sma struct {
-	window time.Duration
-	deque  *deque.Deque[measurement]
-	sum    float64
-	value  float64
-	// mutex   sync.RWMutex
+	window   time.Duration
+	deque    *deque.Deque[measurement]
+	sum      float64
+	sumMutex sync.RWMutex
+	value    float64
 }
 
 // NewEma creates a new Counter with the given window time
@@ -27,17 +28,26 @@ func NewSma(window time.Duration) *Sma {
 
 // Add adds a new value to the counter.
 func (c *Sma) Add(v float64) {
+	c.sumMutex.Lock()
+	defer c.sumMutex.Unlock()
+
 	c.deque.PushFront(measurement{value: v, timestamp: getNow()})
 	c.adjustSum(+v)
 }
 
 // Value returns the current value of the counter.
 func (c *Sma) Value() float64 {
+	c.sumMutex.Lock()
+	defer c.sumMutex.Unlock()
+
 	c.check()
 	return c.value
 }
 
 func (c *Sma) ValuePer(t time.Duration) float64 {
+	c.sumMutex.Lock()
+	defer c.sumMutex.Unlock()
+
 	c.check()
 	return c.value * float64(t)
 }
