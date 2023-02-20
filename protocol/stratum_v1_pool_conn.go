@@ -82,6 +82,7 @@ func (c *StratumV1PoolConn) Run(ctx context.Context) error {
 		close(c.readBuffer)
 		c.resHandlers = sync.Map{}
 		c.notifyMsgs = nil
+		c.conn.Close()
 	}()
 
 	sourceReader := bufio.NewReader(c.conn)
@@ -160,7 +161,6 @@ func (c *StratumV1PoolConn) Connect(ctx context.Context) error {
 
 // SendPoolRequestWait sends a message and awaits for the response
 func (c *StratumV1PoolConn) SendPoolRequestWait(ctx context.Context, msg stratumv1_message.MiningMessageToPool) (*stratumv1_message.MiningResult, error) {
-	c.log.Debug("sending message... %s", msg.Serialize())
 	id := int(c.lastRequestId.Inc())
 	msg.SetID(id)
 

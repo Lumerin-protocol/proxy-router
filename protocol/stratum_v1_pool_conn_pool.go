@@ -92,12 +92,7 @@ func (p *StratumV1PoolConnPool) SetDest(ctx context.Context, dest interfaces.IDe
 
 	go func() {
 		err := conn.Run(context.TODO())
-		err2 := conn.Close()
-		if err2 != nil {
-			p.log.Errorf("pool connection closeout error, %s", err2)
-		} else {
-			p.log.Warnf("pool connection closed: %s", err)
-		}
+		p.log.Warnf("pool connection closed: %s", err)
 		p.pool.Delete(dest.String())
 	}()
 

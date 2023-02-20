@@ -127,17 +127,10 @@ func (s *stratumV1MinerModel) Run(ctx context.Context) error {
 
 	subCtx, cancel := context.WithCancel(ctx)
 	errCh := make(chan error, 2)
-	sendError := func(ctx context.Context, err error) {
-		select {
-		case errCh <- err:
-		case <-subCtx.Done():
-		}
-	}
 
 	for { // reconnection to different destinations loop
 		s.reconnectCh = make(chan struct{})
-		err := s.poolConn.ResendRelevantNotifications(ctx)
-		if err != nil {
+		if err := s.poolConn.ResendRelevantNotifications(ctx); err != nil {
 			s.log.Errorf("error during resending relevant notifications %s", err)
 		}
 
@@ -147,8 +140,9 @@ func (s *stratumV1MinerModel) Run(ctx context.Context) error {
 		go func() {
 			err := s.poolToMiner(poolMinerCtx)
 			if err != nil {
-				sendError(poolMinerCtx, err)
+				errCh <- err
 			}
+			s.log.Warn("pool 2 miner done")
 		}()
 
 		minerPoolCtx, minerPoolCancel := context.WithCancel(subCtx)
@@ -157,8 +151,9 @@ func (s *stratumV1MinerModel) Run(ctx context.Context) error {
 		go func() {
 			err := s.minerToPool(minerPoolCtx)
 			if err != nil {
-				sendError(minerPoolCtx, err)
+				errCh <- err
 			}
+			s.log.Warn("miner 2 pool done")
 		}()
 
 		err = <-errCh
@@ -168,6 +163,7 @@ func (s *stratumV1MinerModel) Run(ctx context.Context) error {
 			s.log.Debugf("outer context cancelled, exiting Run method")
 			cancel()
 			<-errCh // wait for the second routine
+			err = subCtx.Err()
 			break
 		}
 
@@ -186,7 +182,6 @@ func (s *stratumV1MinerModel) Run(ctx context.Context) error {
 		// if any other connection error break outer loop
 		cancel()
 		err = fmt.Errorf("miner model error: %w", err)
-		s.log.Error(err)
 		<-errCh // wait for the second routine
 		break
 	}

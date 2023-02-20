@@ -88,7 +88,6 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 			case <-ctx.Done():
 				return ctx.Err()
 			case err := <-minerModelErr:
-				m.log.Errorf("miner scheduler error %s", err)
 				return err
 			case <-m.restartDestCycle:
 				m.log.Infof("destination cycle restarted")

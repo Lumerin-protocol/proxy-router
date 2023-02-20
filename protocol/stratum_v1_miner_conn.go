@@ -67,14 +67,22 @@ func (m *StratumV1Miner) write(ctx context.Context, msg stratumv1_message.Mining
 }
 
 func (s *StratumV1Miner) Read(ctx context.Context) (stratumv1_message.MiningMessageGeneric, error) {
+	doneCh := make(chan struct{})
+	defer close(doneCh)
+
 	// cancellation via context is implemented using SetReadDeadline,
 	// which unblocks read operation causing it to return os.ErrDeadlineExceeded
+	// TODO: consider implementing it in separate goroutine instead of a goroutine per read
 	go func() {
-		<-ctx.Done()
-		// may return ErrClosing
-		err := s.conn.SetReadDeadline(time.Now())
-		if err != nil {
-			s.log.Warnf("err during setting SetReadDeadline to unblock reading: %s", err)
+		select {
+		case <-ctx.Done():
+			// may return ErrClosing
+			err := s.conn.SetReadDeadline(time.Now())
+			if err != nil {
+				s.log.Warnf("err during setting SetReadDeadline to unblock reading: %s", err)
+			}
+		case <-doneCh:
+			return
 		}
 	}()
 
