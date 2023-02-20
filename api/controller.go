@@ -303,7 +303,7 @@ func (*ApiController) mapPoolConnection(m miner.MinerScheduler) *map[string]stri
 
 	m.RangeDestConn(func(key, value any) bool {
 		k := value.(*protocol.StratumV1PoolConn)
-		ActivePoolConnections[key.(string)] = k.GetDeadline().Format(time.RFC3339)
+		ActivePoolConnections[key.(string)] = k.GetCloseTimeout().Format(time.RFC3339)
 		return true
 	})
 

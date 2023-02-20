@@ -3,8 +3,10 @@ package protocol
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"net"
+	"os"
 	"sync"
 	"time"
 
@@ -65,10 +67,25 @@ func (m *StratumV1Miner) write(ctx context.Context, msg stratumv1_message.Mining
 }
 
 func (s *StratumV1Miner) Read(ctx context.Context) (stratumv1_message.MiningMessageGeneric, error) {
+	// cancellation via context is implemented using SetReadDeadline,
+	// which unblocks read operation causing it to return os.ErrDeadlineExceeded
+	go func() {
+		<-ctx.Done()
+		// may return ErrClosing
+		err := s.conn.SetReadDeadline(time.Now())
+		if err != nil {
+			s.log.Warnf("err during setting SetReadDeadline to unblock reading: %s", err)
+		}
+	}()
+
 	for {
-		err := s.conn.SetDeadline(time.Now().Add(s.connTimeout))
+		err := s.conn.SetReadDeadline(time.Now().Add(s.connTimeout))
 		if err != nil {
 			return nil, err
+		}
+
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
 		}
 
 		line, isPrefix, err := s.reader.ReadLine()
@@ -78,6 +95,10 @@ func (s *StratumV1Miner) Read(ctx context.Context) (stratumv1_message.MiningMess
 		}
 
 		if err != nil {
+			// return correct error if read was cancelled via context
+			if ctx.Err() != nil && errors.Is(err, os.ErrDeadlineExceeded) {
+				return nil, ctx.Err()
+			}
 			return nil, err
 		}
 
