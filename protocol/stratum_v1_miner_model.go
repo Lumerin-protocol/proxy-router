@@ -63,7 +63,7 @@ func NewStratumV1MinerModel(poolPool StratumV1DestConn, minerConn StratumV1Sourc
 	}
 }
 
-func (s *stratumV1MinerModel) Connect() error {
+func (s *stratumV1MinerModel) connect() error {
 	for {
 		m, err := s.minerConn.Read(context.TODO())
 		if err != nil {
@@ -119,7 +119,7 @@ func (s *stratumV1MinerModel) Connect() error {
 func (s *stratumV1MinerModel) Run(ctx context.Context) error {
 	defer s.Cleanup()
 
-	err := s.Connect()
+	err := s.connect()
 	if err != nil {
 		s.log.Error(err)
 		return err

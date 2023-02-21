@@ -242,6 +242,7 @@ func (c *StratumV1PoolConn) Read(ctx context.Context) (stratumv1_message.MiningM
 
 	select {
 	case msg := <-c.readBuffer:
+		c.SetCloseTimeout(time.Now().Add(c.connTimeout))
 		return msg, nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -269,6 +270,8 @@ func (c *StratumV1PoolConn) write(ctx context.Context, msg stratumv1_message.Min
 	if err != nil {
 		return err
 	}
+
+	c.SetCloseTimeout(time.Now().Add(c.connTimeout))
 
 	return nil
 }
@@ -328,6 +331,11 @@ func (c *StratumV1PoolConn) Release() {
 }
 
 func (c *StratumV1PoolConn) Close() error {
+	c.SetCloseTimeout(time.Now())
+	return nil
+}
+
+func (c *StratumV1PoolConn) close() error {
 	err := c.conn.Close()
 	c.resHandlers = sync.Map{}
 	c.notifyMsgs = nil
@@ -351,7 +359,7 @@ func (c *StratumV1PoolConn) CloseTimeout(cleanupCb func()) {
 				c.newCloseTimeoutMutex.Unlock()
 
 				close(newCloseTimeoutRef)
-				err := c.Close()
+				err := c.close()
 				if err != nil {
 					c.log.Errorf("close connection after timeout error %s", err)
 				}
