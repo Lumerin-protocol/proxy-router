@@ -58,6 +58,7 @@ func TestContractCloseoutOnEvent(t *testing.T) {
 	contractDurationSeconds := 1
 	cycleDuration := time.Duration(contractDurationSeconds) * time.Second / 10
 	allowance := 3 * cycleDuration
+	validationPeriod := 3 * cycleDuration
 
 	log := lib.NewTestLogger()
 
@@ -79,7 +80,7 @@ func TestContractCloseoutOnEvent(t *testing.T) {
 	})
 
 	defaultDest := lib.MustParseDest("stratum+tcp://default:dest@pool.io:1234")
-	contract := NewBuyerContract(data, ethGateway, globalHR, log, 0.1, 0, defaultDest, cycleDuration, 7*time.Minute)
+	contract := NewBuyerContract(data, ethGateway, globalHR, log, 0.1, validationPeriod, defaultDest, cycleDuration, 7*time.Minute)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
