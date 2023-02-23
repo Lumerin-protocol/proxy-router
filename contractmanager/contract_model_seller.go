@@ -18,21 +18,21 @@ type BTCHashrateContractSeller struct {
 	// dependencies
 	blockchain      interfaces.IBlockchainGateway
 	globalScheduler interfaces.IGlobalScheduler
+	log             interfaces.ILogger
 
-	data                   blockchain.ContractData
-	FullfillmentStartTime  *time.Time
-	isBuyer                bool
-	hashrateDiffThreshold  float64
-	validationBufferPeriod time.Duration
+	// config
 	cycleDuration          time.Duration // duration of the contract cycle that verifies the hashrate
+	defaultDestination     interfaces.IDestination
+	hashrateDiffThreshold  float64
+	isBuyer                bool
+	validationBufferPeriod time.Duration
 
-	state ContractState // internal state of the contract (within hashrouter)
-
-	hashrate *hashrate.Hashrate // the counter of single contract
-
-	log                interfaces.ILogger
-	stopFullfillment   chan struct{}
-	defaultDestination interfaces.IDestination
+	// internal state
+	data                  blockchain.ContractData
+	FullfillmentStartTime *time.Time
+	state                 ContractState      // internal state of the contract (within hashrouter)
+	hashrate              *hashrate.Hashrate // the counter of single contract
+	stopFullfillment      chan struct{}
 }
 
 func NewContract(
@@ -204,6 +204,7 @@ func (c *BTCHashrateContractSeller) FulfillAndClose(ctx context.Context) {
 	} else {
 		c.log.Infof("contract(%s) closed", c.GetID())
 	}
+	c.hashrate = hashrate.NewHashrateV2(hashrate.NewSma(9 * time.Minute))
 }
 
 // FulfillContract fulfills contract and returns error when contract is finished (NO CLOSEOUT)
@@ -277,9 +278,10 @@ func (c *BTCHashrateContractSeller) Stop(ctx context.Context) {
 			c.stopFullfillment <- struct{}{}
 		}
 		return
+	} else {
+		c.log.Warnf("contract already (%s) stopped")
 	}
 
-	c.log.Warnf("contract (%s) stopped", c.GetID())
 }
 
 func (c *BTCHashrateContractSeller) ContractIsExpired() bool {

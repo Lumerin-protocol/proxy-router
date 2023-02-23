@@ -65,16 +65,15 @@ func (p *StratumV1PoolConnPool) SetDest(ctx context.Context, dest interfaces.IDe
 
 	p.mu.Unlock()
 
-	// if p.conn != nil {
-	// 	p.conn.PauseReading()
-	// }
-
 	// try to reuse connection from cache
 	conn, ok := p.load(dest.String())
 	if ok {
 
 		p.setConn(conn)
-		p.conn.ResendRelevantNotifications(context.TODO())
+		err := p.conn.ResendRelevantNotifications(ctx)
+		if err != nil {
+			return err
+		}
 		p.log.Infof("conn reused %s", dest.String())
 
 		return nil
@@ -93,17 +92,12 @@ func (p *StratumV1PoolConnPool) SetDest(ctx context.Context, dest interfaces.IDe
 
 	go func() {
 		err := conn.Run(context.TODO())
-		err2 := conn.Close()
-		if err2 != nil {
-			p.log.Errorf("pool connection closeout error, %s", err2)
-		} else {
-			p.log.Warnf("pool connection closed: %s", err)
-		}
+		p.log.Warnf("pool connection closed: %s", err)
 		p.pool.Delete(dest.String())
 	}()
 
 	ID := conn.GetDest().String()
-	conn.Deadline(func() {
+	conn.CloseTimeout(func() {
 		// TODO: check if connection is not active before deleting
 		// cause it may have not yet sent a submit but could be cleaned
 		// causing miner to disconnect
@@ -111,12 +105,10 @@ func (p *StratumV1PoolConnPool) SetDest(ctx context.Context, dest interfaces.IDe
 		p.log.Debugf("connection was cleaned %s", ID)
 	})
 
-	err = conn.Connect()
+	err = conn.Connect(ctx)
 	if err != nil {
 		return err
 	}
-
-	conn.ResendRelevantNotifications(context.TODO())
 
 	p.setConn(conn)
 
@@ -126,7 +118,7 @@ func (p *StratumV1PoolConnPool) SetDest(ctx context.Context, dest interfaces.IDe
 }
 
 func (p *StratumV1PoolConnPool) Read(ctx context.Context) (stratumv1_message.MiningMessageGeneric, error) {
-	return p.conn.Read()
+	return p.conn.Read(ctx)
 }
 
 func (p *StratumV1PoolConnPool) Write(ctx context.Context, b stratumv1_message.MiningMessageGeneric) error {
@@ -161,12 +153,12 @@ func (p *StratumV1PoolConnPool) setConn(conn *StratumV1PoolConn) {
 	p.conn = conn
 }
 
-func (p *StratumV1PoolConnPool) ResendRelevantNotifications(ctx context.Context) {
-	p.getConn().resendRelevantNotifications(ctx)
+func (p *StratumV1PoolConnPool) ResendRelevantNotifications(ctx context.Context) error {
+	return p.getConn().ResendRelevantNotifications(ctx)
 }
 
 func (p *StratumV1PoolConnPool) SendPoolRequestWait(msg stratumv1_message.MiningMessageToPool) (*stratumv1_message.MiningResult, error) {
-	return p.getConn().SendPoolRequestWait(msg)
+	return p.getConn().SendPoolRequestWait(context.TODO(), msg)
 }
 
 func (p *StratumV1PoolConnPool) RegisterResultHandler(id int, handler StratumV1ResultHandler) {

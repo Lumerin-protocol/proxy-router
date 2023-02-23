@@ -163,7 +163,7 @@ func (c *BTCBuyerHashrateContract) isDeliveringAccurateHashrate() bool {
 	targetHashrateGHS := c.GetHashrateGHS()
 
 	totalWork, _ := c.globalHashrate.GetTotalWork(workerName)
-	wholeContractAverageGHS := hashrate.HSToGHS(hashrate.JobSubmittedToHS(float64(totalWork) / float64(time.Since(*c.GetStartTime()).Seconds())))
+	wholeContractAverageGHS := hashrate.HSToGHS(hashrate.JobSubmittedToHS(float64(totalWork) / time.Since(*c.GetStartTime()).Seconds()))
 
 	actualHashrate := wholeContractAverageGHS
 	hrError := lib.RelativeError(targetHashrateGHS, actualHashrate)
