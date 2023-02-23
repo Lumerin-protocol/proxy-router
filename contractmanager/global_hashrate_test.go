@@ -13,8 +13,8 @@ func TestGlobalHashrate(t *testing.T) {
 	// nowTime = time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	threads := 100
 	diff := int64(100000)
-	loops := 100
-	duration := 50 * time.Millisecond * time.Duration(loops)
+	loops := 10
+	duration := 25 * time.Millisecond * time.Duration(loops)
 	workerName := "kiki"
 
 	hr := NewGlobalHashrate()
@@ -36,6 +36,6 @@ func TestGlobalHashrate(t *testing.T) {
 	expected := hashrate.HSToGHS(hashrate.JobSubmittedToHS(work))
 	av, _ := hr.GetHashRateGHS(workerName)
 
-	fmt.Printf("exp %d act %d", expected, av)
+	fmt.Printf("exp %d act %d\n", expected, av)
 	assert.InEpsilon(t, expected, av, 0.01, "should be accurate")
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
 	"gitlab.com/TitanInd/hashrouter/constants"
+	"gitlab.com/TitanInd/hashrouter/contractmanager/contractdata"
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 )
@@ -28,7 +29,7 @@ type BTCHashrateContractSeller struct {
 	validationBufferPeriod time.Duration
 
 	// internal state
-	data                  blockchain.ContractData
+	data                  contractdata.ContractData
 	FullfillmentStartTime *time.Time
 	state                 ContractState      // internal state of the contract (within hashrouter)
 	hashrate              *hashrate.Hashrate // the counter of single contract
@@ -36,7 +37,7 @@ type BTCHashrateContractSeller struct {
 }
 
 func NewContract(
-	data blockchain.ContractData,
+	data contractdata.ContractData,
 	blockchain interfaces.IBlockchainGateway,
 	globalScheduler interfaces.IGlobalScheduler,
 	log interfaces.ILogger,
@@ -72,11 +73,11 @@ func NewContract(
 	return contract
 }
 
-func convertBlockchainStatusToApplicationStatus(status blockchain.ContractBlockchainState) ContractState {
+func convertBlockchainStatusToApplicationStatus(status contractdata.ContractBlockchainState) ContractState {
 	switch status {
-	case blockchain.ContractBlockchainStateRunning:
+	case contractdata.ContractBlockchainStateRunning:
 		return ContractStatePurchased
-	case blockchain.ContractBlockchainStateAvailable:
+	case contractdata.ContractBlockchainStateAvailable:
 		return ContractStateAvailable
 	default:
 		return ContractStateAvailable
@@ -87,7 +88,7 @@ func convertBlockchainStatusToApplicationStatus(status blockchain.ContractBlockc
 func (c *BTCHashrateContractSeller) Run(ctx context.Context) error {
 
 	// contract was purchased before the node started, may be result of the restart
-	if c.data.State == blockchain.ContractBlockchainStateRunning {
+	if c.data.State == contractdata.ContractBlockchainStateRunning {
 		go func() {
 			c.FulfillAndClose(ctx)
 		}()
@@ -132,7 +133,7 @@ func (c *BTCHashrateContractSeller) eventsController(ctx context.Context, eventH
 
 	// Contract Purchased
 	case blockchain.ContractPurchasedHex:
-		err := c.LoadBlockchainContract()
+		err := c.loadBlockchainContract()
 		if err != nil {
 			return err
 		}
@@ -142,7 +143,7 @@ func (c *BTCHashrateContractSeller) eventsController(ctx context.Context, eventH
 	// Contract updated on buyer side
 	case blockchain.ContractCipherTextUpdatedHex:
 		c.log.Info("received contract ContractCipherTextUpdated event", c.data.Addr)
-		err := c.LoadBlockchainContract()
+		err := c.loadBlockchainContract()
 		if err != nil {
 			return err
 		}
@@ -153,7 +154,7 @@ func (c *BTCHashrateContractSeller) eventsController(ctx context.Context, eventH
 	case blockchain.ContractPurchaseInfoUpdatedHex:
 		c.log.Info("received contract ContractPurchaseInfoUpdated event", c.data.Addr)
 
-		err := c.LoadBlockchainContract()
+		err := c.loadBlockchainContract()
 		if err != nil {
 			return fmt.Errorf("cannot load blockchain contract: %w", err)
 		}
@@ -162,7 +163,7 @@ func (c *BTCHashrateContractSeller) eventsController(ctx context.Context, eventH
 	case blockchain.ContractClosedHex:
 		c.log.Info("received contract closed event ", c.data.Addr)
 
-		err := c.LoadBlockchainContract()
+		err := c.loadBlockchainContract()
 		if err != nil {
 			return fmt.Errorf("cannot load blockchain contract: %w", err)
 		}
@@ -177,13 +178,13 @@ func (c *BTCHashrateContractSeller) eventsController(ctx context.Context, eventH
 	return nil
 }
 
-func (c *BTCHashrateContractSeller) LoadBlockchainContract() error {
+func (c *BTCHashrateContractSeller) loadBlockchainContract() error {
 	data, err := c.blockchain.ReadContract(c.data.Addr)
 	if err != nil {
 		return fmt.Errorf("cannot read contract: %s, address (%s)", err, c.data.Addr)
 	}
 	// TODO guard it
-	contractData, ok := data.(blockchain.ContractData)
+	contractData, ok := data.(contractdata.ContractData)
 
 	if !ok {
 		return fmt.Errorf("failed to load blockhain data, address (%s)", c.data.Addr)
@@ -330,6 +331,10 @@ func (c *BTCHashrateContractSeller) GetState() ContractState {
 	return c.state
 }
 
+func (c *BTCHashrateContractSeller) GetStateExternal() string {
+	return c.data.GetStateExternal()
+}
+
 func (c *BTCHashrateContractSeller) GetDest() interfaces.IDestination {
 	return c.data.Dest
 }
@@ -340,10 +345,6 @@ func (c *BTCHashrateContractSeller) SetDest(dest interfaces.IDestination) {
 
 func (c *BTCHashrateContractSeller) GetCloseoutType() constants.CloseoutType {
 	return constants.CloseoutTypeWithoutClaim
-}
-
-func (c *BTCHashrateContractSeller) GetStatusInternal() string {
-	return c.data.State.String()
 }
 
 func (c *BTCHashrateContractSeller) GetDeliveredHashrate() interfaces.Hashrate {

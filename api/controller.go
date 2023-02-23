@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"gitlab.com/TitanInd/hashrouter/blockchain"
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
+	"gitlab.com/TitanInd/hashrouter/contractmanager/contractdata"
 	"gitlab.com/TitanInd/hashrouter/data"
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
@@ -195,9 +195,9 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 		if err != nil {
 			ctx.AbortWithStatus(http.StatusBadRequest)
 		}
-		contract := contractmanager.NewContract(blockchain.ContractData{
+		contract := contractmanager.NewContract(contractdata.ContractData{
 			Addr:                   lib.GetRandomAddr(),
-			State:                  blockchain.ContractBlockchainStateRunning,
+			State:                  contractdata.ContractBlockchainStateRunning,
 			Price:                  0,
 			Speed:                  hrGHS * int64(math.Pow10(9)),
 			Length:                 int64(duration.Seconds()),
@@ -517,7 +517,7 @@ func (c *ApiController) MapContract(item contractmanager.IContractModel) *Contra
 		StartTimestamp:       TimePtrToStringPtr(item.GetStartTime()),
 		EndTimestamp:         TimePtrToStringPtr(item.GetEndTime()),
 		ApplicationStatus:    MapContractState(item.GetState()),
-		BlockchainStatus:     item.GetStatusInternal(),
+		BlockchainStatus:     item.GetStateExternal(),
 		Dest:                 item.GetDest().String(),
 	}
 }

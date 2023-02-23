@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/assert"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
+	"gitlab.com/TitanInd/hashrouter/contractmanager/contractdata"
 	"gitlab.com/TitanInd/hashrouter/lib"
 )
 
@@ -19,8 +20,8 @@ func TestCloseoutOnContractEnd(t *testing.T) {
 
 	log := lib.NewTestLogger()
 
-	data := blockchain.GetSampleContractData()
-	data.State = blockchain.ContractBlockchainStateRunning
+	data := contractdata.GetSampleContractData()
+	data.State = contractdata.ContractBlockchainStateRunning
 	data.Length = int64(contractDurationSeconds)
 
 	globalHR := NewGlobalHashrateMock()
@@ -62,14 +63,14 @@ func TestContractCloseoutOnEvent(t *testing.T) {
 
 	log := lib.NewTestLogger()
 
-	data := blockchain.GetSampleContractData()
-	data.State = blockchain.ContractBlockchainStateRunning
+	data := contractdata.GetSampleContractData()
+	data.State = contractdata.ContractBlockchainStateRunning
 	data.Length = int64(contractDurationSeconds)
 
 	ethGateway := blockchain.NewEthereumGatewayMock()
 
 	readContractRes := data.Copy()
-	readContractRes.State = blockchain.ContractBlockchainStateAvailable
+	readContractRes.State = contractdata.ContractBlockchainStateAvailable
 	ethGateway.ReadContractRes = readContractRes
 
 	globalHR := NewGlobalHashrateMock()
@@ -112,8 +113,8 @@ func TestBuyerEditContractEvent(t *testing.T) {
 
 	log := lib.NewTestLogger()
 
-	data := blockchain.GetSampleContractData()
-	data.State = blockchain.ContractBlockchainStateRunning
+	data := contractdata.GetSampleContractData()
+	data.State = contractdata.ContractBlockchainStateRunning
 	data.Length = int64(contractDurationSeconds)
 
 	ethGateway := blockchain.NewEthereumGatewayMock()
@@ -162,8 +163,8 @@ func TestValidationBufferPeriod(t *testing.T) {
 
 	log := lib.NewTestLogger()
 
-	data := blockchain.GetSampleContractData()
-	data.State = blockchain.ContractBlockchainStateRunning
+	data := contractdata.GetSampleContractData()
+	data.State = contractdata.ContractBlockchainStateRunning
 	data.Length = int64(contractDurationSeconds)
 
 	ethGateway := blockchain.NewEthereumGatewayMock()
@@ -203,9 +204,9 @@ func TestValidationBufferPeriod(t *testing.T) {
 func TestBuyerContractIsValid(t *testing.T) {
 	buyer := lib.GetRandomAddr()
 
-	data := blockchain.GetSampleContractData()
+	data := contractdata.GetSampleContractData()
 	data.Buyer = buyer
-	data.State = blockchain.ContractBlockchainStateAvailable
+	data.State = contractdata.ContractBlockchainStateAvailable
 
 	contract := NewBuyerContract(
 		data,
@@ -220,15 +221,15 @@ func TestBuyerContractIsValid(t *testing.T) {
 		10*time.Minute,
 	)
 
-	contract.data.State = blockchain.ContractBlockchainStateAvailable
+	contract.data.State = contractdata.ContractBlockchainStateAvailable
 	isValid := contract.IsValidWallet(buyer)
 	assert.False(t, isValid, "buyer contract shouldn't be valid to run: invalid state available")
 
-	contract.data.State = blockchain.ContractBlockchainStateRunning
+	contract.data.State = contractdata.ContractBlockchainStateRunning
 	isValid = contract.IsValidWallet(buyer)
 	assert.True(t, isValid, "buyer contract should be valid to run")
 
-	contract.data.State = blockchain.ContractBlockchainStateRunning
+	contract.data.State = contractdata.ContractBlockchainStateRunning
 	contract.data.Buyer = lib.GetRandomAddr()
 	isValid = contract.IsValidWallet(buyer)
 	assert.False(t, isValid, "buyer contract shouldn't be valid to run: buyer address doesn't match")
