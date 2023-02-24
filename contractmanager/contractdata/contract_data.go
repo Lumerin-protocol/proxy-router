@@ -1,4 +1,4 @@
-package blockchain
+package contractdata
 
 import (
 	"math"
@@ -6,9 +6,15 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/lib"
 )
 
 type ContractBlockchainState uint8
+
+const (
+	ContractBlockchainStateAvailable ContractBlockchainState = iota
+	ContractBlockchainStateRunning
+)
 
 func (s ContractBlockchainState) String() string {
 	switch s {
@@ -21,16 +27,11 @@ func (s ContractBlockchainState) String() string {
 	}
 }
 
-const (
-	ContractBlockchainStateAvailable ContractBlockchainState = iota
-	ContractBlockchainStateRunning
-)
-
 type ContractData struct {
 	Addr                   common.Address
 	Buyer                  common.Address
 	Seller                 common.Address
-	State                  ContractBlockchainState // external state of the contract (state from blockchain)
+	State                  ContractBlockchainState
 	Price                  int64
 	Limit                  int64
 	Speed                  int64
@@ -39,7 +40,10 @@ type ContractData struct {
 	Dest                   interfaces.IDestination
 }
 
-func NewContractData(addr, buyer, seller common.Address, state uint8, price, limit, speed, length, startingBlockTimestamp int64, dest interfaces.IDestination) ContractData {
+func NewContractData(addr, buyer, seller common.Address, state uint8, price, limit, speedHS, lengthSeconds, startingBlockTimeUnix int64, dest interfaces.IDestination) ContractData {
+	// making sure workername is set to contract ID to be able to identify contract on buyer side
+	dst := lib.NewDest(addr.String(), "", dest.GetHost(), nil)
+
 	return ContractData{
 		addr,
 		buyer,
@@ -47,42 +51,11 @@ func NewContractData(addr, buyer, seller common.Address, state uint8, price, lim
 		ContractBlockchainState(state),
 		price,
 		limit,
-		speed,
-		length,
-		startingBlockTimestamp,
-		dest,
+		speedHS,
+		lengthSeconds,
+		startingBlockTimeUnix,
+		dst,
 	}
-}
-
-func (d *ContractData) Copy() ContractData {
-	return ContractData{
-		Addr:                   d.Addr,
-		Buyer:                  d.Buyer,
-		Seller:                 d.Seller,
-		State:                  d.State,
-		Price:                  d.Price,
-		Limit:                  d.Limit,
-		Speed:                  d.Speed,
-		Length:                 d.Length,
-		StartingBlockTimestamp: d.StartingBlockTimestamp,
-		Dest:                   d.Dest,
-	}
-}
-
-func (c *ContractData) ContractIsExpired() bool {
-	endTime := c.GetEndTime()
-	if endTime == nil {
-		return false
-	}
-	return time.Now().After(*endTime)
-}
-
-func (c *ContractData) GetBuyerAddress() string {
-	return c.Buyer.String()
-}
-
-func (c *ContractData) GetSellerAddress() string {
-	return c.Seller.String()
 }
 
 func (c *ContractData) GetID() string {
@@ -91,6 +64,14 @@ func (c *ContractData) GetID() string {
 
 func (c *ContractData) GetAddress() string {
 	return c.Addr.String()
+}
+
+func (c *ContractData) GetBuyerAddress() string {
+	return c.Buyer.String()
+}
+
+func (c *ContractData) GetSellerAddress() string {
+	return c.Seller.String()
 }
 
 func (c *ContractData) GetHashrateGHS() int {
@@ -111,10 +92,33 @@ func (c *ContractData) GetEndTime() *time.Time {
 	return &endTime
 }
 
+func (c *ContractData) ContractIsExpired() bool {
+	endTime := c.GetEndTime()
+	if endTime == nil {
+		return false
+	}
+	return time.Now().After(*endTime)
+}
+
 func (c *ContractData) GetDest() interfaces.IDestination {
 	return c.Dest
 }
 
-func (c *ContractData) GetStatusInternal() string {
+func (c *ContractData) GetStateExternal() string {
 	return c.State.String()
+}
+
+func (d *ContractData) Copy() ContractData {
+	return ContractData{
+		Addr:                   d.Addr,
+		Buyer:                  d.Buyer,
+		Seller:                 d.Seller,
+		State:                  d.State,
+		Price:                  d.Price,
+		Limit:                  d.Limit,
+		Speed:                  d.Speed,
+		Length:                 d.Length,
+		StartingBlockTimestamp: d.StartingBlockTimestamp,
+		Dest:                   d.Dest,
+	}
 }

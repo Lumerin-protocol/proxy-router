@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
 	"gitlab.com/TitanInd/hashrouter/constants"
+	"gitlab.com/TitanInd/hashrouter/contractmanager/contractdata"
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
@@ -22,7 +23,7 @@ type BTCBuyerHashrateContract struct {
 	log            interfaces.ILogger
 
 	// config
-	data                   blockchain.ContractData
+	data                   contractdata.ContractData
 	hashrateDiffThreshold  float64
 	validationBufferPeriod time.Duration
 	cycleDuration          time.Duration // duration of the contract cycle that verifies the hashrate
@@ -35,7 +36,7 @@ type BTCBuyerHashrateContract struct {
 }
 
 func NewBuyerContract(
-	data blockchain.ContractData,
+	data contractdata.ContractData,
 	blockchain interfaces.IBlockchainGateway,
 	globalSubmitTracker interfaces.GlobalHashrate,
 	log interfaces.ILogger,
@@ -153,7 +154,7 @@ func (c *BTCBuyerHashrateContract) FulfillBuyerContract(ctx context.Context) err
 func (c *BTCBuyerHashrateContract) IsValidWallet(walletAddress common.Address) bool {
 	// because buyer is not unset after contract closed it is important that only running contracts
 	// are picked up by buyer (buyer field may change on every purchase unlike seller field)
-	return c.data.Buyer == walletAddress && c.data.State == blockchain.ContractBlockchainStateRunning
+	return c.data.Buyer == walletAddress && c.data.State == contractdata.ContractBlockchainStateRunning
 }
 
 func (c *BTCBuyerHashrateContract) isDeliveringAccurateHashrate() bool {
@@ -220,7 +221,7 @@ func (c *BTCBuyerHashrateContract) eventsController(ctx context.Context, e types
 			return fmt.Errorf("cannot load blockchain contract: %s", err)
 		}
 
-		if c.data.State == blockchain.ContractBlockchainStateAvailable {
+		if c.data.State == contractdata.ContractBlockchainStateAvailable {
 			c.state = ContractStateAvailable
 		}
 
@@ -240,7 +241,7 @@ func (c *BTCBuyerHashrateContract) eventsController(ctx context.Context, e types
 }
 
 func (c *BTCBuyerHashrateContract) close(ctx context.Context) error {
-	if c.data.State == blockchain.ContractBlockchainStateAvailable {
+	if c.data.State == contractdata.ContractBlockchainStateAvailable {
 		c.log.Debugf("contract already closed")
 		return nil
 	}
@@ -263,7 +264,7 @@ func (c *BTCBuyerHashrateContract) loadBlockchainContract() error {
 		return fmt.Errorf("cannot read contract: %s, address (%s)", err, c.data.Addr)
 	}
 
-	contractData, ok := data.(blockchain.ContractData)
+	contractData, ok := data.(contractdata.ContractData)
 
 	if !ok {
 		return fmt.Errorf("failed to load blockhain data, address (%s)", c.data.Addr)
@@ -345,9 +346,9 @@ func (c *BTCBuyerHashrateContract) GetDest() interfaces.IDestination {
 	return c.data.GetDest()
 }
 
-func (c *BTCBuyerHashrateContract) GetStatusInternal() string {
-	return c.data.GetStatusInternal()
+func (c *BTCBuyerHashrateContract) GetStateExternal() string {
+	return c.data.GetStateExternal()
 }
 
-var _ interfaces.IModel = (*BTCHashrateContractSeller)(nil)
-var _ IContractModel = (*BTCHashrateContractSeller)(nil)
+var _ interfaces.IModel = (*BTCBuyerHashrateContract)(nil)
+var _ IContractModel = (*BTCBuyerHashrateContract)(nil)

@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
+	"gitlab.com/TitanInd/hashrouter/contractmanager/contractdata"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/lib"
@@ -145,13 +146,13 @@ func (m *ContractManager) handleContract(ctx context.Context, contractAddr commo
 
 	if !m.ContractExists(contractAddr) {
 
-		data, err := m.blockchain.ReadContract(contractAddr)
+		dt, err := m.blockchain.ReadContract(contractAddr)
 		if err != nil {
 			return fmt.Errorf("cannot read created contract %w", err)
 		}
 
 		var contract IContractModel
-		contractData := data.(blockchain.ContractData)
+		contractData := dt.(contractdata.ContractData)
 
 		if m.isBuyer {
 			log := m.log.Named("BUYER  " + lib.AddrShort(contractData.Addr.String()))

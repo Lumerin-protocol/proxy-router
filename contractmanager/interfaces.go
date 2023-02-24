@@ -20,7 +20,7 @@ type IContractModel interface {
 	GetDuration() time.Duration
 	GetEndTime() *time.Time
 	GetState() ContractState
-	GetStatusInternal() string
+	GetStateExternal() string
 	GetDest() interfaces.IDestination
 	IsValidWallet(walletAddress common.Address) bool
 	IsBuyer() bool

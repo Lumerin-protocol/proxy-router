@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
+	"gitlab.com/TitanInd/hashrouter/contractmanager/contractdata"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/lib"
@@ -156,7 +157,7 @@ func (g *EthereumGateway) subscribeFilterLogsReconnect(ctx context.Context, quer
 
 // ReadContract reads contract information encoded in the blockchain
 func (g *EthereumGateway) ReadContract(contractAddress common.Address) (interface{}, error) {
-	var contractData ContractData
+	var contractData contractdata.ContractData
 	instance, err := implementation.NewImplementation(contractAddress, g.client)
 	if err != nil {
 		g.log.Error(err)
@@ -181,7 +182,7 @@ func (g *EthereumGateway) ReadContract(contractAddress common.Address) (interfac
 		return contractData, err
 	}
 
-	contractData = NewContractData(contractAddress, buyer, seller, state, price.Int64(), limit.Int64(), speed.Int64(), length.Int64(), startingBlockTimestamp.Int64(), dest)
+	contractData = contractdata.NewContractData(contractAddress, buyer, seller, state, price.Int64(), limit.Int64(), speed.Int64(), length.Int64(), startingBlockTimestamp.Int64(), dest)
 
 	// TODO: uncomment when encryption is enabled on frontend
 	// return g.decryptDest(url)
