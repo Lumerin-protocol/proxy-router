@@ -11,7 +11,7 @@ import (
 )
 
 func TestEmaV2(t *testing.T) {
-	// t.Skip()
+	t.Skip()
 	diff := 500000
 	interval := 5 * time.Minute
 	submitInt := 60 * time.Second
@@ -29,6 +29,7 @@ func TestEmaV2(t *testing.T) {
 		"ema-dyn-15s":     NewEmaDynamic(interval, 15*time.Second),
 		"ema-primed":      NewEmaPrimed(interval, 10),
 		"ema-primed-2.5m": NewEmaPrimed(interval/2, 10),
+		"sma-9m":          NewSma(9 * time.Minute),
 	}
 	keys := []string{}
 	for name := range emas {

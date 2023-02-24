@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.com/TitanInd/hashrouter/blockchain"
+	"gitlab.com/TitanInd/hashrouter/contractmanager/contractdata"
 	"gitlab.com/TitanInd/hashrouter/data"
 	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/lib"
@@ -13,15 +13,15 @@ import (
 func contractManagerSetup() (*data.Collection[IContractModel], *ContractManager) {
 	Setup()
 	contractCollection := NewContractCollection()
-	submitTracker := NewSubmitTracker()
+	globalHashrate := NewGlobalHashrate()
 	return contractCollection,
-		NewContractManager(blockchainGateway, globalScheduler, submitTracker, log, contractCollection, interop.AddressStringToSlice(""), "", false, 0, 1*time.Second, lib.Dest{}, 30*time.Second, 7*time.Minute)
+		NewContractManager(blockchainGateway, globalScheduler, globalHashrate, log, contractCollection, interop.AddressStringToSlice(""), "", false, 0, 1*time.Second, lib.Dest{}, 30*time.Second, 7*time.Minute)
 }
 
 func TestContractShouldExist(t *testing.T) {
 	collection, contractManager := contractManagerSetup()
 
-	collection.Store(&BTCHashrateContractSeller{data: blockchain.ContractData{Addr: interop.AddressStringToSlice("0x1")}})
+	collection.Store(&BTCHashrateContractSeller{data: contractdata.ContractData{Addr: interop.AddressStringToSlice("0x1")}})
 
 	contractExists := contractManager.ContractExists(interop.AddressStringToSlice("0x1"))
 
@@ -33,7 +33,7 @@ func TestContractShouldExist(t *testing.T) {
 func TestContractShouldNotExist(t *testing.T) {
 	collection, contractManager := contractManagerSetup()
 
-	collection.Store(&BTCHashrateContractSeller{data: blockchain.ContractData{Addr: interop.AddressStringToSlice("0x1")}})
+	collection.Store(&BTCHashrateContractSeller{data: contractdata.ContractData{Addr: interop.AddressStringToSlice("0x1")}})
 	contractExists := contractManager.ContractExists(interop.AddressStringToSlice("0x2"))
 
 	if contractExists {

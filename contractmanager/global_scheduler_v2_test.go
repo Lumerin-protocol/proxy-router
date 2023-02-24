@@ -131,6 +131,36 @@ func TestIncAllocation(t *testing.T) {
 	}
 }
 
+func TestIncAllocationNotEnoughHR(t *testing.T) {
+	dest, _ := lib.ParseDest("stratum+tcp://user:pwd@host.com:3333")
+	contractID := "test-contract"
+	contractGHS := 100000
+
+	miners := CreateMockMinerCollection(contractID, dest)
+	expectedGHS := 0
+	miners.Range(func(item miner.MinerScheduler) bool {
+		expectedGHS += item.GetHashRateGHS()
+		return true
+	})
+
+	globalScheduler := NewGlobalSchedulerV2(miners, &lib.LoggerMock{}, 0, 0, 0)
+
+	err := globalScheduler.update(contractID, contractGHS, dest, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	snapshot2 := globalScheduler.GetMinerSnapshot()
+	list, ok := snapshot2.Contract(contractID)
+	if !ok {
+		t.Fatalf("contract should show up in the snapshot")
+	}
+
+	if list.GetAllocatedGHS() != expectedGHS {
+		t.Fatalf("total hashrate (%d) should be %d", list.GetAllocatedGHS(), expectedGHS)
+	}
+}
+
 func TestIncAllocationAddMiner(t *testing.T) {
 	dest, _ := lib.ParseDest("stratum+tcp://user:pwd@host.com:3333")
 	contractID := "test-contract"
@@ -172,23 +202,28 @@ func TestDecrAllocation(t *testing.T) {
 	miners := CreateMockMinerCollection(contractID, dest)
 	globalScheduler := NewGlobalSchedulerV2(miners, &lib.LoggerMock{}, 0, 0, 0)
 
+	miner1, _ := miners.Load("1")
+	miner2, _ := miners.Load("2")
+	t.Log(miner1.GetDestSplit().GetByID(contractID))
+	t.Log(miner2.GetDestSplit().GetByID(contractID))
+
 	err := globalScheduler.update(contractID, newGHS, dest, nil)
 	if err != nil {
 		t.Fatal(err)
 		return
 	}
 
-	miner1, _ := miners.Load("1")
-	miner2, _ := miners.Load("2")
+	miner1, _ = miners.Load("1")
+	miner2, _ = miners.Load("2")
 
 	destSplit1, _ := miner1.GetDestSplit().GetByID(contractID)
 	destSplit2, _ := miner2.GetDestSplit().GetByID(contractID)
 
-	if destSplit1.Fraction != 0.2 {
-		t.Fatal("should use miner which was the least allocated for the contract")
+	if destSplit1.Fraction != 0 {
+		t.Fatal("should totally remove 1st miner from allocation")
 	}
-	if destSplit2.Fraction != 0.3 {
-		t.Fatal("should not alter allocation of the second miner")
+	if destSplit2.Fraction != 0.4 {
+		t.Fatal("should reduce 2nd miner allocation")
 	}
 }
 
@@ -209,18 +244,21 @@ func TestDecrAllocationRemoveMiner(t *testing.T) {
 	miner1, _ := miners.Load("1")
 	miner2, _ := miners.Load("2")
 
-	destSplit1, ok1 := miner1.GetDestSplit().GetByID(contractID)
-	destSplit2, ok2 := miner2.GetDestSplit().GetByID(contractID)
+	splitItem1, ok1 := miner1.GetDestSplit().GetByID(contractID)
+	splitItem2, ok2 := miner2.GetDestSplit().GetByID(contractID)
 
 	if ok1 {
-		fmt.Println(destSplit1)
+		fmt.Println(splitItem1)
 		t.Fatal("should remove miner which was the least allocated for the contract")
 	}
 	if !ok2 {
 		t.Fatal("should not remove second miner")
 	}
-	if destSplit2.Fraction != 0.3 {
+	if splitItem2.Fraction != 0.3 {
 		t.Fatal("should not alter allocation of the second miner")
+	}
+	if !miner1.GetDestSplit().IsEmpty() {
+		t.Fatal("least allocated miner split should be empty")
 	}
 }
 
@@ -283,12 +321,47 @@ func TestTryReduceMiners(t *testing.T) {
 	})
 
 	newCol := gs.tryReduceMiners(col)
-	require.Equal(t, 1, newCol.Len(), "expected miners to be reduced")
+	require.Equal(t, 2, newCol.GetZeroAllocatedCount(), "expected miners to be reduced")
+	require.Equal(t, 9000, newCol.GetAllocatedGHS(), "collection hashrate should not change")
 
-	item := newCol.Iter()[0]
+	item, _ := newCol.Get("miner-1")
 	require.Equal(t, 0.9, item.Fraction, "incorrect fraction")
 	require.Equal(t, 10000, item.TotalGHS, "incorrect totalGHS")
 	require.Equal(t, "contract", item.ContractID, "incorrect contract ID")
+}
+
+func TestTryReduceMiners2(t *testing.T) {
+	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 3, 5, 0.1)
+	col := snap.NewAllocCollection()
+	col.Add("miner-1", &snap.AllocItem{
+		MinerID:    "miner-1",
+		ContractID: "contract",
+		Fraction:   0.33,
+		TotalGHS:   94936,
+	})
+	col.Add("miner-2", &snap.AllocItem{
+		MinerID:    "miner-2",
+		ContractID: "contract",
+		Fraction:   0.32,
+		TotalGHS:   116675,
+	})
+	col.Add("miner-3", &snap.AllocItem{
+		MinerID:    "miner-3",
+		ContractID: "contract",
+		Fraction:   0.33,
+		TotalGHS:   96000,
+	})
+	col.Add("miner-4", &snap.AllocItem{
+		MinerID:    "miner-4",
+		ContractID: "contract",
+		Fraction:   1.0,
+		TotalGHS:   103970,
+	})
+
+	newCol := gs.tryReduceMiners(col)
+
+	require.Equal(t, 2, newCol.GetZeroAllocatedCount(), "expected miners to be reduced")
+	require.Equal(t, newCol.GetAllocatedGHS(), col.GetAllocatedGHS(), "total hashrate is different")
 }
 
 func TestTryReduceMinersNotReduced(t *testing.T) {
@@ -297,7 +370,7 @@ func TestTryReduceMinersNotReduced(t *testing.T) {
 	col.Add("miner-1", &snap.AllocItem{
 		MinerID:    "miner-1",
 		ContractID: "contract",
-		Fraction:   0.5,
+		Fraction:   0.9,
 		TotalGHS:   10000,
 	})
 	col.Add("miner-2", &snap.AllocItem{
@@ -318,6 +391,37 @@ func TestTryReduceMinersNotReduced(t *testing.T) {
 		require.Equal(t, oldItem.ContractID, newItem.ContractID, "contractID")
 		require.Equal(t, oldItem.MinerID, newItem.MinerID, "minerID")
 	}
+}
+
+func TestTryAdjustRedZones(t *testing.T) {
+	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1)
+	col := snap.NewAllocCollection()
+	col.Add("miner-1", &snap.AllocItem{MinerID: "miner-1", ContractID: "contract", Fraction: 0.0, TotalGHS: 54030})
+	col.Add("miner-2", &snap.AllocItem{MinerID: "miner-2", ContractID: "contract", Fraction: 1.0, TotalGHS: 79941})
+	col.Add("miner-3", &snap.AllocItem{MinerID: "miner-3", ContractID: "contract", Fraction: 1.0, TotalGHS: 73335})
+	col.Add("miner-4", &snap.AllocItem{MinerID: "miner-4", ContractID: "contract", Fraction: 0.58, TotalGHS: 89324})
+	col.Add("miner-5", &snap.AllocItem{MinerID: "miner-5", ContractID: "contract", Fraction: 0.0, TotalGHS: 80706})
+
+	gs.tryAdjustRedZones(col, nil)
+
+	for _, item := range col.GetItems() {
+		require.Equal(t, 0, gs.checkRedZones(item.Fraction), "shouldn't go into red zone")
+	}
+	//todo check if fractions did not change
+}
+
+func TestTryAdjustRedZones2(t *testing.T) {
+	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1)
+	col := snap.NewAllocCollection()
+	col.Add("miner-1", &snap.AllocItem{MinerID: "miner-1", ContractID: "contract", Fraction: 0.46, TotalGHS: 138347})
+	col.Add("miner-2", &snap.AllocItem{MinerID: "miner-2", ContractID: "contract", Fraction: 1.0, TotalGHS: 142011})
+
+	gs.tryAdjustRedZones(col, nil)
+
+	for _, item := range col.GetItems() {
+		require.Equal(t, 0, gs.checkRedZones(item.Fraction), "shouldn't go into red zone")
+	}
+	//todo check if fractions did not change
 }
 
 func TestTryAdjustRedZonesLeft(t *testing.T) {

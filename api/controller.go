@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"gitlab.com/TitanInd/hashrouter/blockchain"
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
+	"gitlab.com/TitanInd/hashrouter/contractmanager/contractdata"
 	"gitlab.com/TitanInd/hashrouter/data"
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
@@ -28,7 +28,7 @@ type Resource struct {
 type ApiController struct {
 	miners              interfaces.ICollection[miner.MinerScheduler]
 	contracts           interfaces.ICollection[contractmanager.IContractModel]
-	globalSubmitTracker interfaces.SubmitTracker
+	globalSubmitTracker interfaces.GlobalHashrate
 	defaultDestination  interfaces.IDestination
 
 	publicUrl *url.URL
@@ -109,7 +109,13 @@ type HistoryItem struct {
 	TimestampString string
 }
 
-func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], globalSubmitTracker interfaces.SubmitTracker, log interfaces.ILogger, gs *contractmanager.GlobalSchedulerV2, isBuyer bool, hashrateDiffThreshold float64, validationBufferPeriod time.Duration, defaultDestination interfaces.IDestination, apiPublicUrl string, contractCycleDuration time.Duration) *gin.Engine {
+type GlobalHashrateItem struct {
+	WorkerName     string
+	HRGHS          int
+	LastSubmitTime time.Time
+}
+
+func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], globalSubmitTracker interfaces.GlobalHashrate, log interfaces.ILogger, gs *contractmanager.GlobalSchedulerV2, isBuyer bool, hashrateDiffThreshold float64, validationBufferPeriod time.Duration, defaultDestination interfaces.IDestination, apiPublicUrl string, contractCycleDuration time.Duration) *gin.Engine {
 	publicUrl, _ := url.Parse(apiPublicUrl)
 
 	controller := ApiController{
@@ -155,7 +161,7 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 	})
 
 	r.GET("/buyer-last-submits", func(ctx *gin.Context) {
-		data := controller.GetBuyerLastSubmits()
+		data := controller.GetGlobalHashrate()
 		ctx.JSON(http.StatusOK, data)
 	})
 
@@ -189,9 +195,9 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 		if err != nil {
 			ctx.AbortWithStatus(http.StatusBadRequest)
 		}
-		contract := contractmanager.NewContract(blockchain.ContractData{
+		contract := contractmanager.NewContract(contractdata.ContractData{
 			Addr:                   lib.GetRandomAddr(),
-			State:                  blockchain.ContractBlockchainStateRunning,
+			State:                  contractdata.ContractBlockchainStateRunning,
 			Price:                  0,
 			Speed:                  hrGHS * int64(math.Pow10(9)),
 			Length:                 int64(duration.Seconds()),
@@ -282,6 +288,7 @@ func (c *ApiController) GetMiners() *MinersResponse {
 		BusyMiners:    BusyMiners,
 		FreeMiners:    FreeMiners,
 		VettingMiners: VettingMiners,
+		FaultyMiners:  FaultyMiners,
 
 		TotalHashrateGHS:     TotalHashrateGHS,
 		AvailableHashrateGHS: TotalHashrateGHS - UsedHashrateGHS,
@@ -296,7 +303,7 @@ func (*ApiController) mapPoolConnection(m miner.MinerScheduler) *map[string]stri
 
 	m.RangeDestConn(func(key, value any) bool {
 		k := value.(*protocol.StratumV1PoolConn)
-		ActivePoolConnections[key.(string)] = k.GetDeadline().Format(time.RFC3339)
+		ActivePoolConnections[key.(string)] = k.GetCloseTimeout().Format(time.RFC3339)
 		return true
 	})
 
@@ -442,8 +449,20 @@ func (c *ApiController) GetContract(ID string) (*Contract, bool) {
 	return item, true
 }
 
-func (c *ApiController) GetBuyerLastSubmits() map[string]time.Time {
-	return c.globalSubmitTracker.GetAll()
+func (c *ApiController) GetGlobalHashrate() []GlobalHashrateItem {
+	res := []GlobalHashrateItem{}
+
+	c.globalSubmitTracker.Range(func(m any) bool {
+		item := m.(*contractmanager.WorkerHashrateModel)
+		res = append(res, GlobalHashrateItem{
+			WorkerName:     item.ID,
+			HRGHS:          item.GetHashRateGHS(),
+			LastSubmitTime: item.GetLastSubmitTime(),
+		})
+		return true
+	})
+
+	return res
 }
 
 func (c *ApiController) MapMiner(m miner.MinerScheduler) *Miner {
@@ -498,7 +517,7 @@ func (c *ApiController) MapContract(item contractmanager.IContractModel) *Contra
 		StartTimestamp:       TimePtrToStringPtr(item.GetStartTime()),
 		EndTimestamp:         TimePtrToStringPtr(item.GetEndTime()),
 		ApplicationStatus:    MapContractState(item.GetState()),
-		BlockchainStatus:     item.GetStatusInternal(),
+		BlockchainStatus:     item.GetStateExternal(),
 		Dest:                 item.GetDest().String(),
 	}
 }

@@ -62,13 +62,7 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 
 	DEST_CYCLE:
 		for _, splitItem := range destinations.Iter() {
-			m.log.Debugf(`
-New dest cycle for miner %s 
-All destinations: %s
-
-current dest %s
-upcoming dest %s
-`, m.minerModel.GetID(), destinations.String(), m.minerModel.GetDest(), splitItem.Dest)
+			m.log.Debugf("new dest cycle: old dest %s, upcoming dest %s", m.minerModel.GetDest(), splitItem.Dest)
 
 			if !lib.IsEqualDest(m.minerModel.GetDest(), splitItem.Dest) {
 				m.log.Debugf("changing dest to %s", splitItem.Dest)
@@ -94,7 +88,6 @@ upcoming dest %s
 			case <-ctx.Done():
 				return ctx.Err()
 			case err := <-minerModelErr:
-				m.log.Errorf("miner scheduler error %s", err)
 				return err
 			case <-m.restartDestCycle:
 				m.log.Infof("destination cycle restarted")
@@ -140,12 +133,12 @@ func (m *OnDemandMinerScheduler) GetUpcomingDestSplit() *DestSplit {
 }
 
 // SetDestSplit sets upcoming destination split which will be used on next cycle
-func (m *OnDemandMinerScheduler) SetDestSplit(destSplit *DestSplit) {
+func (m *OnDemandMinerScheduler) SetDestSplit(upcomingDestSplit *DestSplit) {
 	shouldRestartDestCycle := false
 
 	if m.destSplit.IsEmpty() {
 		shouldRestartDestCycle = true
-	} else if destSplit.IsEmpty() {
+	} else if upcomingDestSplit.IsEmpty() {
 		shouldRestartDestCycle = true
 	} else {
 		if m.destSplit.Iter()[0].Fraction == 1 {
@@ -153,12 +146,12 @@ func (m *OnDemandMinerScheduler) SetDestSplit(destSplit *DestSplit) {
 		}
 	}
 
-	m.upcomingDestSplit = destSplit.Copy()
+	m.upcomingDestSplit = upcomingDestSplit.Copy()
 	if shouldRestartDestCycle {
 		m.restartDestCycle <- struct{}{}
 	}
 
-	m.log.Infof("new destination split: %s", destSplit.String())
+	m.log.Infof("new destination split: %s", upcomingDestSplit.String())
 }
 
 // ChangeDest forcefully change destination regardless of the split. The destination will be overrided back on next split item

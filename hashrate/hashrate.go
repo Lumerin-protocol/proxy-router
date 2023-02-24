@@ -8,17 +8,20 @@ import (
 )
 
 type Hashrate struct {
-	emaBase     Counter
-	ema5m       Counter
-	ema30m      Counter
-	ema1h       Counter
-	custom      map[time.Duration]Counter
-	totalHashes atomic.Uint64
+	emaBase Counter
+	ema5m   Counter
+	ema30m  Counter
+	ema1h   Counter
+	custom  map[time.Duration]Counter
+
+	totalWork       atomic.Uint64
+	firstSubmitTime atomic.Int64 // stores first submit time in unix seconds
+	lastSubmitTime  atomic.Int64 // stores last submit time in unix seconds
 }
 
 func NewHashrate(durations ...time.Duration) *Hashrate {
 	instance := &Hashrate{
-		emaBase: NewEmaPrimed(5*time.Minute, 10),
+		emaBase: NewEma(5 * time.Minute),
 		ema5m:   NewEma(5 * time.Minute),
 		ema30m:  NewEma(30 * time.Minute),
 		ema1h:   NewEma(1 * time.Hour),
@@ -56,15 +59,37 @@ func (h *Hashrate) OnSubmit(diff int64) {
 	h.ema5m.Add(diffFloat)
 	h.ema30m.Add(diffFloat)
 	h.ema1h.Add(diffFloat)
-	h.totalHashes.Add(uint64(diff))
+
+	h.totalWork.Add(uint64(diff))
+
+	now := time.Now()
+	h.maybeSetFirstSubmitTime(now)
+	h.setLastSubmitTime(now)
 
 	for _, item := range h.custom {
 		item.Add(diffFloat)
 	}
 }
 
-func (h *Hashrate) GetTotalHashes() uint64 {
-	return h.totalHashes.Load()
+func (h *Hashrate) GetTotalWork() uint64 {
+	return h.totalWork.Load()
+}
+
+func (h *Hashrate) GetLastSubmitTime() time.Time {
+	return time.Unix(h.lastSubmitTime.Load(), 0)
+}
+
+func (h *Hashrate) maybeSetFirstSubmitTime(t time.Time) {
+	h.firstSubmitTime.CAS(0, t.Unix())
+}
+
+func (h *Hashrate) setLastSubmitTime(t time.Time) {
+	h.lastSubmitTime.Store(t.Unix())
+}
+
+func (h *Hashrate) GetTotalDuration() time.Duration {
+	durationSeconds := h.lastSubmitTime.Load() - h.firstSubmitTime.Load()
+	return time.Duration(durationSeconds) * time.Second
 }
 
 func (h *Hashrate) GetHashrateGHS() int {
@@ -81,6 +106,10 @@ func (h *Hashrate) GetHashrate30minAvgGHS() int {
 
 func (h *Hashrate) GetHashrate1hAvgGHS() int {
 	return h.averageSubmitDiffToGHS(h.ema1h.ValuePer(time.Second))
+}
+
+func (h *Hashrate) GetTotalAverageGHS() int {
+	return h.averageSubmitDiffToGHS(float64(h.GetTotalWork()) / h.GetTotalDuration().Seconds())
 }
 
 // averageSubmitDiffToGHS converts average value provided by ema to hashrate in GH/S

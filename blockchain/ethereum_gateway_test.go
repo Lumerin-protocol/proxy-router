@@ -15,7 +15,7 @@ import (
 func TestSubscribeToContractEventsReconnectOnInit(t *testing.T) {
 	ethClientMock := &EthClientMock{
 		SubscribeFilterLogsFunc: func(ctx context.Context, query ethereum.FilterQuery, ch chan<- types.Log) (ethereum.Subscription, error) {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 			return nil, errors.New("kiki")
 		},
 	}
@@ -29,10 +29,10 @@ func TestSubscribeToContractEventsReconnectOnInit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(250 * time.Millisecond)
 	sub.Unsubscribe()
 
-	if ethClientMock.SubscribeFilterLogsCalledTimes < 5 {
+	if ethClientMock.SubscribeFilterLogsCalledTimes < 4 {
 		t.Fatalf("expected to reconnect")
 	}
 }
@@ -43,7 +43,7 @@ func TestSubscribeToContractEventsReconnectOnRead(t *testing.T) {
 			a := &clientSubscription{
 				ErrCh: make(chan error, 2),
 			}
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 			a.ErrCh <- errors.New("kiki")
 			t.Log("emitted")
 			return a, nil
@@ -59,10 +59,10 @@ func TestSubscribeToContractEventsReconnectOnRead(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(250 * time.Millisecond)
 	sub.Unsubscribe()
 
-	if ethClientMock.SubscribeFilterLogsCalledTimes < 5 {
+	if ethClientMock.SubscribeFilterLogsCalledTimes < 4 {
 		t.Fatalf("expected to reconnect")
 	}
 }

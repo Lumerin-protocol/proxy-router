@@ -3,8 +3,10 @@ package protocol
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"net"
+	"os"
 	"sync"
 	"time"
 
@@ -17,6 +19,7 @@ type StratumV1Miner struct {
 	conn        net.Conn
 	reader      *bufio.Reader
 	connectedAt time.Time
+	connTimeout time.Duration
 
 	isWriting bool        // used to temporarily pause writing messages to miner
 	mu        *sync.Mutex // guards isWriting
@@ -28,7 +31,7 @@ type StratumV1Miner struct {
 	logStratum    bool
 }
 
-func NewStratumV1MinerConn(conn net.Conn, log interfaces.ILogger, extraNonce *stratumv1_message.MiningSubscribeResult, logStratum bool, connectedAt time.Time) *StratumV1Miner {
+func NewStratumV1MinerConn(conn net.Conn, log interfaces.ILogger, extraNonce *stratumv1_message.MiningSubscribeResult, logStratum bool, connectedAt time.Time, connTimeout time.Duration) *StratumV1Miner {
 	mu := new(sync.Mutex)
 	return &StratumV1Miner{
 		conn:          conn,
@@ -40,6 +43,7 @@ func NewStratumV1MinerConn(conn net.Conn, log interfaces.ILogger, extraNonce *st
 		extraNonceMsg: extraNonce,
 		log:           log,
 		logStratum:    logStratum,
+		connTimeout:   connTimeout,
 	}
 }
 
@@ -63,7 +67,35 @@ func (m *StratumV1Miner) write(ctx context.Context, msg stratumv1_message.Mining
 }
 
 func (s *StratumV1Miner) Read(ctx context.Context) (stratumv1_message.MiningMessageGeneric, error) {
+	doneCh := make(chan struct{})
+	defer close(doneCh)
+
+	// cancellation via context is implemented using SetReadDeadline,
+	// which unblocks read operation causing it to return os.ErrDeadlineExceeded
+	// TODO: consider implementing it in separate goroutine instead of a goroutine per read
+	go func() {
+		select {
+		case <-ctx.Done():
+			// may return ErrClosing
+			err := s.conn.SetReadDeadline(time.Now())
+			if err != nil {
+				s.log.Warnf("err during setting SetReadDeadline to unblock reading: %s", err)
+			}
+		case <-doneCh:
+			return
+		}
+	}()
+
 	for {
+		err := s.conn.SetReadDeadline(time.Now().Add(s.connTimeout))
+		if err != nil {
+			return nil, err
+		}
+
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+
 		line, isPrefix, err := s.reader.ReadLine()
 
 		if isPrefix {
@@ -71,12 +103,10 @@ func (s *StratumV1Miner) Read(ctx context.Context) (stratumv1_message.MiningMess
 		}
 
 		if err != nil {
-			return nil, err
-		}
-
-		err = s.conn.SetReadDeadline(time.Now().Add(5 * time.Minute))
-
-		if err != nil {
+			// return correct error if read was cancelled via context
+			if ctx.Err() != nil && errors.Is(err, os.ErrDeadlineExceeded) {
+				return nil, ctx.Err()
+			}
 			return nil, err
 		}
 

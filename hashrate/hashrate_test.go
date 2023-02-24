@@ -25,6 +25,6 @@ func TestHashrate(t *testing.T) {
 		nowTime = nowTime.Add(submitDelay)
 	}
 
-	require.Equal(t, hashrate.GetTotalHashes(), uint64(expectedTotalHashes))
+	require.Equal(t, hashrate.GetTotalWork(), uint64(expectedTotalHashes))
 	require.InEpsilon(t, expectedGHS, hashrate.GetHashrate5minAvgGHS(), 0.05)
 }

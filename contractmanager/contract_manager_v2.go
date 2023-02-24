@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
+	"gitlab.com/TitanInd/hashrouter/contractmanager/contractdata"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/lib"
@@ -17,7 +18,7 @@ type ContractManager struct {
 	blockchain          interfaces.IBlockchainGateway
 	log                 interfaces.ILogger
 	globalScheduler     interfaces.IGlobalScheduler
-	globalSubmitTracker interfaces.SubmitTracker
+	globalSubmitTracker interfaces.GlobalHashrate
 
 	// configuration parameters
 	isBuyer                bool
@@ -37,7 +38,7 @@ type ContractManager struct {
 func NewContractManager(
 	blockchain interfaces.IBlockchainGateway,
 	globalScheduler interfaces.IGlobalScheduler,
-	globalSubmitTracker interfaces.SubmitTracker,
+	globalSubmitTracker interfaces.GlobalHashrate,
 	log interfaces.ILogger,
 	contracts interfaces.ICollection[IContractModel],
 	walletAddr interop.BlockchainAddress,
@@ -145,17 +146,17 @@ func (m *ContractManager) handleContract(ctx context.Context, contractAddr commo
 
 	if !m.ContractExists(contractAddr) {
 
-		data, err := m.blockchain.ReadContract(contractAddr)
+		dt, err := m.blockchain.ReadContract(contractAddr)
 		if err != nil {
 			return fmt.Errorf("cannot read created contract %w", err)
 		}
 
 		var contract IContractModel
-		contractData := data.(blockchain.ContractData)
+		contractData := dt.(contractdata.ContractData)
 
 		if m.isBuyer {
 			log := m.log.Named("BUYER  " + lib.AddrShort(contractData.Addr.String()))
-			contract = NewBuyerContract(contractData, m.blockchain, m.globalScheduler, m.globalSubmitTracker, log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration, m.submitTimeout)
+			contract = NewBuyerContract(contractData, m.blockchain, m.globalSubmitTracker, log, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration, m.submitTimeout)
 		} else {
 			log := m.log.Named("SELLER " + lib.AddrShort(contractData.Addr.String()))
 			contract = NewContract(contractData, m.blockchain, m.globalScheduler, log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration)

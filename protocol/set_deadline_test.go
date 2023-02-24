@@ -40,11 +40,11 @@ func TestSetReadDeadline(t *testing.T) {
 	if err != nil {
 		t.Log(err)
 	}
-	err = client.SetWriteDeadline(time.Now().Add(1 * time.Second))
+	err = client.SetWriteDeadline(time.Now().Add(250 * time.Millisecond))
 	if err != nil {
 		t.Log(err)
 	}
-	time.Sleep(2 * time.Second)
+	time.Sleep(500 * time.Millisecond)
 	_, err = client.Write([]byte("after"))
 
 	if !errors.Is(err, os.ErrDeadlineExceeded) {
