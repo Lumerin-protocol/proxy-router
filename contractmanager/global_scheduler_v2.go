@@ -16,6 +16,7 @@ type GlobalSchedulerV2 struct {
 	poolMinDuration       time.Duration
 	poolMaxDuration       time.Duration
 	hashrateDiffThreshold float64
+	hashrateAdjustment    float64 // multiplier for expected hashrate to acommodate destination switching loses
 
 	// dependencies
 	minerCollection interfaces.ICollection[miner.MinerScheduler]
@@ -40,12 +41,17 @@ const (
 	TASK_ALERT_TIMEOUT      = 10 * time.Second
 )
 
-func NewGlobalSchedulerV2(minerCollection interfaces.ICollection[miner.MinerScheduler], log interfaces.ILogger, poolMinDuration, poolMaxDuration time.Duration, hashrateDiffThreshold float64) *GlobalSchedulerV2 {
+func NewGlobalSchedulerV2(minerCollection interfaces.ICollection[miner.MinerScheduler], log interfaces.ILogger, poolMinDuration, poolMaxDuration time.Duration, hashrateDiffThreshold, hashrateAdjustment float64) *GlobalSchedulerV2 {
+	if hashrateAdjustment == 0 {
+		hashrateAdjustment = 1
+	}
+
 	instance := &GlobalSchedulerV2{
 		minerCollection:       minerCollection,
 		log:                   log,
 		hashrateDiffThreshold: hashrateDiffThreshold,
 		queue:                 make(chan task, 100),
+		hashrateAdjustment:    hashrateAdjustment,
 	}
 	instance.setPoolDurationConstraints(poolMinDuration, poolMaxDuration)
 	return instance
@@ -91,10 +97,12 @@ func (s *GlobalSchedulerV2) GetMinerSnapshot() *data.AllocSnap {
 
 // Update publishes adjusts contract hashrate task. Set hashrateGHS to 0 to deallocate miners.
 func (s *GlobalSchedulerV2) Update(contractID string, hashrateGHS int, dest interfaces.IDestination, onSubmit interfaces.IHashrate) error {
+	adjustedHR := int(float64(hashrateGHS) * s.hashrateAdjustment)
+
 	errCh := make(chan error)
 	tsk := task{
 		contractID:  contractID,
-		hashrateGHS: hashrateGHS,
+		hashrateGHS: adjustedHR,
 		dest:        dest,
 		errCh:       errCh,
 		onSubmit:    onSubmit,

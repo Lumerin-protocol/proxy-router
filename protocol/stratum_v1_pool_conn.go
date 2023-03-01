@@ -105,6 +105,7 @@ func (c *StratumV1PoolConn) Run(ctx context.Context) error {
 		m, err := stratumv1_message.ParseMessageFromPool(line)
 		if err != nil {
 			c.log.Errorf("unknown pool message", string(line))
+			continue
 		}
 
 		m = c.readInterceptor(m)

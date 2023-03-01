@@ -54,7 +54,7 @@ func InitApp() (*app.App, error) {
 }
 
 func provideGlobalScheduler(cfg *config.Config, miners interfaces.ICollection[miner.MinerScheduler], log interfaces.ILogger) *contractmanager.GlobalSchedulerV2 {
-	return contractmanager.NewGlobalSchedulerV2(miners, log, cfg.Pool.MinDuration, cfg.Pool.MaxDuration, cfg.Contract.HashrateDiffThreshold)
+	return contractmanager.NewGlobalSchedulerV2(miners, log, cfg.Pool.MinDuration, cfg.Pool.MaxDuration, cfg.Contract.HashrateDiffThreshold, cfg.Contract.HashrateAdjustment)
 }
 
 func provideMinerCollection() interfaces.ICollection[miner.MinerScheduler] {

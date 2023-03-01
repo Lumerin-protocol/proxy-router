@@ -55,7 +55,7 @@ func TestAllocationPreferSingleMiner(t *testing.T) {
 	dest, _ := lib.ParseDest("stratum+tcp://user:pwd@host.com:3333")
 	contractID := "test-contract"
 	miners := CreateMockMinerCollection(contractID, dest)
-	globalScheduler := NewGlobalSchedulerV2(miners, &lib.LoggerMock{}, 2*time.Minute, 5*time.Minute, 0)
+	globalScheduler := NewGlobalSchedulerV2(miners, &lib.LoggerMock{}, 2*time.Minute, 5*time.Minute, 0, 1)
 
 	contract2ID := "test-contract-2"
 	hrGHS := 10000
@@ -85,7 +85,7 @@ func TestAllocationShouldntSplitBetweenTwoContracts(t *testing.T) {
 	dest, _ := lib.ParseDest("stratum+tcp://user:pwd@host.com:3333")
 	contractID := "test-contract"
 	miners := CreateMockMinerCollection(contractID, dest)
-	globalScheduler := NewGlobalSchedulerV2(miners, &lib.LoggerMock{}, 0, 0, 0)
+	globalScheduler := NewGlobalSchedulerV2(miners, &lib.LoggerMock{}, 0, 0, 0, 1)
 
 	contract2ID := "test-contract-2"
 	hrGHS := 5000
@@ -113,7 +113,7 @@ func TestIncAllocation(t *testing.T) {
 	expectedGHS := 16000
 
 	miners := CreateMockMinerCollection(contractID, dest)
-	globalScheduler := NewGlobalSchedulerV2(miners, &lib.LoggerMock{}, 0, 0, 0)
+	globalScheduler := NewGlobalSchedulerV2(miners, &lib.LoggerMock{}, 0, 0, 0, 1)
 
 	err := globalScheduler.update(contractID, expectedGHS, dest, nil)
 	if err != nil {
@@ -143,7 +143,7 @@ func TestIncAllocationNotEnoughHR(t *testing.T) {
 		return true
 	})
 
-	globalScheduler := NewGlobalSchedulerV2(miners, &lib.LoggerMock{}, 0, 0, 0)
+	globalScheduler := NewGlobalSchedulerV2(miners, &lib.LoggerMock{}, 0, 0, 0, 1)
 
 	err := globalScheduler.update(contractID, contractGHS, dest, nil)
 	if err != nil {
@@ -168,7 +168,7 @@ func TestIncAllocationAddMiner(t *testing.T) {
 	minPoolDuration, maxPoolDuration := 2*time.Minute, 7*time.Minute
 
 	miners := CreateMockMinerCollection(contractID, dest)
-	globalScheduler := NewGlobalSchedulerV2(miners, lib.NewTestLogger(), minPoolDuration, maxPoolDuration, 0.1)
+	globalScheduler := NewGlobalSchedulerV2(miners, lib.NewTestLogger(), minPoolDuration, maxPoolDuration, 0.1, 1)
 
 	err := globalScheduler.update(contractID, newGHS, dest, nil)
 	if err != nil {
@@ -200,7 +200,7 @@ func TestDecrAllocation(t *testing.T) {
 	contractID := "test-contract"
 
 	miners := CreateMockMinerCollection(contractID, dest)
-	globalScheduler := NewGlobalSchedulerV2(miners, &lib.LoggerMock{}, 0, 0, 0)
+	globalScheduler := NewGlobalSchedulerV2(miners, &lib.LoggerMock{}, 0, 0, 0, 1)
 
 	miner1, _ := miners.Load("1")
 	miner2, _ := miners.Load("2")
@@ -233,7 +233,7 @@ func TestDecrAllocationRemoveMiner(t *testing.T) {
 	contractID := "test-contract"
 
 	miners := CreateMockMinerCollection(contractID, dest)
-	globalScheduler := NewGlobalSchedulerV2(miners, &lib.LoggerMock{}, 0, 0, 0)
+	globalScheduler := NewGlobalSchedulerV2(miners, &lib.LoggerMock{}, 0, 0, 0, 1)
 
 	err := globalScheduler.update(contractID, newGHS, dest, nil)
 	if err != nil {
@@ -287,7 +287,7 @@ func TestGetMinerSnapshot(t *testing.T) {
 	miners.Store(scheduler1)
 	miners.Store(scheduler2)
 
-	globalScheduler := NewGlobalSchedulerV2(miners, &lib.LoggerMock{}, 0, 0, 0)
+	globalScheduler := NewGlobalSchedulerV2(miners, &lib.LoggerMock{}, 0, 0, 0, 1)
 	snapshot := globalScheduler.GetMinerSnapshot()
 
 	if _, ok := snapshot.Miner("2"); ok {
@@ -299,7 +299,7 @@ func TestGetMinerSnapshot(t *testing.T) {
 }
 
 func TestTryReduceMiners(t *testing.T) {
-	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 3, 5, 0.1)
+	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 3, 5, 0.1, 1)
 	col := snap.NewAllocCollection()
 	col.Add("miner-1", &snap.AllocItem{
 		MinerID:    "miner-1",
@@ -331,7 +331,7 @@ func TestTryReduceMiners(t *testing.T) {
 }
 
 func TestTryReduceMiners2(t *testing.T) {
-	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 3, 5, 0.1)
+	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 3, 5, 0.1, 1)
 	col := snap.NewAllocCollection()
 	col.Add("miner-1", &snap.AllocItem{
 		MinerID:    "miner-1",
@@ -365,7 +365,7 @@ func TestTryReduceMiners2(t *testing.T) {
 }
 
 func TestTryReduceMinersNotReduced(t *testing.T) {
-	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 3, 5, 0.1)
+	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 3, 5, 0.1, 1)
 	col := snap.NewAllocCollection()
 	col.Add("miner-1", &snap.AllocItem{
 		MinerID:    "miner-1",
@@ -394,7 +394,7 @@ func TestTryReduceMinersNotReduced(t *testing.T) {
 }
 
 func TestTryAdjustRedZones(t *testing.T) {
-	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1)
+	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1, 1)
 	col := snap.NewAllocCollection()
 	col.Add("miner-1", &snap.AllocItem{MinerID: "miner-1", ContractID: "contract", Fraction: 0.0, TotalGHS: 54030})
 	col.Add("miner-2", &snap.AllocItem{MinerID: "miner-2", ContractID: "contract", Fraction: 1.0, TotalGHS: 79941})
@@ -411,7 +411,7 @@ func TestTryAdjustRedZones(t *testing.T) {
 }
 
 func TestTryAdjustRedZones2(t *testing.T) {
-	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1)
+	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1, 1)
 	col := snap.NewAllocCollection()
 	col.Add("miner-1", &snap.AllocItem{MinerID: "miner-1", ContractID: "contract", Fraction: 0.46, TotalGHS: 138347})
 	col.Add("miner-2", &snap.AllocItem{MinerID: "miner-2", ContractID: "contract", Fraction: 1.0, TotalGHS: 142011})
@@ -425,7 +425,7 @@ func TestTryAdjustRedZones2(t *testing.T) {
 }
 
 func TestTryAdjustRedZonesLeft(t *testing.T) {
-	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1)
+	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1, 1)
 	col := snap.NewAllocCollection()
 	col.Add("miner-1", &snap.AllocItem{
 		MinerID:    "miner-1",
@@ -449,7 +449,7 @@ func TestTryAdjustRedZonesLeft(t *testing.T) {
 }
 
 func TestTryAdjustRedZonesLeftNotPossible(t *testing.T) {
-	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1)
+	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1, 1)
 	col := snap.NewAllocCollection()
 	col.Add("miner-1", &snap.AllocItem{
 		MinerID:    "miner-1",
@@ -474,7 +474,7 @@ func TestTryAdjustRedZonesLeftNotPossible(t *testing.T) {
 }
 
 func TestTryAdjustRedZonesRightWFreeMiner(t *testing.T) {
-	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1)
+	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1, 1)
 
 	snap := snap.NewAllocSnap()
 	snap.SetMiner("miner-2", 10000)
@@ -492,7 +492,7 @@ func TestTryAdjustRedZonesRightWFreeMiner(t *testing.T) {
 }
 
 func TestTryAdjustRedZonesRightWBusyMiner(t *testing.T) {
-	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1)
+	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1, 1)
 
 	snap := snap.NewAllocSnap()
 	snap.Set("miner-2", "contract", 0.3, 10000)
@@ -510,7 +510,7 @@ func TestTryAdjustRedZonesRightWBusyMiner(t *testing.T) {
 }
 
 func TestTryAdjustRedZonesRightNotPossible(t *testing.T) {
-	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1)
+	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1, 1)
 
 	snap := snap.NewAllocSnap()
 	snap.SetMiner("miner-2", 1000)
@@ -595,7 +595,7 @@ func TestUpdateChangeDest(t *testing.T) {
 	miners.Store(scheduler1)
 	miners.Store(scheduler2)
 
-	gs := NewGlobalSchedulerV2(miners, log, minTime, maxTime, 0.1)
+	gs := NewGlobalSchedulerV2(miners, log, minTime, maxTime, 0.1, 1)
 
 	err := gs.update(contractID, hrGHS, dest1, nil)
 	if err != nil {

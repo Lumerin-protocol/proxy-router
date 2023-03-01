@@ -79,7 +79,7 @@ func Setup() {
 	}
 	log = &lib.LoggerMock{}
 
-	globalScheduler := NewGlobalSchedulerV2(miner.NewMinerCollection(), log, 0, 0, 0)
+	globalScheduler := NewGlobalSchedulerV2(miner.NewMinerCollection(), log, 0, 0, 0, 1)
 	contract = &BTCHashrateContractSeller{
 		log:             log,
 		blockchain:      blockchainGateway,
