@@ -19,6 +19,7 @@ type Config struct {
 		ProxyAddress           string
 		Disable                bool          `env:"CONTRACT_DISABLE" flag:"contract-disable"`
 		CycleDuration          time.Duration `env:"CONTRACT_CYCLE_DURATION" flag:"contract-cycle-duration"`
+		HashrateAdjustment     float64       `env:"CONTRACT_HASHRATE_ADJUSTMENT" flag:"contract-hashrate-adjustment"`
 	}
 	Environment string `env:"ENVIRONMENT" flag:"environment"`
 	EthNode     struct {
