@@ -282,7 +282,7 @@ func (c *BTCBuyerHashrateContract) GetID() string {
 func (c *BTCBuyerHashrateContract) GetDeliveredHashrate() interfaces.Hashrate {
 	var hr interfaces.Hashrate
 	c.globalHashrate.Range(func(m any) bool {
-		workerHr := m.(WorkerHashrateModel)
+		workerHr := m.(*WorkerHashrateModel)
 		if workerHr.ID == c.GetDest().Username() {
 			hr = workerHr.hr
 			return false
