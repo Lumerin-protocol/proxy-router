@@ -2,9 +2,11 @@ package contractmanager
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
@@ -72,13 +74,7 @@ func (c *BTCBuyerHashrateContract) Run(ctx context.Context) error {
 	err := c.FulfillBuyerContract(ctx)
 
 	c.state = ContractStateAvailable
-
 	c.log.Infof("stopped buyer contract")
-
-	err2 := c.close(ctx)
-	if err2 != nil {
-		return err2
-	}
 
 	return err
 }
@@ -102,53 +98,81 @@ func (c *BTCBuyerHashrateContract) FulfillBuyerContract(ctx context.Context) err
 
 	// cycle checks incoming hashrate every c.cycleDuration seconds
 	for {
-		if c.state == ContractStatePurchased && !c.IsValidationBufferPeriod() {
-			c.log.Infof("validation buffer period is over")
-			c.state = ContractStateRunning
-		}
+		shouldStop, err := c.checkIteration(ctx, sub, eventsCh, ticker)
+		if shouldStop {
 
-		if c.ContractIsExpired() {
-			c.log.Info("contract expired")
-			return nil
-		}
-
-		if c.state == ContractStateAvailable {
-			c.log.Info("contract switched to an available state")
-			return nil
-		}
-
-		lastSubmitTime, ok := c.globalHashrate.GetLastSubmitTime(c.GetDest().Username())
-		if ok {
-			if time.Since(lastSubmitTime) > c.submitTimeout {
-				c.log.Infof("contract last submit timeout (%s)", c.submitTimeout)
-				return nil
+			c.log.Infof("closing buyer contract")
+			err2 := c.close(ctx)
+			if err2 == nil {
+				c.log.Infof("closed buyer contract")
+				return err
 			}
-		}
 
-		if !c.isDeliveringAccurateHashrate() {
-			if !c.IsValidationBufferPeriod() {
-				c.log.Infof("contract stopped due to delivering unaccurate hashrate after validation buffer period")
-				return nil
+			c.log.Infof("cannot close buyer contract: %s", err2)
+
+			// make sure cancellation will actually cancel
+			if errors.Is(err, context.Canceled) {
+				return err
 			}
-			c.log.Infof("contract is not delivering accurate hashrate")
-		}
 
-		c.log.Infof("contract is running for %s / %s (internal/blockchain)", time.Since(c.fullfillmentStartedAt), time.Since(*c.GetStartTime()))
-
-		select {
-		case e := <-eventsCh:
-			err := c.eventsController(ctx, e)
-			if err != nil {
-				c.log.Errorf("blockchain event handling error: %s", err)
+			// do not retry immediately
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-ticker.C:
 			}
-		case err := <-sub.Err():
-			return fmt.Errorf("contract subscription error %s", err)
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			continue
 		}
 	}
+}
+
+func (c *BTCBuyerHashrateContract) checkIteration(ctx context.Context, sub ethereum.Subscription, eventsCh chan types.Log, ticker *time.Ticker) (bool, error) {
+	if c.state == ContractStatePurchased && !c.IsValidationBufferPeriod() {
+		c.log.Infof("validation buffer period is over")
+		c.state = ContractStateRunning
+	}
+
+	if c.ContractIsExpired() {
+		c.log.Info("contract expired")
+		return true, nil
+	}
+
+	if c.state == ContractStateAvailable {
+		c.log.Info("contract switched to an available state")
+		return true, nil
+	}
+
+	lastSubmitTime, ok := c.globalHashrate.GetLastSubmitTime(c.GetDest().Username())
+	if ok {
+		if time.Since(lastSubmitTime) > c.submitTimeout {
+			c.log.Infof("contract last submit timeout (%s)", c.submitTimeout)
+			return true, nil
+		}
+	}
+
+	if !c.isDeliveringAccurateHashrate() {
+		if !c.IsValidationBufferPeriod() {
+			c.log.Infof("contract stopped due to delivering unaccurate hashrate after validation buffer period")
+			return true, nil
+		}
+		c.log.Infof("contract is not delivering accurate hashrate")
+	}
+
+	c.log.Infof("contract is running for %s / %s (internal/blockchain)", time.Since(c.fullfillmentStartedAt), time.Since(*c.GetStartTime()))
+
+	select {
+	case e := <-eventsCh:
+		err := c.eventsController(ctx, e)
+		if err != nil {
+			c.log.Errorf("blockchain event handling error: %s", err)
+		}
+	case err := <-sub.Err():
+		return true, fmt.Errorf("contract subscription error %s", err)
+	case <-ctx.Done():
+		return true, ctx.Err()
+	case <-ticker.C:
+	}
+
+	return false, nil
 }
 
 func (c *BTCBuyerHashrateContract) IsValidWallet(walletAddress common.Address) bool {
