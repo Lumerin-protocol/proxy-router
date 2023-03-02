@@ -2,6 +2,7 @@ package contractmanager
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
 	"gitlab.com/TitanInd/hashrouter/contractmanager/contractdata"
+	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/lib"
 )
 
@@ -29,6 +31,7 @@ func TestCloseoutOnContractEnd(t *testing.T) {
 		ID:             data.Dest.Username(),
 		HrGHS:          data.GetHashrateGHS(),
 		LastSubmitTime: time.Now(),
+		TotalWork:      uint64(hashrate.HSToJobSubmitted(hashrate.GHSToHS(data.GetHashrateGHS()) * float64(contractDurationSeconds))),
 	})
 
 	ethGateway := blockchain.NewEthereumGatewayMock()
@@ -78,6 +81,7 @@ func TestContractCloseoutOnEvent(t *testing.T) {
 		ID:             data.Dest.Username(),
 		HrGHS:          data.GetHashrateGHS(),
 		LastSubmitTime: time.Now(),
+		TotalWork:      uint64(hashrate.HSToJobSubmitted(hashrate.GHSToHS(data.GetHashrateGHS()) * float64(contractDurationSeconds))),
 	})
 
 	defaultDest := lib.MustParseDest("stratum+tcp://default:dest@pool.io:1234")
@@ -124,6 +128,7 @@ func TestBuyerEditContractEvent(t *testing.T) {
 		ID:             data.Dest.Username(),
 		HrGHS:          data.GetHashrateGHS(),
 		LastSubmitTime: time.Now(),
+		TotalWork:      uint64(hashrate.HSToJobSubmitted(hashrate.GHSToHS(data.GetHashrateGHS()) * float64(contractDurationSeconds))),
 	})
 
 	defaultDest := lib.MustParseDest("stratum+tcp://default:dest@pool.io:1234")
@@ -233,4 +238,59 @@ func TestBuyerContractIsValid(t *testing.T) {
 	contract.data.Buyer = lib.GetRandomAddr()
 	isValid = contract.IsValidWallet(buyer)
 	assert.False(t, isValid, "buyer contract shouldn't be valid to run: buyer address doesn't match")
+}
+
+func TestCloseoutFailure(t *testing.T) {
+	contractDurationSeconds := 1
+	cycleDuration := time.Duration(contractDurationSeconds) * time.Second / 10
+	allowance := 2 * cycleDuration
+
+	log := lib.NewTestLogger()
+
+	data := contractdata.GetSampleContractData()
+	data.State = contractdata.ContractBlockchainStateRunning
+	data.Length = int64(contractDurationSeconds)
+
+	globalHR := NewGlobalHashrateMock()
+	globalHR.LoadOrStore(&WorkerHashrateModelMock{
+		ID:             data.Dest.Username(),
+		HrGHS:          data.GetHashrateGHS(),
+		LastSubmitTime: time.Now(),
+		TotalWork:      uint64(hashrate.HSToJobSubmitted(hashrate.GHSToHS(data.GetHashrateGHS()) * float64(contractDurationSeconds))),
+	})
+
+	ethGateway := blockchain.NewEthereumGatewayMock()
+	ethGateway.SetContractCloseOutErr = errors.New("sample closeout error")
+
+	defaultDest := lib.MustParseDest("stratum+tcp://default:dest@pool.io:1234")
+	contract := NewBuyerContract(data, ethGateway, globalHR, log, 0.1, 0, defaultDest, cycleDuration, 7*time.Minute)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	errCh := make(chan error)
+	go func() {
+		errCh <- contract.Run(ctx)
+	}()
+
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Duration(contractDurationSeconds)*time.Second + allowance):
+	}
+
+	assert.LessOrEqual(t, 2, ethGateway.SetContractCloseOutCalledTimes, "SetContractCloseOut should be called at least twice")
+
+	ethGateway.SetContractCloseOutErr = nil
+
+	select {
+	case err := <-errCh:
+		if err != nil {
+			assert.Fail(t, "contract should end without an error")
+		}
+	case <-time.After(cycleDuration * 2):
+		assert.Fail(t, "contract should end within two cycles")
+	}
 }
