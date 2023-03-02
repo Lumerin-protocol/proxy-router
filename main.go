@@ -158,7 +158,11 @@ func provideContractManager(
 		return nil, err
 	}
 
-	return contractmanager.NewContractManager(ethGateway, globalScheduler, globalSubmitTracker, log, contracts, ethWallet.GetAccountAddress(), ethWallet.GetPrivateKey(), cfg.Contract.IsBuyer, cfg.Contract.HashrateDiffThreshold, cfg.Contract.ValidationBufferPeriod, destination, cfg.Contract.CycleDuration, cfg.Pool.MaxDuration), nil
+	// theoretically MaxDuration should describe what is the longest time the source could be pointing to different destination
+	// however it is not a guarantee that submit is going to happen right away after switch
+	submitTimeout := cfg.Pool.MaxDuration + cfg.Pool.MinDuration
+
+	return contractmanager.NewContractManager(ethGateway, globalScheduler, globalSubmitTracker, log, contracts, ethWallet.GetAccountAddress(), ethWallet.GetPrivateKey(), cfg.Contract.IsBuyer, cfg.Contract.HashrateDiffThreshold, cfg.Contract.ValidationBufferPeriod, destination, cfg.Contract.CycleDuration, submitTimeout), nil
 }
 
 func provideLogger(cfg *config.Config) (interfaces.ILogger, error) {

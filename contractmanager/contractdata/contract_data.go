@@ -42,7 +42,7 @@ type ContractData struct {
 
 func NewContractData(addr, buyer, seller common.Address, state uint8, price, limit, speedHS, lengthSeconds, startingBlockTimeUnix int64, dest interfaces.IDestination) ContractData {
 	// making sure workername is set to contract ID to be able to identify contract on buyer side
-	dst := lib.NewDest(addr.String(), "", dest.GetHost(), nil)
+	dst := enforceWorkerName(dest, addr.String())
 
 	return ContractData{
 		addr,
@@ -121,4 +121,11 @@ func (d *ContractData) Copy() ContractData {
 		StartingBlockTimestamp: d.StartingBlockTimestamp,
 		Dest:                   d.Dest,
 	}
+}
+
+func enforceWorkerName(dest interfaces.IDestination, workername string) interfaces.IDestination {
+	if dest.String() == "" {
+		return lib.Dest{}
+	}
+	return lib.NewDest(workername, "", dest.GetHost(), nil)
 }

@@ -204,7 +204,9 @@ func provideContractManager(
 		return nil, err
 	}
 
-	return contractmanager.NewContractManager(ethGateway, globalScheduler, globalSubmitTracker, log, contracts, ethWallet.GetAccountAddress(), ethWallet.GetPrivateKey(), cfg.Contract.IsBuyer, cfg.Contract.HashrateDiffThreshold, cfg.Contract.ValidationBufferPeriod, destination, cfg.Contract.CycleDuration, cfg.Pool.MaxDuration), nil
+	submitTimeout := cfg.Pool.MaxDuration + cfg.Pool.MinDuration
+
+	return contractmanager.NewContractManager(ethGateway, globalScheduler, globalSubmitTracker, log, contracts, ethWallet.GetAccountAddress(), ethWallet.GetPrivateKey(), cfg.Contract.IsBuyer, cfg.Contract.HashrateDiffThreshold, cfg.Contract.ValidationBufferPeriod, destination, cfg.Contract.CycleDuration, submitTimeout), nil
 }
 
 func provideLogger(cfg *config.Config) (interfaces.ILogger, error) {
