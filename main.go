@@ -75,7 +75,7 @@ func provideMinerController(cfg *config.Config, l interfaces.ILogger, repo inter
 		return nil, err
 	}
 
-	return miner.NewMinerController(destination, repo, l, cfg.Proxy.LogStratum, cfg.Miner.VettingDuration, cfg.Pool.MinDuration, cfg.Pool.MaxDuration, cfg.Pool.ConnTimeout, cfg.Miner.SubmitErrLimit, globalSubmitTracker), nil
+	return miner.NewMinerController(destination, repo, l, cfg.Proxy.ProtocolLog, cfg.Miner.VettingDuration, cfg.Pool.MinDuration, cfg.Pool.MaxDuration, cfg.Pool.ConnTimeout, cfg.Miner.SubmitErrLimit, globalSubmitTracker), nil
 }
 
 func provideApiController(cfg *config.Config, miners interfaces.ICollection[miner.MinerScheduler], contracts interfaces.ICollection[contractmanager.IContractModel], globalSubmitTracker interfaces.GlobalHashrate, log interfaces.ILogger, gs *contractmanager.GlobalSchedulerV2) (*gin.Engine, error) {

@@ -16,22 +16,25 @@ import (
 )
 
 type StratumV1Miner struct {
+	// dependencies
 	conn        net.Conn
 	reader      *bufio.Reader
-	connectedAt time.Time
-	connTimeout time.Duration
+	log         interfaces.ILogger
+	protocolLog interfaces.ILogger
 
-	isWriting bool        // used to temporarily pause writing messages to miner
-	mu        *sync.Mutex // guards isWriting
-
-	cond          *sync.Cond
-	extraNonceMsg *stratumv1_message.MiningSubscribeResult
+	// configuration
+	connectedAt   time.Time
+	connTimeout   time.Duration
 	workerName    string
-	log           interfaces.ILogger
-	logStratum    bool
+	extraNonceMsg *stratumv1_message.MiningSubscribeResult
+
+	// internal state
+	mu        *sync.Mutex // guards isWriting
+	isWriting bool        // used to temporarily pause writing messages to miner
+	cond      *sync.Cond
 }
 
-func NewStratumV1MinerConn(conn net.Conn, log interfaces.ILogger, extraNonce *stratumv1_message.MiningSubscribeResult, logStratum bool, connectedAt time.Time, connTimeout time.Duration) *StratumV1Miner {
+func NewStratumV1MinerConn(conn net.Conn, extraNonce *stratumv1_message.MiningSubscribeResult, connectedAt time.Time, connTimeout time.Duration, log, protocolLog interfaces.ILogger) *StratumV1Miner {
 	mu := new(sync.Mutex)
 	return &StratumV1Miner{
 		conn:          conn,
@@ -41,9 +44,9 @@ func NewStratumV1MinerConn(conn net.Conn, log interfaces.ILogger, extraNonce *st
 		mu:            mu,
 		cond:          sync.NewCond(mu),
 		extraNonceMsg: extraNonce,
-		log:           log,
-		logStratum:    logStratum,
 		connTimeout:   connTimeout,
+		log:           log,
+		protocolLog:   protocolLog,
 	}
 }
 
@@ -53,17 +56,24 @@ func (m *StratumV1Miner) Write(ctx context.Context, msg stratumv1_message.Mining
 
 // write writes to miner omitting locks
 func (m *StratumV1Miner) write(ctx context.Context, msg stratumv1_message.MiningMessageGeneric) error {
-	if m.conn != nil && msg != nil {
-		if m.logStratum {
-			lib.LogMsg(true, false, m.conn.RemoteAddr().String(), msg.Serialize(), m.log)
-		}
+	if m.conn == nil {
+		return fmt.Errorf("miner connection is not established")
+	}
+	if msg == nil {
+		return fmt.Errorf("nil message write attempt")
+	}
 
-		b := append(msg.Serialize(), lib.CharNewLine)
-		_, err := m.conn.Write(b)
+	b := append(msg.Serialize(), lib.CharNewLine)
+
+	_, err := m.conn.Write(b)
+	if err != nil {
 		return err
 	}
 
-	return fmt.Errorf("invalid message or connection; connection: %v; message: %v", m.conn, msg)
+	if m.protocolLog != nil {
+		m.protocolLog.Debugf("=> %s", string(msg.Serialize()))
+	}
+	return nil
 }
 
 func (s *StratumV1Miner) Read(ctx context.Context) (stratumv1_message.MiningMessageGeneric, error) {
@@ -110,8 +120,8 @@ func (s *StratumV1Miner) Read(ctx context.Context) (stratumv1_message.MiningMess
 			return nil, err
 		}
 
-		if s.logStratum {
-			lib.LogMsg(true, true, s.conn.RemoteAddr().String(), line, s.log)
+		if s.protocolLog != nil {
+			s.protocolLog.Debugf("<= %s", string(line))
 		}
 
 		m, err := stratumv1_message.ParseMessageToPool(line, s.log)

@@ -3,6 +3,7 @@ package protocol
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -19,17 +20,19 @@ type StratumV1PoolConnPool struct {
 	conn        *StratumV1PoolConn
 	mu          sync.Mutex // guards conn
 	connTimeout time.Duration
+	ID          string
 
-	log        interfaces.ILogger
-	logStratum bool
+	log         interfaces.ILogger
+	logProtocol bool
 }
 
-func NewStratumV1PoolPool(log interfaces.ILogger, connTimeout time.Duration, logStratum bool) *StratumV1PoolConnPool {
+func NewStratumV1PoolPool(log interfaces.ILogger, connTimeout time.Duration, ID string, logProtocol bool) *StratumV1PoolConnPool {
 	return &StratumV1PoolConnPool{
 		pool:        sync.Map{},
 		connTimeout: connTimeout,
 		log:         log,
-		logStratum:  logStratum,
+		ID:          ID,
+		logProtocol: logProtocol,
 	}
 }
 
@@ -88,7 +91,15 @@ func (p *StratumV1PoolConnPool) SetDest(ctx context.Context, dest interfaces.IDe
 
 	_ = c.(*net.TCPConn).SetLinger(60)
 
-	conn = NewStratumV1Pool(c, p.log, dest, configure, p.connTimeout, p.logStratum)
+	var protocolLog interfaces.ILogger = nil
+	if p.logProtocol {
+		protocolLog, err = lib.NewFileLogger(fmt.Sprintf("POOL-%s-%s", p.ID, dest.GetHost()))
+		if err != nil {
+			p.log.Error(err)
+		}
+	}
+
+	conn = NewStratumV1Pool(c, dest, configure, p.connTimeout, p.log, protocolLog)
 
 	go func() {
 		err := conn.Run(context.TODO())

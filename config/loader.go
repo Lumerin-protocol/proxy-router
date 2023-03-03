@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/joho/godotenv"
@@ -74,8 +75,13 @@ func LoadConfig(cfg interface{}, osArgs *[]string) error {
 
 	// flags override .env variables
 	err = flagset.Parse(args[1:])
+
 	if err != nil {
-		return lib.WrapError(ErrFlagParse, err)
+		if strings.Contains(err.Error(), "flag provided but not defined") {
+			fmt.Println(err)
+		} else {
+			return lib.WrapError(ErrFlagParse, err)
+		}
 	}
 
 	validator, err := NewValidator()

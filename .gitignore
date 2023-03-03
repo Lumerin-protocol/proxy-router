@@ -12,3 +12,4 @@ remote-todos
 .vscode
 hashrouter
 dist/
+logs/

@@ -23,13 +23,13 @@ var ErrReadBufferFull = errors.New("pool connection read buffer is full")
 // StratumV1PoolConn represents connection to the pool on the protocol level
 type StratumV1PoolConn struct {
 	// dependencies
-	conn net.Conn
-	log  interfaces.ILogger
+	conn       net.Conn
+	log        interfaces.ILogger
+	logStratum interfaces.ILogger
 
 	// configuration
 	dest        interfaces.IDestination
 	connTimeout time.Duration
-	logStratum  bool
 
 	// internal state
 	readBuffer chan stratumv1_message.MiningMessageGeneric // auxillary channel to relay messages
@@ -50,7 +50,7 @@ type StratumV1PoolConn struct {
 	closeTimeout         time.Time      // last set timeout
 }
 
-func NewStratumV1Pool(conn net.Conn, log interfaces.ILogger, dest interfaces.IDestination, configureMsg *stratumv1_message.MiningConfigure, connTimeout time.Duration, logStratum bool) *StratumV1PoolConn {
+func NewStratumV1Pool(conn net.Conn, dest interfaces.IDestination, configureMsg *stratumv1_message.MiningConfigure, connTimeout time.Duration, log, logStratum interfaces.ILogger) *StratumV1PoolConn {
 	return &StratumV1PoolConn{
 		dest: dest,
 
@@ -98,8 +98,8 @@ func (c *StratumV1PoolConn) Run(ctx context.Context) error {
 			return err
 		}
 
-		if c.logStratum {
-			lib.LogMsg(false, true, c.dest.GetHost(), line, c.log)
+		if c.logStratum != nil {
+			c.logStratum.Debugf("<= %s", string(line))
 		}
 
 		m, err := stratumv1_message.ParseMessageFromPool(line)
@@ -259,17 +259,15 @@ func (c *StratumV1PoolConn) Write(ctx context.Context, msg stratumv1_message.Min
 func (c *StratumV1PoolConn) write(ctx context.Context, msg stratumv1_message.MiningMessageGeneric) error {
 	msg = c.writeInterceptor(msg)
 
-	if c.logStratum {
-		if c.dest != nil && msg != nil {
-			lib.LogMsg(false, false, c.dest.GetHost(), msg.Serialize(), c.log)
-		}
-	}
-
 	b := append(msg.Serialize(), lib.CharNewLine)
 	_, err := c.conn.Write(b)
 
 	if err != nil {
 		return err
+	}
+
+	if c.logStratum != nil {
+		c.logStratum.Debugf("=> %s", string(msg.Serialize()))
 	}
 
 	c.SetCloseTimeout(time.Now().Add(c.connTimeout))

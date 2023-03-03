@@ -8,6 +8,7 @@ import (
 
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/protocol"
 	"gitlab.com/TitanInd/hashrouter/protocol/stratumv1_message"
 	"gitlab.com/TitanInd/hashrouter/tcpserver"
@@ -26,15 +27,15 @@ type MinerController struct {
 
 	globalSubmitTracker interfaces.GlobalHashrate
 
-	log        interfaces.ILogger
-	logStratum bool
+	log         interfaces.ILogger
+	logProtocol bool
 }
 
 func NewMinerController(
 	defaultDest interfaces.IDestination,
 	collection interfaces.ICollection[MinerScheduler],
 	log interfaces.ILogger,
-	logStratum bool,
+	logProtocol bool,
 	minerVettingPeriod, poolMinDuration, poolMaxDuration, poolConnTimeout time.Duration,
 	submitErrLimit int,
 	globalSubmitTracker interfaces.GlobalHashrate,
@@ -43,7 +44,7 @@ func NewMinerController(
 		defaultDest:         defaultDest,
 		log:                 log,
 		collection:          collection,
-		logStratum:          logStratum,
+		logProtocol:         logProtocol,
 		minerVettingPeriod:  minerVettingPeriod,
 		poolMinDuration:     poolMinDuration,
 		poolMaxDuration:     poolMaxDuration,
@@ -75,7 +76,7 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 
 	logMiner := p.log.Named(incomingConn.RemoteAddr().String())
 
-	poolPool := protocol.NewStratumV1PoolPool(logMiner, p.poolConnTimeout, p.logStratum)
+	poolPool := protocol.NewStratumV1PoolPool(logMiner, p.poolConnTimeout, incomingConn.RemoteAddr().String(), p.logProtocol)
 	err = poolPool.SetDest(context.TODO(), p.defaultDest, nil)
 	if err != nil {
 		p.log.Error(err)
@@ -83,7 +84,16 @@ func (p *MinerController) HandleConnection(ctx context.Context, incomingConn net
 	}
 	extranonce, size := poolPool.GetExtranonce()
 	msg := stratumv1_message.NewMiningSubscribeResult(extranonce, size)
-	miner := protocol.NewStratumV1MinerConn(incomingConn, logMiner, msg, p.logStratum, time.Now(), p.poolConnTimeout)
+
+	var protocolLog interfaces.ILogger = nil
+	if p.logProtocol {
+		protocolLog, err = lib.NewFileLogger("MINER-" + incomingConn.RemoteAddr().String())
+		if err != nil {
+			p.log.Error(err)
+		}
+	}
+
+	miner := protocol.NewStratumV1MinerConn(incomingConn, msg, time.Now(), p.poolConnTimeout, logMiner, protocolLog)
 	validator := hashrate.NewHashrateV2(hashrate.NewSma(p.poolMinDuration + p.poolMaxDuration))
 	minerModel := protocol.NewStratumV1MinerModel(poolPool, miner, validator, p.submitErrLimit, p.globalSubmitTracker, logMiner)
 
