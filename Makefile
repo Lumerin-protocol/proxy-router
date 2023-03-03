@@ -18,3 +18,6 @@ lint:
 
 tidy:
 	go mod tidy
+
+clean:
+	rm -rf ./logs ./hashrouter

@@ -12,7 +12,7 @@ import (
 )
 
 func TestGetDestNoConnection(t *testing.T) {
-	connPool := NewStratumV1PoolPool(lib.NewTestLogger(), 10*time.Minute, false)
+	connPool := NewStratumV1PoolPool(lib.NewTestLogger(), 10*time.Minute, "", false)
 	if connPool.GetDest() != nil {
 		t.Fatalf("should return nil if no connection was established")
 	}
@@ -21,12 +21,12 @@ func TestGetDestNoConnection(t *testing.T) {
 func TestGetDestAfterConnection(t *testing.T) {
 	log := lib.NewTestLogger()
 	connTimeout := 10 * time.Minute
-	connPool := NewStratumV1PoolPool(log, connTimeout, false)
+	connPool := NewStratumV1PoolPool(log, connTimeout, "", false)
 
 	_, client := net.Pipe()
 	dest, _ := lib.ParseDest("//test:test@0.0.0.0:0")
 	confMsg, _ := stratumv1_message.ParseMiningConfigure([]byte(`{"method": "mining.configure","id": 1,"params": [["minimum-difficulty", "version-rolling"],{"minimum-difficulty.value": 2048, "version-rolling.mask": "1fffe000", "version-rolling.min-bit-count": 2}]}`))
-	connPool.conn = NewStratumV1Pool(client, log, dest, confMsg, connTimeout, false)
+	connPool.conn = NewStratumV1Pool(client, dest, confMsg, connTimeout, log, nil)
 
 	if connPool.GetDest() == nil {
 		t.Fatalf("should return dest if connection was established")
@@ -36,12 +36,12 @@ func TestGetDestAfterConnection(t *testing.T) {
 func TestGetDestAfterConnectionClosed(t *testing.T) {
 	log := lib.NewTestLogger()
 	connTimeout := 10 * time.Minute
-	connPool := NewStratumV1PoolPool(log, connTimeout, false)
+	connPool := NewStratumV1PoolPool(log, connTimeout, "", false)
 
 	_, client := net.Pipe()
 	dest, _ := lib.ParseDest("//test:test@0.0.0.0:0")
 	confMsg, _ := stratumv1_message.ParseMiningConfigure([]byte(`{"method": "mining.configure","id": 1,"params": [["minimum-difficulty", "version-rolling"],{"minimum-difficulty.value": 2048, "version-rolling.mask": "1fffe000", "version-rolling.min-bit-count": 2}]}`))
-	connPool.conn = NewStratumV1Pool(client, log, dest, confMsg, connTimeout, false)
+	connPool.conn = NewStratumV1Pool(client, dest, confMsg, connTimeout, log, nil)
 
 	err := connPool.Close()
 	if err != nil {

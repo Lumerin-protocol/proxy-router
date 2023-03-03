@@ -38,7 +38,7 @@ type Config struct {
 	}
 	Proxy struct {
 		Address              string `env:"PROXY_ADDRESS" flag:"proxy-address" validate:"required,hostname_port"`
-		LogStratum           bool   `env:"PROXY_LOG_STRATUM" flag:"proxy-log-stratum"`
+		ProtocolLog          bool   `env:"PROXY_PROTOCOL_LOG" flag:"proxy-protocol-log" desc:"verbose dump of protocol activities to separate files per connection"`
 		ConnectionBufferSize int    `env:"STRATUM_SOCKET_BUFFER_SIZE" flag:"stratum-socket-buffer" validate:"required,numeric"`
 	}
 	Pool struct {
