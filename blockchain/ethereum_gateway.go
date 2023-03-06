@@ -6,6 +6,8 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/Lumerin-protocol/contracts-go/clonefactory"
+	"github.com/Lumerin-protocol/contracts-go/implementation"
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -16,8 +18,6 @@ import (
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/lib"
-	"gitlab.com/TitanInd/hashrouter/lumerinlib/clonefactory"
-	"gitlab.com/TitanInd/hashrouter/lumerinlib/implementation"
 )
 
 type closeout struct {
