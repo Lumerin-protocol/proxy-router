@@ -164,7 +164,13 @@ func (g *EthereumGateway) ReadContract(contractAddress common.Address) (interfac
 		return contractData, err
 	}
 
-	url, err := instance.EncryptedPoolData(nil)
+	encryptedUrl, err := instance.EncryptedPoolData(nil)
+	if err != nil {
+		g.log.Error(err)
+		return contractData, err
+	}
+
+	url, err := g.decryptDestination(encryptedUrl)
 	if err != nil {
 		g.log.Error(err)
 		return contractData, err
@@ -183,9 +189,6 @@ func (g *EthereumGateway) ReadContract(contractAddress common.Address) (interfac
 	}
 
 	contractData = contractdata.NewContractData(contractAddress, buyer, seller, state, price.Int64(), limit.Int64(), speed.Int64(), length.Int64(), startingBlockTimestamp.Int64(), dest)
-
-	// TODO: uncomment when encryption is enabled on frontend
-	// return g.decryptDest(url)
 
 	return contractData, nil
 }
@@ -298,7 +301,7 @@ func (g *EthereumGateway) GetBalanceWei(ctx context.Context, addr common.Address
 }
 
 // decryptDest decrypts destination uri which is encrypted with private key of the contract creator
-func (g *EthereumGateway) decryptDest(encryptedDestUrl string) (string, error) {
+func (g *EthereumGateway) decryptDestination(encryptedDestUrl string) (string, error) {
 	privateKey, err := crypto.HexToECDSA(g.sellerPrivateKeyString)
 	if err != nil {
 		g.log.Error(err)
