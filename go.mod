@@ -3,6 +3,7 @@ module gitlab.com/TitanInd/hashrouter
 go 1.18
 
 require (
+	github.com/Lumerin-protocol/contracts-go v0.0.19
 	github.com/btcsuite/btcd v0.21.0-beta
 	github.com/ethereum/go-ethereum v1.10.17
 	github.com/gammazero/deque v0.2.1
