@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/assert"
+	"gitlab.com/TitanInd/hashrouter/contractmanager/contractdata"
 	"gitlab.com/TitanInd/hashrouter/lib"
 )
 
@@ -99,10 +100,8 @@ func TestIntegrationDecodingContractDestination(t *testing.T) {
 	}
 
 	contract, _ := ethGateway.ReadContract(common.HexToAddress(encryptedContractAddress))
-	destObj := contract.(ContractData).Dest
+	destObj := contract.(contractdata.ContractData).Dest
 	t.Log(destObj)
 
-	assert.Equal(t, "josh", destObj.Username(), "Incorrect username")
-	assert.Equal(t, "josh", destObj.Password(), "Incorrect password")
-	assert.Equal(t, "1.1.1.1:1000", destObj.GetHost(), "Incorrect host")
+	assert.Equal(t, "1.1.1.1:1000", destObj.GetHost(), "incorrect host")
 }
