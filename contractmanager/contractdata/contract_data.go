@@ -140,9 +140,14 @@ func (c *ContractDataDecrypted) GetDest() interfaces.IDestination {
 }
 
 func DecryptContractData(contractData ContractData, privateKey string) (ContractDataDecrypted, error) {
-	dest, err := decryptDestination(contractData.EncryptedDest, privateKey)
-	if err != nil {
-		return ContractDataDecrypted{}, err
+	dest := ""
+
+	if contractData.EncryptedDest != "" {
+		dst, err := decryptDestination(contractData.EncryptedDest, privateKey)
+		if err != nil {
+			return ContractDataDecrypted{}, err
+		}
+		dest = dst
 	}
 
 	destUrl, err := lib.ParseDest(dest)
