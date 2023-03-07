@@ -92,6 +92,7 @@ func NewContractFromDecryptedData(
 		state:                  convertBlockchainStatusToApplicationStatus(data.State),
 		defaultDestination:     defaultDestination,
 		cycleDuration:          cycleDuration,
+		sellerPrivateKey:       sellerPrivateKey,
 	}
 }
 
