@@ -12,6 +12,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/contractmanager/contractdata"
 	"gitlab.com/TitanInd/hashrouter/hashrate"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
+	"gitlab.com/TitanInd/hashrouter/lib"
 )
 
 // BTCHashrateContractSeller represents the collection of mining resources (collection of miners / parts of the miners) that work to fulfill single contract and monotoring tools of their performance
@@ -27,16 +28,17 @@ type BTCHashrateContractSeller struct {
 	hashrateDiffThreshold  float64
 	isBuyer                bool
 	validationBufferPeriod time.Duration
+	sellerPrivateKey       string
 
 	// internal state
-	data                  contractdata.ContractData
+	data                  contractdata.ContractDataDecrypted
 	FullfillmentStartTime *time.Time
 	state                 ContractState      // internal state of the contract (within hashrouter)
 	hashrate              *hashrate.Hashrate // the counter of single contract
 	stopFullfillment      chan struct{}
 }
 
-func NewContract(
+func NewSellerContract(
 	data contractdata.ContractData,
 	blockchain interfaces.IBlockchainGateway,
 	globalScheduler interfaces.IGlobalScheduler,
@@ -46,6 +48,28 @@ func NewContract(
 	validationBufferPeriod time.Duration,
 	defaultDestination interfaces.IDestination,
 	cycleDuration time.Duration,
+	sellerPrivateKey string,
+) (*BTCHashrateContractSeller, error) {
+
+	decryptedData, err := contractdata.DecryptContractData(data, sellerPrivateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewContractFromDecryptedData(decryptedData, blockchain, globalScheduler, log, hr, hashrateDiffThreshold, validationBufferPeriod, defaultDestination, cycleDuration, sellerPrivateKey), nil
+}
+
+func NewContractFromDecryptedData(
+	data contractdata.ContractDataDecrypted,
+	blockchain interfaces.IBlockchainGateway,
+	globalScheduler interfaces.IGlobalScheduler,
+	log interfaces.ILogger,
+	hr *hashrate.Hashrate,
+	hashrateDiffThreshold float64,
+	validationBufferPeriod time.Duration,
+	defaultDestination interfaces.IDestination,
+	cycleDuration time.Duration,
+	sellerPrivateKey string,
 ) *BTCHashrateContractSeller {
 
 	if hr == nil {
@@ -56,7 +80,7 @@ func NewContract(
 		cycleDuration = CYCLE_DURATION_DEFAULT
 	}
 
-	contract := &BTCHashrateContractSeller{
+	return &BTCHashrateContractSeller{
 		blockchain:             blockchain,
 		data:                   data,
 		hashrate:               hr,
@@ -69,8 +93,6 @@ func NewContract(
 		defaultDestination:     defaultDestination,
 		cycleDuration:          cycleDuration,
 	}
-
-	return contract
 }
 
 func convertBlockchainStatusToApplicationStatus(status contractdata.ContractBlockchainState) ContractState {
@@ -190,7 +212,13 @@ func (c *BTCHashrateContractSeller) loadBlockchainContract() error {
 		return fmt.Errorf("failed to load blockhain data, address (%s)", c.data.Addr)
 	}
 
-	c.data = contractData
+	decryptedData, err := contractdata.DecryptContractData(contractData, c.sellerPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	c.data = decryptedData
+
 	c.log.Debugf("loaded contract: %s \n %v ", c.GetID(), c.data)
 	return nil
 }
@@ -340,7 +368,7 @@ func (c *BTCHashrateContractSeller) GetDest() interfaces.IDestination {
 }
 
 func (c *BTCHashrateContractSeller) SetDest(dest interfaces.IDestination) {
-	c.data.Dest = dest
+	c.data.Dest = dest.(lib.Dest)
 }
 
 func (c *BTCHashrateContractSeller) GetCloseoutType() constants.CloseoutType {

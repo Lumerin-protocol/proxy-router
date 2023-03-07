@@ -94,7 +94,7 @@ func (c *BTCBuyerHashrateContract) FulfillBuyerContract(ctx context.Context) err
 	ticker := time.NewTicker(c.cycleDuration)
 	defer ticker.Stop()
 
-	c.globalHashrate.Reset(c.GetDest().Username())
+	c.globalHashrate.Reset(c.GetWorkerName())
 
 	// cycle checks incoming hashrate every c.cycleDuration seconds
 	for {
@@ -141,7 +141,7 @@ func (c *BTCBuyerHashrateContract) checkIteration(ctx context.Context, sub ether
 		return true, nil
 	}
 
-	lastSubmitTime, ok := c.globalHashrate.GetLastSubmitTime(c.GetDest().Username())
+	lastSubmitTime, ok := c.globalHashrate.GetLastSubmitTime(c.GetWorkerName())
 	if ok {
 		if time.Since(lastSubmitTime) > c.submitTimeout {
 			c.log.Infof("contract last submit timeout (%s)", c.submitTimeout)
@@ -182,12 +182,11 @@ func (c *BTCBuyerHashrateContract) IsValidWallet(walletAddress common.Address) b
 }
 
 func (c *BTCBuyerHashrateContract) isDeliveringAccurateHashrate() bool {
-	workerName := c.GetDest().Username()
 	// ignoring ok cause actualHashrate will be zero then
-	averageHR, _ := c.globalHashrate.GetHashRateGHS(workerName)
+	averageHR, _ := c.globalHashrate.GetHashRateGHS(c.GetWorkerName())
 	targetHashrateGHS := c.GetHashrateGHS()
 
-	totalWork, _ := c.globalHashrate.GetTotalWork(workerName)
+	totalWork, _ := c.globalHashrate.GetTotalWork(c.GetWorkerName())
 	wholeContractAverageGHS := hashrate.HSToGHS(hashrate.JobSubmittedToHS(float64(totalWork) / time.Since(*c.GetStartTime()).Seconds()))
 
 	actualHashrate := wholeContractAverageGHS
@@ -195,7 +194,7 @@ func (c *BTCBuyerHashrateContract) isDeliveringAccurateHashrate() bool {
 
 	hrMsg := fmt.Sprintf(
 		"worker %s, target HR %d, actual HR (9m SMA) %d, whole contract average HR %d, error %.0f%%, threshold(%.0f%%)",
-		workerName, targetHashrateGHS, averageHR, wholeContractAverageGHS, hrError*100, c.hashrateDiffThreshold*100,
+		c.GetWorkerName(), targetHashrateGHS, averageHR, wholeContractAverageGHS, hrError*100, c.hashrateDiffThreshold*100,
 	)
 
 	if hrError > c.hashrateDiffThreshold {
@@ -234,7 +233,7 @@ func (c *BTCBuyerHashrateContract) eventsController(ctx context.Context, e types
 		// be applied after workername change
 		c.fullfillmentStartedAt = time.Now()
 
-		c.log.Info("updated contract destination", c.GetDest())
+		c.log.Info("updated contract destination", c.GetID())
 
 	// Contract closed
 	case blockchain.ContractClosedHex:
@@ -307,7 +306,7 @@ func (c *BTCBuyerHashrateContract) GetDeliveredHashrate() interfaces.Hashrate {
 	var hr interfaces.Hashrate
 	c.globalHashrate.Range(func(m any) bool {
 		workerHr := m.(*WorkerHashrateModel)
-		if workerHr.ID == c.GetDest().Username() {
+		if workerHr.ID == c.GetWorkerName() {
 			hr = workerHr.hr
 			return false
 		}
@@ -367,7 +366,11 @@ func (c *BTCBuyerHashrateContract) GetEndTime() *time.Time {
 }
 
 func (c *BTCBuyerHashrateContract) GetDest() interfaces.IDestination {
-	return c.data.GetDest()
+	return lib.NewDest(c.GetWorkerName(), "", "your-host", nil)
+}
+
+func (c *BTCBuyerHashrateContract) GetWorkerName() string {
+	return c.data.GetWorkerName()
 }
 
 func (c *BTCBuyerHashrateContract) GetStateExternal() string {

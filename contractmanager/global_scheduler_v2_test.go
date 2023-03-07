@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/TitanInd/hashrouter/data"
-	snap "gitlab.com/TitanInd/hashrouter/data"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/miner"
 	"gitlab.com/TitanInd/hashrouter/protocol"
@@ -300,20 +299,20 @@ func TestGetMinerSnapshot(t *testing.T) {
 
 func TestTryReduceMiners(t *testing.T) {
 	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 3, 5, 0.1, 1)
-	col := snap.NewAllocCollection()
-	col.Add("miner-1", &snap.AllocItem{
+	col := data.NewAllocCollection()
+	col.Add("miner-1", &data.AllocItem{
 		MinerID:    "miner-1",
 		ContractID: "contract",
 		Fraction:   0.5,
 		TotalGHS:   10000,
 	})
-	col.Add("miner-2", &snap.AllocItem{
+	col.Add("miner-2", &data.AllocItem{
 		MinerID:    "miner-2",
 		ContractID: "contract",
 		Fraction:   0.3,
 		TotalGHS:   10000,
 	})
-	col.Add("miner-3", &snap.AllocItem{
+	col.Add("miner-3", &data.AllocItem{
 		MinerID:    "miner-3",
 		ContractID: "contract",
 		Fraction:   0.1,
@@ -332,26 +331,26 @@ func TestTryReduceMiners(t *testing.T) {
 
 func TestTryReduceMiners2(t *testing.T) {
 	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 3, 5, 0.1, 1)
-	col := snap.NewAllocCollection()
-	col.Add("miner-1", &snap.AllocItem{
+	col := data.NewAllocCollection()
+	col.Add("miner-1", &data.AllocItem{
 		MinerID:    "miner-1",
 		ContractID: "contract",
 		Fraction:   0.33,
 		TotalGHS:   94936,
 	})
-	col.Add("miner-2", &snap.AllocItem{
+	col.Add("miner-2", &data.AllocItem{
 		MinerID:    "miner-2",
 		ContractID: "contract",
 		Fraction:   0.32,
 		TotalGHS:   116675,
 	})
-	col.Add("miner-3", &snap.AllocItem{
+	col.Add("miner-3", &data.AllocItem{
 		MinerID:    "miner-3",
 		ContractID: "contract",
 		Fraction:   0.33,
 		TotalGHS:   96000,
 	})
-	col.Add("miner-4", &snap.AllocItem{
+	col.Add("miner-4", &data.AllocItem{
 		MinerID:    "miner-4",
 		ContractID: "contract",
 		Fraction:   1.0,
@@ -366,14 +365,14 @@ func TestTryReduceMiners2(t *testing.T) {
 
 func TestTryReduceMinersNotReduced(t *testing.T) {
 	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 3, 5, 0.1, 1)
-	col := snap.NewAllocCollection()
-	col.Add("miner-1", &snap.AllocItem{
+	col := data.NewAllocCollection()
+	col.Add("miner-1", &data.AllocItem{
 		MinerID:    "miner-1",
 		ContractID: "contract",
 		Fraction:   0.9,
 		TotalGHS:   10000,
 	})
-	col.Add("miner-2", &snap.AllocItem{
+	col.Add("miner-2", &data.AllocItem{
 		MinerID:    "miner-2",
 		ContractID: "contract",
 		Fraction:   0.3,
@@ -395,12 +394,12 @@ func TestTryReduceMinersNotReduced(t *testing.T) {
 
 func TestTryAdjustRedZones(t *testing.T) {
 	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1, 1)
-	col := snap.NewAllocCollection()
-	col.Add("miner-1", &snap.AllocItem{MinerID: "miner-1", ContractID: "contract", Fraction: 0.0, TotalGHS: 54030})
-	col.Add("miner-2", &snap.AllocItem{MinerID: "miner-2", ContractID: "contract", Fraction: 1.0, TotalGHS: 79941})
-	col.Add("miner-3", &snap.AllocItem{MinerID: "miner-3", ContractID: "contract", Fraction: 1.0, TotalGHS: 73335})
-	col.Add("miner-4", &snap.AllocItem{MinerID: "miner-4", ContractID: "contract", Fraction: 0.58, TotalGHS: 89324})
-	col.Add("miner-5", &snap.AllocItem{MinerID: "miner-5", ContractID: "contract", Fraction: 0.0, TotalGHS: 80706})
+	col := data.NewAllocCollection()
+	col.Add("miner-1", &data.AllocItem{MinerID: "miner-1", ContractID: "contract", Fraction: 0.0, TotalGHS: 54030})
+	col.Add("miner-2", &data.AllocItem{MinerID: "miner-2", ContractID: "contract", Fraction: 1.0, TotalGHS: 79941})
+	col.Add("miner-3", &data.AllocItem{MinerID: "miner-3", ContractID: "contract", Fraction: 1.0, TotalGHS: 73335})
+	col.Add("miner-4", &data.AllocItem{MinerID: "miner-4", ContractID: "contract", Fraction: 0.58, TotalGHS: 89324})
+	col.Add("miner-5", &data.AllocItem{MinerID: "miner-5", ContractID: "contract", Fraction: 0.0, TotalGHS: 80706})
 
 	gs.tryAdjustRedZones(col, nil)
 
@@ -412,9 +411,9 @@ func TestTryAdjustRedZones(t *testing.T) {
 
 func TestTryAdjustRedZones2(t *testing.T) {
 	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1, 1)
-	col := snap.NewAllocCollection()
-	col.Add("miner-1", &snap.AllocItem{MinerID: "miner-1", ContractID: "contract", Fraction: 0.46, TotalGHS: 138347})
-	col.Add("miner-2", &snap.AllocItem{MinerID: "miner-2", ContractID: "contract", Fraction: 1.0, TotalGHS: 142011})
+	col := data.NewAllocCollection()
+	col.Add("miner-1", &data.AllocItem{MinerID: "miner-1", ContractID: "contract", Fraction: 0.46, TotalGHS: 138347})
+	col.Add("miner-2", &data.AllocItem{MinerID: "miner-2", ContractID: "contract", Fraction: 1.0, TotalGHS: 142011})
 
 	gs.tryAdjustRedZones(col, nil)
 
@@ -426,14 +425,14 @@ func TestTryAdjustRedZones2(t *testing.T) {
 
 func TestTryAdjustRedZonesLeft(t *testing.T) {
 	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1, 1)
-	col := snap.NewAllocCollection()
-	col.Add("miner-1", &snap.AllocItem{
+	col := data.NewAllocCollection()
+	col.Add("miner-1", &data.AllocItem{
 		MinerID:    "miner-1",
 		ContractID: "contract",
 		Fraction:   0.6,
 		TotalGHS:   10000,
 	})
-	col.Add("miner-2", &snap.AllocItem{
+	col.Add("miner-2", &data.AllocItem{
 		MinerID:    "miner-2",
 		ContractID: "contract",
 		Fraction:   0.1,
@@ -450,14 +449,14 @@ func TestTryAdjustRedZonesLeft(t *testing.T) {
 
 func TestTryAdjustRedZonesLeftNotPossible(t *testing.T) {
 	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1, 1)
-	col := snap.NewAllocCollection()
-	col.Add("miner-1", &snap.AllocItem{
+	col := data.NewAllocCollection()
+	col.Add("miner-1", &data.AllocItem{
 		MinerID:    "miner-1",
 		ContractID: "contract",
 		Fraction:   0.7,
 		TotalGHS:   5000,
 	})
-	col.Add("miner-2", &snap.AllocItem{
+	col.Add("miner-2", &data.AllocItem{
 		MinerID:    "miner-2",
 		ContractID: "contract",
 		Fraction:   0.1,
@@ -476,7 +475,7 @@ func TestTryAdjustRedZonesLeftNotPossible(t *testing.T) {
 func TestTryAdjustRedZonesRightWFreeMiner(t *testing.T) {
 	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1, 1)
 
-	snap := snap.NewAllocSnap()
+	snap := data.NewAllocSnap()
 	snap.SetMiner("miner-2", 10000)
 	snap.Set("miner-1", "contract", 0.88, 10000)
 
@@ -494,7 +493,7 @@ func TestTryAdjustRedZonesRightWFreeMiner(t *testing.T) {
 func TestTryAdjustRedZonesRightWBusyMiner(t *testing.T) {
 	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1, 1)
 
-	snap := snap.NewAllocSnap()
+	snap := data.NewAllocSnap()
 	snap.Set("miner-2", "contract", 0.3, 10000)
 	snap.Set("miner-1", "contract", 0.88, 10000)
 
@@ -512,7 +511,7 @@ func TestTryAdjustRedZonesRightWBusyMiner(t *testing.T) {
 func TestTryAdjustRedZonesRightNotPossible(t *testing.T) {
 	gs := NewGlobalSchedulerV2(nil, lib.NewTestLogger(), 2, 7, 0.1, 1)
 
-	snap := snap.NewAllocSnap()
+	snap := data.NewAllocSnap()
 	snap.SetMiner("miner-2", 1000)
 	snap.Set("miner-1", "contract", 0.88, 10000)
 
@@ -557,7 +556,7 @@ func TestFindMidpointSplitWRedzones(t *testing.T) {
 
 func TestUpdateChangeDest(t *testing.T) {
 	dest1 := lib.MustParseDest("stratum+tcp://user:pwd@host.com:3333")
-	dest2 := lib.MustParseDest("stratum+tcp://user2:pwd@host.com:3333")
+	dest2 := lib.MustParseDest("stratum+tcp://user:pwd@hostchanged.com:3333")
 	destDefault := lib.MustParseDest("stratum+tcp://default:pwd@host.com:3333")
 	contractID := "contract"
 	hrGHS := 10000

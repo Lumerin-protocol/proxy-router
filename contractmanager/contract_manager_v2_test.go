@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"gitlab.com/TitanInd/hashrouter/contractmanager/contractdata"
 	"gitlab.com/TitanInd/hashrouter/data"
 	"gitlab.com/TitanInd/hashrouter/interop"
@@ -21,20 +22,20 @@ func contractManagerSetup() (*data.Collection[IContractModel], *ContractManager)
 func TestContractShouldExist(t *testing.T) {
 	collection, contractManager := contractManagerSetup()
 
-	collection.Store(&BTCHashrateContractSeller{data: contractdata.ContractData{Addr: interop.AddressStringToSlice("0x1")}})
+	data := contractdata.GetSampleContractDataDecrypted()
+	collection.Store(&BTCHashrateContractSeller{data: data})
 
-	contractExists := contractManager.ContractExists(interop.AddressStringToSlice("0x1"))
+	contractExists := contractManager.ContractExists(data.Addr)
 
-	if !contractExists {
-		t.Errorf("Expected contract to exist")
-	}
+	assert.True(t, contractExists, "expected contract to exist")
 }
 
 func TestContractShouldNotExist(t *testing.T) {
 	collection, contractManager := contractManagerSetup()
 
-	collection.Store(&BTCHashrateContractSeller{data: contractdata.ContractData{Addr: interop.AddressStringToSlice("0x1")}})
-	contractExists := contractManager.ContractExists(interop.AddressStringToSlice("0x2"))
+	data := contractdata.GetSampleContractDataDecrypted()
+	collection.Store(&BTCHashrateContractSeller{data: data})
+	contractExists := contractManager.ContractExists(lib.GetRandomAddr())
 
 	if contractExists {
 		t.Errorf("Expected contract to not exist")
