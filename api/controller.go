@@ -195,15 +195,17 @@ func NewApiController(miners interfaces.ICollection[miner.MinerScheduler], contr
 		if err != nil {
 			ctx.AbortWithStatus(http.StatusBadRequest)
 		}
-		contract := contractmanager.NewContract(contractdata.ContractData{
-			Addr:                   lib.GetRandomAddr(),
-			State:                  contractdata.ContractBlockchainStateRunning,
-			Price:                  0,
-			Speed:                  hrGHS * int64(math.Pow10(9)),
-			Length:                 int64(duration.Seconds()),
-			Dest:                   dest,
-			StartingBlockTimestamp: time.Now().Unix(),
-		}, nil, gs, log, hashrate.NewHashrateV2(hashrate.NewSma(9*time.Minute)), hashrateDiffThreshold, validationBufferPeriod, controller.defaultDestination, contractCycleDuration)
+		contract := contractmanager.NewContractFromDecryptedData(contractdata.ContractDataDecrypted{
+			ContractData: contractdata.ContractData{
+				Addr:                   lib.GetRandomAddr(),
+				State:                  contractdata.ContractBlockchainStateRunning,
+				Price:                  0,
+				Speed:                  hrGHS * int64(math.Pow10(9)),
+				Length:                 int64(duration.Seconds()),
+				StartingBlockTimestamp: time.Now().Unix(),
+			},
+			Dest: dest,
+		}, nil, gs, log, hashrate.NewHashrateV2(hashrate.NewSma(9*time.Minute)), hashrateDiffThreshold, validationBufferPeriod, controller.defaultDestination, contractCycleDuration, "")
 
 		go func() {
 			err := contract.FulfillContract(context.Background())

@@ -159,7 +159,10 @@ func (m *ContractManager) handleContract(ctx context.Context, contractAddr commo
 			contract = NewBuyerContract(contractData, m.blockchain, m.globalSubmitTracker, log, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration, m.submitTimeout)
 		} else {
 			log := m.log.Named("SELLER " + lib.AddrShort(contractData.Addr.String()))
-			contract = NewContract(contractData, m.blockchain, m.globalScheduler, log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration)
+			contract, err = NewSellerContract(contractData, m.blockchain, m.globalScheduler, log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration, m.walletPrivateKey)
+			if err != nil {
+				return err
+			}
 		}
 
 		if !contract.IsValidWallet(m.walletAddr) {

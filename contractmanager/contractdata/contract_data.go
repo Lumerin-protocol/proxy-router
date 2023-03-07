@@ -1,10 +1,13 @@
 package contractdata
 
 import (
+	"encoding/hex"
 	"math"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/lib"
 )
@@ -37,13 +40,10 @@ type ContractData struct {
 	Speed                  int64
 	Length                 int64
 	StartingBlockTimestamp int64
-	Dest                   interfaces.IDestination
+	EncryptedDest          string
 }
 
-func NewContractData(addr, buyer, seller common.Address, state uint8, price, limit, speedHS, lengthSeconds, startingBlockTimeUnix int64, dest interfaces.IDestination) ContractData {
-	// making sure workername is set to contract ID to be able to identify contract on buyer side
-	dst := enforceWorkerName(dest, addr.String())
-
+func NewContractData(addr, buyer, seller common.Address, state uint8, price, limit, speedHS, lengthSeconds, startingBlockTimeUnix int64, encryptedDest string) ContractData {
 	return ContractData{
 		addr,
 		buyer,
@@ -54,7 +54,7 @@ func NewContractData(addr, buyer, seller common.Address, state uint8, price, lim
 		speedHS,
 		lengthSeconds,
 		startingBlockTimeUnix,
-		dst,
+		encryptedDest,
 	}
 }
 
@@ -100,12 +100,12 @@ func (c *ContractData) ContractIsExpired() bool {
 	return time.Now().After(*endTime)
 }
 
-func (c *ContractData) GetDest() interfaces.IDestination {
-	return c.Dest
-}
-
 func (c *ContractData) GetStateExternal() string {
 	return c.State.String()
+}
+
+func (c *ContractData) GetWorkerName() string {
+	return c.Addr.String()
 }
 
 func (d *ContractData) Copy() ContractData {
@@ -119,13 +119,63 @@ func (d *ContractData) Copy() ContractData {
 		Speed:                  d.Speed,
 		Length:                 d.Length,
 		StartingBlockTimestamp: d.StartingBlockTimestamp,
-		Dest:                   d.Dest,
+		EncryptedDest:          d.EncryptedDest,
 	}
 }
 
-func enforceWorkerName(dest interfaces.IDestination, workername string) interfaces.IDestination {
+func enforceWorkerName(dest lib.Dest, workername string) lib.Dest {
 	if dest.String() == "" {
 		return lib.Dest{}
 	}
 	return lib.NewDest(workername, "", dest.GetHost(), nil)
+}
+
+type ContractDataDecrypted struct {
+	ContractData
+	Dest lib.Dest
+}
+
+func (c *ContractDataDecrypted) GetDest() interfaces.IDestination {
+	return c.Dest
+}
+
+func DecryptContractData(contractData ContractData, privateKey string) (ContractDataDecrypted, error) {
+	dest, err := decryptDestination(contractData.EncryptedDest, privateKey)
+	if err != nil {
+		return ContractDataDecrypted{}, err
+	}
+
+	destUrl, err := lib.ParseDest(dest)
+	if err != nil {
+		return ContractDataDecrypted{}, err
+	}
+
+	// making sure workername is set to contract ID to be able to identify contract on buyer side
+	dst := enforceWorkerName(destUrl, contractData.GetWorkerName())
+
+	return ContractDataDecrypted{
+		ContractData: contractData.Copy(),
+		Dest:         dst,
+	}, nil
+}
+
+// decryptDest decrypts destination uri which is encrypted with private key of the contract creator
+func decryptDestination(encryptedDestUrl string, privateKey string) (string, error) {
+	pkECDSA, err := crypto.HexToECDSA(privateKey)
+	if err != nil {
+		return "", err
+	}
+
+	pkECIES := ecies.ImportECDSA(pkECDSA)
+	destUrlBytes, err := hex.DecodeString(encryptedDestUrl)
+	if err != nil {
+		return "", err
+	}
+
+	decryptedDestUrlBytes, err := pkECIES.Decrypt(destUrlBytes, nil, nil)
+	if err != nil {
+		return "", err
+	}
+
+	return string(decryptedDestUrlBytes), nil
 }

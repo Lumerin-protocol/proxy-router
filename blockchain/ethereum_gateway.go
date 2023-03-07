@@ -2,7 +2,6 @@ package blockchain
 
 import (
 	"context"
-	"encoding/hex"
 	"math/big"
 	"time"
 
@@ -13,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"gitlab.com/TitanInd/hashrouter/contractmanager/contractdata"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/interop"
@@ -170,25 +168,13 @@ func (g *EthereumGateway) ReadContract(contractAddress common.Address) (interfac
 		return contractData, err
 	}
 
-	url, err := g.decryptDestination(encryptedUrl)
-	if err != nil {
-		g.log.Error(err)
-		return contractData, err
-	}
-
-	dest, err := lib.ParseDest(url)
-	if err != nil {
-		g.log.Error("invalid blockchain contract destination", err)
-		return contractData, err
-	}
-
 	state, price, limit, speed, length, startingBlockTimestamp, buyer, seller, _, err := instance.GetPublicVariables(&bind.CallOpts{})
 	if err != nil {
 		g.log.Error(err)
 		return contractData, err
 	}
 
-	contractData = contractdata.NewContractData(contractAddress, buyer, seller, state, price.Int64(), limit.Int64(), speed.Int64(), length.Int64(), startingBlockTimestamp.Int64(), dest)
+	contractData = contractdata.NewContractData(contractAddress, buyer, seller, state, price.Int64(), limit.Int64(), speed.Int64(), length.Int64(), startingBlockTimestamp.Int64(), encryptedUrl)
 
 	return contractData, nil
 }
@@ -298,28 +284,4 @@ func (g *EthereumGateway) setContractCloseOut(contractAddress string, closeoutTy
 
 func (g *EthereumGateway) GetBalanceWei(ctx context.Context, addr common.Address) (*big.Int, error) {
 	return g.client.BalanceAt(ctx, addr, nil)
-}
-
-// decryptDest decrypts destination uri which is encrypted with private key of the contract creator
-func (g *EthereumGateway) decryptDestination(encryptedDestUrl string) (string, error) {
-	privateKey, err := crypto.HexToECDSA(g.sellerPrivateKeyString)
-	if err != nil {
-		g.log.Error(err)
-		return "", err
-	}
-
-	privateKeyECIES := ecies.ImportECDSA(privateKey)
-	destUrlBytes, err := hex.DecodeString(encryptedDestUrl)
-	if err != nil {
-		g.log.Error(err)
-		return "", err
-	}
-
-	decryptedDestUrlBytes, err := privateKeyECIES.Decrypt(destUrlBytes, nil, nil)
-	if err != nil {
-		g.log.Error(err)
-		return "", err
-	}
-
-	return string(decryptedDestUrlBytes), nil
 }
