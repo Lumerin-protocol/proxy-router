@@ -54,3 +54,13 @@ func TestParseDifferentProto(t *testing.T) {
 	assert.Equal(t, dest.Username(), "")
 	assert.Equal(t, dest.Password(), "")
 }
+
+func TestParseDestEmpty(t *testing.T) {
+	dest, err := ParseDest("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, dest.GetHost(), "")
+	assert.Equal(t, dest.Username(), "")
+	assert.Equal(t, dest.Password(), "")
+}

@@ -127,7 +127,7 @@ func (m *ContractManager) runExistingContracts() error {
 	for _, existingContractAddr := range existingContractsAddrs {
 		err := m.handleContract(context.TODO(), existingContractAddr)
 		if err != nil {
-			m.log.Errorf("cannot handle existing contact, skipping, addr: %s", existingContractAddr.Hash().Hex())
+			m.log.Errorf("cannot handle existing contact, skipping, addr: %s, err: %s", existingContractAddr.String(), err)
 		}
 	}
 
