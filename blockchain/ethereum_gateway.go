@@ -265,8 +265,8 @@ func (g *EthereumGateway) setContractCloseOut(contractAddress string, closeoutTy
 		options.GasPrice = gasPrice
 	}
 
-	options.GasLimit = uint64(3000000) // in units
-	options.Value = big.NewInt(0)      // in wei
+	options.GasLimit = uint64(1_000_000) // in units
+	options.Value = big.NewInt(0)        // in wei
 
 	//TODO: retry if price is too low
 	tx, err := instance.SetContractCloseOut(options, big.NewInt(closeoutType))
