@@ -169,8 +169,16 @@ func (g *EthereumGateway) ReadContract(contractAddress common.Address) (interfac
 		g.log.Error(err)
 		return contractData, err
 	}
+	// TODO: uncomment when encryption is enabled on frontend
+	url, err = g.tryDecryptDest(url)
+
+	if err != nil {
+		g.log.Error("invalid blockchain contract encrypted url", err)
+		return contractData, err
+	}
 
 	dest, err := lib.ParseDest(url)
+
 	if err != nil {
 		g.log.Error("invalid blockchain contract destination", err)
 		return contractData, err
@@ -183,9 +191,6 @@ func (g *EthereumGateway) ReadContract(contractAddress common.Address) (interfac
 	}
 
 	contractData = contractdata.NewContractData(contractAddress, buyer, seller, state, price.Int64(), limit.Int64(), speed.Int64(), length.Int64(), startingBlockTimestamp.Int64(), dest)
-
-	// TODO: uncomment when encryption is enabled on frontend
-	// return g.decryptDest(url)
 
 	return contractData, nil
 }
@@ -297,8 +302,12 @@ func (g *EthereumGateway) GetBalanceWei(ctx context.Context, addr common.Address
 	return g.client.BalanceAt(ctx, addr, nil)
 }
 
-// decryptDest decrypts destination uri which is encrypted with private key of the contract creator
-func (g *EthereumGateway) decryptDest(encryptedDestUrl string) (string, error) {
+// tryDecryptDest decrypts destination uri which is encrypted with private key of the contract creator
+func (g *EthereumGateway) tryDecryptDest(encryptedDestUrl string) (string, error) {
+	if g.sellerPrivateKeyString == "" {
+		return encryptedDestUrl, nil
+	}
+	
 	privateKey, err := crypto.HexToECDSA(g.sellerPrivateKeyString)
 	if err != nil {
 		g.log.Error(err)
