@@ -307,7 +307,7 @@ func (g *EthereumGateway) tryDecryptDest(encryptedDestUrl string) (string, error
 	if g.sellerPrivateKeyString == "" {
 		return encryptedDestUrl, nil
 	}
-	
+
 	privateKey, err := crypto.HexToECDSA(g.sellerPrivateKeyString)
 	if err != nil {
 		g.log.Error(err)
