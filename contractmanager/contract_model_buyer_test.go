@@ -190,10 +190,10 @@ func TestBuyerContractIsValid(t *testing.T) {
 	assert.False(t, isValid, "buyer contract shouldn't be valid to run: buyer address doesn't match")
 }
 
-func TestCloseoutFailure(t *testing.T) {
-	contractDurationSeconds := 1
+func TestCloseoutFailureRetryAndStopOnContractClosed(t *testing.T) {
+	contractDurationSeconds := 10
 	cycleDuration := time.Duration(contractDurationSeconds) * time.Second / 10
-	allowance := 2 * cycleDuration
+	allowance := 1 * cycleDuration
 
 	log := lib.NewTestLogger()
 
@@ -204,9 +204,9 @@ func TestCloseoutFailure(t *testing.T) {
 	globalHR := NewGlobalHashrateMock()
 	globalHR.LoadOrStore(&WorkerHashrateModelMock{
 		ID:             data.GetWorkerName(),
-		HrGHS:          data.GetHashrateGHS(),
+		HrGHS:          0,
 		LastSubmitTime: time.Now(),
-		TotalWork:      uint64(hashrate.HSToJobSubmitted(hashrate.GHSToHS(data.GetHashrateGHS()) * float64(contractDurationSeconds))),
+		TotalWork:      0,
 	})
 
 	ethGateway := blockchain.NewEthereumGatewayMock()
@@ -228,12 +228,18 @@ func TestCloseoutFailure(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-	case <-time.After(time.Duration(contractDurationSeconds)*time.Second + allowance):
+	case <-time.After(cycleDuration*2 + allowance):
 	}
 
 	assert.LessOrEqual(t, 2, ethGateway.SetContractCloseOutCalledTimes, "SetContractCloseOut should be called at least twice")
 
-	ethGateway.SetContractCloseOutErr = nil
+	closedData := contractdata.GetSampleContractData()
+	closedData.State = contractdata.ContractBlockchainStateAvailable
+	ethGateway.ReadContractRes = closedData
+
+	ethGateway.EmitEvent(types.Log{
+		Topics: []common.Hash{blockchain.ContractClosedHash},
+	})
 
 	select {
 	case err := <-errCh:
