@@ -30,12 +30,12 @@ func MustParseDest(uri string) Dest {
 	return res
 }
 
-func NewDest(workerName string, pwd string, host string, port *int) Dest {
+func NewDest(workerName string, pwd string, host string, port *int) *Dest {
 	if port != nil {
 		host = fmt.Sprintf("%s:%d", host, port)
 	}
 
-	return Dest{
+	return &Dest{
 		url.URL{
 			User: url.UserPassword(workerName, pwd),
 			Host: host,

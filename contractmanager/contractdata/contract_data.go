@@ -123,16 +123,16 @@ func (d *ContractData) Copy() ContractData {
 	}
 }
 
-func enforceWorkerName(dest lib.Dest, workername string) lib.Dest {
+func enforceWorkerName(dest lib.Dest, workername string) *lib.Dest {
 	if dest.String() == "" {
-		return lib.Dest{}
+		return &lib.Dest{}
 	}
 	return lib.NewDest(workername, "", dest.GetHost(), nil)
 }
 
 type ContractDataDecrypted struct {
 	ContractData
-	Dest lib.Dest
+	Dest interfaces.IDestination
 }
 
 func (c *ContractDataDecrypted) GetDest() interfaces.IDestination {
