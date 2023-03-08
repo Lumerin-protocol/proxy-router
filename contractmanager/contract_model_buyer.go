@@ -114,18 +114,24 @@ func (c *BTCBuyerHashrateContract) FulfillBuyerContract(ctx context.Context) err
 			if errors.Is(err, context.Canceled) {
 				return err
 			}
-
-			// do not retry immediately
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-ticker.C:
-			}
 		}
 	}
 }
 
 func (c *BTCBuyerHashrateContract) checkIteration(ctx context.Context, sub ethereum.Subscription, eventsCh chan types.Log, ticker *time.Ticker) (bool, error) {
+	select {
+	case e := <-eventsCh:
+		err := c.eventsController(ctx, e)
+		if err != nil {
+			c.log.Errorf("blockchain event handling error: %s", err)
+		}
+	case err := <-sub.Err():
+		return true, fmt.Errorf("contract subscription error %s", err)
+	case <-ctx.Done():
+		return true, ctx.Err()
+	case <-ticker.C:
+	}
+
 	if c.state == ContractStatePurchased && !c.IsValidationBufferPeriod() {
 		c.log.Infof("validation buffer period is over")
 		c.state = ContractStateRunning
@@ -157,20 +163,10 @@ func (c *BTCBuyerHashrateContract) checkIteration(ctx context.Context, sub ether
 		c.log.Infof("contract is not delivering accurate hashrate")
 	}
 
-	c.log.Infof("contract is running for %s / %s (internal/blockchain)", time.Since(c.fullfillmentStartedAt), time.Since(*c.GetStartTime()))
-
-	select {
-	case e := <-eventsCh:
-		err := c.eventsController(ctx, e)
-		if err != nil {
-			c.log.Errorf("blockchain event handling error: %s", err)
-		}
-	case err := <-sub.Err():
-		return true, fmt.Errorf("contract subscription error %s", err)
-	case <-ctx.Done():
-		return true, ctx.Err()
-	case <-ticker.C:
-	}
+	c.log.Infof(
+		"contract is running for %s / %s (internal/blockchain)",
+		time.Since(c.fullfillmentStartedAt), time.Since(*c.GetStartTime()),
+	)
 
 	return false, nil
 }
