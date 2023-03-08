@@ -280,10 +280,15 @@ func (c *BTCHashrateContractSeller) Close(ctx context.Context) error {
 	c.log.Debugf("closing contract %v", c.GetID())
 	c.Stop(ctx)
 
-	err := c.blockchain.SetContractCloseOut(c.GetAddress(), int64(c.GetCloseoutType()))
-	if err != nil {
-		c.log.Error("cannot close contract", err)
-		return err
+	if c.data.State == contractdata.ContractBlockchainStateRunning {
+		err := c.blockchain.SetContractCloseOut(c.GetAddress(), int64(c.GetCloseoutType()))
+		if err != nil {
+			c.log.Error("cannot close contract", err)
+			return err
+		}
+		c.log.Info("contract closed")
+	} else {
+		c.log.Info("contract was already closed")
 	}
 	c.state = ContractStateAvailable
 	return nil
