@@ -320,5 +320,5 @@ release:
     # generate a changelog.
     GIT_DEPTH: 0
   script:
-    - goreleaser release --rm-dist
+    - goreleaser release --clean
 
