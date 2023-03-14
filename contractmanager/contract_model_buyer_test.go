@@ -15,7 +15,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/lib"
 )
 
-func TestCloseoutOnContractEnd(t *testing.T) {
+func TestStopWithoutCloseoutOnContractEnd(t *testing.T) {
 	contractDurationSeconds := 1
 	cycleDuration := time.Duration(contractDurationSeconds) * time.Second / 10
 	allowance := 2 * cycleDuration
@@ -31,7 +31,7 @@ func TestCloseoutOnContractEnd(t *testing.T) {
 		ID:             data.GetWorkerName(),
 		HrGHS:          data.GetHashrateGHS(),
 		LastSubmitTime: time.Now(),
-		TotalWork:      uint64(hashrate.HSToJobSubmitted(hashrate.GHSToHS(data.GetHashrateGHS()) * float64(contractDurationSeconds))),
+		TotalWork:      2 * uint64(hashrate.HSToJobSubmitted(hashrate.GHSToHS(data.GetHashrateGHS())*float64(contractDurationSeconds))),
 	})
 
 	ethGateway := blockchain.NewEthereumGatewayMock()
@@ -55,7 +55,7 @@ func TestCloseoutOnContractEnd(t *testing.T) {
 	case <-time.After(time.Duration(contractDurationSeconds)*time.Second + allowance):
 	}
 
-	assert.Equal(t, 1, ethGateway.SetContractCloseOutCalledTimes, "SetContractCloseOut should be called once")
+	assert.Equal(t, 0, ethGateway.SetContractCloseOutCalledTimes, "SetContractCloseOut should be not called")
 }
 
 func TestContractCloseoutOnEvent(t *testing.T) {
