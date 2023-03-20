@@ -85,6 +85,17 @@ func (m AllocCollection) SortByAllocatedGHSInv() []*AllocItem {
 	return items
 }
 
+// GetZeroAllocatedCount returns number of miners that have fraction set to 0 (which means disable)
+func (m AllocCollection) GetZeroAllocatedCount() int {
+	counter := 0
+	for _, item := range m.items {
+		if item.Fraction == 0 {
+			counter++
+		}
+	}
+	return counter
+}
+
 func (m AllocCollection) String() string {
 	b := new(bytes.Buffer)
 
@@ -95,7 +106,7 @@ func (m AllocCollection) String() string {
 		fmt.Fprintf(w, "%s\t%s\t%d\t%.2f\t%d\n", lib.AddrShort(alloc.ContractID), alloc.MinerID, alloc.TotalGHS, alloc.Fraction, alloc.AllocatedGHS())
 	}
 	if len(m.items) == 0 {
-		fmt.Fprintf(w, "no miners")
+		fmt.Fprintf(w, "no miners\n")
 	}
 	_ = w.Flush()
 	fmt.Fprintf(b, "========\nTotal: %d", m.GetAllocatedGHS())

@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
+	"gitlab.com/TitanInd/hashrouter/contractmanager/contractdata"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/lib"
@@ -14,9 +15,10 @@ import (
 
 type ContractManager struct {
 	// dependencies
-	blockchain      interfaces.IBlockchainGateway
-	log             interfaces.ILogger
-	globalScheduler interfaces.IGlobalScheduler
+	blockchain          interfaces.IBlockchainGateway
+	log                 interfaces.ILogger
+	globalScheduler     interfaces.IGlobalScheduler
+	globalSubmitTracker interfaces.GlobalHashrate
 
 	// configuration parameters
 	isBuyer                bool
@@ -27,6 +29,7 @@ type ContractManager struct {
 	walletPrivateKey       string
 	defaultDest            lib.Dest
 	contractCycleDuration  time.Duration
+	submitTimeout          time.Duration
 
 	// internal state
 	contracts interfaces.ICollection[IContractModel]
@@ -35,6 +38,7 @@ type ContractManager struct {
 func NewContractManager(
 	blockchain interfaces.IBlockchainGateway,
 	globalScheduler interfaces.IGlobalScheduler,
+	globalSubmitTracker interfaces.GlobalHashrate,
 	log interfaces.ILogger,
 	contracts interfaces.ICollection[IContractModel],
 	walletAddr interop.BlockchainAddress,
@@ -44,12 +48,14 @@ func NewContractManager(
 	validationBufferPeriod time.Duration,
 	defaultDest lib.Dest,
 	contractCycleDuration time.Duration,
+	submitTimeout time.Duration,
 ) *ContractManager {
 	return &ContractManager{
-		blockchain:      blockchain,
-		globalScheduler: globalScheduler,
-		contracts:       contracts,
-		log:             log,
+		blockchain:          blockchain,
+		globalScheduler:     globalScheduler,
+		globalSubmitTracker: globalSubmitTracker,
+		contracts:           contracts,
+		log:                 log,
 
 		isBuyer:                isBuyer,
 		hashrateDiffThreshold:  hashrateDiffThreshold,
@@ -58,6 +64,7 @@ func NewContractManager(
 		walletAddr:             walletAddr,
 		walletPrivateKey:       walletPrivateKey,
 		contractCycleDuration:  contractCycleDuration,
+		submitTimeout:          submitTimeout,
 	}
 }
 
@@ -120,7 +127,7 @@ func (m *ContractManager) runExistingContracts() error {
 	for _, existingContractAddr := range existingContractsAddrs {
 		err := m.handleContract(context.TODO(), existingContractAddr)
 		if err != nil {
-			m.log.Errorf("cannot handle existing contact, skipping, addr: %s", existingContractAddr.Hash().Hex())
+			m.log.Errorf("cannot handle existing contact, skipping, addr: %s, err: %s", existingContractAddr.String(), err)
 		}
 	}
 
@@ -139,16 +146,23 @@ func (m *ContractManager) handleContract(ctx context.Context, contractAddr commo
 
 	if !m.ContractExists(contractAddr) {
 
-		data, err := m.blockchain.ReadContract(contractAddr)
+		dt, err := m.blockchain.ReadContract(contractAddr)
 		if err != nil {
 			return fmt.Errorf("cannot read created contract %w", err)
 		}
 
 		var contract IContractModel
+		contractData := dt.(contractdata.ContractData)
+
 		if m.isBuyer {
-			contract = NewBuyerContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration)
+			log := m.log.Named("BUYER  " + lib.AddrShort(contractData.Addr.String()))
+			contract = NewBuyerContract(contractData, m.blockchain, m.globalSubmitTracker, log, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration, m.submitTimeout)
 		} else {
-			contract = NewContract(data.(blockchain.ContractData), m.blockchain, m.globalScheduler, m.log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration)
+			log := m.log.Named("SELLER " + lib.AddrShort(contractData.Addr.String()))
+			contract, err = NewSellerContract(contractData, m.blockchain, m.globalScheduler, log, nil, m.hashrateDiffThreshold, m.validationBufferPeriod, m.defaultDest, m.contractCycleDuration, m.walletPrivateKey)
+			if err != nil {
+				return err
+			}
 		}
 
 		if !contract.IsValidWallet(m.walletAddr) {
@@ -156,12 +170,14 @@ func (m *ContractManager) handleContract(ctx context.Context, contractAddr commo
 			return nil
 		}
 
-		m.log.Infof("handling contract \n%+v", data)
-
 		go func() {
 			err := contract.Run(ctx)
-			m.log.Warn("contract error: ", err)
+			if err != nil {
+				m.log.Warn("contract error: ", err)
+			}
+			m.contracts.Delete(contract.GetID())
 		}()
+
 		m.contracts.Store(contract)
 	}
 

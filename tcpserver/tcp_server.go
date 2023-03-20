@@ -88,20 +88,6 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener net.Listener) e
 
 		if p.handler != nil {
 			go func(conn net.Conn) {
-				// err = conn.(*net.TCPConn).SetReadBuffer(p.connectionBufferSize * kb)
-
-				// if err != nil {
-				// 	p.log.Warnf("error setting connection read buffer: %s", err)
-				// 	return
-				// }
-
-				// err = conn.(*net.TCPConn).SetWriteBuffer(p.connectionBufferSize * kb)
-
-				// if err != nil {
-				// 	p.log.Warnf("error setting connection write buffer: %s", err)
-				// 	return
-				// }
-
 				err = conn.(*net.TCPConn).SetLinger(0)
 
 				if err != nil {

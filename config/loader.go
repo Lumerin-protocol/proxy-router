@@ -74,6 +74,7 @@ func LoadConfig(cfg interface{}, osArgs *[]string) error {
 
 	// flags override .env variables
 	err = flagset.Parse(args[1:])
+
 	if err != nil {
 		return lib.WrapError(ErrFlagParse, err)
 	}
