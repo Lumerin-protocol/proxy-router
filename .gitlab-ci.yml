@@ -314,6 +314,7 @@ bedrock-04-PRD-buyer:
 
 create_tag:
   stage: release
+  needs: ["test", "lint"]
   variables:
     VERSION: 1.1.0
   only:
