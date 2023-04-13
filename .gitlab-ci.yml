@@ -317,8 +317,6 @@ create_tag:
   rules:
     - if: $CI_COMMIT_BRANCH == "dev"
       when: manual
-    - if: $CI_COMMIT_BRANCH == "test-new-ci"
-      when: manual
     - if: $CI_COMMIT_BRANCH == "stg"
       when: on_success
     - if: $CI_COMMIT_BRANCH == "lmn"
