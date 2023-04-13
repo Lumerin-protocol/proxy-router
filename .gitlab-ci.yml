@@ -320,7 +320,7 @@ release-internal:
     - stg
     - test-new-ci
   script:
-    - goreleaser release --clean -f "./.goreleaser-internal.yml"
+    - goreleaser release --clean -f "./.goreleaser-internal.yaml"
 
 release-external:
   <<: *default-release
