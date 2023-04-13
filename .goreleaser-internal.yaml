@@ -42,14 +42,15 @@ changelog:
       - "^docs:"
       - "^test:"
 
-dockers:
-- image_templates: ["registry.gitlab.com/TitanInd/proxy/proxy-router:{{ .Version }}"]
-  dockerfile: Dockerfile
-  build_flag_templates:
-  - --label=org.opencontainers.image.title={{ .ProjectName }}
-  - --label=org.opencontainers.image.description={{ .ProjectName }}
-  - --label=org.opencontainers.image.url=https://gitlab.com/TitanInd/proxy/proxy-router
-  - --label=org.opencontainers.image.source=https://gitlab.com/TitanInd/proxy/proxy-router
-  - --label=org.opencontainers.image.version={{ .Version }}
-  - --label=org.opencontainers.image.revision={{ .FullCommit }}
-
+release:
+  # Define the GitLab release configuration
+  gitlab:
+    owner: TitanInd/proxy
+    name: proxy-router
+    token:
+      # Define your GitLab API token here
+      # You can generate a token in your GitLab account settings
+      secure: "{{.Env.CI_TAG_PUSH_TOKEN}}""
+    # Define the release notes format
+    release_name_template: "{{.ProjectName}}-{{.Tag}}"
+    release_description_template: "Release {{.Tag}}"
