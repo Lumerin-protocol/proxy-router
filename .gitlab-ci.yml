@@ -319,9 +319,10 @@ create_tag:
       when: manual
     - if: $CI_COMMIT_BRANCH == "test-new-ci"
       when: manual
-  only:
-      - stg
-      - lmn
+    - if: $CI_COMMIT_BRANCH == "stg"
+      when: on_success
+    - if: $CI_COMMIT_BRANCH == "lmn"
+      when: on_success
   before_script:
     - apk --no-cache add git
     - PROJECT_URL=$(echo $CI_PROJECT_URL | sed 's/https:\/\///')
