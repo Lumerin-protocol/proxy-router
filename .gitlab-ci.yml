@@ -175,7 +175,7 @@ bedrock-02-DEV-seller:
   variables:
     TGT_ACCOUNT: $CI_AWS_ACCOUNT_DEV
     TGT_ENV: dev
-    POOL_ADDRESS: "//titan1.ecs-dev:@mining.pool.titan.io:4242"
+    # POOL_ADDRESS: "//titan1.ecs-dev:@mining.pool.titan.io:4242"
   script:
     - *deploy_seller
     - echo "$TGT_ENV seller updated"
@@ -198,7 +198,7 @@ bedrock-02-DEV-buyer:
   variables:
     TGT_ACCOUNT: $CI_AWS_ACCOUNT_DEV
     TGT_ENV: dev
-    POOL_ADDRESS: "//titan1.ecs-dev:@mining.pool.titan.io:4242"
+    # POOL_ADDRESS: "//titan1.ecs-dev:@mining.pool.titan.io:4242"
   script:
     - *deploy_buyer
     - echo "$TGT_ENV buyer updated"
@@ -223,7 +223,7 @@ bedrock-03-STG-seller:
   variables:
     TGT_ACCOUNT: $CI_AWS_ACCOUNT_STG
     TGT_ENV: stg
-    POOL_ADDRESS: "//titan1.ecs-stg:@mining.pool.titan.io:4242"
+    # POOL_ADDRESS: "//titan1.ecs-stg:@mining.pool.titan.io:4242"
   script:
     - *deploy_seller
     - echo "$TGT_ENV seller updated"
@@ -248,7 +248,7 @@ bedrock-03-STG-buyer:
   variables:
     TGT_ACCOUNT: $CI_AWS_ACCOUNT_STG
     TGT_ENV: stg
-    POOL_ADDRESS: "//titan1.ecs-stg:@mining.pool.titan.io:4242"
+    # POOL_ADDRESS: "//titan1.ecs-stg:@mining.pool.titan.io:4242"
   script:
     - *deploy_buyer
     - echo "$TGT_ENV buyer updated"
@@ -274,7 +274,7 @@ bedrock-04-PRD-seller:
     TGT_ACCOUNT: $CI_AWS_ACCOUNT_LMN
     TGT_ENV: lmn
     PROXY_LOG_STRATUM: "false"
-    POOL_ADDRESS: "//titan1.ecs-lmn:@mining.pool.titan.io:4242"
+    # POOL_ADDRESS: "//titan1.ecs-lmn:@mining.pool.titan.io:4242"
   script:
     - *deploy_seller
     - echo "$TGT_ENV seller updated"
@@ -300,7 +300,7 @@ bedrock-04-PRD-buyer:
     TGT_ACCOUNT: $CI_AWS_ACCOUNT_LMN
     TGT_ENV: lmn
     PROXY_LOG_STRATUM: "false"
-    POOL_ADDRESS: "//titan1.ecs-lmn:@mining.pool.titan.io:4242"
+    # POOL_ADDRESS: "//titan1.ecs-lmn:@mining.pool.titan.io:4242"
   script:
     - *deploy_buyer
     - echo "$TGT_ENV buyer updated"
