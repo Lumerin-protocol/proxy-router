@@ -299,7 +299,7 @@ bedrock-04-PRD-buyer:
     - *deploy_buyer
     - echo "$TGT_ENV buyer updated"
 
-release:
+.default-release: &default-release
   inherit:
     default: false
   stage: release
@@ -307,12 +307,24 @@ release:
   image:
     name: goreleaser/goreleaser
     entrypoint: [""]
-  only:
-    - tags # runs only on tag push
   variables:
     # Disable shallow cloning so that goreleaser can diff between tags to
     # generate a changelog.
     GIT_DEPTH: 0
+    VERSION: 1.1.0
+
+release-internal:
+  <<: *default-release
+  only:
+    - dev 
+    - stg
+    - test-new-ci
+  script:
+    - goreleaser release --clean -f "./.goreleaser-internal.yml"
+
+release-external:
+  <<: *default-release
+  only:
+    - lmn 
   script:
     - goreleaser release --clean
-
