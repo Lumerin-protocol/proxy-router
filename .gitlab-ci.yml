@@ -311,20 +311,38 @@ bedrock-04-PRD-buyer:
     # Disable shallow cloning so that goreleaser can diff between tags to
     # generate a changelog.
     GIT_DEPTH: 0
+
+create_tag:
+  stage: release
+  variables:
     VERSION: 1.1.0
+  only:
+      - dev
+      - stg
+      - lmn
+      - test-new-ci
+  before_script:
+    - apk --no-cache add git
+    - PROJECT_URL=$(echo $CI_PROJECT_URL | sed 's/https:\/\///')
+    - git remote set-url origin https://oauth2:$CI_TAG_PUSH_TOKEN@$PROJECT_URL
+  script:
+    # Remove local tags
+    - git fetch origin -f --prune --prune-tags
+    - git tag "$VERSION-$CI_COMMIT_BRANCH"
+    - git push origin --tags
 
 release-internal:
   <<: *default-release
   only:
-    - dev 
-    - stg
-    - test-new-ci
+    - /^dev-.*/  
+    - /^stg-.*/ 
+    - /^test-new-ci-.*/
   script:
     - goreleaser release --clean -f "./.goreleaser-internal.yaml"
 
 release-external:
   <<: *default-release
   only:
-    - lmn 
+    - /^lmn-.*/ 
   script:
     - goreleaser release --clean
