@@ -315,6 +315,7 @@ bedrock-04-PRD-buyer:
 create_tag:
   stage: release
   needs: ["test", "lint"]
+  image: node:alpine
   variables:
     VERSION: 1.1.0
   only:
@@ -323,6 +324,7 @@ create_tag:
       - lmn
       - test-new-ci
   before_script:
+    - apk --no-cache add git
     - PROJECT_URL=$(echo $CI_PROJECT_URL | sed 's/https:\/\///')
     - git remote set-url origin https://oauth2:$CI_TAG_PUSH_TOKEN@$PROJECT_URL
   script:
