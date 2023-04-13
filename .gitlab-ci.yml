@@ -317,7 +317,7 @@ create_tag:
   needs: ["test", "lint"]
   image: node:alpine
   variables:
-    VERSION: 1.1.0
+    VERSION: 0.1.0
   only:
       - dev
       - stg
@@ -336,15 +336,15 @@ create_tag:
 release-internal:
   <<: *default-release
   only:
-    - /^dev-.*/  
-    - /^stg-.*/ 
-    - /^test-new-ci-.*/
+    - /.*-dev$/  
+    - /.*-stg$/ 
+    - /.*-test-new-ci$/
   script:
     - goreleaser release --clean -f "./.goreleaser-internal.yaml"
 
 release-external:
   <<: *default-release
   only:
-    - /^lmn-.*/ 
+    - /.*-lmn$/ 
   script:
     - goreleaser release --clean
