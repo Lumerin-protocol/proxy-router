@@ -42,44 +42,17 @@ changelog:
       - "^docs:"
       - "^test:"
 
-release:
-  # Repo in which the release will be created.
-  # Default is extracted from the origin remote URL or empty if its private hosted.
-  gitlab:
-    owner: TitanInd/proxy
-    name: proxy-router
+dockers:
+- image_templates: ["registry.gitlab.com/TitanInd/proxy/proxy-router:{{ .Version }}"]
+  dockerfile: Dockerfile
+  build_flag_templates:
+  - --label=org.opencontainers.image.title={{ .ProjectName }}
+  - --label=org.opencontainers.image.description={{ .ProjectName }}
+  - --label=org.opencontainers.image.url=https://gitlab.com/TitanInd/proxy/proxy-router
+  - --label=org.opencontainers.image.source=https://gitlab.com/TitanInd/proxy/proxy-router
+  - --label=org.opencontainers.image.version={{ .Version }}
+  - --label=org.opencontainers.image.revision={{ .FullCommit }}
 
-  # If set to true, will not auto-publish the release.
-  # Available only for GitHub and Gitea.
-  # Default is false.
-  draft: false
-
-  # Whether to remove existing draft releases with the same name before creating
-  # a new one.
-  # Only effective if `draft` is set to true.
-  # Available only for GitHub.
-  #
-  # Default: false.
-  # Since: v1.11.
-  replace_existing_draft: true
-
-  # Useful if you want to delay the creation of the tag in the remote.
-  # You can create the tag locally, but not push it, and run GoReleaser.
-  # It'll then set the `target_commitish` portion of the GitHub release to the
-  # value of this field.
-  # Only works on GitHub.
-  #
-  # Default: empty.
-  # Since: v1.11.
-  target_commitish: ""
-
-  # If set, will create a release discussion in the category specified.
-  #
-  # Warning: do not use categories in the 'Announcement' format.
-  #  Check https://github.com/goreleaser/goreleaser/issues/2304 for more info.
-  #
-  # Default is empty.
-  discussion_category_name: ""
 
   # If set to auto, will mark the release as not ready for production
   # in case there is an indicator for this in the tag e.g. v1.0.0-rc1
