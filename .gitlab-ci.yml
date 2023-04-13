@@ -339,7 +339,6 @@ release-internal:
   only:
     - /.*-dev$/  
     - /.*-stg$/ 
-    - /.*-test-new-ci$/
   script:
     - goreleaser release --clean -f "./.goreleaser-internal.yaml"
 
