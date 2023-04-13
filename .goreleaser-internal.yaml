@@ -47,10 +47,3 @@ release:
   gitlab:
     owner: TitanInd/proxy
     name: proxy-router
-    token:
-      # Define your GitLab API token here
-      # You can generate a token in your GitLab account settings
-      secure: "{{.Env.CI_TAG_PUSH_TOKEN}}"
-    # Define the release notes format
-    release_name_template: "{{.ProjectName}}-{{.Tag}}"
-    release_description_template: "Release {{.Tag}}"
