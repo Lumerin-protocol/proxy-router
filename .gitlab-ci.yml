@@ -324,7 +324,6 @@ create_tag:
     - PROJECT_URL=$(echo $CI_PROJECT_URL | sed 's/https:\/\///')
     - git remote set-url origin https://oauth2:$CI_TAG_PUSH_TOKEN@$PROJECT_URL
   script:
-    # Remove local tags
     - git fetch origin -f --prune --prune-tags
     - git tag "$VERSION-$CI_COMMIT_BRANCH"
     - git push origin --tags
