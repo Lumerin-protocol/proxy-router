@@ -343,7 +343,7 @@ release-internal:
     - goreleaser release --clean -f "./.goreleaser-internal.yaml"
   artifacts:
     paths:
-      - proxy-router_*
+      - dist/proxy-router_*
 
 release-external:
   <<: *default-release
