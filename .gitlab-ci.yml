@@ -313,7 +313,7 @@ create_tag:
   needs: ["test", "lint"]
   image: node:alpine
   variables:
-    VERSION: 0.1.0
+    VERSION: 0.1.1
   rules:
     - if: $CI_COMMIT_BRANCH == "dev"
       when: manual
@@ -341,6 +341,9 @@ release-internal:
     - /.*-stg$/ 
   script:
     - goreleaser release --clean -f "./.goreleaser-internal.yaml"
+  artifacts:
+    paths:
+      - proxy-router_*
 
 release-external:
   <<: *default-release
