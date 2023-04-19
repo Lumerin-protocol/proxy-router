@@ -308,26 +308,36 @@ bedrock-04-PRD-buyer:
     name: goreleaser/goreleaser
     entrypoint: [""]
 
-create_tag:
+.default-tag: &default-tag
   stage: release
   needs: ["test", "lint"]
   image: node:alpine
-  variables:
-    VERSION: 0.1.1
+  before_script:
+    - export $(grep -v '^#' .version | xargs)
+    - apk --no-cache add git
+    - PROJECT_URL=$(echo $CI_PROJECT_URL | sed 's/https:\/\///')
+    - git remote set-url origin https://oauth2:$CI_TAG_PUSH_TOKEN@$PROJECT_URL
+
+create_tag:
+  <<: *default-tag
   rules:
     - if: $CI_COMMIT_BRANCH == "dev"
       when: manual
     - if: $CI_COMMIT_BRANCH == "stg"
       when: on_success
-    - if: $CI_COMMIT_BRANCH == "lmn"
-      when: on_success
-  before_script:
-    - apk --no-cache add git
-    - PROJECT_URL=$(echo $CI_PROJECT_URL | sed 's/https:\/\///')
-    - git remote set-url origin https://oauth2:$CI_TAG_PUSH_TOKEN@$PROJECT_URL
   script:
     - git fetch origin -f --prune --prune-tags
     - git tag "$VERSION-$CI_COMMIT_BRANCH"
+    - git push origin --tags
+  
+create_tag_main:
+  <<: *default-tag
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: on_success
+  script:
+    - git fetch origin -f --prune --prune-tags
+    - git tag "$VERSION-lmn"
     - git push origin --tags
 
 release-internal:
