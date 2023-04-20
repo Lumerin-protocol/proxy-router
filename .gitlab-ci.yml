@@ -19,7 +19,15 @@ variables: # keep this list alphabetically sorted
 stages:
   - test
   - deploy
+  - e2e-test
   - release
+
+e2e-test:
+  stage: e2e-test
+  trigger:
+    project: proxy/router-test
+    branch: $CI_COMMIT_BRANCH
+    strategy: depend
 
 lint:
   inherit:
@@ -134,7 +142,7 @@ test:
   - *deploy_new_task_definition
 
 .deploy_buyer: &deploy_buyer
-  - POOL_ADDRESS="//titan1.ecs-$TGT_ENV-buyer:@mining.pool.titan.io:4242"
+  - POOL_ADDRESS=$BUYER_POOL_ADDRESS
   - WALLET_ADDRESS=$BUYER_WALLET_ADDRESS
   - WALLET_PRIVATE_KEY=$BUYER_PRIVATEKEY
   - IS_BUYER="true"
@@ -167,7 +175,6 @@ bedrock-02-DEV-seller:
   variables:
     TGT_ACCOUNT: $CI_AWS_ACCOUNT_DEV
     TGT_ENV: dev
-    # POOL_ADDRESS: "//titan1.ecs-dev:@mining.pool.titan.io:4242"
   script:
     - *deploy_seller
     - echo "$TGT_ENV seller updated"
@@ -190,7 +197,6 @@ bedrock-02-DEV-buyer:
   variables:
     TGT_ACCOUNT: $CI_AWS_ACCOUNT_DEV
     TGT_ENV: dev
-    # POOL_ADDRESS: "//titan1.ecs-dev:@mining.pool.titan.io:4242"
   script:
     - *deploy_buyer
     - echo "$TGT_ENV buyer updated"
@@ -215,7 +221,6 @@ bedrock-03-STG-seller:
   variables:
     TGT_ACCOUNT: $CI_AWS_ACCOUNT_STG
     TGT_ENV: stg
-    # POOL_ADDRESS: "//titan1.ecs-stg:@mining.pool.titan.io:4242"
   script:
     - *deploy_seller
     - echo "$TGT_ENV seller updated"
@@ -240,7 +245,6 @@ bedrock-03-STG-buyer:
   variables:
     TGT_ACCOUNT: $CI_AWS_ACCOUNT_STG
     TGT_ENV: stg
-    # POOL_ADDRESS: "//titan1.ecs-stg:@mining.pool.titan.io:4242"
   script:
     - *deploy_buyer
     - echo "$TGT_ENV buyer updated"
@@ -266,7 +270,6 @@ bedrock-04-PRD-seller:
     TGT_ACCOUNT: $CI_AWS_ACCOUNT_LMN
     TGT_ENV: lmn
     PROXY_LOG_STRATUM: "false"
-    # POOL_ADDRESS: "//titan1.ecs-lmn:@mining.pool.titan.io:4242"
   script:
     - *deploy_seller
     - echo "$TGT_ENV seller updated"
@@ -292,12 +295,11 @@ bedrock-04-PRD-buyer:
     TGT_ACCOUNT: $CI_AWS_ACCOUNT_LMN
     TGT_ENV: lmn
     PROXY_LOG_STRATUM: "false"
-    # POOL_ADDRESS: "//titan1.ecs-lmn:@mining.pool.titan.io:4242"
   script:
     - *deploy_buyer
     - echo "$TGT_ENV buyer updated"
 
-release:
+.default-release: &default-release
   inherit:
     default: false
   stage: release
@@ -305,12 +307,60 @@ release:
   image:
     name: goreleaser/goreleaser
     entrypoint: [""]
-  only:
-    - tags # runs only on tag push
-  variables:
-    # Disable shallow cloning so that goreleaser can diff between tags to
-    # generate a changelog.
-    GIT_DEPTH: 0
-  script:
-    - goreleaser release --rm-dist
 
+.default-tag: &default-tag
+  stage: release
+  needs: ["test", "lint"]
+  image: node:alpine
+  before_script:
+    - export $(grep -v '^#' .version | xargs)
+    - apk --no-cache add git
+    - PROJECT_URL=$(echo $CI_PROJECT_URL | sed 's/https:\/\///')
+    - git remote set-url origin https://oauth2:$CI_TAG_PUSH_TOKEN@$PROJECT_URL
+
+create_tag:
+  <<: *default-tag
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+      when: manual
+    - if: $CI_COMMIT_BRANCH == "stg"
+      when: on_success
+  script:
+    - git fetch origin -f --prune --prune-tags
+    - git tag "$VERSION-$CI_COMMIT_BRANCH"
+    - git push origin --tags
+  
+create_tag_main:
+  <<: *default-tag
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: on_success
+  script:
+    - git fetch origin -f --prune --prune-tags
+    - git tag "$VERSION-lmn"
+    - git push origin --tags
+
+release-internal:
+  <<: *default-release
+  variables:
+    GIT_DEPTH: 0
+    GITLAB_TOKEN: $CI_TAG_PUSH_TOKEN
+    GORELEASER_FORCE_TOKEN: gitlab
+  only:
+    - /.*-dev$/  
+    - /.*-stg$/ 
+  script:
+    - goreleaser release --clean -f "./.goreleaser-internal.yaml"
+  artifacts:
+    paths:
+      - dist/proxy-router_*
+
+release-external:
+  <<: *default-release
+  variables:
+    GIT_DEPTH: 0
+    GORELEASER_FORCE_TOKEN: github
+  only:
+    - /.*-lmn$/ 
+  script:
+    - goreleaser release --clean

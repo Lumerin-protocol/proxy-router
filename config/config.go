@@ -19,6 +19,7 @@ type Config struct {
 		ProxyAddress           string
 		Disable                bool          `env:"CONTRACT_DISABLE" flag:"contract-disable"`
 		CycleDuration          time.Duration `env:"CONTRACT_CYCLE_DURATION" flag:"contract-cycle-duration"`
+		HashrateAdjustment     float64       `env:"CONTRACT_HASHRATE_ADJUSTMENT" flag:"contract-hashrate-adjustment"`
 	}
 	Environment string `env:"ENVIRONMENT" flag:"environment"`
 	EthNode     struct {
@@ -27,7 +28,7 @@ type Config struct {
 	}
 	Miner struct {
 		VettingDuration time.Duration `env:"MINER_VETTING_DURATION" flag:"miner-vetting-duration" validate:"duration"`
-		SubmitErrLimit  int           `env:"MINER_SUBMIT_ERR_LIMIT" flag:"miner-submit-err-limit" desc:"amount of consecutive submit errors to consider miner faulty and exclude it from contracts"`
+		SubmitErrLimit  int           `env:"MINER_SUBMIT_ERR_LIMIT" flag:"miner-submit-err-limit" desc:"amount of consecutive submit errors to consider miner faulty and exclude it from contracts, zero means disable faulty miners tracking"`
 	}
 	Log struct {
 		Syslog    bool   `env:"LOG_SYSLOG" flag:"log-syslog"`
@@ -37,7 +38,7 @@ type Config struct {
 	}
 	Proxy struct {
 		Address              string `env:"PROXY_ADDRESS" flag:"proxy-address" validate:"required,hostname_port"`
-		LogStratum           bool   `env:"PROXY_LOG_STRATUM" flag:"proxy-log-stratum"`
+		ProtocolLog          bool   `env:"PROXY_PROTOCOL_LOG" flag:"proxy-protocol-log" desc:"verbose dump of protocol activities to separate files per connection"`
 		ConnectionBufferSize int    `env:"STRATUM_SOCKET_BUFFER_SIZE" flag:"stratum-socket-buffer" validate:"required,numeric"`
 	}
 	Pool struct {

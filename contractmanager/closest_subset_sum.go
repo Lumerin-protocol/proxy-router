@@ -39,7 +39,7 @@ func ClosestSubsetSum(numbers []int, goal int) (numIndexes []int, delta int) {
 		indexes[i] = v[0]
 	}
 
-	return indexes, delt
+	return indexes, -delt
 }
 
 func getMinValArr(leftSum, rightSum [][][2]int, goal int) (valArr [][2]int, delta int) {

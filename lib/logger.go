@@ -1,8 +1,11 @@
 package lib
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
+	"time"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -14,6 +17,8 @@ const green = "\u001b[32m"
 const red = "\u001b[31m"
 const reset = "\u001b[0m"
 */
+
+const timeLayout = "2006-01-02T15:04:05"
 
 type Logger struct {
 	*zap.SugaredLogger
@@ -42,7 +47,7 @@ func NewLogger(isProduction bool, level string, logToFile bool, color bool) (*Lo
 	if isProduction {
 		log, err = newProductionLogger(level)
 	} else {
-		log, err = NewDevelopmentLogger(level, logToFile, color, true)
+		log, err = NewDevelopmentLogger(level, logToFile, color, false)
 	}
 	if err != nil {
 		return nil, err
@@ -59,7 +64,7 @@ func NewTestLogger() *zap.SugaredLogger {
 
 func NewDevelopmentLogger(levelStr string, logToFile bool, color bool, addCaller bool) (*zap.Logger, error) {
 	consoleEncoderCfg := zap.NewDevelopmentEncoderConfig()
-	consoleEncoderCfg.EncodeTime = zapcore.TimeEncoderOfLayout("2006-01-02 15:04:05")
+	consoleEncoderCfg.EncodeTime = zapcore.TimeEncoderOfLayout(timeLayout)
 	if color {
 		consoleEncoderCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	}
@@ -73,10 +78,15 @@ func NewDevelopmentLogger(levelStr string, logToFile bool, color bool, addCaller
 
 	if logToFile {
 		fileEncoderCfg := zap.NewDevelopmentEncoderConfig()
-		fileEncoderCfg.EncodeTime = zapcore.TimeEncoderOfLayout("2006-01-02 15:04:05")
+		fileEncoderCfg.EncodeTime = zapcore.TimeEncoderOfLayout(timeLayout)
 		fileEncoder := zapcore.NewConsoleEncoder(fileEncoderCfg)
 
-		file, err := os.OpenFile("logfile.log", os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+		newpath := filepath.Join(".", "logs")
+		err := os.MkdirAll(newpath, os.ModePerm)
+		if err != nil {
+			return nil, err
+		}
+		file, err := os.OpenFile("./logs/logfile.log", os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 		if err != nil {
 			return nil, err
 		}
@@ -139,4 +149,28 @@ func LogMsg(isMiner bool, isRead bool, addr string, payload []byte, l interface{
 	if zapLogger, ok := l.(*zap.SugaredLogger); ok {
 		zapLogger.Desugar().WithOptions(zap.AddCallerSkip(1)).Sugar().Debugf("%s %s(%s): %s", source, op, addr, msg)
 	}
+}
+
+func NewFileLogger(name string) (*zap.SugaredLogger, error) {
+	fileEncoderCfg := zap.NewDevelopmentEncoderConfig()
+	fileEncoderCfg.LevelKey = zapcore.OmitKey
+	fileEncoderCfg.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339)
+	fileEncoder := zapcore.NewConsoleEncoder(fileEncoderCfg)
+
+	path := filepath.Join(".", "logs", "protocol")
+	err := os.MkdirAll(path, os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+
+	filename := SanitizeFilename(fmt.Sprintf("%s-%s", time.Now().Format(timeLayout), name))
+	pathName := fmt.Sprintf("%s/%s.log", path, filename)
+
+	file, err := os.OpenFile(pathName, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+	if err != nil {
+		return nil, err
+	}
+
+	core := zapcore.NewCore(fileEncoder, zapcore.AddSync(file), zap.DebugLevel)
+	return zap.New(core).Sugar(), nil
 }

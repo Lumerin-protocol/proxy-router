@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"gitlab.com/TitanInd/hashrouter/blockchain"
+	"gitlab.com/TitanInd/hashrouter/contractmanager/contractdata"
 	"gitlab.com/TitanInd/hashrouter/interop"
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/miner"
@@ -56,7 +57,7 @@ var subscribeToContractEventsCalled chan struct{}
 var blockchainGateway *testBlockchainGateway
 var globalScheduler *GlobalSchedulerV2
 var log *lib.LoggerMock
-var contract *BTCHashrateContract
+var contract *BTCHashrateContractSeller
 var testContext context.Context
 
 func Setup() {
@@ -78,8 +79,8 @@ func Setup() {
 	}
 	log = &lib.LoggerMock{}
 
-	globalScheduler := NewGlobalSchedulerV2(miner.NewMinerCollection(), log, 0, 0, 0)
-	contract = &BTCHashrateContract{
+	globalScheduler := NewGlobalSchedulerV2(miner.NewMinerCollection(), log, 0, 0, 0, 1)
+	contract = &BTCHashrateContractSeller{
 		log:             log,
 		blockchain:      blockchainGateway,
 		globalScheduler: globalScheduler,
@@ -168,7 +169,7 @@ func (g *testBlockchainGateway) SubscribeToContractEvents(ctx context.Context, c
 
 // ReadContract reads contract information encoded in the blockchain
 func (g *testBlockchainGateway) ReadContract(contractAddress common.Address) (interface{}, error) {
-	return blockchain.ContractData{Length: 5}, nil
+	return contractdata.ContractData{Length: 5}, nil
 }
 
 func (g *testBlockchainGateway) ReadContracts(walletAddr interop.BlockchainAddress, isBuyer bool) ([]interop.BlockchainAddress, error) {

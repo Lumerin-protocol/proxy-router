@@ -8,7 +8,10 @@ import (
 )
 
 type GlobalSchedulerMock struct {
-	IsDeliveringAdequateHashrateRes bool
+}
+
+func NewGlobalSchedulerMock() *GlobalSchedulerMock {
+	return &GlobalSchedulerMock{}
 }
 
 func (s *GlobalSchedulerMock) Run(ctx context.Context) error {
@@ -22,8 +25,4 @@ func (s *GlobalSchedulerMock) GetMinerSnapshot() *snap.AllocSnap {
 
 func (s *GlobalSchedulerMock) Update(contractID string, hashrateGHS int, dest interfaces.IDestination, onSubmit interfaces.IHashrate) error {
 	return nil
-}
-
-func (s *GlobalSchedulerMock) IsDeliveringAdequateHashrate(ctx context.Context, targetHashrateGHS int, dest interfaces.IDestination, hashrateDiffThreshold float64) bool {
-	return s.IsDeliveringAdequateHashrateRes
 }

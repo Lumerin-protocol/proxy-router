@@ -18,3 +18,11 @@ lint:
 
 tidy:
 	go mod tidy
+
+clean:
+	rm -rf ./logs ./hashrouter
+update-dependencies:
+	@imports=$$(grep -E '^\s+[^/]+\/[^/]+\/[^ ]+' go.mod | awk '{print $$1}'); \
+	for import in $$imports; do \
+	    go get -u $$import; \
+	done
