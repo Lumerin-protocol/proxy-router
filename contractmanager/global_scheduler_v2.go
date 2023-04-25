@@ -340,7 +340,7 @@ func (s *GlobalSchedulerV2) applyAllocCollection(contractID string, coll *data.A
 		if item.Fraction == 0 {
 			destSplit, ok := miner.GetDestSplit().RemoveByID(contractID)
 			if ok {
-				miner.SetDestSplit(destSplit)
+				go miner.SetDestSplit(destSplit)
 			}
 			continue
 		}
@@ -355,7 +355,7 @@ func (s *GlobalSchedulerV2) applyAllocCollection(contractID string, coll *data.A
 			if err != nil {
 				return err
 			}
-			miner.SetDestSplit(destSplit)
+			go miner.SetDestSplit(destSplit)
 		}
 	}
 
