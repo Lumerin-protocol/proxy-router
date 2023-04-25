@@ -68,7 +68,15 @@ func (s *GlobalSchedulerV2) Run(ctx context.Context) error {
 		case tsk := <-s.queue:
 			s.fulfillTask(ctx, tsk)
 		case <-ctx.Done():
-			return ctx.Err()
+			err := ctx.Err()
+
+			if err != nil {
+				s.log.Errorf("global scheduler stopped with error: %s", err)
+			} else {
+				s.log.Info("global scheduler stopped")
+			}
+			
+			return err
 		}
 	}
 }
