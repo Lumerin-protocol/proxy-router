@@ -1,20 +1,20 @@
 variables: # keep this list alphabetically sorted
   CI_AWS_TASK: "proxy-router"
-  ENVIRONMENT: "production" # production makes logs in json and not panics when calling DPanic
-  HASHRATE_DIFF_THRESHOLD: "0.1"
+  CONTRACT_HASHRATE_ADJUSTMENT: "1.1"
+  ENVIRONMENT: "production"
+  HASHRATE_DIFF_THRESHOLD: "0.03"
   IS_BUYER: "false"
+  MINER_SUBMIT_ERR_LIMIT: "0"
   MINER_VETTING_DURATION: 5m
-  MINER_SUBMIT_ERR_LIMIT: 15
   NODE_DEF: "prt"
-  POOL_MIN_DURATION: 2m
+  POOL_CONN_TIMEOUT: 15m
   POOL_MAX_DURATION: 7m
-  POOL_CONN_TIMEOUT: 10m
+  POOL_MIN_DURATION: 2m
   PROXY_ADDRESS: "0.0.0.0:3333"
   PROXY_LOG_STRATUM: "false"
-  SOCKET_MINER_CONNECTION_LIMIT: 1000
-  STRATUM_SOCKET_BUFFER_SIZE: 5
+  STRATUM_SOCKET_BUFFER_SIZE: "5"
+  VALIDATION_BUFFER_PERIOD: 15m
   WEB_ADDRESS: "0.0.0.0:8080"
-  VALIDATION_BUFFER_PERIOD: 20m
 
 stages:
   - test
@@ -76,25 +76,27 @@ test:
   echo "**************************"
   docker build \
   -t $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG --no-cache . \
-  --build-arg WEB_ADDRESS=$WEB_ADDRESS \
-  --build-arg PROXY_ADDRESS=$PROXY_ADDRESS \
-  --build-arg ETH_NODE_ADDRESS=$ETH_NODE_ADDRESS \
-  --build-arg IS_BUYER=$IS_BUYER \
-  --build-arg ENVIRONMENT=$ENVIRONMENT \
+  --build-arg CONTRACT_HASHRATE_ADJUSTMENT=$CONTRACT_HASHRATE_ADJUSTMENT \
   --build-arg CLONE_FACTORY_ADDRESS=$CLONE_FACTORY_ADDRESS \
-  --build-arg WALLET_ADDRESS=$WALLET_ADDRESS \
-  --build-arg WALLET_PRIVATE_KEY=$WALLET_PRIVATE_KEY \
-  --build-arg PROXY_LOG_STRATUM=$PROXY_LOG_STRATUM \
+  --build-arg ENVIRONMENT=$ENVIRONMENT \
+  --build-arg ETH_NODE_ADDRESS=$ETH_NODE_ADDRESS \
+  --build-arg HASHRATE_DIFF_THRESHOLD=$HASHRATE_DIFF_THRESHOLD \
+  --build-arg IS_BUYER=$IS_BUYER \
+  --build-arg LOG_LEVEL=$LOG_LEVEL \
   --build-arg MINER_VETTING_DURATION=$MINER_VETTING_DURATION \
+  --build-arg MINER_SUBMIT_ERR_LIMIT=$MINER_SUBMIT_ERR_LIMIT \
   --build-arg POOL_ADDRESS=$POOL_ADDRESS \
   --build-arg POOL_CONN_TIMEOUT=$POOL_CONN_TIMEOUT \
-  --build-arg POOL_MIN_DURATION=$POOL_MIN_DURATION \
   --build-arg POOL_MAX_DURATION=$POOL_MAX_DURATION \
-  --build-arg VALIDATION_BUFFER_PERIOD=$VALIDATION_BUFFER_PERIOD \
-  --build-arg HASHRATE_DIFF_THRESHOLD=$HASHRATE_DIFF_THRESHOLD \
+  --build-arg POOL_MIN_DURATION=$POOL_MIN_DURATION \
+  --build-arg PROXY_ADDRESS=$PROXY_ADDRESS \
+  --build-arg PROXY_LOG_STRATUM=$PROXY_LOG_STRATUM \
   --build-arg STRATUM_SOCKET_BUFFER_SIZE=$STRATUM_SOCKET_BUFFER_SIZE \
-  --build-arg WEB_PUBLIC_URL=$WEB_PUBLIC_URL \
-  --build-arg LOG_LEVEL=$LOG_LEVEL
+  --build-arg VALIDATION_BUFFER_PERIOD=$VALIDATION_BUFFER_PERIOD \
+  --build-arg WALLET_ADDRESS=$WALLET_ADDRESS \
+  --build-arg WALLET_PRIVATE_KEY=$WALLET_PRIVATE_KEY \
+  --build-arg WEB_ADDRESS=$WEB_ADDRESS \
+  --build-arg WEB_PUBLIC_URL=$WEB_PUBLIC_URL
   echo "**************************"
   echo "*** Push Image"
   echo "**************************"
@@ -205,12 +207,12 @@ bedrock-03-STG-seller:
   stage: deploy
   environment: stg
   rules:
-  - if: $CI_COMMIT_BRANCH == "stg"
-    when: always
-  - if: $CI_COMMIT_BRANCH != "stg"
-    when: manual
-  - if: $CI_MERGE_REQUEST_ID
-    when: never
+    - if: $CI_COMMIT_BRANCH == "stg"
+      when: always
+    - if: $CI_COMMIT_BRANCH != "stg"
+      when: manual
+    - if: $CI_MERGE_REQUEST_ID
+      when: never
   # only:
   #   - stg
   tags:
@@ -229,12 +231,12 @@ bedrock-03-STG-buyer:
   stage: deploy
   environment: stg
   rules:
-  - if: $CI_COMMIT_BRANCH == "stg"
-    when: always
-  - if: $CI_COMMIT_BRANCH != "stg"
-    when: manual
-  - if: $CI_MERGE_REQUEST_ID
-    when: never
+    - if: $CI_COMMIT_BRANCH == "stg"
+      when: always
+    - if: $CI_COMMIT_BRANCH != "stg"
+      when: manual
+    - if: $CI_MERGE_REQUEST_ID
+      when: never
   # only:
   #   - stg
   tags:
@@ -253,12 +255,12 @@ bedrock-04-PRD-seller:
   stage: deploy
   environment: lmn
   rules:
-  - if: $CI_COMMIT_BRANCH == "main"
-    when: always
-  - if: $CI_COMMIT_BRANCH != "main"
-    when: manual
-  - if: $CI_MERGE_REQUEST_ID
-    when: never
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: always
+    - if: $CI_COMMIT_BRANCH != "main"
+      when: manual
+    - if: $CI_MERGE_REQUEST_ID
+      when: never
   # only:
   #   - main
   tags:
@@ -278,12 +280,12 @@ bedrock-04-PRD-buyer:
   stage: deploy
   environment: lmn
   rules:
-  - if: $CI_COMMIT_BRANCH == "main"
-    when: always
-  - if: $CI_COMMIT_BRANCH != "main"
-    when: manual
-  - if: $CI_MERGE_REQUEST_ID
-    when: never
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: always
+    - if: $CI_COMMIT_BRANCH != "main"
+      when: manual
+    - if: $CI_MERGE_REQUEST_ID
+      when: never
   # only:
   #   - main
   tags:
@@ -329,7 +331,7 @@ create_tag:
     - git fetch origin -f --prune --prune-tags
     - git tag "$VERSION-$CI_COMMIT_BRANCH"
     - git push origin --tags
-  
+
 create_tag_main:
   <<: *default-tag
   rules:
@@ -347,8 +349,8 @@ release-internal:
     GITLAB_TOKEN: $CI_TAG_PUSH_TOKEN
     GORELEASER_FORCE_TOKEN: gitlab
   only:
-    - /.*-dev$/  
-    - /.*-stg$/ 
+    - /.*-dev$/
+    - /.*-stg$/
   script:
     - goreleaser release --clean -f "./.goreleaser-internal.yaml"
   artifacts:
@@ -361,6 +363,6 @@ release-external:
     GIT_DEPTH: 0
     GORELEASER_FORCE_TOKEN: github
   only:
-    - /.*-lmn$/ 
+    - /.*-lmn$/
   script:
     - goreleaser release --clean
