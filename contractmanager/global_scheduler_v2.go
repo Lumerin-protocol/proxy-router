@@ -75,7 +75,7 @@ func (s *GlobalSchedulerV2) Run(ctx context.Context) error {
 			} else {
 				s.log.Info("global scheduler stopped")
 			}
-			
+
 			return err
 		}
 	}
