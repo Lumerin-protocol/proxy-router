@@ -20,9 +20,9 @@ type OnDemandMinerScheduler struct {
 	destSplit         *DestSplit // current hashrate distribution without default pool, watch also getDestSplitWithDefault()
 	upcomingDestSplit *DestSplit // DestSplit that will be enabled on the next destination cycle
 
-	history          *DestHistory // destination history log
-	lastDestChangeAt time.Time
-	restartDestCycle chan struct{} // discards current dest item and starts over the cycle
+	history                *DestHistory // destination history log
+	lastDestChangeAt       time.Time
+	restartDestCycleSignal chan struct{} // discards current dest item and starts over the cycle
 
 	defaultDest        interfaces.IDestination // the default destination that is used for unallocated part of destSplit
 	minerVettingPeriod time.Duration           // duration during which miner wont fulfill any contract (its state is vetting) right after its connection
@@ -35,15 +35,15 @@ func NewOnDemandMinerScheduler(minerModel MinerModel, destSplit *DestSplit, log 
 	history.Add(defaultDest, DefaultDestID, nil)
 
 	scheduler := &OnDemandMinerScheduler{
-		minerModel:         minerModel,
-		destSplit:          destSplit,
-		log:                log,
-		defaultDest:        defaultDest,
-		minerVettingPeriod: minerVettingPeriod,
-		destMinUptime:      destMinUptime,
-		destMaxDowntime:    destMaxDowntime,
-		history:            history,
-		restartDestCycle:   make(chan struct{}, 1),
+		minerModel:             minerModel,
+		destSplit:              destSplit,
+		log:                    log,
+		defaultDest:            defaultDest,
+		minerVettingPeriod:     minerVettingPeriod,
+		destMinUptime:          destMinUptime,
+		destMaxDowntime:        destMaxDowntime,
+		history:                history,
+		restartDestCycleSignal: make(chan struct{}, 1),
 	}
 
 	minerModel.OnFault(scheduler.onFault)
@@ -89,8 +89,8 @@ func (m *OnDemandMinerScheduler) Run(ctx context.Context) error {
 				return ctx.Err()
 			case err := <-minerModelErr:
 				return err
-			case <-m.restartDestCycle:
-				m.log.Infof("destination cycle restarted")
+			case <-m.restartDestCycleSignal:
+				m.log.Infof("restarting dest cycle")
 				break DEST_CYCLE
 			case <-time.After(splitDuration):
 			}
@@ -148,7 +148,11 @@ func (m *OnDemandMinerScheduler) SetDestSplit(upcomingDestSplit *DestSplit) {
 
 	m.upcomingDestSplit = upcomingDestSplit.Copy()
 	if shouldRestartDestCycle {
-		m.restartDestCycle <- struct{}{}
+		// non-blocking send, cause if there is already an unread message, we don't need another one
+		select {
+		case m.restartDestCycleSignal <- struct{}{}:
+		default:
+		}
 	}
 
 	m.log.Infof("new destination split: %s", upcomingDestSplit.String())
