@@ -305,7 +305,7 @@ bedrock-04-PRD-buyer:
   inherit:
     default: false
   stage: release
-  needs: ["test", "lint"]
+  needs: ["test"]
   image:
     name: goreleaser/goreleaser
     entrypoint: [""]
