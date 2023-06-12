@@ -102,18 +102,114 @@ func (p *Proxy) Run(ctx context.Context) error {
 func (p *Proxy) ChangeDest(ctx context.Context, newDestURL *url.URL) error {
 	p.log.Warnf("changing destination to %s", newDestURL.String())
 
-	newDest, err := p.destFactory(ctx, newDestURL)
-	if err != nil {
-		return lib.WrapError(ErrConnectDest, err)
+	dest, ok := p.destMap[newDestURL.String()]
+	if ok {
+		p.log.Debug("reusing dest connection %s from cache", newDestURL.String())
+	} else {
+		p.log.Debug("connecting to new dest", newDestURL.String())
+		newDest, err := p.connectNewDest(ctx, newDestURL)
+		if err != nil {
+			return err
+		}
+		dest = newDest
 	}
 
-	var (
-		msgID = 1
-	)
+	// stop source and old dest
+	p.pipe.StopDestToSource()
+	p.pipe.StopSourceToDest()
+
+	p.log.Warnf("stopped source and old dest")
+
+	// TODO: wait to stop?
+
+	// set old dest to autoread mode
+	p.dest.AutoReadStart()
+	p.log.Warnf("set old dest to autoread")
+
+	// resend relevant notifications to the miner
+	// 1. SET_EXTRANONCE
+	err := p.source.Write(ctx, m.NewMiningSetExtranonce(dest.GetExtraNonce()))
+	if err != nil {
+		return lib.WrapError(ErrChangeDest, err)
+	}
+	p.source.SetExtraNonce(dest.GetExtraNonce())
+	p.log.Warnf("extranonce sent")
+
+	// 2. SET_DIFFICULTY
+	err = p.source.Write(ctx, m.NewMiningSetDifficulty(p.dest.GetDiff()))
+	if err != nil {
+		return lib.WrapError(ErrChangeDest, err)
+	}
+	p.log.Warnf("set difficulty sent")
+
+	// TODO: 3. SET_VERSION_MASK
+
+	// 4. NOTIFY
+	msg, ok := dest.notifyMsgs.At(-1)
+	if ok {
+		msg = msg.Copy()
+		msg.SetCleanJobs(true)
+		err = p.source.Write(ctx, msg)
+		if err != nil {
+			return lib.WrapError(ErrChangeDest, err)
+		}
+		p.log.Warnf("notify sent")
+	} else {
+		p.log.Warnf("no notify msg found")
+	}
+
+	p.pipe.StopDestToSource()
+	p.pipe.StopSourceToDest()
+
+	p.dest = dest
+	p.destURL = newDestURL
+
+	p.pipe.SetDest(dest)
+	p.log.Infof("changing dest success")
+
+	p.pipe.StartSourceToDest(ctx)
+	p.pipe.StartDestToSource(ctx)
+
+	p.log.Debugf("resumed piping")
+
+	return nil
+}
+
+func (p *Proxy) connectNewDest(ctx context.Context, newDestURL *url.URL) (*ConnDest, error) {
+	newDest, err := p.destFactory(ctx, newDestURL)
+	if err != nil {
+		return nil, lib.WrapError(ErrConnectDest, err)
+	}
 
 	newDestRunTask := lib.NewTaskFunc(newDest.Run)
-
 	newDest.AutoReadStart()
+
+	handshakeTask := lib.NewTaskFunc(func(ctx context.Context) error {
+		user := newDestURL.User.Username()
+		pwd, _ := newDestURL.User.Password()
+		return p.destHandshake(ctx, newDest, user, pwd)
+	})
+
+	select {
+	case <-newDestRunTask.Done():
+		// if newDestRunTask finished first there was reading error
+		return nil, lib.WrapError(ErrConnectDest, newDestRunTask.Err())
+	case <-handshakeTask.Done():
+	}
+
+	if handshakeTask.Err() != nil {
+		return nil, lib.WrapError(ErrConnectDest, handshakeTask.Err())
+	}
+	p.log.Debugf("new dest connected")
+
+	// stops temporary reading from newDest
+	<-newDestRunTask.Stop()
+	p.log.Debugf("stopped new dest")
+	return newDest, nil
+}
+
+func (p *Proxy) destHandshake(ctx context.Context, newDest *ConnDest, user string, pwd string) error {
+	msgID := 1
 	p.log.Debugf("new dest autoread started")
 
 	// 1. MINING.CONFIGURE
@@ -152,7 +248,7 @@ func (p *Proxy) ChangeDest(ctx context.Context, newDestURL *url.URL) error {
 
 	// 2. MINING.SUBSCRIBE
 	msgID++
-	err = newDest.Write(ctx, m.NewMiningSubscribe(msgID, "stratum-proxy", "1.0.0"))
+	err := newDest.Write(ctx, m.NewMiningSubscribe(msgID, "stratum-proxy", "1.0.0"))
 	if err != nil {
 		return lib.WrapError(ErrConnectDest, err)
 	}
@@ -171,12 +267,10 @@ func (p *Proxy) ChangeDest(ctx context.Context, newDestURL *url.URL) error {
 
 		return nil, nil
 	})
-	p.log.Warnf("subscribe result received")
+	p.log.Debugf("subscribe result received")
 
 	// 3. MINING.AUTHORIZE
 	msgID++
-	user := newDestURL.User.Username()
-	pwd, _ := newDestURL.User.Password()
 	err = newDest.Write(ctx, m.NewMiningAuthorize(msgID, user, pwd))
 	if err != nil {
 		return lib.WrapError(ErrConnectDest, err)
@@ -190,69 +284,6 @@ func (p *Proxy) ChangeDest(ctx context.Context, newDestURL *url.URL) error {
 		return nil, nil
 	})
 	p.log.Debugf("authorize success")
-
-	// HANDSHAKE DONE
-
-	// stop running new dest
-	<-newDestRunTask.Stop()
-	p.log.Debugf("stopped new dest")
-
-	// stop source and old dest
-	p.pipe.StopDestToSource()
-	p.pipe.StopSourceToDest()
-
-	p.log.Warnf("stopped source and old dest")
-
-	// TODO: wait to stop?
-
-	// set old dest to autoread mode
-	p.dest.AutoReadStart()
-	p.log.Warnf("set old dest to autoread")
-
-	// resend relevant notifications to the miner
-	// 1. SET_EXTRANONCE
-	err = p.source.Write(ctx, m.NewMiningSetExtranonce(newDest.GetExtraNonce()))
-	if err != nil {
-		return lib.WrapError(ErrChangeDest, err)
-	}
-	p.source.SetExtraNonce(newDest.GetExtraNonce())
-	p.log.Warnf("extranonce sent")
-
-	// 2. SET_DIFFICULTY
-	err = p.source.Write(ctx, m.NewMiningSetDifficulty(p.dest.GetDiff()))
-	if err != nil {
-		return lib.WrapError(ErrChangeDest, err)
-	}
-	p.log.Warnf("set difficulty sent")
-
-	// TODO: 3. SET_VERSION_MASK
-
-	// 4. NOTIFY
-	msg, ok := p.dest.notifyMsgs.At(-1)
-	if ok {
-		msg = msg.Copy()
-		msg.SetCleanJobs(true)
-		err = p.source.Write(ctx, msg)
-		if err != nil {
-			return lib.WrapError(ErrChangeDest, err)
-		}
-		p.log.Warnf("notify sent")
-	} else {
-		p.log.Warnf("no notify msg found")
-	}
-
-	p.pipe.StopDestToSource()
-	p.pipe.StopSourceToDest()
-
-	p.dest = newDest
-	p.destURL = newDestURL
-	p.pipe.SetDest(newDest)
-	p.log.Infof("changing dest success")
-
-	p.pipe.StartSourceToDest(ctx)
-	p.pipe.StartDestToSource(ctx)
-
-	p.log.Debugf("resumed piping")
 
 	return nil
 }
