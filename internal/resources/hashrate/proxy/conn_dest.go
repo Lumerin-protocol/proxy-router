@@ -9,8 +9,8 @@ import (
 
 	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
+	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
+	sm "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
 )
 
 // DestConn is a destination connection, a wrapper around StratumConnection,
@@ -25,7 +25,7 @@ type DestConn struct {
 	hr                  gi.Hashrate
 	isHandshakeComplete bool
 
-	notifyMsgs     *lib.BoundStackMap[*stratumv1_message.MiningNotify]
+	notifyMsgs     *lib.BoundStackMap[*sm.MiningNotify]
 	autoReadSignal chan bool
 	autoReadDone   chan struct{}
 
@@ -52,7 +52,7 @@ func NewDestConn(conn *StratumConnection, workerName string, log gi.ILogger) *De
 		workerName:     workerName,
 		conn:           conn,
 		log:            log,
-		notifyMsgs:     lib.NewBoundStackMap[*stratumv1_message.MiningNotify](NOTIFY_MSGS_CACHE_SIZE),
+		notifyMsgs:     lib.NewBoundStackMap[*sm.MiningNotify](NOTIFY_MSGS_CACHE_SIZE),
 		autoReadSignal: make(chan bool),
 	}
 }
@@ -142,7 +142,7 @@ func (c *DestConn) GetID() string {
 	return c.conn.GetID()
 }
 
-func (c *DestConn) Read(ctx context.Context) (interfaces.MiningMessageGeneric, error) {
+func (c *DestConn) Read(ctx context.Context) (i.MiningMessageGeneric, error) {
 	msg, err := c.conn.Read(ctx)
 	if err != nil {
 		return nil, err
@@ -150,7 +150,7 @@ func (c *DestConn) Read(ctx context.Context) (interfaces.MiningMessageGeneric, e
 	return c.readInterceptor(msg)
 }
 
-func (c *DestConn) Write(ctx context.Context, msg interfaces.MiningMessageGeneric) error {
+func (c *DestConn) Write(ctx context.Context, msg i.MiningMessageGeneric) error {
 	return c.conn.Write(ctx, msg)
 }
 
@@ -179,7 +179,7 @@ func (c *DestConn) GetHR() gi.Hashrate {
 	return c.hr
 }
 
-func (c *DestConn) GetNotifyMsgJob(jobID string) (*stratumv1_message.MiningNotify, bool) {
+func (c *DestConn) GetNotifyMsgJob(jobID string) (*sm.MiningNotify, bool) {
 	return c.notifyMsgs.Get(jobID)
 }
 
@@ -192,18 +192,18 @@ func (c *DestConn) AutoReadStop() {
 	<-c.autoReadDone
 }
 
-func (c *DestConn) readInterceptor(msg interfaces.MiningMessageGeneric) (resMsg interfaces.MiningMessageGeneric, err error) {
+func (c *DestConn) readInterceptor(msg i.MiningMessageGeneric) (resMsg i.MiningMessageGeneric, err error) {
 	switch typed := msg.(type) {
-	case *stratumv1_message.MiningNotify:
+	case *sm.MiningNotify:
 		c.notifyMsgs.Push(typed.GetJobID(), typed)
-	case *stratumv1_message.MiningSetDifficulty:
+	case *sm.MiningSetDifficulty:
 		c.diff = typed.GetDifficulty()
-	case *stratumv1_message.MiningSetExtranonce:
+	case *sm.MiningSetExtranonce:
 		c.extraNonce, c.extraNonceSize = typed.GetExtranonce()
-	case *stratumv1_message.MiningResult:
+	case *sm.MiningResult:
 		handler, ok := c.resultHandlers.LoadAndDelete(typed.GetID())
 		if ok {
-			resMsg, err := handler.(ResultHandler)(context.Background(), typed)
+			resMsg, err := handler.(ResultHandler)(typed)
 			if err != nil {
 				return nil, err
 			}
@@ -215,14 +215,17 @@ func (c *DestConn) readInterceptor(msg interfaces.MiningMessageGeneric) (resMsg 
 
 // onceResult registers single time handler for the destination response with particular message ID,
 // sets default timeout and does a cleanup when it expires
-func (s *DestConn) onceResult(ctx context.Context, msgID int, handler ResultHandler) {
+func (s *DestConn) onceResult(ctx context.Context, msgID int, handler ResultHandler) <-chan struct{} {
+	done := make(chan struct{})
+
 	ctx, cancel := context.WithTimeout(ctx, RESPONSE_TIMEOUT)
 	didRun := false
 
-	s.resultHandlers.Store(msgID, func(_ context.Context, a *stratumv1_message.MiningResult) (msg interfaces.MiningMessageToPool, err error) {
+	s.resultHandlers.Store(msgID, func(a *sm.MiningResult) (msg i.MiningMessageToPool, err error) {
 		didRun = true
 		defer cancel()
-		return handler(ctx, a)
+		defer close(done)
+		return handler(a)
 	})
 
 	go func() {
@@ -232,4 +235,6 @@ func (s *DestConn) onceResult(ctx context.Context, msgID int, handler ResultHand
 			s.resultHandlersErrCh <- fmt.Errorf("pool response timeout")
 		}
 	}()
+
+	return done
 }

@@ -16,7 +16,10 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
 )
 
-const DIAL_TIMEOUT = 10 * time.Second
+const (
+	DIAL_TIMEOUT  = 10 * time.Second
+	WRITE_TIMEOUT = 10 * time.Second
+)
 
 type StratumConnection struct {
 	// config
@@ -119,6 +122,9 @@ func (c *StratumConnection) Read(ctx context.Context) (interfaces.MiningMessageG
 }
 
 func (c *StratumConnection) Write(ctx context.Context, msg interfaces.MiningMessageGeneric) error {
+	ctx, cancel := context.WithTimeout(ctx, WRITE_TIMEOUT)
+	defer cancel()
+
 	if msg == nil {
 		return fmt.Errorf("nil message write attempt")
 	}

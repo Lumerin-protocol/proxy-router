@@ -2,8 +2,11 @@ package proxy
 
 import (
 	"context"
+	"io"
 	"net/url"
 	"time"
+
+	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
 )
 
 type StratumProxyInterface interface {
@@ -28,3 +31,15 @@ type GlobalHashrateCounter interface {
 }
 
 type DestConnFactory = func(ctx context.Context, url *url.URL) (*DestConn, error)
+
+type Interceptor = func(msg i.MiningMessageGeneric) (i.MiningMessageGeneric, error)
+
+type StratumReadWriter interface {
+	Read(ctx context.Context) (i.MiningMessageGeneric, error)
+	Write(ctx context.Context, msg i.MiningMessageGeneric) error
+}
+
+type StratumReadWriteCloser interface {
+	io.Closer
+	StratumReadWriter
+}
