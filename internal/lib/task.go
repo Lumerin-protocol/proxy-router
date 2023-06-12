@@ -46,7 +46,6 @@ func (s *Task) Start(ctx context.Context) {
 	subCtx, cancel := context.WithCancel(ctx)
 	s.cancel.Store(cancel)
 
-	s.doneCh.Store(make(chan struct{}))
 	s.stopCh.Store(make(chan struct{}))
 
 	go func() {
@@ -54,7 +53,7 @@ func (s *Task) Start(ctx context.Context) {
 		isContextErr := errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 
 		// returned due to calling Stop()
-		if ctx.Err() == nil && isContextErr {
+		if ctx.Err() == nil && subCtx.Err() != nil && isContextErr {
 			close(s.stopCh.Load().(chan struct{}))
 			return
 		}
@@ -64,6 +63,7 @@ func (s *Task) Start(ctx context.Context) {
 			s.err.Store(&err)
 			close(s.doneCh.Load().(chan struct{}))
 			close(s.stopCh.Load().(chan struct{}))
+
 			return
 		}
 

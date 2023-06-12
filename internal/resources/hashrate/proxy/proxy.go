@@ -91,7 +91,12 @@ var (
 
 func (p *Proxy) Run(ctx context.Context) error {
 	p.pipe.StartSourceToDest(ctx)
-	return p.pipe.Run(ctx)
+	err := p.pipe.Run(ctx)
+	if err != nil {
+		p.log.Errorf("error running pipe: %s", err)
+		return err
+	}
+	return nil
 }
 
 func (p *Proxy) ChangeDest(ctx context.Context, newDestURL *url.URL) error {

@@ -10,12 +10,8 @@ import (
 
 type Pipe struct {
 	// state
-	reconnectCh             chan struct{} // signal to reconnect, when dest changed
-	destToSourceStartSignal chan struct{} // signal to start reading from destination
-	poolMinerCancel         context.CancelFunc
-	minerPoolCancel         context.CancelFunc
-	sourceToDestTask        *lib.Task
-	destToSourceTask        *lib.Task
+	sourceToDestTask *lib.Task
+	destToSourceTask *lib.Task
 
 	// deps
 	source            StratumReadWriter // initiator of the communication, miner
@@ -62,22 +58,29 @@ func (p *Pipe) Run(ctx context.Context) error {
 }
 
 func (p *Pipe) destToSource(ctx context.Context) error {
-	err := pipe(ctx, p.dest, p.source, p.destInterceptor)
+	err := pipe(ctx, p.GetDest, p.GetSource, p.destInterceptor)
 	if err != nil {
-		return fmt.Errorf("dest to source pipe err: %w", err)
+		err := fmt.Errorf("dest to source pipe err: %w", err)
+		p.log.Debug(err)
+		return err
 	}
 	return nil
 }
 
 func (p *Pipe) sourceToDest(ctx context.Context) error {
-	err := pipe(ctx, p.source, p.dest, p.sourceInterceptor)
+	err := pipe(ctx, p.GetSource, p.GetDest, p.sourceInterceptor)
 	if err != nil {
-		return fmt.Errorf("source to dest pipe err: %w", err)
+		err := fmt.Errorf("source to dest pipe err: %w", err)
+		p.log.Debug(err)
+		return err
 	}
 	return nil
 }
 
-func pipe(ctx context.Context, from StratumReadWriter, to StratumReadWriter, interceptor Interceptor) error {
+// pipe reads from from() and writes to to(), intercepting messages with interceptor
+// implemented late binding to enable replacing the source and dest at runtime of the function
+// TODO: consider stopping and then recreating pipe when source or dest changes
+func pipe(ctx context.Context, from func() StratumReadWriter, to func() StratumReadWriter, interceptor Interceptor) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -85,14 +88,14 @@ func pipe(ctx context.Context, from StratumReadWriter, to StratumReadWriter, int
 		default:
 		}
 
-		msg, err := from.Read(ctx)
+		msg, err := from().Read(ctx)
 		if err != nil {
-			return fmt.Errorf("pool read err: %w", err)
+			return fmt.Errorf("source read err: %w", err)
 		}
 
 		msg, err = interceptor(msg)
 		if err != nil {
-			return fmt.Errorf("dest interceptor err: %w", err)
+			return fmt.Errorf("interceptor err: %w", err)
 		}
 
 		select {
@@ -105,15 +108,27 @@ func pipe(ctx context.Context, from StratumReadWriter, to StratumReadWriter, int
 			continue
 		}
 
-		err = to.Write(ctx, msg)
+		err = to().Write(ctx, msg)
 		if err != nil {
-			return fmt.Errorf("miner write err: %w", err)
+			return fmt.Errorf("dest write err: %w %s", err, string(msg.Serialize()))
 		}
 	}
 }
 
+func (p *Pipe) GetDest() StratumReadWriter {
+	return p.dest
+}
+
 func (p *Pipe) SetDest(dest StratumReadWriter) {
 	p.dest = dest
+}
+
+func (p *Pipe) GetSource() StratumReadWriter {
+	return p.source
+}
+
+func (p *Pipe) SetSource(source StratumReadWriter) {
+	p.source = source
 }
 
 func (p *Pipe) StartSourceToDest(ctx context.Context) {

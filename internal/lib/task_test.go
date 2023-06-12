@@ -121,3 +121,66 @@ func TestTaskContextCancel(t *testing.T) {
 		require.Fail(t, "task should be cancelled")
 	}
 }
+
+// TestGlobalDone tests that the global done channel remains the same for all start/stops and closes only when
+// main routine is completed
+func TestGlobalDone(t *testing.T) {
+	testFunc := func(ctx context.Context) error {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+
+	task := NewTaskFunc(testFunc)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		task.Start(ctx)
+		time.Sleep(100 * time.Millisecond)
+		<-task.Stop()
+
+		time.Sleep(100 * time.Millisecond)
+
+		task.Start(ctx)
+		time.Sleep(100 * time.Millisecond)
+
+		cancel()
+	}()
+
+	select {
+	case <-task.Done():
+		require.ErrorIs(t, context.Canceled, task.Err())
+	case <-time.After(3000 * time.Millisecond):
+		require.Fail(t, "task should be cancelled")
+	}
+}
+
+func TestWaitDoneBeforeStart(t *testing.T) {
+	testFunc := func(ctx context.Context) error {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+
+	task := NewTaskFunc(testFunc)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		task.Start(ctx)
+		time.Sleep(100 * time.Millisecond)
+		<-task.Stop()
+
+		time.Sleep(100 * time.Millisecond)
+
+		task.Start(ctx)
+		time.Sleep(100 * time.Millisecond)
+
+		cancel()
+	}()
+
+	select {
+	case <-task.Done():
+		require.ErrorIs(t, context.Canceled, task.Err())
+	case <-time.After(3000 * time.Millisecond):
+		require.Fail(t, "task should be cancelled")
+	}
+}

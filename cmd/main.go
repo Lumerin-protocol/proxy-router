@@ -16,7 +16,7 @@ import (
 func main() {
 	appLogLevel := "debug"
 	proxyLogLevel := "debug"
-	connectionLogLevel := "info"
+	connectionLogLevel := "debug"
 
 	log, err := lib.NewLogger(false, appLogLevel, true, true)
 	if err != nil {

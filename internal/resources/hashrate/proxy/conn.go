@@ -121,10 +121,8 @@ func (c *StratumConnection) Read(ctx context.Context) (interfaces.MiningMessageG
 	}
 }
 
+// Write writes message to the connection. Safe for concurrent use, cause underlying TCPConn is thread-safe
 func (c *StratumConnection) Write(ctx context.Context, msg interfaces.MiningMessageGeneric) error {
-	ctx, cancel := context.WithTimeout(ctx, WRITE_TIMEOUT)
-	defer cancel()
-
 	if msg == nil {
 		return fmt.Errorf("nil message write attempt")
 	}
@@ -133,6 +131,8 @@ func (c *StratumConnection) Write(ctx context.Context, msg interfaces.MiningMess
 
 	doneCh := make(chan struct{})
 	defer close(doneCh)
+
+	ctx, cancel := context.WithTimeout(ctx, WRITE_TIMEOUT)
 
 	// cancellation via context is implemented using SetReadDeadline,
 	// which unblocks read operation causing it to return os.ErrDeadlineExceeded
@@ -147,6 +147,7 @@ func (c *StratumConnection) Write(ctx context.Context, msg interfaces.MiningMess
 				return
 			}
 		case <-doneCh:
+			cancel()
 			return
 		}
 	}()
@@ -163,7 +164,11 @@ func (c *StratumConnection) Write(ctx context.Context, msg interfaces.MiningMess
 
 	c.log.Debugf("=> %s", string(msg.Serialize()))
 
-	return c.conn.SetWriteDeadline(time.Now().Add(c.connTimeout))
+	err = c.conn.SetWriteDeadline(time.Now().Add(c.connTimeout))
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *StratumConnection) Close() error {

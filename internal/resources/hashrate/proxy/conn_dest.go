@@ -200,6 +200,7 @@ func (c *DestConn) readInterceptor(msg i.MiningMessageGeneric) (resMsg i.MiningM
 		c.diff = typed.GetDifficulty()
 	case *sm.MiningSetExtranonce:
 		c.extraNonce, c.extraNonceSize = typed.GetExtranonce()
+	// TODO: handle set_version_mask, multiversion
 	case *sm.MiningResult:
 		handler, ok := c.resultHandlers.LoadAndDelete(typed.GetID())
 		if ok {
