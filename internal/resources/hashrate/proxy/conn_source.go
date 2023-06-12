@@ -7,9 +7,9 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
 )
 
-// SourceConn is a miner connection, a wrapper around StratumConnection
+// ConnSource is a miner connection, a wrapper around StratumConnection
 // that adds miner specific state variables
-type SourceConn struct {
+type ConnSource struct {
 	// state
 	workerName string
 
@@ -25,56 +25,56 @@ type SourceConn struct {
 	conn *StratumConnection
 }
 
-func NewSourceConn(conn *StratumConnection, log globalInterfaces.ILogger) *SourceConn {
-	return &SourceConn{
+func NewSourceConn(conn *StratumConnection, log globalInterfaces.ILogger) *ConnSource {
+	return &ConnSource{
 		conn: conn,
 		log:  log,
 	}
 }
 
-func (c *SourceConn) Read(ctx context.Context) (interfaces.MiningMessageGeneric, error) {
+func (c *ConnSource) Read(ctx context.Context) (interfaces.MiningMessageGeneric, error) {
 	//TODO: message validation
 	return c.conn.Read(ctx)
 }
 
-func (c *SourceConn) Write(ctx context.Context, msg interfaces.MiningMessageGeneric) error {
+func (c *ConnSource) Write(ctx context.Context, msg interfaces.MiningMessageGeneric) error {
 	//TODO: message validation
 	return c.conn.Write(ctx, msg)
 }
 
-func (c *SourceConn) GetExtraNonce() (extraNonce string, extraNonceSize int) {
+func (c *ConnSource) GetExtraNonce() (extraNonce string, extraNonceSize int) {
 	return c.extraNonce, c.extraNonceSize
 }
 
-func (c *SourceConn) SetExtraNonce(extraNonce string, extraNonceSize int) {
+func (c *ConnSource) SetExtraNonce(extraNonce string, extraNonceSize int) {
 	c.extraNonce, c.extraNonceSize = extraNonce, extraNonceSize
 }
 
-func (c *SourceConn) SetVersionRolling(mask string, minBitCount int) {
+func (c *ConnSource) SetVersionRolling(mask string, minBitCount int) {
 	c.versionRollingMask, c.versionRollingMinBitCount = mask, minBitCount
 }
 
-func (c *SourceConn) GetVersionRolling() (mask string, minBitCount int) {
+func (c *ConnSource) GetVersionRolling() (mask string, minBitCount int) {
 	return c.versionRollingMask, c.versionRollingMinBitCount
 }
 
 // GetNegotiatedVersionRollingMask returns actual version rolling mask after negotiation with server
-func (c *SourceConn) GetNegotiatedVersionRollingMask() string {
+func (c *ConnSource) GetNegotiatedVersionRollingMask() string {
 	return c.versionRollingMask
 }
 
 // SetNegotiatedVersionRollingMask sets actual version rolling mask after negotiation with server
-func (c *SourceConn) SetNegotiatedVersionRollingMask(mask string) {
+func (c *ConnSource) SetNegotiatedVersionRollingMask(mask string) {
 	c.versionRollingMask = mask
 }
 
-func (c *SourceConn) SetWorkerName(workerName string) {
+func (c *ConnSource) SetWorkerName(workerName string) {
 	c.workerName = workerName
 
 	c.log = c.log.Named(workerName)
 	c.conn.log = c.log
 }
 
-func (c *SourceConn) GetWorkerName() string {
+func (c *ConnSource) GetWorkerName() string {
 	return c.workerName
 }

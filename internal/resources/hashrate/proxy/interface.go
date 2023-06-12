@@ -30,7 +30,7 @@ type GlobalHashrateCounter interface {
 	OnSubmit(workerName string, diff float64)
 }
 
-type DestConnFactory = func(ctx context.Context, url *url.URL) (*DestConn, error)
+type DestConnFactory = func(ctx context.Context, url *url.URL) (*ConnDest, error)
 
 type Interceptor = func(msg i.MiningMessageGeneric) (i.MiningMessageGeneric, error)
 

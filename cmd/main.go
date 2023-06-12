@@ -36,7 +36,7 @@ func main() {
 	destUrl, _ := url.Parse("tcp://shev8.local:anything123@stratum.slushpool.com:3333")
 	// destUrl, _ := url.Parse("tcp://shev8.local:anything123@0.0.0.0:3001")
 
-	var DestConnFactory = func(ctx context.Context, url *url.URL) (*proxy.DestConn, error) {
+	var DestConnFactory = func(ctx context.Context, url *url.URL) (*proxy.ConnDest, error) {
 		return proxy.ConnectDest(ctx, url, connLog)
 	}
 

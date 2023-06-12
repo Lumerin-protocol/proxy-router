@@ -47,9 +47,9 @@ type Proxy struct {
 	destHR                  *hashrate.Hashrate // hashrate of the destination validated by the destination
 
 	// deps
-	source         *SourceConn           // initiator of the communication, miner
-	dest           *DestConn             // receiver of the communication, pool
-	destMap        map[string]*DestConn  // map of all available destinations (pools) currently connected to the single source (miner)
+	source         *ConnSource           // initiator of the communication, miner
+	dest           *ConnDest             // receiver of the communication, pool
+	destMap        map[string]*ConnDest  // map of all available destinations (pools) currently connected to the single source (miner)
 	onSubmit       HashrateCounter       // callback to update contract hashrate
 	onSubmitMutex  sync.RWMutex          // mutex to protect onSubmit
 	globalHashrate GlobalHashrateCounter // callback to update global hashrate per worker
@@ -60,8 +60,8 @@ type Proxy struct {
 }
 
 // TODO: pass connection factory for destURL
-func NewProxy(ID string, source *SourceConn, destFactory DestConnFactory, destURL *url.URL, log gi.ILogger) *Proxy {
-	destMap := make(map[string]*DestConn)
+func NewProxy(ID string, source *ConnSource, destFactory DestConnFactory, destURL *url.URL, log gi.ILogger) *Proxy {
+	destMap := make(map[string]*ConnDest)
 
 	proxy := &Proxy{
 		ID:          ID,

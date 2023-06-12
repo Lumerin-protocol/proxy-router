@@ -13,9 +13,9 @@ import (
 	sm "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
 )
 
-// DestConn is a destination connection, a wrapper around StratumConnection,
+// ConnDest is a destination connection, a wrapper around StratumConnection,
 // with destination specific state variables
-type DestConn struct {
+type ConnDest struct {
 	// config
 	workerName string
 	destUrl    url.URL
@@ -47,8 +47,8 @@ const (
 	NOTIFY_MSGS_CACHE_SIZE = 30
 )
 
-func NewDestConn(conn *StratumConnection, workerName string, log gi.ILogger) *DestConn {
-	return &DestConn{
+func NewDestConn(conn *StratumConnection, workerName string, log gi.ILogger) *ConnDest {
+	return &ConnDest{
 		workerName:     workerName,
 		conn:           conn,
 		log:            log,
@@ -57,7 +57,7 @@ func NewDestConn(conn *StratumConnection, workerName string, log gi.ILogger) *De
 	}
 }
 
-func ConnectDest(ctx context.Context, destURL *url.URL, log gi.ILogger) (*DestConn, error) {
+func ConnectDest(ctx context.Context, destURL *url.URL, log gi.ILogger) (*ConnDest, error) {
 	destLog := log.Named(fmt.Sprintf("[DST] %s@%s", destURL.User.Username(), destURL.Host))
 	conn, err := Connect(destURL, CONNECTION_TIMEOUT, destLog)
 	if err != nil {
@@ -67,7 +67,7 @@ func ConnectDest(ctx context.Context, destURL *url.URL, log gi.ILogger) (*DestCo
 	return NewDestConn(conn, "DEFAULT_WORKER", destLog), nil
 }
 
-func (c *DestConn) Run(ctx context.Context) error {
+func (c *ConnDest) Run(ctx context.Context) error {
 	var (
 		subCtx    context.Context
 		subCancel context.CancelFunc
@@ -124,7 +124,7 @@ func (c *DestConn) Run(ctx context.Context) error {
 
 // autoRead reads incoming jobs from the destination connection and
 // caches them so dest will not close the connection
-func (c *DestConn) autoRead(ctx context.Context) error {
+func (c *ConnDest) autoRead(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -138,11 +138,11 @@ func (c *DestConn) autoRead(ctx context.Context) error {
 	}
 }
 
-func (c *DestConn) GetID() string {
+func (c *ConnDest) GetID() string {
 	return c.conn.GetID()
 }
 
-func (c *DestConn) Read(ctx context.Context) (i.MiningMessageGeneric, error) {
+func (c *ConnDest) Read(ctx context.Context) (i.MiningMessageGeneric, error) {
 	msg, err := c.conn.Read(ctx)
 	if err != nil {
 		return nil, err
@@ -150,49 +150,49 @@ func (c *DestConn) Read(ctx context.Context) (i.MiningMessageGeneric, error) {
 	return c.readInterceptor(msg)
 }
 
-func (c *DestConn) Write(ctx context.Context, msg i.MiningMessageGeneric) error {
+func (c *ConnDest) Write(ctx context.Context, msg i.MiningMessageGeneric) error {
 	return c.conn.Write(ctx, msg)
 }
 
-func (c *DestConn) GetExtraNonce() (extraNonce string, extraNonceSize int) {
+func (c *ConnDest) GetExtraNonce() (extraNonce string, extraNonceSize int) {
 	return c.extraNonce, c.extraNonceSize
 }
 
-func (c *DestConn) SetExtraNonce(extraNonce string, extraNonceSize int) {
+func (c *ConnDest) SetExtraNonce(extraNonce string, extraNonceSize int) {
 	c.extraNonce, c.extraNonceSize = extraNonce, extraNonceSize
 }
 
-func (c *DestConn) GetVersionRolling() (versionRolling bool, versionRollingMask string) {
+func (c *ConnDest) GetVersionRolling() (versionRolling bool, versionRollingMask string) {
 	return c.versionRolling, c.versionRollingMask
 }
 
-func (c *DestConn) SetVersionRolling(versionRolling bool, versionRollingMask string) {
+func (c *ConnDest) SetVersionRolling(versionRolling bool, versionRollingMask string) {
 	c.versionRolling, c.versionRollingMask = versionRolling, versionRollingMask
 }
 
 // TODO: guard with mutex
-func (c *DestConn) GetDiff() float64 {
+func (c *ConnDest) GetDiff() float64 {
 	return c.diff
 }
 
-func (c *DestConn) GetHR() gi.Hashrate {
+func (c *ConnDest) GetHR() gi.Hashrate {
 	return c.hr
 }
 
-func (c *DestConn) GetNotifyMsgJob(jobID string) (*sm.MiningNotify, bool) {
+func (c *ConnDest) GetNotifyMsgJob(jobID string) (*sm.MiningNotify, bool) {
 	return c.notifyMsgs.Get(jobID)
 }
 
-func (c *DestConn) AutoReadStart() {
+func (c *ConnDest) AutoReadStart() {
 	c.autoReadSignal <- true
 }
 
-func (c *DestConn) AutoReadStop() {
+func (c *ConnDest) AutoReadStop() {
 	c.autoReadSignal <- false
 	<-c.autoReadDone
 }
 
-func (c *DestConn) readInterceptor(msg i.MiningMessageGeneric) (resMsg i.MiningMessageGeneric, err error) {
+func (c *ConnDest) readInterceptor(msg i.MiningMessageGeneric) (resMsg i.MiningMessageGeneric, err error) {
 	switch typed := msg.(type) {
 	case *sm.MiningNotify:
 		c.notifyMsgs.Push(typed.GetJobID(), typed)
@@ -216,7 +216,7 @@ func (c *DestConn) readInterceptor(msg i.MiningMessageGeneric) (resMsg i.MiningM
 
 // onceResult registers single time handler for the destination response with particular message ID,
 // sets default timeout and does a cleanup when it expires
-func (s *DestConn) onceResult(ctx context.Context, msgID int, handler ResultHandler) <-chan struct{} {
+func (s *ConnDest) onceResult(ctx context.Context, msgID int, handler ResultHandler) <-chan struct{} {
 	done := make(chan struct{})
 
 	ctx, cancel := context.WithTimeout(ctx, RESPONSE_TIMEOUT)
