@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
 	"sync"
@@ -18,25 +17,20 @@ import (
 type ConnDest struct {
 	// config
 	workerName string
-	destUrl    url.URL
+	destUrl    *url.URL
 
 	// state
-	diff                float64
-	hr                  gi.Hashrate
-	isHandshakeComplete bool
-
-	notifyMsgs     *lib.BoundStackMap[*sm.MiningNotify]
-	autoReadSignal chan bool
-	autoReadDone   chan struct{}
-
-	resultHandlers      sync.Map // map[string]func(*stratumv1_message.MiningResult)
-	resultHandlersErrCh chan error
+	diff           float64
+	hr             gi.Hashrate
+	resultHandlers sync.Map // map[string]func(*stratumv1_message.MiningResult)
 
 	extraNonce     string
 	extraNonceSize int
 
 	versionRolling     bool
 	versionRollingMask string
+
+	notifyMsgs *lib.BoundStackMap[*sm.MiningNotify]
 
 	// deps
 	conn *StratumConnection
@@ -47,13 +41,13 @@ const (
 	NOTIFY_MSGS_CACHE_SIZE = 30
 )
 
-func NewDestConn(conn *StratumConnection, workerName string, log gi.ILogger) *ConnDest {
+func NewDestConn(conn *StratumConnection, url *url.URL, log gi.ILogger) *ConnDest {
 	return &ConnDest{
-		workerName:     workerName,
-		conn:           conn,
-		log:            log,
-		notifyMsgs:     lib.NewBoundStackMap[*sm.MiningNotify](NOTIFY_MSGS_CACHE_SIZE),
-		autoReadSignal: make(chan bool),
+		workerName: url.User.Username(),
+		destUrl:    url,
+		conn:       conn,
+		log:        log,
+		notifyMsgs: lib.NewBoundStackMap[*sm.MiningNotify](NOTIFY_MSGS_CACHE_SIZE),
 	}
 }
 
@@ -64,67 +58,12 @@ func ConnectDest(ctx context.Context, destURL *url.URL, log gi.ILogger) (*ConnDe
 		return nil, err
 	}
 
-	return NewDestConn(conn, "DEFAULT_WORKER", destLog), nil
+	return NewDestConn(conn, destURL, destLog), nil
 }
 
-func (c *ConnDest) Run(ctx context.Context) error {
-	var (
-		subCtx    context.Context
-		subCancel context.CancelFunc
-		errCh     = make(chan error)
-	)
-
-	for {
-		select {
-		case sig := <-c.autoReadSignal:
-			c.log.Warn("autoReadSignal received")
-			c.autoReadDone = make(chan struct{})
-			switch sig {
-			case true:
-				if subCtx != nil {
-					c.log.Warn("autoReadSignal received while autoRead is already running")
-				}
-				subCtx, subCancel = context.WithCancel(ctx)
-				go func() {
-					c.log.Warn("autoRead started")
-
-					errCh <- c.autoRead(subCtx)
-					close(errCh)
-				}()
-			case false:
-				if subCancel != nil {
-					subCancel()
-				}
-			}
-		case err := <-errCh:
-			if subCancel != nil {
-				subCancel()
-			}
-			subCtx, subCancel = nil, nil
-			close(c.autoReadDone)
-			if !errors.Is(err, context.Canceled) {
-				return err
-			}
-		case err := <-c.resultHandlersErrCh:
-			if subCancel != nil {
-				subCancel()
-			}
-			<-errCh
-			return err
-
-		case <-ctx.Done():
-			if subCancel != nil {
-				subCancel()
-			}
-			err := <-errCh
-			return err
-		}
-	}
-}
-
-// autoRead reads incoming jobs from the destination connection and
+// AutoRead reads incoming jobs from the destination connection and
 // caches them so dest will not close the connection
-func (c *ConnDest) autoRead(ctx context.Context) error {
+func (c *ConnDest) AutoRead(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -183,15 +122,6 @@ func (c *ConnDest) GetNotifyMsgJob(jobID string) (*sm.MiningNotify, bool) {
 	return c.notifyMsgs.Get(jobID)
 }
 
-func (c *ConnDest) AutoReadStart() {
-	c.autoReadSignal <- true
-}
-
-func (c *ConnDest) AutoReadStop() {
-	c.autoReadSignal <- false
-	<-c.autoReadDone
-}
-
 func (c *ConnDest) readInterceptor(msg i.MiningMessageGeneric) (resMsg i.MiningMessageGeneric, err error) {
 	switch typed := msg.(type) {
 	case *sm.MiningNotify:
@@ -215,9 +145,9 @@ func (c *ConnDest) readInterceptor(msg i.MiningMessageGeneric) (resMsg i.MiningM
 }
 
 // onceResult registers single time handler for the destination response with particular message ID,
-// sets default timeout and does a cleanup when it expires
-func (s *ConnDest) onceResult(ctx context.Context, msgID int, handler ResultHandler) <-chan struct{} {
-	done := make(chan struct{})
+// sets default timeout and does a cleanup when it expires. Returns error on result timeout
+func (s *ConnDest) onceResult(ctx context.Context, msgID int, handler ResultHandler) <-chan error {
+	errCh := make(chan error, 1)
 
 	ctx, cancel := context.WithTimeout(ctx, RESPONSE_TIMEOUT)
 	didRun := false
@@ -225,7 +155,7 @@ func (s *ConnDest) onceResult(ctx context.Context, msgID int, handler ResultHand
 	s.resultHandlers.Store(msgID, func(a *sm.MiningResult) (msg i.MiningMessageToPool, err error) {
 		didRun = true
 		defer cancel()
-		defer close(done)
+		defer close(errCh)
 		return handler(a)
 	})
 
@@ -233,9 +163,9 @@ func (s *ConnDest) onceResult(ctx context.Context, msgID int, handler ResultHand
 		<-ctx.Done()
 		s.resultHandlers.Delete(msgID)
 		if !didRun {
-			s.resultHandlersErrCh <- fmt.Errorf("pool response timeout")
+			errCh <- fmt.Errorf("dest response timeout (%s)", RESPONSE_TIMEOUT)
 		}
 	}()
 
-	return done
+	return errCh
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
+	m "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
 )
 
 type StratumProxyInterface interface {
@@ -43,3 +44,5 @@ type StratumReadWriteCloser interface {
 	io.Closer
 	StratumReadWriter
 }
+
+type ResultHandler = func(a *m.MiningResult) (msg i.MiningMessageToPool, err error)

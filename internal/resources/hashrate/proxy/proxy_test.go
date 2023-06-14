@@ -23,7 +23,7 @@ func RunTestProxy() (p *Proxy, s *StratumConnection, d *StratumConnection, cance
 	log.Warnf("started server")
 
 	sourceConn := NewSourceConn(NewConnection(sourceClient, &url.URL{}, 10*time.Minute, time.Now(), log), log)
-	destConn := NewDestConn(NewConnection(destClient, destURL, 10*time.Minute, time.Now(), log), destURL.User.Username(), log)
+	destConn := NewDestConn(NewConnection(destClient, destURL, 10*time.Minute, time.Now(), log), destURL, log)
 
 	destConnFactory := func(ctx context.Context, url *url.URL) (*ConnDest, error) {
 		return destConn, nil
