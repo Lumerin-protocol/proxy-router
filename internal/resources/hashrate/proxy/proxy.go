@@ -30,15 +30,14 @@ var (
 	ErrChangeDest        = errors.New("destination change error")
 )
 
-type ResultHandler = func(a *m.MiningResult) (msg i.MiningMessageToPool, err error)
-
 type Proxy struct {
 	// config
-	ID             string
-	destWorkerName string
-	submitErrLimit int
-	onFault        func(context.Context) // called when proxy becomes faulty (e.g. when submit error limit is reached
-	destURL        *url.URL              // destination URL
+	ID      string
+	destURL *url.URL // destination URL
+
+	// destWorkerName string
+	// submitErrLimit int
+	// onFault        func(context.Context) // called when proxy becomes faulty (e.g. when submit error limit is reached
 
 	// state
 	unansweredMsg           sync.WaitGroup     // number of unanswered messages from the source
@@ -123,7 +122,15 @@ func (p *Proxy) ChangeDest(ctx context.Context, newDestURL *url.URL) error {
 	// TODO: wait to stop?
 
 	// set old dest to autoread mode
-	p.dest.AutoReadStart()
+	oldDestAutoReadTask := lib.NewTaskFunc(p.dest.AutoRead)
+	oldDestAutoReadTask.Start(ctx)
+	go func() {
+		urlString := p.destURL.String()
+		<-oldDestAutoReadTask.Done()
+		p.log.Warnf("dest %s autoread exited with error %s", urlString, oldDestAutoReadTask.Err())
+		delete(p.destMap, urlString)
+	}()
+
 	p.log.Warnf("set old dest to autoread")
 
 	// resend relevant notifications to the miner
@@ -136,7 +143,7 @@ func (p *Proxy) ChangeDest(ctx context.Context, newDestURL *url.URL) error {
 	p.log.Warnf("extranonce sent")
 
 	// 2. SET_DIFFICULTY
-	err = p.source.Write(ctx, m.NewMiningSetDifficulty(p.dest.GetDiff()))
+	err = p.source.Write(ctx, m.NewMiningSetDifficulty(dest.GetDiff()))
 	if err != nil {
 		return lib.WrapError(ErrChangeDest, err)
 	}
@@ -181,8 +188,8 @@ func (p *Proxy) connectNewDest(ctx context.Context, newDestURL *url.URL) (*ConnD
 		return nil, lib.WrapError(ErrConnectDest, err)
 	}
 
-	newDestRunTask := lib.NewTaskFunc(newDest.Run)
-	newDest.AutoReadStart()
+	autoReadTask := lib.NewTaskFunc(newDest.AutoRead)
+	autoReadTask.Start(ctx)
 
 	handshakeTask := lib.NewTaskFunc(func(ctx context.Context) error {
 		user := newDestURL.User.Username()
@@ -191,9 +198,9 @@ func (p *Proxy) connectNewDest(ctx context.Context, newDestURL *url.URL) (*ConnD
 	})
 
 	select {
-	case <-newDestRunTask.Done():
+	case <-autoReadTask.Done():
 		// if newDestRunTask finished first there was reading error
-		return nil, lib.WrapError(ErrConnectDest, newDestRunTask.Err())
+		return nil, lib.WrapError(ErrConnectDest, autoReadTask.Err())
 	case <-handshakeTask.Done():
 	}
 
@@ -203,7 +210,7 @@ func (p *Proxy) connectNewDest(ctx context.Context, newDestURL *url.URL) (*ConnD
 	p.log.Debugf("new dest connected")
 
 	// stops temporary reading from newDest
-	<-newDestRunTask.Stop()
+	<-autoReadTask.Stop()
 	p.log.Debugf("stopped new dest")
 	return newDest, nil
 }
@@ -226,7 +233,7 @@ func (p *Proxy) destHandshake(ctx context.Context, newDest *ConnDest, user strin
 		}
 		p.log.Debugf("configure sent")
 
-		<-newDest.onceResult(ctx, msgID, func(msg *m.MiningResult) (i.MiningMessageToPool, error) {
+		err = <-newDest.onceResult(ctx, msgID, func(msg *m.MiningResult) (i.MiningMessageToPool, error) {
 			cfgRes, err := m.ToMiningConfigureResult(msg)
 			if err != nil {
 				return nil, err
@@ -242,6 +249,9 @@ func (p *Proxy) destHandshake(ctx context.Context, newDest *ConnDest, user strin
 			newDest.SetVersionRolling(true, cfgRes.GetVersionRollingMask())
 			return nil, nil
 		})
+		if err != nil {
+			return lib.WrapError(ErrConnectDest, err)
+		}
 
 		p.log.Debugf("configure result received")
 	}
@@ -254,7 +264,7 @@ func (p *Proxy) destHandshake(ctx context.Context, newDest *ConnDest, user strin
 	}
 	p.log.Debugf("subscribe sent")
 
-	<-newDest.onceResult(ctx, msgID, func(msg *m.MiningResult) (i.MiningMessageToPool, error) {
+	err = <-newDest.onceResult(ctx, msgID, func(msg *m.MiningResult) (i.MiningMessageToPool, error) {
 		subRes, err := m.ToMiningSubscribeResult(msg)
 		if err != nil {
 			return nil, err
@@ -267,6 +277,9 @@ func (p *Proxy) destHandshake(ctx context.Context, newDest *ConnDest, user strin
 
 		return nil, nil
 	})
+	if err != nil {
+		return lib.WrapError(ErrConnectDest, err)
+	}
 	p.log.Debugf("subscribe result received")
 
 	// 3. MINING.AUTHORIZE
@@ -277,12 +290,15 @@ func (p *Proxy) destHandshake(ctx context.Context, newDest *ConnDest, user strin
 	}
 	p.log.Debugf("authorize sent")
 
-	<-newDest.onceResult(ctx, msgID, func(msg *m.MiningResult) (i.MiningMessageToPool, error) {
+	err = <-newDest.onceResult(ctx, msgID, func(msg *m.MiningResult) (i.MiningMessageToPool, error) {
 		if msg.IsError() {
 			return nil, lib.WrapError(ErrConnectDest, lib.WrapError(ErrNotAuthorizedPool, fmt.Errorf("%s", msg.GetError())))
 		}
 		return nil, nil
 	})
+	if err != nil {
+		return lib.WrapError(ErrConnectDest, err)
+	}
 	p.log.Debugf("authorize success")
 
 	return nil
@@ -341,11 +357,14 @@ func (p *Proxy) onMiningAuthorize(msgTyped *m.MiningAuthorize) (i.MiningMessageG
 		return nil, lib.WrapError(ErrHandshakeDest, err)
 	}
 
-	<-p.dest.onceResult(context.Background(), msgID, func(a *m.MiningResult) (i.MiningMessageToPool, error) {
+	err = <-p.dest.onceResult(context.Background(), msgID, func(a *m.MiningResult) (i.MiningMessageToPool, error) {
 		p.log.Infof("connected to destination: %s", p.destURL.String())
 		p.log.Info("handshake completed")
 		return a, nil
 	})
+	if err != nil {
+		return nil, lib.WrapError(ErrHandshakeDest, err)
+	}
 
 	return nil, nil
 }
@@ -368,7 +387,7 @@ func (p *Proxy) onMiningSubscribe(msgTyped *m.MiningSubscribe) (i.MiningMessageG
 		return nil, lib.WrapError(ErrHandshakeDest, err)
 	}
 
-	<-p.dest.onceResult(context.Background(), msgTyped.GetID(), func(a *m.MiningResult) (msg i.MiningMessageToPool, err error) {
+	err = <-p.dest.onceResult(context.Background(), msgTyped.GetID(), func(a *m.MiningResult) (msg i.MiningMessageToPool, err error) {
 		subscribeResult, err := m.ToMiningSubscribeResult(a)
 		if err != nil {
 			return nil, fmt.Errorf("expected MiningSubscribeResult message, got %s", a.Serialize())
@@ -385,6 +404,9 @@ func (p *Proxy) onMiningSubscribe(msgTyped *m.MiningSubscribe) (i.MiningMessageG
 		}
 		return nil, nil
 	})
+	if err != nil {
+		return nil, lib.WrapError(ErrHandshakeDest, err)
+	}
 
 	return nil, nil
 }
@@ -407,7 +429,7 @@ func (p *Proxy) onMiningConfigure(msgTyped *m.MiningConfigure) (i.MiningMessageG
 		return nil, lib.WrapError(ErrHandshakeDest, err)
 	}
 
-	<-p.dest.onceResult(context.TODO(), msgTyped.GetID(), func(a *m.MiningResult) (msg i.MiningMessageToPool, err error) {
+	err = <-p.dest.onceResult(context.TODO(), msgTyped.GetID(), func(a *m.MiningResult) (msg i.MiningMessageToPool, err error) {
 		configureResult, err := m.ToMiningConfigureResult(a)
 		if err != nil {
 			p.log.Errorf("expected MiningConfigureResult message, got %s", a.Serialize())
@@ -427,6 +449,9 @@ func (p *Proxy) onMiningConfigure(msgTyped *m.MiningConfigure) (i.MiningMessageG
 		p.log.Infof("destination connected")
 		return nil, nil
 	})
+	if err != nil {
+		return nil, lib.WrapError(ErrHandshakeDest, err)
+	}
 
 	return nil, nil
 }
@@ -466,7 +491,7 @@ func (p *Proxy) onMiningSubmit(msgTyped *m.MiningSubmit) (i.MiningMessageGeneric
 	p.sourceHR.OnSubmit(p.dest.GetDiff())
 	// s.globalHashrate.OnSubmit(s.source.GetWorkerName(), s.dest.GetDiff())
 
-	<-p.dest.onceResult(context.TODO(), msgTyped.GetID(), func(a *m.MiningResult) (i.MiningMessageToPool, error) {
+	err := <-p.dest.onceResult(context.TODO(), msgTyped.GetID(), func(a *m.MiningResult) (i.MiningMessageToPool, error) {
 		p.unansweredMsg.Done()
 		p.destHR.OnSubmit(p.dest.GetDiff())
 
@@ -479,6 +504,9 @@ func (p *Proxy) onMiningSubmit(msgTyped *m.MiningSubmit) (i.MiningMessageGeneric
 		p.log.Debugf("new submit, diff: %d, target: %0.f", diff, p.dest.GetDiff())
 		return a, nil
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	msgTyped.SetWorkerName(p.destURL.User.Username())
 
