@@ -23,12 +23,12 @@ builds:
 archives:
   - format: binary
     name_template: "{{ .ProjectName }}_{{ .Tag }}_{{ .Os }}_{{ .Arch }}"
-    
-replacements:
-  darwin: Darwin
-  linux: Linux
-  windows: Windows
-  amd64: x86_64
+
+  - replacements:
+      darwin: Darwin
+      linux: Linux
+      windows: Windows
+      amd64: x86_64
 
 checksum:
   name_template: "checksums.txt"
