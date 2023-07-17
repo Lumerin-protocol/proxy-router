@@ -26,6 +26,9 @@ type MiningConfigureExtensionParams struct {
 }
 
 func NewMiningConfigure(ID int, extensions *MiningConfigureExtensionParams) *MiningConfigure {
+	if extensions == nil {
+		extensions = &MiningConfigureExtensionParams{}
+	}
 	return &MiningConfigure{
 		ID:        ID,
 		Method:    MethodMiningConfigure,
@@ -93,4 +96,4 @@ func (m *MiningConfigure) Serialize() []byte {
 	return res
 }
 
-var _ interfaces.MiningMessageToPool = new(MiningConfigure)
+var _ interfaces.MiningMessageWithID = new(MiningConfigure)

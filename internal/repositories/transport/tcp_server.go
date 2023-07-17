@@ -79,6 +79,8 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener net.Listener) e
 			continue
 		}
 
+		p.log.Debugf("incoming connection accepted")
+
 		go func() {
 			p.handler(ctx, conn)
 

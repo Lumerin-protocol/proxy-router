@@ -7,7 +7,7 @@ type MiningMessageGeneric interface {
 	Serialize() []byte
 }
 
-type MiningMessageToPool interface {
+type MiningMessageWithID interface {
 	MiningMessageGeneric
 	GetID() int
 	SetID(int)

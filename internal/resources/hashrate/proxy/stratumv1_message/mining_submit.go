@@ -61,4 +61,4 @@ func (m *MiningSubmit) Serialize() []byte {
 	return b
 }
 
-var _ interfaces.MiningMessageToPool = new(MiningSubmit)
+var _ interfaces.MiningMessageWithID = new(MiningSubmit)

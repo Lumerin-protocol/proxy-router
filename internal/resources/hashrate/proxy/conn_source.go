@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"time"
 
 	globalInterfaces "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
@@ -77,4 +78,8 @@ func (c *ConnSource) SetWorkerName(workerName string) {
 
 func (c *ConnSource) GetWorkerName() string {
 	return c.workerName
+}
+
+func (c *ConnSource) GetConnectedAt() time.Time {
+	return c.conn.GetConnectedAt()
 }

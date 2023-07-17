@@ -4,28 +4,16 @@ import (
 	"context"
 	"io"
 	"net/url"
-	"time"
 
 	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
 	m "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
 )
 
-type StratumProxyInterface interface {
-	Run(ctx context.Context) error
-	SetDest(ctx context.Context, dest string) error
-
-	GetID() string
-	GetHashrate() float64
-	GetDifficulty() float64
-	GetDest() string
-	GetSourceWorkerName() string
-	GetDestWorkerName() string
-	GetMinerConnectedAt() time.Time
-}
-
 type HashrateCounter interface {
 	OnSubmit(diff float64)
 }
+
+type HashrateCounterFunc func(diff float64)
 
 type GlobalHashrateCounter interface {
 	OnSubmit(workerName string, diff float64)
@@ -45,4 +33,4 @@ type StratumReadWriteCloser interface {
 	StratumReadWriter
 }
 
-type ResultHandler = func(a *m.MiningResult) (msg i.MiningMessageToPool, err error)
+type ResultHandler = func(a *m.MiningResult) (msg i.MiningMessageWithID, err error)

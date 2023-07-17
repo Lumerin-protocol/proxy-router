@@ -174,3 +174,7 @@ func (c *StratumConnection) Write(ctx context.Context, msg interfaces.MiningMess
 func (c *StratumConnection) Close() error {
 	return c.conn.Close()
 }
+
+func (c *StratumConnection) GetConnectedAt() time.Time {
+	return c.connectedAt
+}

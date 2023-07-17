@@ -139,3 +139,11 @@ func HSToGHS(hashrateHS float64) int {
 func GHSToHS(hrGHS int) float64 {
 	return float64(hrGHS) * math.Pow10(9)
 }
+
+func GHSToJobSubmitted(hrGHS float64) float64 {
+	return HSToJobSubmitted(hrGHS * math.Pow10(9))
+}
+
+func JobSubmittedToGHS(jobSubmitted float64) float64 {
+	return JobSubmittedToHS(jobSubmitted) / math.Pow10(9)
+}

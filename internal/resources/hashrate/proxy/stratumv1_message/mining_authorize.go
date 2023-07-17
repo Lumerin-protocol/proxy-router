@@ -59,4 +59,4 @@ func (m *MiningAuthorize) Serialize() []byte {
 	return b
 }
 
-var _ interfaces.MiningMessageToPool = new(MiningAuthorize)
+var _ interfaces.MiningMessageWithID = new(MiningAuthorize)

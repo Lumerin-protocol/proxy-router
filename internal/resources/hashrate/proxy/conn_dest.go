@@ -122,6 +122,14 @@ func (c *ConnDest) GetNotifyMsgJob(jobID string) (*sm.MiningNotify, bool) {
 	return c.notifyMsgs.Get(jobID)
 }
 
+func (c *ConnDest) GetWorkerName() string {
+	return c.workerName
+}
+
+func (c *ConnDest) SetWorkerName(workerName string) {
+	c.workerName = workerName
+}
+
 func (c *ConnDest) readInterceptor(msg i.MiningMessageGeneric) (resMsg i.MiningMessageGeneric, err error) {
 	switch typed := msg.(type) {
 	case *sm.MiningNotify:
@@ -144,6 +152,7 @@ func (c *ConnDest) readInterceptor(msg i.MiningMessageGeneric) (resMsg i.MiningM
 	return msg, nil
 }
 
+// TODO: consider moving to proxy.go
 // onceResult registers single time handler for the destination response with particular message ID,
 // sets default timeout and does a cleanup when it expires. Returns error on result timeout
 func (s *ConnDest) onceResult(ctx context.Context, msgID int, handler ResultHandler) <-chan error {
@@ -152,7 +161,7 @@ func (s *ConnDest) onceResult(ctx context.Context, msgID int, handler ResultHand
 	ctx, cancel := context.WithTimeout(ctx, RESPONSE_TIMEOUT)
 	didRun := false
 
-	s.resultHandlers.Store(msgID, func(a *sm.MiningResult) (msg i.MiningMessageToPool, err error) {
+	s.resultHandlers.Store(msgID, func(a *sm.MiningResult) (msg i.MiningMessageWithID, err error) {
 		didRun = true
 		defer cancel()
 		defer close(errCh)
@@ -168,4 +177,38 @@ func (s *ConnDest) onceResult(ctx context.Context, msgID int, handler ResultHand
 	}()
 
 	return errCh
+}
+
+// WriteAwaitRes writes message to the destination connection and awaits for the response, but does not proxy it to source
+func (s *ConnDest) WriteAwaitRes(ctx context.Context, msg i.MiningMessageWithID) (resMsg i.MiningMessageWithID, err error) {
+	errCh := make(chan error, 1)
+	resCh := make(chan i.MiningMessageWithID, 1)
+	msgID := msg.GetID()
+
+	ctx, cancel := context.WithTimeout(ctx, RESPONSE_TIMEOUT)
+	didRun := false
+
+	s.resultHandlers.Store(msgID, func(a *sm.MiningResult) (msg i.MiningMessageWithID, err error) {
+		didRun = true
+		defer cancel()
+		defer close(errCh)
+		resCh <- a
+		return nil, nil
+	})
+
+	err = s.Write(ctx, msg)
+	if err != nil {
+		s.resultHandlers.Delete(msgID)
+		return nil, err
+	}
+
+	go func() {
+		<-ctx.Done()
+		s.resultHandlers.Delete(msgID)
+		if !didRun {
+			errCh <- fmt.Errorf("dest response timeout (%s)", RESPONSE_TIMEOUT)
+		}
+	}()
+
+	return <-resCh, <-errCh
 }

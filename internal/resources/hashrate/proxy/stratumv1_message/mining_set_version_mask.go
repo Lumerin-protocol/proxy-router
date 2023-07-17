@@ -17,10 +17,10 @@ type MiningSetVersionMask struct {
 
 type miningSetVersionMaskParams = [1]string
 
-func NewMiningSetVersionMask() *MiningSetVersionMask {
+func NewMiningSetVersionMask(versionMask string) *MiningSetVersionMask {
 	return &MiningSetVersionMask{
 		Method: MethodMiningSetVersionMask,
-		Params: &miningSetVersionMaskParams{},
+		Params: &miningSetVersionMaskParams{versionMask},
 	}
 }
 
