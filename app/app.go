@@ -11,6 +11,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/contractmanager"
 	"gitlab.com/TitanInd/hashrouter/interfaces"
 	"gitlab.com/TitanInd/hashrouter/miner"
+	"gitlab.com/TitanInd/hashrouter/sysconfig"
 	"gitlab.com/TitanInd/hashrouter/tcpserver"
 	"golang.org/x/sync/errgroup"
 )
@@ -26,6 +27,8 @@ type App struct {
 }
 
 func (a *App) Run(ctx context.Context) {
+
+	sysconfig.Config.InitSocketConfig()
 	a.Logger.Debugf("config: %+v\n", a.Config)
 	ctx, cancel := context.WithCancel(ctx)
 

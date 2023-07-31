@@ -21,6 +21,7 @@ import (
 	"gitlab.com/TitanInd/hashrouter/lib"
 	"gitlab.com/TitanInd/hashrouter/miner"
 	"gitlab.com/TitanInd/hashrouter/tcpserver"
+	"gitlab.com/TitanInd/hashrouter/sysconfig"
 )
 
 const VERSION = "0.01"
