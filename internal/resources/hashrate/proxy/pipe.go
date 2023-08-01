@@ -52,6 +52,10 @@ func (p *Pipe) Run(ctx context.Context) error {
 	case <-p.destToSourceTask.Done():
 		err = p.destToSourceTask.Err()
 		<-p.sourceToDestTask.Stop()
+	case <-ctx.Done():
+		<-p.sourceToDestTask.Stop()
+		<-p.destToSourceTask.Stop()
+		err = ctx.Err()
 	}
 
 	return err

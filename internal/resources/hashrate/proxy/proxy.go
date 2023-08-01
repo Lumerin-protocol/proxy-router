@@ -13,6 +13,7 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
 	m "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/validator"
 )
 
 const (
@@ -45,6 +46,7 @@ type Proxy struct {
 	sourceHR                *hashrate.Hashrate // hashrate of the source validated by the proxy
 	destHR                  *hashrate.Hashrate // hashrate of the destination validated by the destination
 	handshakeDoneSignal     chan struct{}      // signals when first handshake is done, after miner's first connection to the default pool
+	cancelRun               context.CancelFunc // cancels Run() task
 
 	// deps
 	source        *ConnSource          // initiator of the communication, miner
@@ -101,6 +103,8 @@ func (p *Proxy) Connect(ctx context.Context) error {
 
 func (p *Proxy) Run(ctx context.Context) error {
 	p.pipe.StartSourceToDest(ctx)
+	ctx, cancel := context.WithCancel(ctx)
+	p.cancelRun = cancel
 	err := p.pipe.Run(ctx)
 	if err != nil {
 		p.log.Errorf("error running pipe: %s", err)
@@ -215,9 +219,8 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 	p.log.Warnf("set difficulty sent")
 
 	// 4. NOTIFY
-	msg, ok := newDest.notifyMsgs.At(-1)
+	msg, ok := newDest.GetLatestJob()
 	if ok {
-		msg = msg.Copy()
 		msg.SetCleanJobs(true)
 		err = p.source.Write(ctx, msg)
 		if err != nil {
@@ -503,59 +506,81 @@ func (p *Proxy) onMiningConfigure(msgTyped *m.MiningConfigure) (i.MiningMessageG
 func (p *Proxy) onMiningSubmit(msgTyped *m.MiningSubmit) (i.MiningMessageGeneric, error) {
 	p.unansweredMsg.Add(1)
 
-	_, mask := p.dest.GetVersionRolling()
-	xn, xn2size := p.dest.GetExtraNonce()
+	diff, err := p.dest.ValidateAndAddShare(msgTyped)
+	weAccepted := err == nil
+	var res *m.MiningResult
 
-	job, ok := p.dest.GetNotifyMsgJob(msgTyped.GetJobId())
-	if !ok {
-		p.log.Warnf("cannot find job for this submit (job id %s), skipping", msgTyped.GetJobId())
-		// TODO: should we send error to miner?
-		err := p.source.Write(context.Background(), m.NewMiningResultJobNotFound(msgTyped.GetID()))
-		if err != nil {
-			return nil, err
+	if err != nil {
+		p.source.GetStats().WeRejectedShares++
+
+		switch err {
+		case validator.ErrJobNotFound:
+			res = m.NewMiningResultJobNotFound(msgTyped.GetID())
+		case validator.ErrDuplicateShare:
+			res = m.NewMiningResultDuplicatedShare(msgTyped.GetID())
+		case validator.ErrLowDifficulty:
+			res = m.NewMiningResultLowDifficulty(msgTyped.GetID())
 		}
-		return nil, nil
+
+	} else {
+		p.source.GetStats().WeAcceptedShares++
+		// miner hashrate
+		p.sourceHR.OnSubmit(p.dest.GetDiff())
+
+		// contract hashrate
+		p.onSubmitMutex.RLock()
+		if p.onSubmit != nil {
+			p.onSubmit(p.dest.GetDiff())
+		}
+		p.onSubmitMutex.RUnlock()
+
+		res = m.NewMiningResultSuccess(msgTyped.GetID())
 	}
 
-	diff, ok := Validate(xn, uint(xn2size), uint64(p.dest.GetDiff()), mask, job, msgTyped)
-	if !ok {
-		p.log.Warnf("validator error: too low difficulty reported by internal validator: expected %.2f actual %d", p.dest.GetDiff(), diff)
-
-		tooLowDiff, _ := m.ParseMiningResult([]byte(`{"id":4,"result":null,"error":[-5,"Too low difficulty",null]}`))
-		tooLowDiff.SetID(msgTyped.GetID())
-		err := p.source.Write(context.Background(), tooLowDiff)
-		if err != nil {
-			p.log.Error("cannot write response to miner: ", err)
-			return nil, err
-		}
-		p.unansweredMsg.Done()
-		return nil, nil
-	}
-
-	p.sourceHR.OnSubmit(p.dest.GetDiff())
+	// workername hashrate
 	// s.globalHashrate.OnSubmit(s.source.GetWorkerName(), s.dest.GetDiff())
 
-	msgTyped.SetWorkerName(p.dest.GetWorkerName())
-	res, err := p.dest.WriteAwaitRes(context.TODO(), msgTyped)
-	if err != nil {
-		return nil, lib.WrapError(ErrHandshakeDest, err)
-	}
+	// does not wait for response from destination pool
+	// TODO: implement buffering for source/dest messages
+	// to avoid blocking source/dest when one of them is slow
+	// and fix error handling to avoid p.cancelRun
+	go func() {
+		err = p.source.Write(context.Background(), res)
+		if err != nil {
+			p.log.Error("cannot write response to miner: ", err)
+			p.cancelRun()
+		}
 
-	p.unansweredMsg.Done()
-	p.destHR.OnSubmit(p.dest.GetDiff())
+		// send and await submit response from pool
+		msgTyped.SetWorkerName(p.dest.GetWorkerName())
+		res, err := p.dest.WriteAwaitRes(context.TODO(), msgTyped)
+		if err != nil {
+			p.log.Error("cannot write response to pool: ", err)
+			p.cancelRun()
+		}
+		p.unansweredMsg.Done()
 
-	p.onSubmitMutex.RLock()
-	if p.onSubmit != nil {
-		p.onSubmit(p.dest.GetDiff())
-	}
-	p.onSubmitMutex.RUnlock()
-
-	p.log.Debugf("new submit, diff: %d, target: %0.f", diff, p.dest.GetDiff())
-
-	err = p.source.Write(context.Background(), res)
-	if err != nil {
-		return nil, err
-	}
+		if res.(*m.MiningResult).IsError() {
+			if weAccepted {
+				p.source.GetStats().WeAcceptedTheyRejected++
+				p.dest.GetStats().WeAcceptedTheyRejected++
+			}
+		} else {
+			if weAccepted {
+				p.dest.GetStats().WeAcceptedTheyAccepted++
+				p.destHR.OnSubmit(p.dest.GetDiff())
+				p.log.Debugf("new submit, diff: %d, target: %0.f", diff, p.dest.GetDiff())
+			} else {
+				p.dest.GetStats().WeRejectedTheyAccepted++
+				p.source.GetStats().WeRejectedTheyAccepted++
+				p.log.Warnf("we rejected submit, but dest accepted, diff: %d, target: %0.f", diff, p.dest.GetDiff())
+			}
+		}
+	}()
 
 	return nil, nil
+}
+
+func (p *Proxy) GetStats() interface{} {
+	return p.source.GetStats()
 }

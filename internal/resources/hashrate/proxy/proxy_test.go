@@ -167,3 +167,11 @@ func TestHashrateCount(t *testing.T) {}
 func TestInvalidSubmit(t *testing.T) {}
 
 func TestValidSubmitLowDiff(t *testing.T) {}
+
+func TestSetDifficultyAppliesOnlyToNewJobs(t *testing.T) {
+	// test that new difficulty is applied to jobs that has been received after the last set_difficulty message
+}
+
+func TestVerifyJobWithCorrespondingDifficulty(t *testing.T) {
+	// check that validator uses difficulty that was current at the moment of receiving the job
+}

@@ -7,10 +7,24 @@ import (
 	"sync"
 
 	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
 	sm "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/validator"
 )
+
+type DestStats struct {
+	WeAcceptedTheyAccepted uint64 // our validator accepted and dest accepted
+	WeAcceptedTheyRejected uint64 // our validator accepted and dest rejected
+	WeRejectedTheyAccepted uint64 // our validator rejected, but dest accepted
+}
+
+func (s *DestStats) Copy() *DestStats {
+	return &DestStats{
+		WeAcceptedTheyAccepted: s.WeAcceptedTheyAccepted,
+		WeAcceptedTheyRejected: s.WeAcceptedTheyRejected,
+		WeRejectedTheyAccepted: s.WeRejectedTheyAccepted,
+	}
+}
 
 // ConnDest is a destination connection, a wrapper around StratumConnection,
 // with destination specific state variables
@@ -30,7 +44,8 @@ type ConnDest struct {
 	versionRolling     bool
 	versionRollingMask string
 
-	notifyMsgs *lib.BoundStackMap[*sm.MiningNotify]
+	stats     *DestStats
+	validator *validator.Validator
 
 	// deps
 	conn *StratumConnection
@@ -42,13 +57,15 @@ const (
 )
 
 func NewDestConn(conn *StratumConnection, url *url.URL, log gi.ILogger) *ConnDest {
-	return &ConnDest{
+	dest := &ConnDest{
 		workerName: url.User.Username(),
 		destUrl:    url,
 		conn:       conn,
+		stats:      &DestStats{},
 		log:        log,
-		notifyMsgs: lib.NewBoundStackMap[*sm.MiningNotify](NOTIFY_MSGS_CACHE_SIZE),
 	}
+	dest.validator = validator.NewValidator(dest, log.Named("validator"))
+	return dest
 }
 
 func ConnectDest(ctx context.Context, destURL *url.URL, log gi.ILogger) (*ConnDest, error) {
@@ -118,10 +135,6 @@ func (c *ConnDest) GetHR() gi.Hashrate {
 	return c.hr
 }
 
-func (c *ConnDest) GetNotifyMsgJob(jobID string) (*sm.MiningNotify, bool) {
-	return c.notifyMsgs.Get(jobID)
-}
-
 func (c *ConnDest) GetWorkerName() string {
 	return c.workerName
 }
@@ -133,7 +146,8 @@ func (c *ConnDest) SetWorkerName(workerName string) {
 func (c *ConnDest) readInterceptor(msg i.MiningMessageGeneric) (resMsg i.MiningMessageGeneric, err error) {
 	switch typed := msg.(type) {
 	case *sm.MiningNotify:
-		c.notifyMsgs.Push(typed.GetJobID(), typed)
+		// TODO: set expiration time for all of the jobs if clean jobs flag is set to true
+		c.validator.AddNewJob(typed, c.diff)
 	case *sm.MiningSetDifficulty:
 		c.diff = typed.GetDifficulty()
 	case *sm.MiningSetExtranonce:
@@ -211,4 +225,16 @@ func (s *ConnDest) WriteAwaitRes(ctx context.Context, msg i.MiningMessageWithID)
 	}()
 
 	return <-resCh, <-errCh
+}
+
+func (c *ConnDest) GetStats() *DestStats {
+	return c.stats
+}
+
+func (c *ConnDest) ValidateAndAddShare(msg *sm.MiningSubmit) (float64, error) {
+	return c.validator.ValidateAndAddShare(msg)
+}
+
+func (c *ConnDest) GetLatestJob() (*sm.MiningNotify, bool) {
+	return c.validator.GetLatestJob()
 }
