@@ -9,9 +9,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/contractmanager"
+	cm "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/contractmanager"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/contract"
 	"golang.org/x/exp/slices"
 )
 
@@ -19,17 +22,21 @@ type Proxy interface {
 	SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(diff float64)) error
 }
 
+type ContractFactory func(contractData *cm.ContractData) (cm.Contract, error)
+
 type HTTPHandler struct {
-	allocator *allocator.Allocator
-	publicUrl *url.URL
-	log       interfaces.ILogger
+	allocator       *allocator.Allocator
+	contractManager *contractmanager.ContractManager
+	publicUrl       *url.URL
+	log             interfaces.ILogger
 }
 
-func NewHTTPHandler(allocator *allocator.Allocator, publicUrl *url.URL, log interfaces.ILogger) *HTTPHandler {
+func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractmanager.ContractManager, publicUrl *url.URL, log interfaces.ILogger) *HTTPHandler {
 	return &HTTPHandler{
-		publicUrl: publicUrl,
-		allocator: allocator,
-		log:       log,
+		publicUrl:       publicUrl,
+		allocator:       allocator,
+		contractManager: contractManager,
+		log:             log,
 	}
 }
 
@@ -58,24 +65,52 @@ func (h *HTTPHandler) CreateContract(ctx *gin.Context) {
 	dest, err := url.Parse(ctx.Query("dest"))
 	if err != nil {
 		ctx.AbortWithStatus(http.StatusBadRequest)
+		return
 	}
 	hrGHS, err := strconv.ParseInt(ctx.Query("hrGHS"), 10, 0)
 	if err != nil {
 		ctx.AbortWithStatus(http.StatusBadRequest)
+		return
 	}
 	duration, err := time.ParseDuration(ctx.Query("duration"))
 	if err != nil {
 		ctx.AbortWithStatus(http.StatusBadRequest)
+		return
 	}
+	now := time.Now()
+	h.contractManager.AddContract(&contractmanager.ContractData{
+		ContractID:   lib.GetRandomAddr().String(),
+		Seller:       "",
+		Buyer:        "",
+		Dest:         dest,
+		StartedAt:    &now,
+		Duration:     duration,
+		ContractRole: contractmanager.ContractRoleSeller,
+		ResourceType: contract.ResourceTypeHashrate,
+		ResourceEstimates: map[string]float64{
+			contract.ResourceEstimateHashrateGHS: float64(hrGHS),
+		},
+	})
 
-	watcher := allocator.NewContractWatcher(lib.GetRandomAddr().String(), float64(hrGHS), dest, time.Now(), duration, h.allocator)
+	ctx.JSON(200, gin.H{"status": "ok"})
+}
 
-	go func() {
-		err := watcher.Run(context.Background())
-		if err != nil {
-			h.log.Errorf("error during fulfillment of the test contract: %s", err)
-		}
-	}()
+func (c *HTTPHandler) GetContracts(ctx *gin.Context) {
+	// 	// snap := CreateCurrentMinerSnapshot(c.miners)
+
+	data := []Contract{}
+	c.contractManager.GetContracts().Range(func(item contractmanager.Contract) bool {
+		contract := MapContract(item, c.publicUrl)
+		// 		contract.Miners = miners
+		data = append(data, *contract)
+		return true
+	})
+
+	slices.SortStableFunc(data, func(a Contract, b Contract) bool {
+		return a.ID < b.ID
+	})
+
+	ctx.JSON(200, data)
 }
 
 func (c *HTTPHandler) GetMiners(ctx *gin.Context) {
@@ -166,9 +201,48 @@ func (c *HTTPHandler) MapMiner(m *allocator.Scheduler) *Miner {
 		CurrentDestination: m.GetCurrentDest().String(),
 		WorkerName:         m.GetWorkerName(),
 		ConnectedAt:        m.GetConnectedAt().Format(time.RFC3339),
+		Stats:              m.GetStats(),
 		// UptimeSeconds:      int(m.GetUptime().Seconds()),
 		// IsFaulty:             m.IsFaulty(),
 	}
+}
+
+func MapContract(item contractmanager.Contract, publicUrl *url.URL) *Contract {
+	return &Contract{
+		Resource: Resource{
+			Self: publicUrl.JoinPath(fmt.Sprintf("/contracts/%s", item.GetID())).String(),
+		},
+		ID:                      item.GetID(),
+		BuyerAddr:               item.GetBuyer(),
+		SellerAddr:              item.GetSeller(),
+		ResourceEstimatesTarget: item.GetResourceEstimates(),
+		ResourceEstimatesActual: nil,
+		DurationSeconds:         int(item.GetDuration().Seconds()),
+		StartTimestamp:          TimePtrToStringPtr(item.GetStartedAt()),
+		EndTimestamp:            TimePtrToStringPtr(item.GetEndTime()),
+		ApplicationStatus:       MapContractState(item.GetState()),
+		BlockchainStatus:        "not implemented",
+		Dest:                    item.GetDest(),
+	}
+}
+
+func MapContractState(state contractmanager.ContractState) string {
+	switch state {
+	case contractmanager.ContractStatePending:
+		return "pending"
+	case contractmanager.ContractStateRunning:
+		return "running"
+	}
+	return "unknown"
+}
+
+// TimePtrToStringPtr converts nullable time to nullable string
+func TimePtrToStringPtr(t *time.Time) *string {
+	if t != nil {
+		a := t.Format(time.RFC3339)
+		return &a
+	}
+	return nil
 }
 
 // func mapDestItems(dest *miner.DestSplit, hrGHS int) (*[]DestItem, int) {

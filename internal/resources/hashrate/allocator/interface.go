@@ -17,6 +17,7 @@ type StratumProxyInterface interface {
 	GetSourceWorkerName() string
 	GetDestWorkerName() string
 	GetMinerConnectedAt() time.Time
+	GetStats() interface{}
 
 	HandshakeDoneSignal() <-chan struct{}
 }

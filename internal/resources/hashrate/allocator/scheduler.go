@@ -57,10 +57,13 @@ func (p *Scheduler) Run(ctx context.Context) error {
 			p.totalTaskJob -= task.JobSubmitted
 			jobDone := make(chan struct{})
 
+			p.log.Debugf("start doing task %s, for job %.1f", task.Dest.String(), task.JobSubmitted)
+
 			err := p.proxy.SetDest(ctx, task.Dest, func(diff float64) {
 				task.JobSubmitted -= diff
 				task.OnSubmit(diff)
 				if task.JobSubmitted <= 0 {
+					p.log.Debugf("finished doing task %s, for job %.1f", task.Dest.String(), task.JobSubmitted)
 					close(jobDone)
 				}
 			})
@@ -112,6 +115,7 @@ func (p *Scheduler) AddTask(dest *url.URL, jobSubmitted float64, onSubmit func(d
 		OnSubmit:     onSubmit,
 	})
 	p.totalTaskJob += jobSubmitted
+	p.log.Debugf("added new task, dest: %s, for jobSubmitted: %.1f, totalTaskJob: %.1f", dest, jobSubmitted, p.totalTaskJob)
 }
 
 func (p *Scheduler) RemoveTasks() {
@@ -179,6 +183,10 @@ func (p *Scheduler) GetWorkerName() string {
 
 func (p *Scheduler) GetConnectedAt() time.Time {
 	return p.proxy.GetMinerConnectedAt()
+}
+
+func (p *Scheduler) GetStats() interface{} {
+	return p.proxy.GetStats()
 }
 
 // if p.totalTaskJob+jobSubmitted > p.getJobPerCycle() {

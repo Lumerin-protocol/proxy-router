@@ -8,17 +8,20 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/contractfactory"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/contractmanager"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/handlers"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/repositories/transport"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/contract"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy"
 )
 
 func main() {
 	appLogLevel := "debug"
 	proxyLogLevel := "debug"
-	connectionLogLevel := "debug"
+	connectionLogLevel := "info"
 
 	log, err := lib.NewLogger(false, appLogLevel, true, true)
 	if err != nil {
@@ -42,7 +45,7 @@ func main() {
 		return proxy.ConnectDest(ctx, url, connLog)
 	}
 
-	alloc := allocator.NewAllocator(lib.NewCollection[*allocator.Scheduler]())
+	alloc := allocator.NewAllocator(lib.NewCollection[*allocator.Scheduler](), 10*time.Minute)
 
 	server := transport.NewTCPServer("0.0.0.0:3333", connLog)
 	server.SetConnectionHandler(func(ctx context.Context, conn net.Conn) {
@@ -60,16 +63,23 @@ func main() {
 	})
 
 	publicUrl, _ := url.Parse("http://localhost:3001")
-	handl := handlers.NewHTTPHandler(alloc, publicUrl, log)
+	hrContractAllocator := allocator.NewAllocator(lib.NewCollection[*allocator.Scheduler](), 10*time.Minute)
+	hrContractFactory := contract.NewContractFactory(hrContractAllocator, log)
+	cf := contractfactory.ContractFactory(hrContractFactory)
+	cm := contractmanager.NewContractManager(cf, log)
+	handl := handlers.NewHTTPHandler(alloc, cm, publicUrl, log)
 
 	// create server gin
 	// gin.SetMode(gin.DebugMode)
 	r := gin.New()
+	r.SetTrustedProxies(nil)
 	r.Use(gin.Recovery())
 
-	r.POST("/change-dest", handl.ChangeDest)
-	r.POST("/contract", handl.CreateContract)
 	r.GET("/miners", handl.GetMiners)
+	r.GET("/contracts", handl.GetContracts)
+
+	r.POST("/change-dest", handl.ChangeDest)
+	r.POST("/contracts", handl.CreateContract)
 
 	go func() {
 		httpPort := 3001

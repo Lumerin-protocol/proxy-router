@@ -31,6 +31,26 @@ type Miner struct {
 	ActivePoolConnections *map[string]string `json:",omitempty"`
 	History               *[]HistoryItem     `json:",omitempty"`
 	IsFaulty              bool
+	Stats                 interface{}
+}
+
+type Contract struct {
+	Resource
+
+	ID                      string
+	BuyerAddr               string
+	SellerAddr              string
+	ResourceEstimatesTarget map[string]float64
+	ResourceEstimatesActual map[string]float64
+
+	DurationSeconds   int
+	StartTimestamp    *string
+	EndTimestamp      *string
+	ApplicationStatus string
+	BlockchainStatus  string
+	Dest              string
+	History           *[]HistoryItem `json:",omitempty"`
+	Miners            []Miner
 }
 
 type Resource struct {
