@@ -48,12 +48,27 @@ func (m *MiningSubmit) GetJobId() string {
 	return m.Params[1]
 }
 
+func (m *MiningSubmit) GetExtraNonce2() string {
+	return m.Params[2]
+}
+
+func (m *MiningSubmit) SetExtraNonce2(xnonce2 string) {
+	m.Params[2] = xnonce2
+}
+
 func (m *MiningSubmit) GetNtime() string {
 	return m.Params[3]
 }
 
 func (m *MiningSubmit) GetNonce() string {
 	return m.Params[4]
+}
+
+func (m *MiningSubmit) GetVmask() string {
+	if len(m.Params) < 6 {
+		return "00000000"
+	}
+	return m.Params[5]
 }
 
 func (m *MiningSubmit) Serialize() []byte {

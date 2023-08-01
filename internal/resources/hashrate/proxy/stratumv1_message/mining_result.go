@@ -30,12 +30,33 @@ func NewMiningResultSuccess(ID int) *MiningResult {
 	}
 }
 
+// TODO: verify error codes
 func NewMiningResultJobNotFound(ID int) *MiningResult {
 	return &MiningResult{
 		ID: ID,
 		Error: MiningResultError{
 			json.RawMessage(`"21"`),
 			json.RawMessage(`"Job not found"`),
+		},
+	}
+}
+
+func NewMiningResultLowDifficulty(ID int) *MiningResult {
+	return &MiningResult{
+		ID: ID,
+		Error: MiningResultError{
+			json.RawMessage(`"-5"`),
+			json.RawMessage(`"Too low difficulty"`),
+		},
+	}
+}
+
+func NewMiningResultDuplicatedShare(ID int) *MiningResult {
+	return &MiningResult{
+		ID: ID,
+		Error: MiningResultError{
+			json.RawMessage(`"22"`),
+			json.RawMessage(`"Duplicate share"`),
 		},
 	}
 }
