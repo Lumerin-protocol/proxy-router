@@ -1,4 +1,4 @@
-package proxy
+package validator
 
 import (
 	"bytes"
@@ -11,44 +11,9 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
 )
 
-func reverse(bytes []byte) []byte {
-	for i, j := 0, len(bytes)-1; i < j; i, j = i+1, j-1 {
-		bytes[i], bytes[j] = bytes[j], bytes[i]
-	}
-	return bytes
-}
-
-func decode(s string) []byte {
-	res, _ := hex.DecodeString(s)
-	return res
-}
-
-func decode_swap(s string) []byte {
-	res, _ := hex.DecodeString(s)
-	for i, j := 0, len(res)-1; i < j; i, j = i+1, j-1 {
-		res[i], res[j] = res[j], res[i]
-	}
-	return res
-}
-
-func decode_swap_words(s string) []byte {
-	res, _ := hex.DecodeString(s)
-	for w := 0; w < len(res); w += 4 {
-		for i, j := w, w+4-1; i < j; i, j = i+1, j-1 {
-			res[i], res[j] = res[j], res[i]
-		}
-	}
-	return res
-}
-
-func sha256d(data []byte) [32]byte {
-	sum := sha256.Sum256(data)
-	return sha256.Sum256(sum[:])
-}
-
 /* The meat... */
 
-func Validate(en1 string, en2_size uint, job_diff uint64, version_mask string,
+func ValidateDiff(en1 string, en2_size uint, job_diff uint64, version_mask string,
 	job *stratumv1_message.MiningNotify, submit *stratumv1_message.MiningSubmit) (uint64, bool) {
 	var prev_hash string
 	var gen1 string
@@ -108,4 +73,39 @@ func Validate(en1 string, en2_size uint, job_diff uint64, version_mask string,
 	b.Lsh(b, 208)
 	t.Div(b, h)
 	return t.Uint64(), t.Uint64() >= job_diff
+}
+
+func reverse(bytes []byte) []byte {
+	for i, j := 0, len(bytes)-1; i < j; i, j = i+1, j-1 {
+		bytes[i], bytes[j] = bytes[j], bytes[i]
+	}
+	return bytes
+}
+
+func decode(s string) []byte {
+	res, _ := hex.DecodeString(s)
+	return res
+}
+
+func decode_swap(s string) []byte {
+	res, _ := hex.DecodeString(s)
+	for i, j := 0, len(res)-1; i < j; i, j = i+1, j-1 {
+		res[i], res[j] = res[j], res[i]
+	}
+	return res
+}
+
+func decode_swap_words(s string) []byte {
+	res, _ := hex.DecodeString(s)
+	for w := 0; w < len(res); w += 4 {
+		for i, j := w, w+4-1; i < j; i, j = i+1, j-1 {
+			res[i], res[j] = res[j], res[i]
+		}
+	}
+	return res
+}
+
+func sha256d(data []byte) [32]byte {
+	sum := sha256.Sum256(data)
+	return sha256.Sum256(sum[:])
 }
