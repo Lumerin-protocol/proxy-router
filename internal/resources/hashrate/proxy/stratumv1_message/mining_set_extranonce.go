@@ -28,7 +28,7 @@ func ParseMiningSetExtranonce(b []byte) (*MiningSetExtranonce, error) {
 	return m, json.Unmarshal(b, m)
 }
 
-func (m *MiningSetExtranonce) GetExtranonce() (extranonce string, size int) {
+func (m *MiningSetExtranonce) GetExtranonce() (extranonce1 string, extranonce2size int) {
 	return m.Params[0].(string), m.Params[1].(int)
 }
 

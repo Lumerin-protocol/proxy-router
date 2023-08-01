@@ -203,33 +203,35 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 	}
 	p.log.Warnf("set version mask sent")
 
+	job, ok := newDest.GetLatestJob()
+	if !ok {
+		return lib.WrapError(ErrChangeDest, errors.New("no job available"))
+	}
+
 	// 2. SET_EXTRANONCE
-	err = p.source.Write(ctx, m.NewMiningSetExtranonce(newDest.GetExtraNonce()))
+	err = p.source.Write(ctx, m.NewMiningSetExtranonce(job.GetExtraNonce1(), job.GetExtraNonce2Size()))
 	if err != nil {
 		return lib.WrapError(ErrChangeDest, err)
 	}
-	p.source.SetExtraNonce(newDest.GetExtraNonce())
+	p.source.SetExtraNonce(job.GetExtraNonce1(), job.GetExtraNonce2Size())
 	p.log.Warnf("extranonce sent")
 
 	// 3. SET_DIFFICULTY
-	err = p.source.Write(ctx, m.NewMiningSetDifficulty(newDest.GetDiff()))
+	err = p.source.Write(ctx, m.NewMiningSetDifficulty(job.GetDiff()))
 	if err != nil {
 		return lib.WrapError(ErrChangeDest, err)
 	}
 	p.log.Warnf("set difficulty sent")
 
 	// 4. NOTIFY
-	msg, ok := newDest.GetLatestJob()
-	if ok {
-		msg.SetCleanJobs(true)
-		err = p.source.Write(ctx, msg)
-		if err != nil {
-			return lib.WrapError(ErrChangeDest, err)
-		}
-		p.log.Warnf("notify sent")
-	} else {
-		p.log.Warnf("no notify msg found")
+	msg := job.GetNotify()
+	msg.SetCleanJobs(true)
+
+	err = p.source.Write(ctx, msg)
+	if err != nil {
+		return lib.WrapError(ErrChangeDest, err)
 	}
+	p.log.Warnf("notify sent")
 
 	p.dest = newDest
 	p.destURL = newDestURL

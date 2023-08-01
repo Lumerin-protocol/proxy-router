@@ -6,21 +6,25 @@ import (
 	sm "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
 )
 
-type miningJob struct {
-	notify *sm.MiningNotify
-	diff   float64
-	shares map[[24]byte]bool
+type MiningJob struct {
+	notify          *sm.MiningNotify
+	diff            float64
+	extraNonce1     string
+	extraNonce2Size int
+	shares          map[[24]byte]bool
 }
 
-func NewMiningJob(msg *sm.MiningNotify, diff float64) *miningJob {
-	return &miningJob{
-		notify: msg,
-		diff:   diff,
-		shares: make(map[[24]byte]bool, 32),
+func NewMiningJob(msg *sm.MiningNotify, diff float64, extraNonce1 string, extraNonce2Size int) *MiningJob {
+	return &MiningJob{
+		notify:          msg,
+		diff:            diff,
+		extraNonce1:     extraNonce1,
+		extraNonce2Size: extraNonce2Size,
+		shares:          make(map[[24]byte]bool, 32),
 	}
 }
 
-func (m *miningJob) CheckDuplicateAndAddShare(s *sm.MiningSubmit) bool {
+func (m *MiningJob) CheckDuplicateAndAddShare(s *sm.MiningSubmit) bool {
 	bytes := HashShare("00000000", s.GetExtraNonce2(), s.GetNtime(), s.GetNonce(), s.GetVmask())
 
 	if m.shares[bytes] {
@@ -29,6 +33,22 @@ func (m *miningJob) CheckDuplicateAndAddShare(s *sm.MiningSubmit) bool {
 
 	m.shares[bytes] = true
 	return false
+}
+
+func (m *MiningJob) GetNotify() *sm.MiningNotify {
+	return m.notify.Copy()
+}
+
+func (m *MiningJob) GetDiff() float64 {
+	return m.diff
+}
+
+func (m *MiningJob) GetExtraNonce1() string {
+	return m.extraNonce1
+}
+
+func (m *MiningJob) GetExtraNonce2Size() int {
+	return m.extraNonce2Size
 }
 
 func HashShare(enonce1, enonce2, ntime, nonce, vmask string) [24]byte {

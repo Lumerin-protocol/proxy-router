@@ -12,20 +12,6 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/validator"
 )
 
-type DestStats struct {
-	WeAcceptedTheyAccepted uint64 // our validator accepted and dest accepted
-	WeAcceptedTheyRejected uint64 // our validator accepted and dest rejected
-	WeRejectedTheyAccepted uint64 // our validator rejected, but dest accepted
-}
-
-func (s *DestStats) Copy() *DestStats {
-	return &DestStats{
-		WeAcceptedTheyAccepted: s.WeAcceptedTheyAccepted,
-		WeAcceptedTheyRejected: s.WeAcceptedTheyRejected,
-		WeRejectedTheyAccepted: s.WeRejectedTheyAccepted,
-	}
-}
-
 // ConnDest is a destination connection, a wrapper around StratumConnection,
 // with destination specific state variables
 type ConnDest struct {
@@ -38,8 +24,8 @@ type ConnDest struct {
 	hr             gi.Hashrate
 	resultHandlers sync.Map // map[string]func(*stratumv1_message.MiningResult)
 
-	extraNonce     string
-	extraNonceSize int
+	extraNonce1     string
+	extraNonce2Size int
 
 	versionRolling     bool
 	versionRollingMask string
@@ -64,7 +50,7 @@ func NewDestConn(conn *StratumConnection, url *url.URL, log gi.ILogger) *ConnDes
 		stats:      &DestStats{},
 		log:        log,
 	}
-	dest.validator = validator.NewValidator(dest, log.Named("validator"))
+	dest.validator = validator.NewValidator(log.Named("validator"))
 	return dest
 }
 
@@ -111,11 +97,11 @@ func (c *ConnDest) Write(ctx context.Context, msg i.MiningMessageGeneric) error 
 }
 
 func (c *ConnDest) GetExtraNonce() (extraNonce string, extraNonceSize int) {
-	return c.extraNonce, c.extraNonceSize
+	return c.extraNonce1, c.extraNonce2Size
 }
 
 func (c *ConnDest) SetExtraNonce(extraNonce string, extraNonceSize int) {
-	c.extraNonce, c.extraNonceSize = extraNonce, extraNonceSize
+	c.extraNonce1, c.extraNonce2Size = extraNonce, extraNonceSize
 }
 
 func (c *ConnDest) GetVersionRolling() (versionRolling bool, versionRollingMask string) {
@@ -124,6 +110,7 @@ func (c *ConnDest) GetVersionRolling() (versionRolling bool, versionRollingMask 
 
 func (c *ConnDest) SetVersionRolling(versionRolling bool, versionRollingMask string) {
 	c.versionRolling, c.versionRollingMask = versionRolling, versionRollingMask
+	c.validator.SetVersionRollingMask(versionRollingMask)
 }
 
 // TODO: guard with mutex
@@ -147,11 +134,11 @@ func (c *ConnDest) readInterceptor(msg i.MiningMessageGeneric) (resMsg i.MiningM
 	switch typed := msg.(type) {
 	case *sm.MiningNotify:
 		// TODO: set expiration time for all of the jobs if clean jobs flag is set to true
-		c.validator.AddNewJob(typed, c.diff)
+		c.validator.AddNewJob(typed, c.diff, c.extraNonce1, c.extraNonce2Size)
 	case *sm.MiningSetDifficulty:
 		c.diff = typed.GetDifficulty()
 	case *sm.MiningSetExtranonce:
-		c.extraNonce, c.extraNonceSize = typed.GetExtranonce()
+		c.extraNonce1, c.extraNonce2Size = typed.GetExtranonce()
 	// TODO: handle set_version_mask, multiversion
 	case *sm.MiningResult:
 		handler, ok := c.resultHandlers.LoadAndDelete(typed.GetID())
@@ -235,6 +222,6 @@ func (c *ConnDest) ValidateAndAddShare(msg *sm.MiningSubmit) (float64, error) {
 	return c.validator.ValidateAndAddShare(msg)
 }
 
-func (c *ConnDest) GetLatestJob() (*sm.MiningNotify, bool) {
+func (c *ConnDest) GetLatestJob() (*validator.MiningJob, bool) {
 	return c.validator.GetLatestJob()
 }

@@ -20,7 +20,7 @@ func TestShareEncode(t *testing.T) {
 func TestMiningJob(t *testing.T) {
 	msg := GetTestMsg()
 
-	job := NewMiningJob(msg.notify, 8096)
+	job := NewMiningJob(msg.notify, msg.diff, msg.xnonce, msg.xnonce2size)
 	isDuplicate := job.CheckDuplicateAndAddShare(msg.submit1)
 	require.False(t, isDuplicate)
 

@@ -9,11 +9,6 @@ import (
 	sm "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
 )
 
-type Destination interface {
-	GetVersionRolling() (versionRolling bool, versionRollingMask string)
-	GetExtraNonce() (extraNonce string, extraNonceSize int)
-}
-
 var (
 	ErrJobNotFound    = errors.New("job not found")
 	ErrDuplicateShare = errors.New("duplicate share")
@@ -22,29 +17,33 @@ var (
 
 type Validator struct {
 	// state
-	jobs *lib.BoundStackMap[*miningJob]
+	jobs               *lib.BoundStackMap[*MiningJob]
+	versionRollingMask string
 
 	// deps
-	dest Destination
-	log  gi.ILogger
+	log gi.ILogger
 }
 
-func NewValidator(dest Destination, log gi.ILogger) *Validator {
+func NewValidator(log gi.ILogger) *Validator {
 	return &Validator{
-		jobs: lib.NewBoundStackMap[*miningJob](30),
-		dest: dest,
-		log:  log,
+		jobs:               lib.NewBoundStackMap[*MiningJob](30),
+		versionRollingMask: "00000000",
+		log:                log,
 	}
 }
 
-func (v *Validator) AddNewJob(msg *sm.MiningNotify, diff float64) {
-	job := NewMiningJob(msg, diff)
+func (v *Validator) SetVersionRollingMask(mask string) {
+	v.versionRollingMask = mask
+}
+
+func (v *Validator) AddNewJob(msg *sm.MiningNotify, diff float64, xn1 string, xn2size int) {
+	job := NewMiningJob(msg, diff, xn1, xn2size)
 	v.jobs.Push(msg.GetJobID(), job)
 }
 
 func (v *Validator) ValidateAndAddShare(msg *sm.MiningSubmit) (float64, error) {
 	var (
-		job *miningJob
+		job *MiningJob
 		ok  bool
 	)
 
@@ -56,10 +55,7 @@ func (v *Validator) ValidateAndAddShare(msg *sm.MiningSubmit) (float64, error) {
 		return 0, ErrDuplicateShare
 	}
 
-	_, mask := v.dest.GetVersionRolling()
-	xn, xn2size := v.dest.GetExtraNonce()
-
-	diff, ok := ValidateDiff(xn, uint(xn2size), uint64(job.diff), mask, job.notify, msg)
+	diff, ok := ValidateDiff(job.extraNonce1, uint(job.extraNonce2Size), uint64(job.diff), v.versionRollingMask, job.notify, msg)
 	diffFloat := float64(diff)
 	if !ok {
 		err := lib.WrapError(ErrLowDifficulty, fmt.Errorf("expected %.2f actual %d", job.diff, diff))
@@ -70,10 +66,10 @@ func (v *Validator) ValidateAndAddShare(msg *sm.MiningSubmit) (float64, error) {
 	return diffFloat, nil
 }
 
-func (v *Validator) GetLatestJob() (*sm.MiningNotify, bool) {
+func (v *Validator) GetLatestJob() (*MiningJob, bool) {
 	job, ok := v.jobs.At(-1)
 	if !ok {
 		return nil, false
 	}
-	return job.notify.Copy(), true
+	return job, true
 }

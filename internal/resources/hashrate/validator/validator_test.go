@@ -7,29 +7,12 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 )
 
-type DestMock struct {
-	vmask       string
-	xnonce      string
-	xnonce2size int
-}
-
-func (d *DestMock) GetVersionRolling() (versionRolling bool, versionRollingMask string) {
-	return true, d.vmask
-}
-func (d *DestMock) GetExtraNonce() (extraNonce string, extraNonceSize int) {
-	return d.xnonce, 8
-}
-
 func TestValidatorValidateUniqueShare(t *testing.T) {
 	msg := GetTestMsg()
-	dm := &DestMock{
-		vmask:       msg.vmask,
-		xnonce:      msg.xnonce,
-		xnonce2size: msg.xnonce2size,
-	}
 
-	validator := NewValidator(dm, &lib.LoggerMock{})
-	validator.AddNewJob(msg.notify, msg.diff)
+	validator := NewValidator(&lib.LoggerMock{})
+	validator.SetVersionRollingMask(msg.vmask)
+	validator.AddNewJob(msg.notify, msg.diff, msg.xnonce, msg.xnonce2size)
 
 	_, err := validator.ValidateAndAddShare(msg.submit1)
 	require.NoError(t, err)
@@ -41,14 +24,9 @@ func TestValidatorValidateUniqueShare(t *testing.T) {
 func TestValidatorValidateDuplicateShare(t *testing.T) {
 	msg := GetTestMsg()
 
-	dm := &DestMock{
-		vmask:       msg.vmask,
-		xnonce:      msg.xnonce,
-		xnonce2size: msg.xnonce2size,
-	}
-
-	validator := NewValidator(dm, &lib.LoggerMock{})
-	validator.AddNewJob(msg.notify, msg.diff)
+	validator := NewValidator(&lib.LoggerMock{})
+	validator.SetVersionRollingMask(msg.vmask)
+	validator.AddNewJob(msg.notify, msg.diff, msg.xnonce, msg.xnonce2size)
 
 	_, err := validator.ValidateAndAddShare(msg.submit1)
 	require.NoError(t, err)
