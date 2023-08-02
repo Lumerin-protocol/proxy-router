@@ -27,7 +27,7 @@ type AppSocketConfiguration struct {
 	GOOS               string
 }
 
-var recommendedValues = &SocketSystemConfig{
+var ConfiguredValues = &SocketSystemConfig{
 	LocalPortRange:   "1024 65535",
 	TcpMaxSynBacklog: "100000",
 	Somaxconn:        "100000",
@@ -45,12 +45,12 @@ func (c *AppSocketConfiguration) TryInitForLinux() interfaces.ISocketConfig {
 
 	c.OriginalConfig.LoadSystemConfig()
 
-	c.CurrentConfig.SetSysctl("net.ipv4.ip_local_port_range", "1024 65535")
-	c.CurrentConfig.SetSysctl("net.ipv4.tcp_max_syn_backlog", "100000")
-	c.CurrentConfig.SetSysctl("net.core.somaxconn", "100000")
-	c.CurrentConfig.SetSysctl("net.core.netdev_max_backlog", "100000")
+	c.CurrentConfig.SetSysctl("net.ipv4.ip_local_port_range", ConfiguredValues.LocalPortRange)
+	c.CurrentConfig.SetSysctl("net.ipv4.tcp_max_syn_backlog", ConfiguredValues.TcpMaxSynBacklog)
+	c.CurrentConfig.SetSysctl("net.core.somaxconn", ConfiguredValues.Somaxconn)
+	c.CurrentConfig.SetSysctl("net.core.netdev_max_backlog", ConfiguredValues.NetdevMaxBacklog)
 
-	c.CurrentConfig.SetRlimit(524288)
+	c.CurrentConfig.SetRlimit(ConfiguredValues.RlimitHard)
 
 	c.CurrentConfig.LoadSystemConfig()
 
@@ -62,87 +62,39 @@ func (c *AppSocketConfiguration) TryInitForLinux() interfaces.ISocketConfig {
 
 func (c *AppSocketConfiguration) InitSocketConfig() interfaces.ISocketConfig {
 
-	systemConfig := &SocketSystemConfig{}
-
-	linuxResult := c.TryInitForLinux()
-
-	windowsResult := c.TryInitForWindows(systemConfig)
-
-	if linuxResult != nil {
-		return linuxResult
-	} else {
-		return windowsResult
-	}
+	return c.TryInitForLinux()
 }
 
-func (c *AppSocketConfiguration) CleanupSocketConfig() *SocketSystemConfig {
-
-	systemConfig := &SocketSystemConfig{}
-
-	linuxResult := c.TryCleanupForLinux(systemConfig)
-
-	windowsResult := c.TryCleanupForWindows(systemConfig)
-
-	if linuxResult != nil {
-		return linuxResult
-	} else {
-		return windowsResult
-	}
-}
-
-func (c *AppSocketConfiguration) TryCleanupForWindows(systemConfig *SocketSystemConfig) *SocketSystemConfig {
-	panic("unimplemented")
-}
-
-func (c *AppSocketConfiguration) TryCleanupForLinux(systemConfig *SocketSystemConfig) *SocketSystemConfig {
+func (c *AppSocketConfiguration) TryCleanupForLinux() interfaces.ISocketConfig {
 
 	if c.GOOS != "linux" {
 		log.Println("Not cleaning up on non-Linux OS")
-		return systemConfig
+		return nil
 	}
 
-	config := originalConfig.(*SocketSystemConfig)
+	config := c.OriginalConfig
 
-	systemConfig.LoadSystemConfig()
+	config.SetSysctl("net.ipv4.ip_local_port_range", config.LocalPortRange)
+	config.SetSysctl("net.ipv4.tcp_max_syn_backlog", config.TcpMaxSynBacklog)
+	config.SetSysctl("net.core.somaxconn", config.Somaxconn)
+	config.SetSysctl("net.core.netdev_max_backlog", config.NetdevMaxBacklog)
 
-	systemConfig.SetSysctl("net.ipv4.ip_local_port_range", config.LocalPortRange)
-	systemConfig.SetSysctl("net.ipv4.tcp_max_syn_backlog", config.TcpMaxSynBacklog)
-	systemConfig.SetSysctl("net.core.somaxconn", config.Somaxconn)
-	systemConfig.SetSysctl("net.core.netdev_max_backlog", config.NetdevMaxBacklog)
+	config.SetRlimit(config.RlimitSoft)
 
-	systemConfig.SetRlimit(config.RlimitSoft)
-
-	systemConfig.LoadSystemConfig()
+	c.CurrentConfig.LoadSystemConfig()
 
 	log.Printf("Original config: %+v", originalConfig)
-	log.Printf("New config: %+v", systemConfig)
+	log.Printf("Current config: %+v", c.CurrentConfig)
 
-	return systemConfig
+	return c.CurrentConfig
 }
 
-func (c *AppSocketConfiguration) TryInitForWindows(config *SocketSystemConfig) *SocketSystemConfig {
-	if runtime.GOOS == "windows" {
-		commands := []string{
-			"netsh int ipv4 set dynamicport tcp start=1024 num=64512", // sudo sysctl -w net.ipv4.ip_local_port_range="1024 65535"
-			"netsh int tcp set global synattackprotect=0",             // sudo sysctl -w net.ipv4.tcp_max_syn_backlog=100000
-			"netsh int tcp set global maxsynbacklog=100000",           // sudo sysctl -w net.core.somaxconn=100000
-			"netsh int tcp set global netdma=1",                       // sudo sysctl -w net.core.netdev_max_backlog=100000
-			"setmaxstdio.exe 524288",                                  // sudo ulimit -n 524288
-			"netsh int tcp set global synbacklog=511",                 // add command to set syn backlog
-		}
+func (c *AppSocketConfiguration) CleanupSocketConfig() interfaces.ISocketConfig {
 
-		for _, command := range commands {
-			exec.Command(command)
-		}
-	} else {
-		log.Println("Not running reg commands as OS is not Windows")
-	}
-
-	return config
+	return  c.TryCleanupForLinux()
 }
 
 // Move functions into Config struct
-
 func (c *SocketSystemConfig) LoadSystemConfig() {
 
 	c.LocalPortRange = c.GetSysctl("net.ipv4.ip_local_port_range")
@@ -178,12 +130,12 @@ func init() {
 	Config = NewAppSocketConfiguration(
 		&SocketSystemConfig{},
 		&SocketSystemConfig{},
-		recommendedValues.LocalPortRange,
-		recommendedValues.TcpMaxSynBacklog,
-		recommendedValues.Somaxconn,
-		recommendedValues.NetdevMaxBacklog,
-		recommendedValues.RlimitSoft,
-		recommendedValues.RlimitHard,
+		ConfiguredValues.LocalPortRange,
+		ConfiguredValues.TcpMaxSynBacklog,
+		ConfiguredValues.Somaxconn,
+		ConfiguredValues.NetdevMaxBacklog,
+		ConfiguredValues.RlimitSoft,
+		ConfiguredValues.RlimitHard,
 		runtime.GOOS)
 }
 
@@ -210,4 +162,8 @@ func NewAppSocketConfiguration(
 		CurrentConfig:  currentConfig,
 		GOOS:           GOOS,
 	}
+}
+
+func NewSocketSystemConfiguration() *SocketSystemConfig {
+	return &SocketSystemConfig{}
 }

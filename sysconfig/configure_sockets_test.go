@@ -35,6 +35,13 @@ func (s *ConfigureSocketsTestSuite) SetupTest() {
 	)
 }
 
+func (s *ConfigureSocketsTestSuite) TearDownTest() {
+	// Reset mocks
+	s.originalConfig = nil
+	s.currentConfig = nil
+	s.appConfig = nil
+}
+
 func (s *ConfigureSocketsTestSuite) TestTryInitForLinux() {
 	// Execute test
 	appResult := s.appConfig.TryInitForLinux()
@@ -42,22 +49,38 @@ func (s *ConfigureSocketsTestSuite) TestTryInitForLinux() {
 	// Assertions
 	s.True(s.originalConfig.LoadSystemConfigCalled)
 
+	s.NotNil(appResult)
 	// Assert result
-	s.Equal(*s.appConfig.SystemRequirements.(*SocketSystemConfig),
-		*appResult.(*MockSocketConfig).SocketSystemConfig)
+	s.Equal(*ConfiguredValues, *appResult.(*MockSocketConfig).SocketSystemConfig)
 }
+
+func (s *ConfigureSocketsTestSuite) TestTryCleanupForLinux() {
+	// Execute test
+	appResult := s.appConfig.TryCleanupForLinux()
+
+	// Assertions
+	s.True(s.originalConfig.LoadSystemConfigCalled)
+
+	s.NotNil(appResult)
+	// Assert result
+	s.Equal(*ConfiguredValues, *appResult.(*MockSocketConfig).SocketSystemConfig)
+}
+
+func (s *ConfigureSocketsTestSuite) TestInitSocketConfig() {
+	// Execute test
+	appResult := s.appConfig.InitSocketConfig()
+
+	// Assertions
+	s.True(s.originalConfig.LoadSystemConfigCalled)
+
+	// Assert result
+	s.Equal(*ConfiguredValues, *appResult.(*MockSocketConfig).SocketSystemConfig)
+}
+
 
 func TestConfigureSocketsTestSuite(t *testing.T) {
 	suite.Run(t, new(ConfigureSocketsTestSuite))
 }
-
-// package sysconfig
-
-// import (
-// 	"testing"
-
-// 	"github.com/stretchr/testify/assert"
-// )
 
 type MockSocketConfig struct {
 	*SocketSystemConfig
