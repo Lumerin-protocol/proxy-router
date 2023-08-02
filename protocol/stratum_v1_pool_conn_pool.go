@@ -112,8 +112,13 @@ func (p *StratumV1PoolConnPool) SetDest(ctx context.Context, dest interfaces.IDe
 		// TODO: check if connection is not active before deleting
 		// cause it may have not yet sent a submit but could be cleaned
 		// causing miner to disconnect
-		p.pool.Delete(ID)
-		p.log.Debugf("connection was cleaned %s", ID)
+		if _, ok := p.pool.Load(ID); ok {
+			p.pool.Delete(ID)
+			p.log.Debugf("connection was cleaned %s", ID)
+		} else {
+			p.log.Debugf("pool connection was not found: %s", ID)
+		}
+
 	})
 
 	err = conn.Connect(ctx)
