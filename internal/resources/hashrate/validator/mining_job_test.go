@@ -10,9 +10,9 @@ import (
 func TestShareEncode(t *testing.T) {
 	submit := GetTestMsg().submit1
 
-	bytes := HashShare("", submit.GetExtraNonce2(), submit.GetNtime(), submit.GetNonce(), submit.GetVmask())
+	bytes := SerializeShare(submit.GetExtraNonce2(), submit.GetNtime(), submit.GetNonce(), submit.GetVmask())
 	actual := hex.EncodeToString(bytes[:])
-	expected := "00000000" + submit.GetExtraNonce2() + submit.GetNtime() + submit.GetNonce() + submit.GetVmask()
+	expected := submit.GetExtraNonce2() + submit.GetNtime() + submit.GetNonce() + submit.GetVmask()
 
 	require.Equal(t, expected, actual)
 }

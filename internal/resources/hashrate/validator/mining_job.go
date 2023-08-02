@@ -6,12 +6,14 @@ import (
 	sm "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
 )
 
+type shareBytes = [20]byte
+
 type MiningJob struct {
 	notify          *sm.MiningNotify
 	diff            float64
 	extraNonce1     string
 	extraNonce2Size int
-	shares          map[[24]byte]bool
+	shares          map[shareBytes]bool
 }
 
 func NewMiningJob(msg *sm.MiningNotify, diff float64, extraNonce1 string, extraNonce2Size int) *MiningJob {
@@ -20,12 +22,12 @@ func NewMiningJob(msg *sm.MiningNotify, diff float64, extraNonce1 string, extraN
 		diff:            diff,
 		extraNonce1:     extraNonce1,
 		extraNonce2Size: extraNonce2Size,
-		shares:          make(map[[24]byte]bool, 32),
+		shares:          make(map[shareBytes]bool, 32),
 	}
 }
 
 func (m *MiningJob) CheckDuplicateAndAddShare(s *sm.MiningSubmit) bool {
-	bytes := HashShare("00000000", s.GetExtraNonce2(), s.GetNtime(), s.GetNonce(), s.GetVmask())
+	bytes := SerializeShare(s.GetExtraNonce2(), s.GetNtime(), s.GetNonce(), s.GetVmask())
 
 	if m.shares[bytes] {
 		return true
@@ -51,20 +53,20 @@ func (m *MiningJob) GetExtraNonce2Size() int {
 	return m.extraNonce2Size
 }
 
-func HashShare(enonce1, enonce2, ntime, nonce, vmask string) [24]byte {
-	var hash [24]byte
+// SerializeShare serializes the share into a 20-byte array.
+// It includes only the fields that are unique for each share per job per destination
+func SerializeShare(enonce2, ntime, nonce, vmask string) shareBytes {
+	var hash shareBytes
 
-	enonce1Bytes, _ := hex.DecodeString(enonce1)
 	enonce2Bytes, _ := hex.DecodeString(enonce2)
 	ntimeBytes, _ := hex.DecodeString(ntime)
 	nonceBytes, _ := hex.DecodeString(nonce)
 	vmaskBytes, _ := hex.DecodeString(vmask)
 
-	copy(hash[:4], enonce1Bytes[:4])
-	copy(hash[4:12], enonce2Bytes[:8])
-	copy(hash[12:16], ntimeBytes[:4])
-	copy(hash[16:20], nonceBytes[:4])
-	copy(hash[20:24], vmaskBytes[:4])
+	copy(hash[:8], enonce2Bytes[:8])
+	copy(hash[8:12], ntimeBytes[:4])
+	copy(hash[12:16], nonceBytes[:4])
+	copy(hash[16:20], vmaskBytes[:4])
 
 	return hash
 }
