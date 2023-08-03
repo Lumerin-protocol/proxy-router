@@ -190,10 +190,10 @@ func (p *StratumV1PoolConnPool) Close() error {
 		} else {
 			p.log.Debugf("pool connection closed %s", key)
 		}
+
+		p.pool.Delete(key)
 		return true
 	})
-
-	p.pool = sync.Map{}
 
 	return nil
 }

@@ -80,7 +80,10 @@ func (c *StratumV1PoolConn) Run(ctx context.Context) error {
 	defer func() {
 		// cleanup
 		close(c.readBuffer)
-		c.resHandlers = sync.Map{}
+		c.resHandlers.Range(func(key, value any) bool {
+			c.resHandlers.Delete(key)
+			return true
+		})
 		c.notifyMsgs = nil
 		c.conn.Close()
 	}()
@@ -336,7 +339,10 @@ func (c *StratumV1PoolConn) Close() error {
 
 func (c *StratumV1PoolConn) close() error {
 	err := c.conn.Close()
-	c.resHandlers = sync.Map{}
+	c.resHandlers.Range(func(key, value any) bool {
+		c.resHandlers.Delete(key)
+		return true
+	})
 	c.notifyMsgs = nil
 	return err
 }
