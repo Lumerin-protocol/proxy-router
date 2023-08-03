@@ -114,6 +114,7 @@ func (p *StratumV1PoolConnPool) SetDest(ctx context.Context, dest interfaces.IDe
 		// causing miner to disconnect
 		p.pool.Delete(ID)
 		p.log.Debugf("connection was cleaned %s", ID)
+
 	})
 
 	err = conn.Connect(ctx)
@@ -189,10 +190,10 @@ func (p *StratumV1PoolConnPool) Close() error {
 		} else {
 			p.log.Debugf("pool connection closed %s", key)
 		}
+
+		p.pool.Delete(key)
 		return true
 	})
-
-	p.pool = sync.Map{}
 
 	return nil
 }

@@ -124,6 +124,57 @@ func (c *SocketSystemConfig) SetRlimit(limit uint64) {
 	syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rlim)
 }
 
+<<<<<<< HEAD
+=======
+func (c *SocketSystemConfig) GetLocalPortRange() string {
+	return c.LocalPortRange
+}
+
+func (c *SocketSystemConfig) SetLocalPortRange(value string) {
+	c.LocalPortRange = value
+}
+
+func (c *SocketSystemConfig) GetTcpMaxSynBacklog() string {
+	return c.TcpMaxSynBacklog
+}
+
+func (c *SocketSystemConfig) SetTcpMaxSynBacklog(value string) {
+	c.TcpMaxSynBacklog = value
+}
+
+func (c *SocketSystemConfig) GetSomaxconn() string {
+	return c.Somaxconn
+}
+
+func (c *SocketSystemConfig) SetSomaxconn(value string) {
+	c.Somaxconn = value
+}
+
+func (c *SocketSystemConfig) GetNetdevMaxBacklog() string {
+	return c.NetdevMaxBacklog
+}
+
+func (c *SocketSystemConfig) SetNetdevMaxBacklog(value string) {
+	c.NetdevMaxBacklog = value
+}
+
+func (c *SocketSystemConfig) GetRlimitSoft() uint64 {
+	return c.RlimitSoft
+}
+
+func (c *SocketSystemConfig) SetRlimitSoft(value uint64) {
+	c.RlimitSoft = value
+}
+
+func (c *SocketSystemConfig) GetRlimitHard() uint64 {
+	return c.RlimitHard
+}
+
+func (c *SocketSystemConfig) SetRlimitHard(value uint64) {
+	c.RlimitHard = value
+}
+
+>>>>>>> bugfix-pool-connection-race-condition
 var Config *AppSocketConfiguration
 
 func init() {
