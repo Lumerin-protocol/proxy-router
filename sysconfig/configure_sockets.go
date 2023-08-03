@@ -27,7 +27,7 @@ type AppSocketConfiguration struct {
 	GOOS               string
 }
 
-var ConfiguredValues = &SocketSystemConfig{
+var ConfiguredValues = &SocketSystemConfig {
 	LocalPortRange:   "1024 65535",
 	TcpMaxSynBacklog: "100000",
 	Somaxconn:        "100000",

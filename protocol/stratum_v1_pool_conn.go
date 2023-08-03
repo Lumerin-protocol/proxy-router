@@ -84,7 +84,7 @@ func (c *StratumV1PoolConn) Run(ctx context.Context) error {
 			c.resHandlers.Delete(key)
 			return true
 		})
-		c.notifyMsgs = nil
+		c.notifyMsgs.Clear()
 		c.conn.Close()
 	}()
 
@@ -343,7 +343,7 @@ func (c *StratumV1PoolConn) close() error {
 		c.resHandlers.Delete(key)
 		return true
 	})
-	c.notifyMsgs = nil
+	c.notifyMsgs.Clear()
 	return err
 }
 
