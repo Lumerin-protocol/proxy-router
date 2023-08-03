@@ -74,12 +74,12 @@ func (c *AppSocketConfiguration) TryCleanupForLinux() interfaces.ISocketConfig {
 
 	config := c.OriginalConfig
 
-	config.SetSysctl("net.ipv4.ip_local_port_range", config.LocalPortRange)
-	config.SetSysctl("net.ipv4.tcp_max_syn_backlog", config.TcpMaxSynBacklog)
-	config.SetSysctl("net.core.somaxconn", config.Somaxconn)
-	config.SetSysctl("net.core.netdev_max_backlog", config.NetdevMaxBacklog)
+	config.SetSysctl("net.ipv4.ip_local_port_range", config.GetLocalPortRange())
+	config.SetSysctl("net.ipv4.tcp_max_syn_backlog", config.GetTcpMaxSynBacklog())
+	config.SetSysctl("net.core.somaxconn", config.GetSomaxconn())
+	config.SetSysctl("net.core.netdev_max_backlog", config.GetNetdevMaxBacklog())
 
-	config.SetRlimit(config.RlimitSoft)
+	config.SetRlimit(config.GetRlimitHard())
 
 	c.CurrentConfig.LoadSystemConfig()
 
@@ -124,8 +124,6 @@ func (c *SocketSystemConfig) SetRlimit(limit uint64) {
 	syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rlim)
 }
 
-<<<<<<< HEAD
-=======
 func (c *SocketSystemConfig) GetLocalPortRange() string {
 	return c.LocalPortRange
 }
@@ -174,7 +172,6 @@ func (c *SocketSystemConfig) SetRlimitHard(value uint64) {
 	c.RlimitHard = value
 }
 
->>>>>>> bugfix-pool-connection-race-condition
 var Config *AppSocketConfiguration
 
 func init() {
