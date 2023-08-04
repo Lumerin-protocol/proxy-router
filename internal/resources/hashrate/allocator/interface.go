@@ -7,6 +7,7 @@ import (
 )
 
 type StratumProxyInterface interface {
+	Connect(ctx context.Context) error
 	Run(ctx context.Context) error
 	SetDest(ctx context.Context, dest *url.URL, onSubmit func(diff float64)) error
 
@@ -18,6 +19,4 @@ type StratumProxyInterface interface {
 	GetDestWorkerName() string
 	GetMinerConnectedAt() time.Time
 	GetStats() interface{}
-
-	HandshakeDoneSignal() <-chan struct{}
 }

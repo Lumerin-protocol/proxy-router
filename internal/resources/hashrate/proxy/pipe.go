@@ -97,7 +97,7 @@ func pipe(ctx context.Context, from func() StratumReadWriter, to func() StratumR
 			return fmt.Errorf("source read err: %w", err)
 		}
 
-		msg, err = interceptor(msg)
+		msg, err = interceptor(ctx, msg)
 		if err != nil {
 			return fmt.Errorf("interceptor err: %w", err)
 		}

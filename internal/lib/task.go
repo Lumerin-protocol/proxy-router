@@ -76,7 +76,9 @@ func (s *Task) Start(ctx context.Context) {
 
 func (s *Task) Stop() <-chan struct{} {
 	if !s.isRunning.CompareAndSwap(true, false) {
-		panic("not running")
+		closedChan := make(chan struct{})
+		close(closedChan)
+		return closedChan
 	}
 	c := s.cancel.Load()
 	if c != nil {

@@ -9,6 +9,10 @@ import (
 	sm "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
 )
 
+const (
+	JOB_CACHE_SIZE = 30
+)
+
 var (
 	ErrJobNotFound    = errors.New("job not found")
 	ErrDuplicateShare = errors.New("duplicate share")
@@ -26,7 +30,7 @@ type Validator struct {
 
 func NewValidator(log gi.ILogger) *Validator {
 	return &Validator{
-		jobs:               lib.NewBoundStackMap[*MiningJob](30),
+		jobs:               lib.NewBoundStackMap[*MiningJob](JOB_CACHE_SIZE),
 		versionRollingMask: "00000000",
 		log:                log,
 	}

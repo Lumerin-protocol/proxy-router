@@ -38,10 +38,6 @@ type ConnDest struct {
 	log  gi.ILogger
 }
 
-const (
-	NOTIFY_MSGS_CACHE_SIZE = 30
-)
-
 func NewDestConn(conn *StratumConnection, url *url.URL, log gi.ILogger) *ConnDest {
 	dest := &ConnDest{
 		workerName: url.User.Username(),
@@ -139,7 +135,10 @@ func (c *ConnDest) readInterceptor(msg i.MiningMessageGeneric) (resMsg i.MiningM
 		c.diff = typed.GetDifficulty()
 	case *sm.MiningSetExtranonce:
 		c.extraNonce1, c.extraNonce2Size = typed.GetExtranonce()
-	// TODO: handle set_version_mask, multiversion
+	case *sm.MiningSetVersionMask:
+		c.versionRolling, c.versionRollingMask = true, typed.GetVersionMask()
+
+	// TODO: handle multiversion
 	case *sm.MiningResult:
 		handler, ok := c.resultHandlers.LoadAndDelete(typed.GetID())
 		if ok {
@@ -153,7 +152,6 @@ func (c *ConnDest) readInterceptor(msg i.MiningMessageGeneric) (resMsg i.MiningM
 	return msg, nil
 }
 
-// TODO: consider moving to proxy.go
 // onceResult registers single time handler for the destination response with particular message ID,
 // sets default timeout and does a cleanup when it expires. Returns error on result timeout
 func (s *ConnDest) onceResult(ctx context.Context, msgID int, handler ResultHandler) <-chan error {
@@ -180,7 +178,7 @@ func (s *ConnDest) onceResult(ctx context.Context, msgID int, handler ResultHand
 	return errCh
 }
 
-// WriteAwaitRes writes message to the destination connection and awaits for the response, but does not proxy it to source
+// WriteAwaitRes writes message to the destination connection and awaits for the response
 func (s *ConnDest) WriteAwaitRes(ctx context.Context, msg i.MiningMessageWithID) (resMsg i.MiningMessageWithID, err error) {
 	errCh := make(chan error, 1)
 	resCh := make(chan i.MiningMessageWithID, 1)
@@ -208,6 +206,9 @@ func (s *ConnDest) WriteAwaitRes(ctx context.Context, msg i.MiningMessageWithID)
 		s.resultHandlers.Delete(msgID)
 		if !didRun {
 			errCh <- fmt.Errorf("dest response timeout (%s)", RESPONSE_TIMEOUT)
+			// TODO: verify if there is no write to closed chan
+			close(resCh)
+			close(errCh)
 		}
 	}()
 

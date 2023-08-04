@@ -21,7 +21,7 @@ import (
 func main() {
 	appLogLevel := "debug"
 	proxyLogLevel := "debug"
-	connectionLogLevel := "info"
+	connectionLogLevel := "debug"
 
 	log, err := lib.NewLogger(false, appLogLevel, true, true)
 	if err != nil {
@@ -52,7 +52,8 @@ func main() {
 		sourceLog := connLog.Named("[SRC] " + conn.RemoteAddr().String())
 		sourceConn := proxy.NewSourceConn(proxy.NewConnection(conn, &url.URL{}, 10*time.Minute, time.Now(), sourceLog), sourceLog)
 
-		currentProxy := proxy.NewProxy(conn.RemoteAddr().String(), sourceConn, DestConnFactory, destUrl, proxyLog)
+		url := *destUrl // clones url
+		currentProxy := proxy.NewProxy(conn.RemoteAddr().String(), sourceConn, DestConnFactory, &url, proxyLog)
 		scheduler := allocator.NewScheduler(currentProxy, destUrl, log)
 		alloc.GetMiners().Store(scheduler)
 		err = scheduler.Run(ctx)

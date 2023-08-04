@@ -175,3 +175,8 @@ func TestSetDifficultyAppliesOnlyToNewJobs(t *testing.T) {
 func TestVerifyJobWithCorrespondingDifficulty(t *testing.T) {
 	// check that validator uses difficulty that was current at the moment of receiving the job
 }
+
+func TestHandshakeMessagesComeInCorrectOrder(t *testing.T) {
+	// check that mining.set_version_mask comes after mining.configure result
+	// check that mining.set_extranonce comes after mining.subscribe result
+}

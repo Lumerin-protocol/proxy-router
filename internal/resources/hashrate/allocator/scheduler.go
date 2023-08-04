@@ -40,15 +40,22 @@ func (p *Scheduler) GetID() string {
 }
 
 func (p *Scheduler) Run(ctx context.Context) error {
+	err := p.proxy.Connect(ctx)
+	if err != nil {
+		return err // handshake error
+	}
+
 	proxyTask := lib.NewTaskFunc(p.proxy.Run)
 	proxyTask.Start(ctx)
 
 	select {
+	case <-ctx.Done():
+		return ctx.Err()
 	case <-proxyTask.Done():
 		return proxyTask.Err()
-	case <-p.proxy.HandshakeDoneSignal():
 	}
 
+	// temporary not use scheduler
 	p.primaryDest = p.proxy.GetDest()
 
 	for {
