@@ -5,24 +5,9 @@ import (
 	"time"
 
 	globalInterfaces "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
 )
-
-type SourceStats struct {
-	WeAcceptedShares       uint64 // shares that passed our validator (incl AcceptedUsRejectedThem)
-	WeRejectedShares       uint64 // shares that failed during validation (incl RejectedUsAcceptedThem)
-	WeAcceptedTheyRejected uint64 // shares that passed our validator, but rejected by the destination
-	WeRejectedTheyAccepted uint64 // shares that failed our validator, but accepted by the destination
-}
-
-func (s *SourceStats) Copy() *SourceStats {
-	return &SourceStats{
-		WeAcceptedShares:       s.WeAcceptedShares,
-		WeRejectedShares:       s.WeRejectedShares,
-		WeAcceptedTheyRejected: s.WeAcceptedTheyRejected,
-		WeRejectedTheyAccepted: s.WeRejectedTheyAccepted,
-	}
-}
 
 // ConnSource is a miner connection, a wrapper around StratumConnection
 // that adds miner specific state variables
@@ -52,14 +37,26 @@ func NewSourceConn(conn *StratumConnection, log globalInterfaces.ILogger) *ConnS
 	}
 }
 
+func (c *ConnSource) GetID() string {
+	return c.conn.GetID()
+}
+
 func (c *ConnSource) Read(ctx context.Context) (interfaces.MiningMessageGeneric, error) {
 	//TODO: message validation
-	return c.conn.Read(ctx)
+	msg, err := c.conn.Read(ctx)
+	if err != nil {
+		return nil, lib.WrapError(ErrDest, err)
+	}
+	return msg, nil
 }
 
 func (c *ConnSource) Write(ctx context.Context, msg interfaces.MiningMessageGeneric) error {
 	//TODO: message validation
-	return c.conn.Write(ctx, msg)
+	err := c.conn.Write(ctx, msg)
+	if err != nil {
+		return lib.WrapError(ErrDest, err)
+	}
+	return nil
 }
 
 func (c *ConnSource) GetExtraNonce() (extraNonce string, extraNonceSize int) {

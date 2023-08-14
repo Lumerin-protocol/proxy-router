@@ -2,11 +2,13 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"sync"
 
 	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
 	sm "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/validator"
@@ -33,6 +35,9 @@ type ConnDest struct {
 	stats     *DestStats
 	validator *validator.Validator
 
+	arDone   chan struct{}
+	arCancel context.CancelFunc
+
 	// deps
 	conn *StratumConnection
 	log  gi.ILogger
@@ -52,12 +57,40 @@ func NewDestConn(conn *StratumConnection, url *url.URL, log gi.ILogger) *ConnDes
 
 func ConnectDest(ctx context.Context, destURL *url.URL, log gi.ILogger) (*ConnDest, error) {
 	destLog := log.Named(fmt.Sprintf("[DST] %s@%s", destURL.User.Username(), destURL.Host))
-	conn, err := Connect(destURL, CONNECTION_TIMEOUT, destLog)
+	conn, err := Connect(destURL, destLog)
 	if err != nil {
 		return nil, err
 	}
 
 	return NewDestConn(conn, destURL, destLog), nil
+}
+
+func (c *ConnDest) AutoReadStart(ctx context.Context, cb func(err error)) error {
+	if c.arCancel != nil {
+		return errors.New("auto read already started")
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	c.arCancel = cancel
+	c.arDone = make(chan struct{})
+	go func() {
+		err := c.AutoRead(ctx)
+		if errors.Is(err, context.Canceled) {
+			err = nil
+		}
+		cb(err)
+		close(c.arDone)
+	}()
+	return nil
+}
+
+func (c *ConnDest) AutoReadStop() error {
+	if c.arCancel == nil {
+		return errors.New("auto read not started")
+	}
+	c.arCancel()
+	<-c.arDone
+	c.arCancel, c.arDone = nil, nil
+	return nil
 }
 
 // AutoRead reads incoming jobs from the destination connection and
@@ -71,7 +104,7 @@ func (c *ConnDest) AutoRead(ctx context.Context) error {
 		}
 		_, err := c.Read(ctx)
 		if err != nil {
-			return err
+			return lib.WrapError(ErrDest, err)
 		}
 	}
 }
@@ -83,13 +116,21 @@ func (c *ConnDest) GetID() string {
 func (c *ConnDest) Read(ctx context.Context) (i.MiningMessageGeneric, error) {
 	msg, err := c.conn.Read(ctx)
 	if err != nil {
-		return nil, err
+		return nil, lib.WrapError(ErrDest, err)
 	}
-	return c.readInterceptor(msg)
+	msg, err = c.readInterceptor(msg)
+	if err != nil {
+		return nil, lib.WrapError(ErrDest, err)
+	}
+	return msg, err
 }
 
 func (c *ConnDest) Write(ctx context.Context, msg i.MiningMessageGeneric) error {
-	return c.conn.Write(ctx, msg)
+	err := c.conn.Write(ctx, msg)
+	if err != nil {
+		return lib.WrapError(ErrDest, err)
+	}
+	return nil
 }
 
 func (c *ConnDest) GetExtraNonce() (extraNonce string, extraNonceSize int) {

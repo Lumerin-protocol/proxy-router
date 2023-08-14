@@ -2,20 +2,20 @@ package proxy
 
 import (
 	"context"
-	"fmt"
+	"io"
 	"net"
 	"net/url"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
+	sm "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
 )
 
 func TestReadCancellation(t *testing.T) {
 	delay := 50 * time.Millisecond
+	timeout := 1 * time.Minute
 	server, client := net.Pipe()
 	defer server.Close()
 	defer client.Close()
@@ -23,11 +23,11 @@ func TestReadCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	conn := NewConnection(client, &url.URL{}, 1*time.Minute, time.Now(), lib.NewTestLogger())
+	conn := CreateConnection(client, &url.URL{}, timeout, timeout, lib.NewTestLogger())
 
 	go func() {
 		// first and only write
-		_, err := server.Write(append(stratumv1_message.NewMiningAuthorize(0, "0", "0").Serialize(), lib.CharNewLine))
+		_, err := server.Write(append(sm.NewMiningAuthorize(0, "0", "0").Serialize(), lib.CharNewLine))
 		if err != nil {
 			t.Error(err)
 		}
@@ -52,6 +52,7 @@ func TestReadCancellation(t *testing.T) {
 
 func TestWriteCancellation(t *testing.T) {
 	delay := 50 * time.Millisecond
+	timeout := 1 * time.Minute
 	server, client := net.Pipe()
 	defer server.Close()
 	defer client.Close()
@@ -59,8 +60,8 @@ func TestWriteCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	stratumClient := NewConnection(client, &url.URL{}, 1*time.Minute, time.Now(), lib.NewTestLogger())
-	stratumServer := NewConnection(server, &url.URL{}, 1*time.Minute, time.Now(), lib.NewTestLogger())
+	stratumClient := CreateConnection(client, &url.URL{}, timeout, timeout, lib.NewTestLogger())
+	stratumServer := CreateConnection(server, &url.URL{}, timeout, timeout, lib.NewTestLogger())
 
 	go func() {
 		// first and only read
@@ -71,7 +72,7 @@ func TestWriteCancellation(t *testing.T) {
 	}()
 
 	// write first message ok
-	err := stratumClient.Write(ctx, stratumv1_message.NewMiningAuthorize(0, "0", "0"))
+	err := stratumClient.Write(ctx, sm.NewMiningAuthorize(0, "0", "0"))
 	require.NoError(t, err)
 
 	go func() {
@@ -81,48 +82,78 @@ func TestWriteCancellation(t *testing.T) {
 
 	// write second message should block, and then be cancelled
 	t1 := time.Now()
-	err = stratumClient.Write(ctx, stratumv1_message.NewMiningAuthorize(1, "0", "0"))
+	err = stratumClient.Write(ctx, sm.NewMiningAuthorize(1, "0", "0"))
 
 	require.ErrorIs(t, err, context.Canceled)
 	require.GreaterOrEqual(t, time.Since(t1), delay)
 }
 
-func TestConnTimeout(t *testing.T) {
-	delay := 50 * time.Millisecond
+func TestConnTimeoutWrite(t *testing.T) {
+	timeout := 50 * time.Millisecond
+	timeoutLong := 1 * time.Second
 	allowance := 50 * time.Millisecond
 	server, client := net.Pipe()
+	ctx := context.Background()
+
 	defer server.Close()
 	defer client.Close()
 
-	clientConn := NewConnection(client, &url.URL{}, delay, time.Now(), lib.NewTestLogger().Named("client"))
-	serverConn := NewConnection(server, &url.URL{}, delay, time.Now(), lib.NewTestLogger().Named("server"))
+	clientConn := CreateConnection(client, &url.URL{}, timeoutLong, timeout, lib.NewTestLogger().Named("client"))
+	serverConn := CreateConnection(server, &url.URL{}, timeoutLong, timeoutLong, lib.NewTestLogger().Named("server"))
 
 	go func() {
 		// try to read first message
-		serverConn.Read(context.Background())
+		serverConn.Read(ctx)
 		// try to read second message, will fail due to timeout
-		serverConn.Read(context.Background())
+		serverConn.Read(ctx)
 	}()
 
 	// write first message ok
-	err := clientConn.Write(context.Background(), stratumv1_message.NewMiningAuthorize(0, "0", "0"))
+	err := clientConn.Write(ctx, sm.NewMiningAuthorize(0, "0", "0"))
 	require.NoError(t, err)
 
-	time.Sleep(delay + allowance)
+	// sleep to reach timeout
+	time.Sleep(timeout + allowance)
 
 	// write second message, should fail due to timeout
-	err = clientConn.Write(context.Background(), stratumv1_message.NewMiningAuthorize(0, "0", "0"))
-	require.ErrorIs(t, err, os.ErrDeadlineExceeded)
+	err = clientConn.Write(ctx, sm.NewMiningAuthorize(0, "0", "0"))
+	require.ErrorIs(t, err, io.ErrClosedPipe) // in real connections it is going to be io.EOF
 
 	// try to read message, should fail as well due to timeout
-	_, err = clientConn.Read(context.Background())
-	require.ErrorIs(t, err, os.ErrDeadlineExceeded)
+	_, err = clientConn.Read(ctx)
+	require.ErrorIs(t, err, io.ErrClosedPipe) // in real connections it is going to be io.EOF
+}
 
-	// check if connection is closed
-	// err = client.Close()
-	// fmt.Println(err)
+func TestConnTimeoutRead(t *testing.T) {
+	timeout := 50 * time.Millisecond
+	timeoutLong := 1 * time.Second
+	allowance := 50 * time.Millisecond
+	server, client := net.Pipe()
+	ctx := context.Background()
 
-	_, err = clientConn.Read(context.Background())
-	fmt.Println(err)
+	defer server.Close()
+	defer client.Close()
 
+	clientConn := CreateConnection(client, &url.URL{}, timeout, timeoutLong, lib.NewTestLogger().Named("client"))
+	serverConn := CreateConnection(server, &url.URL{}, timeoutLong, timeoutLong, lib.NewTestLogger().Named("server"))
+
+	go func() {
+		serverConn.Write(ctx, sm.NewMiningAuthorize(0, "0", "0"))
+		serverConn.Write(ctx, sm.NewMiningAuthorize(0, "0", "0"))
+	}()
+
+	// read first message ok
+	_, err := clientConn.Read(ctx)
+	require.NoError(t, err)
+
+	// sleep to reach timeout
+	time.Sleep(timeout + allowance)
+
+	// read second message, should fail due to timeout
+	_, err = clientConn.Read(ctx)
+	require.ErrorIs(t, err, io.ErrClosedPipe) // in real connections it is going to be io.EOF
+
+	// try to read message, should fail as well due to timeout
+	err = clientConn.Write(ctx, sm.NewMiningAuthorize(0, "0", "0"))
+	require.ErrorIs(t, err, io.ErrClosedPipe) // in real connections it is going to be io.EOF
 }
