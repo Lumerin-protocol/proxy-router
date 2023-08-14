@@ -16,14 +16,15 @@ import (
 func RunTestProxy() (p *Proxy, s *StratumConnection, d *StratumConnection, cancel func(), done chan error) {
 	sourceClient, source := net.Pipe()
 	destClient, dest := net.Pipe()
+	timeout := 10 * time.Minute
 
 	log := lib.NewTestLogger()
 	noLog := &lib.LoggerMock{}
 	destURL, _ := url.Parse("stratum+tcp://test:test@localhost:3333")
 	log.Warnf("started server")
 
-	sourceConn := NewSourceConn(NewConnection(sourceClient, &url.URL{}, 10*time.Minute, time.Now(), log), log)
-	destConn := NewDestConn(NewConnection(destClient, destURL, 10*time.Minute, time.Now(), log), destURL, log)
+	sourceConn := NewSourceConn(CreateConnection(sourceClient, &url.URL{}, timeout, timeout, log), log)
+	destConn := NewDestConn(CreateConnection(destClient, destURL, timeout, timeout, log), destURL, log)
 
 	destConnFactory := func(ctx context.Context, url *url.URL) (*ConnDest, error) {
 		return destConn, nil
@@ -48,8 +49,8 @@ func RunTestProxy() (p *Proxy, s *StratumConnection, d *StratumConnection, cance
 	}()
 
 	return proxy,
-		NewConnection(source, nil, time.Minute, time.Now(), noLog),
-		NewConnection(dest, nil, time.Minute, time.Now(), noLog), cancel, runErrorCh
+		CreateConnection(source, nil, timeout, timeout, noLog),
+		CreateConnection(dest, nil, timeout, timeout, noLog), cancel, runErrorCh
 }
 
 func TestHandshakeStartWithMiningConfigure(t *testing.T) {
