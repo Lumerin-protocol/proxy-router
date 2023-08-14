@@ -6,6 +6,7 @@ import (
 
 	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
+	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
 )
 
 type Pipe struct {
@@ -14,8 +15,8 @@ type Pipe struct {
 	destToSourceTask *lib.Task
 
 	// deps
-	source            StratumReadWriter // initiator of the communication, miner
-	dest              StratumReadWriter // receiver of the communication, pool
+	source            i.StratumReadWriter // initiator of the communication, miner
+	dest              i.StratumReadWriter // receiver of the communication, pool
 	sourceInterceptor Interceptor
 	destInterceptor   Interceptor
 
@@ -24,7 +25,7 @@ type Pipe struct {
 
 // NewPipe creates a new pipe between source and dest, allowing to intercept messages and separately control
 // start and stop on both directions of the duplex
-func NewPipe(source, dest StratumReadWriter, sourceInterceptor, destInterceptor Interceptor, log gi.ILogger) *Pipe {
+func NewPipe(source, dest i.StratumReadWriter, sourceInterceptor, destInterceptor Interceptor, log gi.ILogger) *Pipe {
 	pipe := &Pipe{
 		source:            source,
 		dest:              dest,
@@ -84,7 +85,7 @@ func (p *Pipe) sourceToDest(ctx context.Context) error {
 // pipe reads from from() and writes to to(), intercepting messages with interceptor
 // implemented late binding to enable replacing the source and dest at runtime of the function
 // TODO: consider stopping and then recreating pipe when source or dest changes
-func pipe(ctx context.Context, from func() StratumReadWriter, to func() StratumReadWriter, interceptor Interceptor) error {
+func pipe(ctx context.Context, from func() i.StratumReadWriter, to func() i.StratumReadWriter, interceptor Interceptor) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -95,6 +96,10 @@ func pipe(ctx context.Context, from func() StratumReadWriter, to func() StratumR
 		msg, err := from().Read(ctx)
 		if err != nil {
 			return fmt.Errorf("source read err: %w", err)
+		}
+
+		if msg == nil {
+			continue
 		}
 
 		msg, err = interceptor(ctx, msg)
@@ -119,19 +124,19 @@ func pipe(ctx context.Context, from func() StratumReadWriter, to func() StratumR
 	}
 }
 
-func (p *Pipe) GetDest() StratumReadWriter {
+func (p *Pipe) GetDest() i.StratumReadWriter {
 	return p.dest
 }
 
-func (p *Pipe) SetDest(dest StratumReadWriter) {
+func (p *Pipe) SetDest(dest i.StratumReadWriter) {
 	p.dest = dest
 }
 
-func (p *Pipe) GetSource() StratumReadWriter {
+func (p *Pipe) GetSource() i.StratumReadWriter {
 	return p.source
 }
 
-func (p *Pipe) SetSource(source StratumReadWriter) {
+func (p *Pipe) SetSource(source i.StratumReadWriter) {
 	p.source = source
 }
 

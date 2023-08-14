@@ -7,17 +7,17 @@ import (
 )
 
 type pipeSync struct {
-	stream1            StratumReadWriter
-	stream2            StratumReadWriter
+	stream1            i.StratumReadWriter
+	stream2            i.StratumReadWriter
 	interceptor1       Interceptor
 	interceptor2       Interceptor
 	startStream2Signal chan struct{}
 }
 
-// Provides a way to synchronize two StratumReadWriters. Only one message
+// Provides a way to synchronize two i.StratumReadWriters. Only one message
 // from either stream can be processed at a time, it gives deternimistic
 // message write order
-func NewPipeSync(stream1, stream2 StratumReadWriter, interceptor1, interceptor2 Interceptor) *pipeSync {
+func NewPipeSync(stream1, stream2 i.StratumReadWriter, interceptor1, interceptor2 Interceptor) *pipeSync {
 	pipe := &pipeSync{
 		stream1:            stream1,
 		stream2:            stream2,
@@ -33,7 +33,7 @@ func (p *pipeSync) Run(ctx context.Context) error {
 	return pipeDuplexSync(ctx, p.getStream1, p.getStream2, p.interceptor1, p.interceptor2, p.startStream2Signal)
 }
 
-func (p *pipeSync) SetStream2(readWriter StratumReadWriter) {
+func (p *pipeSync) SetStream2(readWriter i.StratumReadWriter) {
 	p.stream2 = readWriter
 }
 
@@ -41,7 +41,7 @@ func (p *pipeSync) StartStream2() {
 	close(p.startStream2Signal)
 }
 
-func pipeDuplexSync(ctx context.Context, stream1, stream2 func() StratumReadWriter, interceptor1, interceptor2 Interceptor, startStream2Signal chan struct{}) error {
+func pipeDuplexSync(ctx context.Context, stream1, stream2 func() i.StratumReadWriter, interceptor1, interceptor2 Interceptor, startStream2Signal chan struct{}) error {
 	stream1Ch, stream2Ch := make(chan i.MiningMessageGeneric), make(chan i.MiningMessageGeneric)
 	stream1Err, stream2Err := make(chan error, 1), make(chan error, 1)
 	stream1Ctx, stream1Cancel := context.WithCancel(ctx)
@@ -121,15 +121,15 @@ func pipeDuplexSync(ctx context.Context, stream1, stream2 func() StratumReadWrit
 	}
 }
 
-func (p *pipeSync) getStream1() StratumReadWriter {
+func (p *pipeSync) getStream1() i.StratumReadWriter {
 	return p.stream1
 }
 
-func (p *pipeSync) getStream2() StratumReadWriter {
+func (p *pipeSync) getStream2() i.StratumReadWriter {
 	return p.stream2
 }
 
-func readToChan(ctx context.Context, stream func() StratumReadWriter, ch chan<- i.MiningMessageGeneric) error {
+func readToChan(ctx context.Context, stream func() i.StratumReadWriter, ch chan<- i.MiningMessageGeneric) error {
 	for {
 		msg, err := stream().Read(ctx)
 		if err != nil {
