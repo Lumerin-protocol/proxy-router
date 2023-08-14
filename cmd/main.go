@@ -50,7 +50,7 @@ func main() {
 	server := transport.NewTCPServer("0.0.0.0:3333", connLog)
 	server.SetConnectionHandler(func(ctx context.Context, conn net.Conn) {
 		sourceLog := connLog.Named("[SRC] " + conn.RemoteAddr().String())
-		sourceConn := proxy.NewSourceConn(proxy.NewConnection(conn, &url.URL{}, 10*time.Minute, time.Now(), sourceLog), sourceLog)
+		sourceConn := proxy.NewSourceConn(proxy.CreateConnection(conn, &url.URL{}, 10*time.Minute, 10*time.Minute, sourceLog), sourceLog)
 
 		url := *destUrl // clones url
 		currentProxy := proxy.NewProxy(conn.RemoteAddr().String(), sourceConn, DestConnFactory, &url, proxyLog)
