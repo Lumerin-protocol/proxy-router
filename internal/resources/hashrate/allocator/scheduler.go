@@ -10,6 +10,10 @@ import (
 	h "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 )
 
+const (
+	MINER_VETTING_PERIOD = 3 * time.Minute
+)
+
 type Task struct {
 	Dest         *url.URL
 	JobSubmitted float64
@@ -53,9 +57,9 @@ func (p *Scheduler) Run(ctx context.Context) error {
 		return ctx.Err()
 	case <-proxyTask.Done():
 		return proxyTask.Err()
+	default:
 	}
 
-	// temporary not use scheduler
 	p.primaryDest = p.proxy.GetDest()
 
 	for {
@@ -116,12 +120,16 @@ func (p *Scheduler) Run(ctx context.Context) error {
 }
 
 func (p *Scheduler) AddTask(dest *url.URL, jobSubmitted float64, onSubmit func(diff float64)) {
+	shouldSignal := p.tasks.Size() == 0
 	p.tasks.Push(Task{
 		Dest:         dest,
 		JobSubmitted: jobSubmitted,
 		OnSubmit:     onSubmit,
 	})
 	p.totalTaskJob += jobSubmitted
+	if shouldSignal {
+		p.newTaskSignal <- struct{}{}
+	}
 	p.log.Debugf("added new task, dest: %s, for jobSubmitted: %.1f, totalTaskJob: %.1f", dest, jobSubmitted, p.totalTaskJob)
 }
 
@@ -165,9 +173,9 @@ func (p *Scheduler) HashrateGHS() float64 {
 }
 
 func (p *Scheduler) GetStatus() MinerStatus {
-	// if s.IsVetting() {
-	// 	return MinerStatusVetting
-	// }
+	if p.IsVetting() {
+		return MinerStatusVetting
+	}
 
 	if p.IsFree() {
 		return MinerStatusFree
@@ -194,6 +202,18 @@ func (p *Scheduler) GetConnectedAt() time.Time {
 
 func (p *Scheduler) GetStats() interface{} {
 	return p.proxy.GetStats()
+}
+
+func (p *Scheduler) IsVetting() bool {
+	return p.GetUptime() < MINER_VETTING_PERIOD
+}
+
+func (p *Scheduler) GetUptime() time.Duration {
+	return time.Since(p.proxy.GetMinerConnectedAt())
+}
+
+func (p *Scheduler) GetDestConns() *map[string]string {
+	return p.proxy.GetDestConns()
 }
 
 // if p.totalTaskJob+jobSubmitted > p.getJobPerCycle() {

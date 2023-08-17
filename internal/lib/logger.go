@@ -79,7 +79,7 @@ func NewDevelopmentLogger(levelStr string, logToFile bool, color bool, addCaller
 		}
 
 		core = zapcore.NewTee(
-			zapcore.NewCore(fileEncoder, zapcore.AddSync(file), level),
+			zapcore.NewCore(fileEncoder, zapcore.AddSync(file), zapcore.DebugLevel),
 			zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), level),
 		)
 	} else {

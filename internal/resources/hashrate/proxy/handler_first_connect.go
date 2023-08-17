@@ -110,7 +110,7 @@ func (p *HandlerFirstConnect) handleDest(ctx context.Context, msg i.MiningMessag
 func (p *HandlerFirstConnect) onMiningConfigure(ctx context.Context, msgTyped *m.MiningConfigure) error {
 	p.proxy.source.SetVersionRolling(msgTyped.GetVersionRolling())
 
-	destConn, err := p.proxy.destFactory(ctx, p.proxy.destURL)
+	destConn, err := p.proxy.destFactory(ctx, p.proxy.destURL, p.proxy.ID)
 	if err != nil {
 		return err
 	}
@@ -155,7 +155,7 @@ func (p *HandlerFirstConnect) onMiningSubscribe(ctx context.Context, msgTyped *m
 	minerSubscribeReceived = true
 
 	if p.proxy.dest == nil {
-		destConn, err := p.proxy.destFactory(ctx, p.proxy.destURL)
+		destConn, err := p.proxy.destFactory(ctx, p.proxy.destURL, p.proxy.ID)
 		if err != nil {
 			return err
 		}
@@ -192,8 +192,9 @@ func (p *HandlerFirstConnect) onMiningSubscribe(ctx context.Context, msgTyped *m
 }
 
 func (p *HandlerFirstConnect) onMiningAuthorize(ctx context.Context, msgTyped *m.MiningAuthorize) error {
-	p.proxy.source.SetWorkerName(msgTyped.GetWorkerName())
-	p.log = p.log.Named(msgTyped.GetWorkerName())
+	p.proxy.source.SetUserName(msgTyped.GetUserName())
+	p.log = p.log.Named(msgTyped.GetUserName())
+	p.proxy.log = p.log
 
 	msgID := msgTyped.GetID()
 	if !minerSubscribeReceived {
@@ -206,11 +207,11 @@ func (p *HandlerFirstConnect) onMiningAuthorize(ctx context.Context, msgTyped *m
 		return lib.WrapError(ErrHandshakeSource, err)
 	}
 
-	_, workerName, _ := lib.SplitUsername(msgTyped.GetWorkerName())
+	_, workerName, _ := lib.SplitUsername(msgTyped.GetUserName())
 	lib.SetWorkerName(p.proxy.destURL, workerName)
 	userName := p.proxy.destURL.User.Username()
 
-	p.proxy.dest.SetWorkerName(userName)
+	p.proxy.dest.SetUserName(userName)
 
 	pwd, ok := p.proxy.destURL.User.Password()
 	if !ok {

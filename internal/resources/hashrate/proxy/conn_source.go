@@ -45,7 +45,7 @@ func (c *ConnSource) Read(ctx context.Context) (interfaces.MiningMessageGeneric,
 	//TODO: message validation
 	msg, err := c.conn.Read(ctx)
 	if err != nil {
-		return nil, lib.WrapError(ErrDest, err)
+		return nil, lib.WrapError(ErrSource, err)
 	}
 	return msg, nil
 }
@@ -54,7 +54,7 @@ func (c *ConnSource) Write(ctx context.Context, msg interfaces.MiningMessageGene
 	//TODO: message validation
 	err := c.conn.Write(ctx, msg)
 	if err != nil {
-		return lib.WrapError(ErrDest, err)
+		return lib.WrapError(ErrSource, err)
 	}
 	return nil
 }
@@ -85,7 +85,7 @@ func (c *ConnSource) SetNegotiatedVersionRollingMask(mask string) {
 	c.versionRollingMask = mask
 }
 
-func (c *ConnSource) SetWorkerName(workerName string) {
+func (c *ConnSource) SetUserName(workerName string) {
 	c.workerName = workerName
 
 	c.log = c.log.Named(workerName)

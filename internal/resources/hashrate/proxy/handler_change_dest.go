@@ -28,7 +28,7 @@ func NewHandlerChangeDest(proxy *Proxy, destFactory DestConnFactory, log gi.ILog
 }
 
 func (p *HandlerChangeDest) connectNewDest(ctx context.Context, newDestURL *url.URL) (*ConnDest, error) {
-	newDest, err := p.destFactory(ctx, newDestURL)
+	newDest, err := p.destFactory(ctx, newDestURL, p.proxy.ID)
 	if err != nil {
 		return nil, lib.WrapError(ErrConnectDest, err)
 	}
@@ -39,7 +39,9 @@ func (p *HandlerChangeDest) connectNewDest(ctx context.Context, newDestURL *url.
 	// autoReadTask.Start(ctx)
 	autoReadDone := make(chan error, 1)
 	err = newDest.AutoReadStart(ctx, func(err error) {
-		p.log.Errorf("error reading from new dest: %s", err)
+		if err != nil {
+			p.log.Errorf("error reading from new dest: %s", err)
+		}
 		autoReadDone <- err
 		close(autoReadDone)
 	})
@@ -74,6 +76,7 @@ func (p *HandlerChangeDest) connectNewDest(ctx context.Context, newDestURL *url.
 	if err != nil {
 		return nil, err
 	}
+	<-autoReadDone
 	p.log.Debugf("stopped new dest")
 	return newDest, nil
 }
@@ -142,6 +145,10 @@ func (p *HandlerChangeDest) destHandshake(ctx context.Context, newDest *ConnDest
 	if authRes.IsError() {
 		return lib.WrapError(ErrConnectDest, lib.WrapError(ErrNotAuthorizedPool, fmt.Errorf("%s", authRes.GetError())))
 	}
+
+	// we need to get a job from the pool before we stop reading
+	// so we use it during handshake
+	<-newDest.GetFirstJobSignal()
 
 	p.log.Debugf("authorize success")
 	return nil

@@ -74,30 +74,49 @@ func (p *HandlerMining) destInterceptor(ctx context.Context, msg i.MiningMessage
 func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSubmit) (i.MiningMessageGeneric, error) {
 	p.unansweredMsg.Add(1)
 
-	diff, err := p.proxy.dest.ValidateAndAddShare(msgTyped)
-	weAccepted := err == nil
+	dest := p.proxy.dest
 	var res *m.MiningResult
 
-	if err != nil {
+	diff, err := dest.ValidateAndAddShare(msgTyped)
+	weAccepted := err == nil
+
+	// if job not found, try searching across all of the connection
+	// and replace dest with the one that has the job
+	if !weAccepted && errors.Is(err, validator.ErrJobNotFound) {
+
+		d := p.proxy.GetDestByJobID(msgTyped.GetJobId())
+		if dest != nil {
+			p.log.Warnf("job %s found in different dest %s", msgTyped.GetJobId(), d.GetID())
+			diff, err = d.ValidateAndAddShare(msgTyped)
+			weAccepted = err == nil
+			if weAccepted {
+				dest = d
+			}
+		} else {
+			p.log.Warnf("job %s not found", msgTyped.GetJobId())
+			res = m.NewMiningResultJobNotFound(msgTyped.GetID())
+		}
+	}
+
+	if !weAccepted {
 		p.proxy.source.GetStats().WeRejectedShares++
 
-		if errors.Is(err, validator.ErrJobNotFound) {
-			res = m.NewMiningResultJobNotFound(msgTyped.GetID())
-		} else if errors.Is(err, validator.ErrDuplicateShare) {
+		if errors.Is(err, validator.ErrDuplicateShare) {
+			p.log.Warnf("duplicate share, jobID %s, msg id: %d", msgTyped.GetJobId(), msgTyped.GetID())
 			res = m.NewMiningResultDuplicatedShare(msgTyped.GetID())
 		} else if errors.Is(err, validator.ErrLowDifficulty) {
+			p.log.Warnf("low difficulty jobID %s, msg id: %d, diff %s", msgTyped.GetJobId(), msgTyped.GetID(), diff)
 			res = m.NewMiningResultLowDifficulty(msgTyped.GetID())
 		}
-
 	} else {
 		p.proxy.source.GetStats().WeAcceptedShares++
 		// miner hashrate
-		p.proxy.sourceHR.OnSubmit(p.proxy.dest.GetDiff())
+		p.proxy.sourceHR.OnSubmit(dest.GetDiff())
 
 		// contract hashrate
 		p.proxy.onSubmitMutex.RLock()
 		if p.proxy.onSubmit != nil {
-			p.proxy.onSubmit(p.proxy.dest.GetDiff())
+			p.proxy.onSubmit(dest.GetDiff())
 		}
 		p.proxy.onSubmitMutex.RUnlock()
 
@@ -116,31 +135,36 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 		if err != nil {
 			p.log.Error("cannot write response to miner: ", err)
 			p.proxy.cancelRun()
+			return
 		}
 
 		// send and await submit response from pool
-		msgTyped.SetWorkerName(p.proxy.dest.GetWorkerName())
-		res, err := p.proxy.dest.WriteAwaitRes(ctx, msgTyped)
+		msgTyped.SetUserName(dest.GetUserName())
+		res, err := dest.WriteAwaitRes(ctx, msgTyped)
 		if err != nil {
 			p.log.Error("cannot write response to pool: ", err)
 			p.proxy.cancelRun()
+			return
 		}
 		p.unansweredMsg.Done()
 
 		if res.(*m.MiningResult).IsError() {
 			if weAccepted {
 				p.proxy.source.GetStats().WeAcceptedTheyRejected++
-				p.proxy.dest.GetStats().WeAcceptedTheyRejected++
+				dest.GetStats().WeAcceptedTheyRejected++
+				p.log.Warnf("we accepted submit, they rejected with err %s", res.(*m.MiningResult).GetError())
+			} else {
+				p.log.Warnf("we rejected submit, and they rejected with err %s", res.(*m.MiningResult).GetError())
 			}
 		} else {
 			if weAccepted {
-				p.proxy.dest.GetStats().WeAcceptedTheyAccepted++
-				p.proxy.destHR.OnSubmit(p.proxy.dest.GetDiff())
-				p.log.Debugf("new submit, diff: %0.f, target: %0.f", diff, p.proxy.dest.GetDiff())
+				dest.GetStats().WeAcceptedTheyAccepted++
+				p.proxy.destHR.OnSubmit(dest.GetDiff())
+				p.log.Debugf("new submit, diff: %0.f, hrGHS %d", diff, p.proxy.destHR.GetHashrateGHS())
 			} else {
-				p.proxy.dest.GetStats().WeRejectedTheyAccepted++
+				dest.GetStats().WeRejectedTheyAccepted++
 				p.proxy.source.GetStats().WeRejectedTheyAccepted++
-				p.log.Warnf("we rejected submit, but dest accepted, diff: %d, target: %0.f", diff, p.proxy.dest.GetDiff())
+				p.log.Warnf("we rejected submit, but dest accepted, diff: %d", diff)
 			}
 		}
 	}(res)

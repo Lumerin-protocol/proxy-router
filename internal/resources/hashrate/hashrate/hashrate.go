@@ -21,7 +21,7 @@ type Hashrate struct {
 
 func NewHashrate(durations ...time.Duration) *Hashrate {
 	instance := &Hashrate{
-		emaBase: NewEma(5 * time.Minute),
+		emaBase: NewEma(2 * time.Minute),
 		ema5m:   NewEma(5 * time.Minute),
 		ema30m:  NewEma(30 * time.Minute),
 		ema1h:   NewEma(1 * time.Hour),

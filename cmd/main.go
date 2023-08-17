@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -21,7 +24,7 @@ import (
 func main() {
 	appLogLevel := "debug"
 	proxyLogLevel := "debug"
-	connectionLogLevel := "debug"
+	connectionLogLevel := "info"
 
 	log, err := lib.NewLogger(false, appLogLevel, true, true)
 	if err != nil {
@@ -38,34 +41,53 @@ func main() {
 		panic(err)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+
+	shutdownChan := make(chan os.Signal, 1)
+	signal.Notify(shutdownChan, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		s := <-shutdownChan
+		log.Warnf("Received signal: %s", s)
+		cancel()
+
+		s = <-shutdownChan
+		log.Warnf("Received signal: %s. Forcing exit...", s)
+		os.Exit(1)
+	}()
+
+	defer func() {
+		_ = log.Sync()
+	}()
+
 	destUrl, _ := url.Parse("tcp://shev8.local:anything123@stratum.slushpool.com:3333")
 	// destUrl, _ := url.Parse("tcp://shev8.local:anything123@0.0.0.0:3001")
 
-	var DestConnFactory = func(ctx context.Context, url *url.URL) (*proxy.ConnDest, error) {
-		return proxy.ConnectDest(ctx, url, connLog)
+	var DestConnFactory = func(ctx context.Context, url *url.URL, connLogID string) (*proxy.ConnDest, error) {
+		return proxy.ConnectDest(ctx, url, connLog.Named(connLogID))
 	}
 
-	alloc := allocator.NewAllocator(lib.NewCollection[*allocator.Scheduler](), 10*time.Minute)
+	alloc := allocator.NewAllocator(lib.NewCollection[*allocator.Scheduler](), 10*time.Minute, log.Named("ALLOCATOR"))
 
 	server := transport.NewTCPServer("0.0.0.0:3333", connLog)
 	server.SetConnectionHandler(func(ctx context.Context, conn net.Conn) {
-		sourceLog := connLog.Named("[SRC] " + conn.RemoteAddr().String())
-		sourceConn := proxy.NewSourceConn(proxy.CreateConnection(conn, &url.URL{}, 10*time.Minute, 10*time.Minute, sourceLog), sourceLog)
+		ID := conn.RemoteAddr().String()
+		sourceLog := connLog.Named("[SRC] " + ID)
+		sourceConn := proxy.NewSourceConn(proxy.CreateConnection(conn, ID, 5*time.Minute, 5*time.Minute, sourceLog), sourceLog)
 
 		url := *destUrl // clones url
-		currentProxy := proxy.NewProxy(conn.RemoteAddr().String(), sourceConn, DestConnFactory, &url, proxyLog)
+		currentProxy := proxy.NewProxy(ID, sourceConn, DestConnFactory, &url, proxyLog)
 		scheduler := allocator.NewScheduler(currentProxy, destUrl, log)
 		alloc.GetMiners().Store(scheduler)
 		err = scheduler.Run(ctx)
 		if err != nil {
-			log.Error("proxy disconnected: ", err)
-			return
+			log.Warnf("proxy disconnected: %s", err)
 		}
+		alloc.GetMiners().Delete(ID)
+		return
 	})
 
 	publicUrl, _ := url.Parse("http://localhost:3001")
-	hrContractAllocator := allocator.NewAllocator(lib.NewCollection[*allocator.Scheduler](), 10*time.Minute)
-	hrContractFactory := contract.NewContractFactory(hrContractAllocator, log)
+	hrContractFactory := contract.NewContractFactory(alloc, log)
 	cf := contractfactory.ContractFactory(hrContractFactory)
 	cm := contractmanager.NewContractManager(cf, log)
 	handl := handlers.NewHTTPHandler(alloc, cm, publicUrl, log)
@@ -92,9 +114,6 @@ func main() {
 		}
 	}()
 
-	err = server.Run(context.Background())
-	if err != nil {
-		panic(err)
-	}
-
+	err = server.Run(ctx)
+	log.Infof("App exited due to %s", err)
 }

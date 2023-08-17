@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"sync"
+	"time"
 
 	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
@@ -18,8 +19,8 @@ import (
 // with destination specific state variables
 type ConnDest struct {
 	// config
-	workerName string
-	destUrl    *url.URL
+	userName string
+	destUrl  *url.URL
 
 	// state
 	diff           float64
@@ -38,6 +39,9 @@ type ConnDest struct {
 	arDone   chan struct{}
 	arCancel context.CancelFunc
 
+	firstJobSignal chan struct{}
+	firstJobOnce   sync.Once
+
 	// deps
 	conn *StratumConnection
 	log  gi.ILogger
@@ -45,11 +49,12 @@ type ConnDest struct {
 
 func NewDestConn(conn *StratumConnection, url *url.URL, log gi.ILogger) *ConnDest {
 	dest := &ConnDest{
-		workerName: url.User.Username(),
-		destUrl:    url,
-		conn:       conn,
-		stats:      &DestStats{},
-		log:        log,
+		userName:       url.User.Username(),
+		destUrl:        url,
+		conn:           conn,
+		stats:          &DestStats{},
+		firstJobSignal: make(chan struct{}),
+		log:            log,
 	}
 	dest.validator = validator.NewValidator(log.Named("validator"))
 	return dest
@@ -159,12 +164,19 @@ func (c *ConnDest) GetHR() gi.Hashrate {
 	return c.hr
 }
 
-func (c *ConnDest) GetWorkerName() string {
-	return c.workerName
+func (c *ConnDest) GetUserName() string {
+	return c.userName
 }
 
-func (c *ConnDest) SetWorkerName(workerName string) {
-	c.workerName = workerName
+func (c *ConnDest) SetUserName(userName string) {
+	c.userName = userName
+
+	newURL := *c.destUrl
+	lib.SetUserName(&newURL, userName)
+
+	c.destUrl = &newURL
+	c.conn.id = c.destUrl.String()
+	c.conn.address = c.destUrl.String()
 }
 
 func (c *ConnDest) readInterceptor(msg i.MiningMessageGeneric) (resMsg i.MiningMessageGeneric, err error) {
@@ -172,6 +184,9 @@ func (c *ConnDest) readInterceptor(msg i.MiningMessageGeneric) (resMsg i.MiningM
 	case *sm.MiningNotify:
 		// TODO: set expiration time for all of the jobs if clean jobs flag is set to true
 		c.validator.AddNewJob(typed, c.diff, c.extraNonce1, c.extraNonce2Size)
+		c.firstJobOnce.Do(func() {
+			close(c.firstJobSignal)
+		})
 	case *sm.MiningSetDifficulty:
 		c.diff = typed.GetDifficulty()
 	case *sm.MiningSetExtranonce:
@@ -260,10 +275,22 @@ func (c *ConnDest) GetStats() *DestStats {
 	return c.stats
 }
 
+func (c *ConnDest) HasJob(jobID string) bool {
+	return c.validator.HasJob(jobID)
+}
+
 func (c *ConnDest) ValidateAndAddShare(msg *sm.MiningSubmit) (float64, error) {
 	return c.validator.ValidateAndAddShare(msg)
 }
 
 func (c *ConnDest) GetLatestJob() (*validator.MiningJob, bool) {
 	return c.validator.GetLatestJob()
+}
+
+func (c *ConnDest) GetFirstJobSignal() <-chan struct{} {
+	return c.firstJobSignal
+}
+
+func (c *ConnDest) GetIdleCloseAt() time.Time {
+	return c.conn.GetIdleCloseAt()
 }

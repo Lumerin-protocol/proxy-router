@@ -45,6 +45,11 @@ func (v *Validator) AddNewJob(msg *sm.MiningNotify, diff float64, xn1 string, xn
 	v.jobs.Push(msg.GetJobID(), job)
 }
 
+func (v *Validator) HasJob(jobID string) bool {
+	_, ok := v.jobs.Get(jobID)
+	return ok
+}
+
 func (v *Validator) ValidateAndAddShare(msg *sm.MiningSubmit) (float64, error) {
 	var (
 		job *MiningJob

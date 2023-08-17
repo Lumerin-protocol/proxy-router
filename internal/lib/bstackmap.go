@@ -37,10 +37,12 @@ func (bs *BoundStackMap[T]) Get(key string) (T, bool) {
 }
 
 func (bs *BoundStackMap[T]) At(index int) (T, bool) {
+	// adjustment for negative index values to be counted from the end
 	if index < 0 {
 		index = bs.cc + index
 	}
-	if index > (bs.cc - 1) {
+	// check if index is out of bounds
+	if index < 0 || index > (bs.cc-1) {
 		return *new(T), false
 	}
 	return bs.dataMap[bs.data[index]], true

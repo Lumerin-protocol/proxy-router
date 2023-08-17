@@ -21,8 +21,8 @@ const (
 	DIAL_TIMEOUT  = 10 * time.Second
 	WRITE_TIMEOUT = 10 * time.Second
 
-	READ_CLOSE_TIMEOUT  = 10 * time.Minute
-	WRITE_CLOSE_TIMEOUT = 10 * time.Minute
+	READ_CLOSE_TIMEOUT  = 5 * time.Minute
+	WRITE_CLOSE_TIMEOUT = 5 * time.Minute
 )
 
 type StratumConnection struct {
@@ -35,7 +35,7 @@ type StratumConnection struct {
 	connReadTimeout  time.Duration
 	connWriteTimeout time.Duration
 
-	address *url.URL
+	address string
 
 	// state
 	connectedAt   time.Time
@@ -43,7 +43,11 @@ type StratumConnection struct {
 	timeoutOnce   sync.Once
 	readHappened  chan struct{}
 	writeHappened chan struct{}
-	closed        chan struct{}
+	closedCh      chan struct{}
+	closeOnce     sync.Once
+
+	idleReadAt  time.Time
+	idleWriteAt time.Time
 
 	// deps
 	conn net.Conn
@@ -51,9 +55,9 @@ type StratumConnection struct {
 }
 
 // CreateConnection creates a new StratumConnection and starts background timer for its closure
-func CreateConnection(conn net.Conn, address *url.URL, readTimeout, writeTimeout time.Duration, log gi.ILogger) *StratumConnection {
+func CreateConnection(conn net.Conn, address string, readTimeout, writeTimeout time.Duration, log gi.ILogger) *StratumConnection {
 	c := &StratumConnection{
-		id:               address.String(),
+		id:               address,
 		conn:             conn,
 		address:          address,
 		connectedAt:      time.Now(),
@@ -62,7 +66,7 @@ func CreateConnection(conn net.Conn, address *url.URL, readTimeout, writeTimeout
 		reader:           bufio.NewReader(conn),
 		readHappened:     make(chan struct{}, 1),
 		writeHappened:    make(chan struct{}, 1),
-		closed:           make(chan struct{}),
+		closedCh:         make(chan struct{}),
 		log:              log,
 	}
 	err := conn.SetDeadline(time.Now().Add(1 * time.Hour))
@@ -80,7 +84,7 @@ func Connect(address *url.URL, log gi.ILogger) (*StratumConnection, error) {
 		return nil, err
 	}
 
-	return CreateConnection(conn, address, READ_CLOSE_TIMEOUT, WRITE_CLOSE_TIMEOUT, log), nil
+	return CreateConnection(conn, address.String(), READ_CLOSE_TIMEOUT, WRITE_CLOSE_TIMEOUT, log), nil
 }
 
 func (c *StratumConnection) Read(ctx context.Context) (interfaces.MiningMessageGeneric, error) {
@@ -93,6 +97,7 @@ func (c *StratumConnection) Read(ctx context.Context) (interfaces.MiningMessageG
 	go func() {
 		select {
 		case <-ctx.Done():
+			c.log.Infof("connection %s read cancelled", c.id)
 			err := c.conn.SetReadDeadline(time.Now())
 			if err != nil {
 				// may return ErrNetClosing if fd is already closed
@@ -105,6 +110,7 @@ func (c *StratumConnection) Read(ctx context.Context) (interfaces.MiningMessageG
 	}()
 
 	err := c.conn.SetReadDeadline(time.Time{})
+
 	if err != nil {
 		return nil, err
 	}
@@ -200,13 +206,27 @@ func (c *StratumConnection) GetID() string {
 }
 
 func (c *StratumConnection) Close() error {
-	defer close(c.closed)
-	defer c.log.Debugf("connection closed %s", c.id)
-	return c.conn.Close()
+	err := c.conn.Close()
+	if err == nil {
+		c.log.Infof("connection closed %s", c.id)
+	}
+
+	c.closeOnce.Do(func() {
+		close(c.closedCh)
+	})
+
+	return err
 }
 
 func (c *StratumConnection) GetConnectedAt() time.Time {
 	return c.connectedAt
+}
+
+func (c *StratumConnection) GetIdleCloseAt() time.Time {
+	if c.idleReadAt.After(c.idleWriteAt) {
+		return c.idleReadAt
+	}
+	return c.idleWriteAt
 }
 
 // runTimeoutTimers runs timers to close inactive connections. If no read or write operation
@@ -219,14 +239,14 @@ func (c *StratumConnection) runTimeoutTimers() {
 			for {
 				select {
 				case <-readTimer.C:
-					c.log.Debugf("connection %s read timeout", c.id)
+					c.log.Infof("connection %s read timeout", c.id)
 					if !writeTimer.Stop() {
 						<-writeTimer.C
 					}
 					c.Close()
 					return
 				case <-writeTimer.C:
-					c.log.Debugf("connection %s write timeout", c.id)
+					c.log.Infof("connection %s write timeout", c.id)
 					if !readTimer.Stop() {
 						<-readTimer.C
 					}
@@ -237,12 +257,14 @@ func (c *StratumConnection) runTimeoutTimers() {
 						<-readTimer.C
 					}
 					readTimer.Reset(c.connReadTimeout)
+					c.idleReadAt = time.Now().Add(c.connReadTimeout)
 				case <-c.writeHappened:
 					if !writeTimer.Stop() {
 						<-writeTimer.C
 					}
 					writeTimer.Reset(c.connWriteTimeout)
-				case <-c.closed:
+					c.idleWriteAt = time.Now().Add(c.connWriteTimeout)
+				case <-c.closedCh:
 					if !readTimer.Stop() {
 						<-readTimer.C
 					}

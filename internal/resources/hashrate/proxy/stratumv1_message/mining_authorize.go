@@ -38,11 +38,11 @@ func (m *MiningAuthorize) SetID(ID int) {
 	m.ID = ID
 }
 
-func (m *MiningAuthorize) GetWorkerName() string {
+func (m *MiningAuthorize) GetUserName() string {
 	return m.Params[0]
 }
 
-func (m *MiningAuthorize) SetWorkerName(ID string) {
+func (m *MiningAuthorize) SetUserName(ID string) {
 	m.Params[0] = ID
 }
 

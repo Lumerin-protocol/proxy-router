@@ -19,4 +19,5 @@ type StratumProxyInterface interface {
 	GetDestWorkerName() string
 	GetMinerConnectedAt() time.Time
 	GetStats() interface{}
+	GetDestConns() *map[string]string
 }

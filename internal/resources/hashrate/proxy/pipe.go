@@ -65,9 +65,7 @@ func (p *Pipe) Run(ctx context.Context) error {
 func (p *Pipe) destToSource(ctx context.Context) error {
 	err := pipe(ctx, p.GetDest, p.GetSource, p.destInterceptor)
 	if err != nil {
-		err := fmt.Errorf("dest to source pipe err: %w", err)
-		p.log.Debug(err)
-		return err
+		return fmt.Errorf("dest to source pipe err: %w", err)
 	}
 	return nil
 }
@@ -75,9 +73,7 @@ func (p *Pipe) destToSource(ctx context.Context) error {
 func (p *Pipe) sourceToDest(ctx context.Context) error {
 	err := pipe(ctx, p.GetSource, p.GetDest, p.sourceInterceptor)
 	if err != nil {
-		err := fmt.Errorf("source to dest pipe err: %w", err)
-		p.log.Debug(err)
-		return err
+		return fmt.Errorf("source to dest pipe err: %w", err)
 	}
 	return nil
 }
@@ -95,7 +91,7 @@ func pipe(ctx context.Context, from func() i.StratumReadWriter, to func() i.Stra
 
 		msg, err := from().Read(ctx)
 		if err != nil {
-			return fmt.Errorf("source read err: %w", err)
+			return fmt.Errorf("pipe read err: %w", err)
 		}
 
 		if msg == nil {
@@ -104,7 +100,7 @@ func pipe(ctx context.Context, from func() i.StratumReadWriter, to func() i.Stra
 
 		msg, err = interceptor(ctx, msg)
 		if err != nil {
-			return fmt.Errorf("interceptor err: %w", err)
+			return fmt.Errorf("pipe interceptor err: %w", err)
 		}
 
 		select {
@@ -119,7 +115,7 @@ func pipe(ctx context.Context, from func() i.StratumReadWriter, to func() i.Stra
 
 		err = to().Write(ctx, msg)
 		if err != nil {
-			return fmt.Errorf("dest write err: %w %s", err, string(msg.Serialize()))
+			return fmt.Errorf("pipe write err: %w %s", err, string(msg.Serialize()))
 		}
 	}
 }

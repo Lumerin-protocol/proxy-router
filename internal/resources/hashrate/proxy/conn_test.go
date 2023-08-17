@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"net"
-	"net/url"
 	"testing"
 	"time"
 
@@ -23,7 +22,7 @@ func TestReadCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	conn := CreateConnection(client, &url.URL{}, timeout, timeout, lib.NewTestLogger())
+	conn := CreateConnection(client, "", timeout, timeout, lib.NewTestLogger())
 
 	go func() {
 		// first and only write
@@ -60,8 +59,8 @@ func TestWriteCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	stratumClient := CreateConnection(client, &url.URL{}, timeout, timeout, lib.NewTestLogger())
-	stratumServer := CreateConnection(server, &url.URL{}, timeout, timeout, lib.NewTestLogger())
+	stratumClient := CreateConnection(client, "", timeout, timeout, lib.NewTestLogger())
+	stratumServer := CreateConnection(server, "", timeout, timeout, lib.NewTestLogger())
 
 	go func() {
 		// first and only read
@@ -98,8 +97,8 @@ func TestConnTimeoutWrite(t *testing.T) {
 	defer server.Close()
 	defer client.Close()
 
-	clientConn := CreateConnection(client, &url.URL{}, timeoutLong, timeout, lib.NewTestLogger().Named("client"))
-	serverConn := CreateConnection(server, &url.URL{}, timeoutLong, timeoutLong, lib.NewTestLogger().Named("server"))
+	clientConn := CreateConnection(client, "", timeoutLong, timeout, lib.NewTestLogger().Named("client"))
+	serverConn := CreateConnection(server, "", timeoutLong, timeoutLong, lib.NewTestLogger().Named("server"))
 
 	go func() {
 		// try to read first message
@@ -134,8 +133,8 @@ func TestConnTimeoutRead(t *testing.T) {
 	defer server.Close()
 	defer client.Close()
 
-	clientConn := CreateConnection(client, &url.URL{}, timeout, timeoutLong, lib.NewTestLogger().Named("client"))
-	serverConn := CreateConnection(server, &url.URL{}, timeoutLong, timeoutLong, lib.NewTestLogger().Named("server"))
+	clientConn := CreateConnection(client, "", timeout, timeoutLong, lib.NewTestLogger().Named("client"))
+	serverConn := CreateConnection(server, "", timeoutLong, timeoutLong, lib.NewTestLogger().Named("server"))
 
 	go func() {
 		serverConn.Write(ctx, sm.NewMiningAuthorize(0, "0", "0"))

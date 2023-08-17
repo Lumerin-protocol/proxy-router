@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"errors"
+	"io"
 	"net/url"
 	"sync"
 	"time"
@@ -30,7 +31,7 @@ var (
 type Proxy struct {
 	// config
 	ID      string
-	destURL *url.URL // destination URL
+	destURL *url.URL // destination URL, TODO: remove, use dest.ID() instead
 
 	// destWorkerName string
 	// submitErrLimit int
@@ -97,11 +98,13 @@ func (p *Proxy) Run(ctx context.Context) error {
 
 	err := p.pipe.Run(ctx)
 	if err != nil {
-		p.log.Errorf("error running pipe: %s", err)
-
 		// destination error
 		if errors.Is(err, ErrDest) {
-			p.log.Errorf("destination error, source %s dest %s: %s", p.source.GetID(), p.dest.GetID(), err)
+			if errors.Is(err, io.EOF) {
+				p.log.Warnf("destination closed the connection, dest %s", p.dest.GetID())
+			} else {
+				p.log.Errorf("destination error, source %s dest %s: %s", p.source.GetID(), p.dest.GetID(), err)
+			}
 			p.dest.conn.Close()
 			p.destMap.Delete(p.destURL.String())
 			p.dest = nil
@@ -113,7 +116,11 @@ func (p *Proxy) Run(ctx context.Context) error {
 
 		// source error
 		if errors.Is(err, ErrSource) {
-			p.log.Errorf("source error, source %s dest %s: %s", p.source.GetID(), p.dest.GetID(), err)
+			if errors.Is(err, io.EOF) {
+				p.log.Warnf("source closed the connection, source %s", p.source.GetID())
+			} else {
+				p.log.Errorf("source connection error, source %s: %s", p.source.GetID(), err)
+			}
 			// close all dest connections
 			p.destMap.Range(func(dest *ConnDest) bool {
 				dest.conn.Close()
@@ -124,6 +131,8 @@ func (p *Proxy) Run(ctx context.Context) error {
 			p.source = nil
 			return err
 		}
+
+		p.log.Errorf("error running pipe: %s", err)
 
 		// other errors
 		return err
@@ -146,7 +155,7 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 	var newDest *ConnDest
 	cachedDest, ok := p.destMap.Load(newDestURL.String())
 	if ok {
-		p.log.Debug("reusing dest connection %s from cache", newDestURL.String())
+		p.log.Debugf("reusing dest connection %s from cache", newDestURL.String())
 		err := cachedDest.AutoReadStop()
 		if err != nil {
 			p.log.Errorf("error stopping autoread for cached dest %s: %s", newDestURL.String(), err)
@@ -163,17 +172,22 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 	}
 
 	// stop source and old dest
-	p.pipe.StopDestToSource()
-	p.pipe.StopSourceToDest()
+	<-p.pipe.StopDestToSource()
+	<-p.pipe.StopSourceToDest()
 	p.log.Warnf("stopped source and old dest")
 
 	// TODO: wait to stop?
 
 	// set old dest to autoread mode
 	destUrl := p.destURL.String()
-	err := p.dest.AutoReadStart(ctx, func(err error) {
+	dest := p.dest
+	err := dest.AutoReadStart(ctx, func(err error) {
 		if err != nil {
 			p.log.Warnf("dest %s autoread exited with error %s", destUrl, err)
+			err := dest.conn.Close()
+			if err != nil {
+				p.log.Warnf("error closing dest %s: %s", destUrl, err)
+			}
 			p.destMap.Delete(destUrl)
 			p.log.Warnf("removed old connection from the map %s", destUrl)
 		}
@@ -190,6 +204,7 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 
 	p.dest = newDest
 	p.destURL = newDestURL
+	p.destMap.Store(newDest)
 
 	p.onSubmitMutex.Lock()
 	p.onSubmit = onSubmit
@@ -203,6 +218,20 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 
 	p.log.Debugf("resumed piping")
 	return nil
+}
+
+func (p *Proxy) GetDestByJobID(jobID string) *ConnDest {
+	var dest *ConnDest
+
+	p.destMap.Range(func(d *ConnDest) bool {
+		if d.HasJob(jobID) {
+			dest = d
+			return false
+		}
+		return true
+	})
+
+	return dest
 }
 
 // Getters
@@ -243,4 +272,13 @@ func (p *Proxy) GetSourceWorkerName() string {
 
 func (p *Proxy) GetStats() interface{} {
 	return p.source.GetStats()
+}
+
+func (p *Proxy) GetDestConns() *map[string]string {
+	var destConns = make(map[string]string)
+	p.destMap.Range(func(dest *ConnDest) bool {
+		destConns[dest.GetID()] = dest.GetIdleCloseAt().Format(time.RFC3339)
+		return true
+	})
+	return &destConns
 }

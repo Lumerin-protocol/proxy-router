@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 	"golang.org/x/exp/slices"
@@ -28,14 +29,18 @@ type AllocatorInterface interface {
 }
 
 type Allocator struct {
-	proxies    *lib.Collection[*Scheduler]
-	proxyState sync.Map // map[string]bool map[proxyID]contractID
+	proxies               *lib.Collection[*Scheduler]
+	proxyState            sync.Map // map[string]bool map[proxyID]contractID
+	contractCycleDuration time.Duration
+	log                   gi.ILogger
 }
 
-func NewAllocator(proxies *lib.Collection[*Scheduler]) *Allocator {
+func NewAllocator(proxies *lib.Collection[*Scheduler], contractCycleDuration time.Duration, log gi.ILogger) *Allocator {
 	return &Allocator{
-		proxies:    proxies,
-		proxyState: sync.Map{},
+		proxies:               proxies,
+		proxyState:            sync.Map{},
+		contractCycleDuration: contractCycleDuration,
+		log:                   log,
 	}
 }
 
@@ -65,41 +70,51 @@ func (p *Allocator) AllocateFullMinersForHR(hrGHS float64, dest *url.URL, durati
 	// })
 }
 
-func (p *Allocator) AllocatePartialMinersForHROneTime(hrGHS float64, dest *url.URL, cycleDuration time.Duration, onSubmit func(diff float64)) (delta float64) {
-	miners := p.GetPartialMiners()
+func (p *Allocator) AllocatePartialForHR(hrGHS float64, dest *url.URL, cycleDuration time.Duration, onSubmit func(diff float64)) (string, bool) {
+	partialMiners := p.GetPartialMiners()
+	p.log.Debugf("partial miners: %v", partialMiners)
 	// minerIDs := []string{}
 	jobForCycle := hashrate.GHSToJobSubmitted(hrGHS) * cycleDuration.Seconds()
 
 	// search in partially allocated miners
-	for _, miner := range miners {
+	for _, miner := range partialMiners {
 		remainingJob := miner.Job / miner.Fraction
 		if remainingJob >= jobForCycle {
 			m, ok := p.proxies.Load(miner.ID)
 			if ok {
 				m.AddTask(dest, jobForCycle, onSubmit)
-				return
+				return miner.ID, true
 			}
 		}
 	}
 
 	// search in free miners
-	for _, miner := range p.GetFreeMiners() {
-		remainingJob := hashrate.GHSToJobSubmitted(miner.HrGHS)
+	freeMiners := p.GetFreeMiners()
+	p.log.Debugf("free miners: %v", freeMiners)
+
+	for _, miner := range freeMiners {
+		remainingJob := hashrate.GHSToJobSubmitted(miner.HrGHS) * cycleDuration.Seconds()
+		p.log.Debugf("remainingJob: %.1f, jobForCycle: %.1f", remainingJob, jobForCycle)
 		if remainingJob >= jobForCycle {
 			m, ok := p.proxies.Load(miner.ID)
 			if ok {
 				m.AddTask(dest, jobForCycle, onSubmit)
-				return
+				return miner.ID, true
+			} else {
+				p.log.Warnf("not found proxy %s", miner.ID)
 			}
 		}
 	}
 
-	return 0
+	return "", false
 }
 
 func (p *Allocator) GetFreeMiners() []MinerItem {
 	freeMiners := []MinerItem{}
 	p.proxies.Range(func(item *Scheduler) bool {
+		if item.IsVetting() {
+			return true
+		}
 		if item.IsFree() {
 			freeMiners = append(freeMiners, MinerItem{
 				ID:    item.GetID(),
@@ -119,7 +134,10 @@ func (p *Allocator) GetFreeMiners() []MinerItem {
 func (p *Allocator) GetPartialMiners() []MinerItemJobScheduled {
 	partialMiners := []MinerItemJobScheduled{}
 	p.proxies.Range(func(item *Scheduler) bool {
-		if item.IsAcceptingTasks(ContractCycleDuration) {
+		if item.IsVetting() {
+			return true
+		}
+		if item.IsAcceptingTasks(p.contractCycleDuration) {
 			partialMiners = append(partialMiners, MinerItemJobScheduled{
 				ID:       item.GetID(),
 				Job:      item.GetTotalTaskJob(),

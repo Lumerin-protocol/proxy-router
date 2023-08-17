@@ -23,10 +23,10 @@ func RunTestProxy() (p *Proxy, s *StratumConnection, d *StratumConnection, cance
 	destURL, _ := url.Parse("stratum+tcp://test:test@localhost:3333")
 	log.Warnf("started server")
 
-	sourceConn := NewSourceConn(CreateConnection(sourceClient, &url.URL{}, timeout, timeout, log), log)
-	destConn := NewDestConn(CreateConnection(destClient, destURL, timeout, timeout, log), destURL, log)
+	sourceConn := NewSourceConn(CreateConnection(sourceClient, "", timeout, timeout, log), log)
+	destConn := NewDestConn(CreateConnection(destClient, destURL.String(), timeout, timeout, log), destURL, log)
 
-	destConnFactory := func(ctx context.Context, url *url.URL) (*ConnDest, error) {
+	destConnFactory := func(ctx context.Context, url *url.URL, logID string) (*ConnDest, error) {
 		return destConn, nil
 	}
 
@@ -49,8 +49,8 @@ func RunTestProxy() (p *Proxy, s *StratumConnection, d *StratumConnection, cance
 	}()
 
 	return proxy,
-		CreateConnection(source, nil, timeout, timeout, noLog),
-		CreateConnection(dest, nil, timeout, timeout, noLog), cancel, runErrorCh
+		CreateConnection(source, "", timeout, timeout, noLog),
+		CreateConnection(dest, "", timeout, timeout, noLog), cancel, runErrorCh
 }
 
 func TestHandshakeStartWithMiningConfigure(t *testing.T) {

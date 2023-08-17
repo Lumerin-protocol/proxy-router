@@ -64,17 +64,17 @@ func (h *HTTPHandler) ChangeDest(ctx *gin.Context) {
 func (h *HTTPHandler) CreateContract(ctx *gin.Context) {
 	dest, err := url.Parse(ctx.Query("dest"))
 	if err != nil {
-		ctx.AbortWithStatus(http.StatusBadRequest)
+		ctx.AbortWithError(http.StatusBadRequest, err)
 		return
 	}
 	hrGHS, err := strconv.ParseInt(ctx.Query("hrGHS"), 10, 0)
 	if err != nil {
-		ctx.AbortWithStatus(http.StatusBadRequest)
+		ctx.AbortWithError(http.StatusBadRequest, err)
 		return
 	}
 	duration, err := time.ParseDuration(ctx.Query("duration"))
 	if err != nil {
-		ctx.AbortWithStatus(http.StatusBadRequest)
+		ctx.AbortWithError(http.StatusBadRequest, err)
 		return
 	}
 	now := time.Now()
@@ -181,6 +181,7 @@ func (c *HTTPHandler) MapMiner(m *allocator.Scheduler) *Miner {
 	// destItems, _ := mapDestItems(m.GetCurrentDestSplit(), m.GetHashRateGHS())
 	// upcomingDest, _ := mapDestItems(m.GetUpcomingDestSplit(), m.GetHashRateGHS())
 	// SMA9m, _ := hashrate.GetHashrateAvgGHSCustom(0)
+
 	return &Miner{
 		Resource: Resource{
 			Self: c.publicUrl.JoinPath(fmt.Sprintf("/miners/%s", m.GetID())).String(),
@@ -198,11 +199,12 @@ func (c *HTTPHandler) MapMiner(m *allocator.Scheduler) *Miner {
 		},
 		// Destinations:         destItems,
 		// UpcomingDestinations: upcomingDest,
-		CurrentDestination: m.GetCurrentDest().String(),
-		WorkerName:         m.GetWorkerName(),
-		ConnectedAt:        m.GetConnectedAt().Format(time.RFC3339),
-		Stats:              m.GetStats(),
-		// UptimeSeconds:      int(m.GetUptime().Seconds()),
+		CurrentDestination:    m.GetCurrentDest().String(),
+		WorkerName:            m.GetWorkerName(),
+		ConnectedAt:           m.GetConnectedAt().Format(time.RFC3339),
+		Stats:                 m.GetStats(),
+		UptimeSeconds:         int(m.GetUptime().Seconds()),
+		ActivePoolConnections: mapPoolConnection(m),
 		// IsFaulty:             m.IsFaulty(),
 	}
 }
@@ -268,14 +270,6 @@ func TimePtrToStringPtr(t *time.Time) *string {
 // 	return &destItems, UsedHashrateGHS
 // }
 
-// func mapPoolConnection(m miner.MinerScheduler) *map[string]string {
-// 	ActivePoolConnections := make(map[string]string)
-
-// 	m.RangeDestConn(func(key, value any) bool {
-// 		k := value.(*protocol.StratumV1PoolConn)
-// 		ActivePoolConnections[key.(string)] = k.GetCloseTimeout().Format(time.RFC3339)
-// 		return true
-// 	})
-
-// 	return &ActivePoolConnections
-// }
+func mapPoolConnection(m *allocator.Scheduler) *map[string]string {
+	return m.GetDestConns()
+}

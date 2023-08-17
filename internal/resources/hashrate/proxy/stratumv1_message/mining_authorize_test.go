@@ -23,7 +23,7 @@ func TestNewMiningAuthorize(t *testing.T) {
 	if authMsg.GetID() != id {
 		t.Fatalf("GetID")
 	}
-	if authMsg.GetWorkerName() != minerId {
+	if authMsg.GetUserName() != minerId {
 		t.Fatalf("GetMinerID")
 	}
 	if authMsg.GetPassword() != password {
@@ -52,8 +52,8 @@ func TestMiningAuthorizeSetters(t *testing.T) {
 	}
 
 	minerId = "new-miner-id"
-	authMsg.SetWorkerName(minerId)
-	if authMsg.GetWorkerName() != minerId {
+	authMsg.SetUserName(minerId)
+	if authMsg.GetUserName() != minerId {
 		t.Fatalf("SetMinerID")
 	}
 
@@ -89,7 +89,7 @@ func TestMiningSubmit(t *testing.T) {
 	b := `{"params": ["stage.s9x16", "00000000fc7d9b53", "c7520000000000", "62d8978d", "78563064"], "id": 2238, "method": "mining.submit"}`
 	a, _ := ParseMiningSubmit([]byte(b))
 	fmt.Printf("%+v", a)
-	a.SetWorkerName("kiki")
+	a.SetUserName("kiki")
 	c := a.Serialize()
 	fmt.Print(string(c))
 }
