@@ -218,7 +218,7 @@ func MapContract(item contractmanager.Contract, publicUrl *url.URL) *Contract {
 		BuyerAddr:               item.GetBuyer(),
 		SellerAddr:              item.GetSeller(),
 		ResourceEstimatesTarget: item.GetResourceEstimates(),
-		ResourceEstimatesActual: nil,
+		ResourceEstimatesActual: item.GetResourceEstimatesActual(),
 		DurationSeconds:         int(item.GetDuration().Seconds()),
 		StartTimestamp:          TimePtrToStringPtr(item.GetStartedAt()),
 		EndTimestamp:            TimePtrToStringPtr(item.GetEndTime()),
