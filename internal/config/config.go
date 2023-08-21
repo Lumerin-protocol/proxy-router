@@ -26,9 +26,12 @@ type Config struct {
 		SubmitErrLimit  int           `env:"MINER_SUBMIT_ERR_LIMIT" flag:"miner-submit-err-limit" desc:"amount of consecutive submit errors to consider miner faulty and exclude it from contracts, zero means disable faulty miners tracking"`
 	}
 	Log struct {
-		LogToFile bool   `env:"LOG_TO_FILE" flag:"log-to-file"`
-		Color     bool   `env:"LOG_COLOR" flag:"log-color"`
-		Level     string `env:"LOG_LEVEL" flag:"log-level" validate:"oneof=debug info warn error dpanic panic fatal"`
+		LogToFile       bool   `env:"LOG_TO_FILE" flag:"log-to-file"`
+		Color           bool   `env:"LOG_COLOR" flag:"log-color"`
+		LevelConnection string `env:"LOG_LEVEL_CONNECTION" flag:"log-level-connection" validate:"oneof=debug info warn error dpanic panic fatal"`
+		LevelProxy      string `env:"LOG_LEVEL_PROXY" flag:"log-level-proxy" validate:"oneof=debug info warn error dpanic panic fatal"`
+		LevelScheduler  string `env:"LOG_LEVEL_SCHEDULER" flag:"log-level-scheduler" validate:"oneof=debug info warn error dpanic panic fatal"`
+		LevelApp        string `env:"LOG_LEVEL_APP" flag:"log-level-app" validate:"oneof=debug info warn error dpanic panic fatal"`
 	}
 	Pool struct {
 		Address     string        `env:"POOL_ADDRESS" flag:"pool-address" validate:"required,uri"`

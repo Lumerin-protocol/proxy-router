@@ -97,7 +97,7 @@ func (c *StratumConnection) Read(ctx context.Context) (interfaces.MiningMessageG
 	go func() {
 		select {
 		case <-ctx.Done():
-			c.log.Infof("connection %s read cancelled", c.id)
+			c.log.Debugf("connection %s read cancelled", c.id)
 			err := c.conn.SetReadDeadline(time.Now())
 			if err != nil {
 				// may return ErrNetClosing if fd is already closed

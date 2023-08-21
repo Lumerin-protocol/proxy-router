@@ -151,7 +151,7 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 	defer p.setDestLock.Unlock()
 
 	if p.destURL.String() == newDestURL.String() {
-		p.log.Infof("changing destination skipped, because it is the same as current")
+		p.log.Debugf("changing destination skipped, because it is the same as current")
 		return nil
 	}
 

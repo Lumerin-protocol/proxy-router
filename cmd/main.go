@@ -23,10 +23,16 @@ import (
 
 func main() {
 	appLogLevel := "debug"
-	proxyLogLevel := "debug"
+	schedulerLogLevel := "debug"
+	proxyLogLevel := "info"
 	connectionLogLevel := "info"
 
 	log, err := lib.NewLogger(false, appLogLevel, true, true)
+	if err != nil {
+		panic(err)
+	}
+
+	schedulerLog, err := lib.NewLogger(false, schedulerLogLevel, true, true)
 	if err != nil {
 		panic(err)
 	}
@@ -76,7 +82,7 @@ func main() {
 
 		url := *destUrl // clones url
 		currentProxy := proxy.NewProxy(ID, sourceConn, DestConnFactory, &url, proxyLog)
-		scheduler := allocator.NewScheduler(currentProxy, destUrl, log)
+		scheduler := allocator.NewScheduler(currentProxy, destUrl, schedulerLog)
 		alloc.GetMiners().Store(scheduler)
 		err = scheduler.Run(ctx)
 		if err != nil {

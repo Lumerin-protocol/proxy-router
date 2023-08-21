@@ -158,7 +158,7 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 			if weAccepted {
 				dest.GetStats().WeAcceptedTheyAccepted++
 				p.proxy.destHR.OnSubmit(dest.GetDiff())
-				p.log.Debugf("new submit, diff: %0.f, hrGHS %d", diff, p.proxy.destHR.GetHashrateGHS())
+				p.log.Infof("new submit, diff: %0.f, hrGHS %d", diff, p.proxy.destHR.GetHashrateGHS())
 			} else {
 				dest.GetStats().WeRejectedTheyAccepted++
 				p.proxy.source.GetStats().WeRejectedTheyAccepted++
