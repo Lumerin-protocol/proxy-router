@@ -3,6 +3,7 @@ package allocator
 import (
 	"context"
 	"net/url"
+	"sync"
 	"time"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
@@ -64,18 +65,26 @@ func (p *Scheduler) Run(ctx context.Context) error {
 
 	for {
 		// do tasks
-		for task, ok := p.tasks.Peek(); ok; {
+		for {
+			task, ok := p.tasks.Peek()
+			if !ok {
+				break
+			}
 			p.totalTaskJob -= task.JobSubmitted
 			jobDone := make(chan struct{})
+			jobDoneOnce := sync.Once{}
 
 			p.log.Debugf("start doing task %s, for job %.1f", task.Dest.String(), task.JobSubmitted)
 
 			err := p.proxy.SetDest(ctx, task.Dest, func(diff float64) {
 				task.JobSubmitted -= diff
+				p.log.Debugf("task miner %s dest %s jobSubmitted left: %.0f", p.proxy.GetID(), task.Dest, task.JobSubmitted)
 				task.OnSubmit(diff)
 				if task.JobSubmitted <= 0 {
-					p.log.Debugf("finished doing task %s, for job %.1f", task.Dest.String(), task.JobSubmitted)
-					close(jobDone)
+					jobDoneOnce.Do(func() {
+						p.log.Debugf("finished doing task %s, for job %.1f", task.Dest.String(), task.JobSubmitted)
+						close(jobDone)
+					})
 				}
 			})
 			if err != nil {
@@ -215,11 +224,3 @@ func (p *Scheduler) GetUptime() time.Duration {
 func (p *Scheduler) GetDestConns() *map[string]string {
 	return p.proxy.GetDestConns()
 }
-
-// if p.totalTaskJob+jobSubmitted > p.getJobPerCycle() {
-// 	return false
-// }
-
-// func (p *Scheduler) getJobPerCycle() float64 {
-// 	return h.GHSToJobSubmitted(int(p.proxy.GetHashrate()))
-// }

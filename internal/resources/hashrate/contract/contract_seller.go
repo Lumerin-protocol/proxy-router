@@ -46,11 +46,17 @@ func NewContractWatcherSeller(data *contractmanager.ContractData, allocator *all
 
 func (p *ContractWatcher) Run(ctx context.Context) error {
 	remainderGHS := p.GetHashrateGHS()
+	lastCycleJobSubmitted := 0.0
+
+	onSubmit := func(diff float64) {
+		p.actualHRGHS.OnSubmit(diff)
+		lastCycleJobSubmitted += diff
+	}
 
 	for {
 		p.log.Debugf("new contract cycle: remainderGHS=%.1f", remainderGHS)
 		if remainderGHS > 0 {
-			fullMiners, newRemainderGHS := p.allocator.AllocateFullMinersForHR(remainderGHS, p.data.Dest, p.GetDuration(), p.actualHRGHS.OnSubmit)
+			fullMiners, newRemainderGHS := p.allocator.AllocateFullMinersForHR(remainderGHS, p.data.Dest, p.GetDuration(), onSubmit)
 			if len(fullMiners) > 0 {
 				p.log.Debugf("allocated full miners: %v", fullMiners)
 				remainderGHS = newRemainderGHS
@@ -59,7 +65,7 @@ func (p *ContractWatcher) Run(ctx context.Context) error {
 				p.log.Debugf("no full miners were allocated for this contract")
 			}
 
-			minerID, ok := p.allocator.AllocatePartialForHR(remainderGHS, p.data.Dest, ContractCycleDuration, p.actualHRGHS.OnSubmit)
+			minerID, ok := p.allocator.AllocatePartialForHR(remainderGHS, p.data.Dest, ContractCycleDuration, onSubmit)
 			if ok {
 				p.log.Debugf("remainderGHS: %.1f, was allocated by partial miners %v", remainderGHS, minerID)
 			} else {
@@ -107,9 +113,15 @@ func (p *ContractWatcher) Run(ctx context.Context) error {
 		case <-time.After(ContractCycleDuration):
 		}
 
-		lastCycleGHS := 0.0 // TODO: get job submitted for last cycle
+		lastCycleGHS := hashrate.JobSubmittedToGHS(lastCycleJobSubmitted / ContractCycleDuration.Seconds())
+		lastCycleJobSubmitted = 0.0
 		underSubmittedGHS := p.GetHashrateGHS() - lastCycleGHS
 		remainderGHS += underSubmittedGHS
+
+		p.log.Infof(
+			"contract cycle ended, lastCycleGHS=%.1f, underSubmittedGHS=%.1f, remainderGHS=%.1f",
+			lastCycleGHS, underSubmittedGHS, remainderGHS,
+		)
 	}
 }
 
@@ -147,6 +159,12 @@ func (p *ContractWatcher) GetHashrateGHS() float64 {
 
 func (p *ContractWatcher) GetResourceEstimates() map[string]float64 {
 	return p.data.ResourceEstimates
+}
+
+func (p *ContractWatcher) GetResourceEstimatesActual() map[string]float64 {
+	return map[string]float64{
+		ResourceEstimateHashrateGHS: float64(p.actualHRGHS.GetHashrateGHS()),
+	}
 }
 
 func (p *ContractWatcher) GetResourceType() string {
