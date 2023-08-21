@@ -35,8 +35,6 @@ func (p *HandlerChangeDest) connectNewDest(ctx context.Context, newDestURL *url.
 
 	p.log.Debugf("new dest created")
 
-	// autoReadTask := lib.NewTaskFunc(newDest.AutoRead)
-	// autoReadTask.Start(ctx)
 	autoReadDone := make(chan error, 1)
 	err = newDest.AutoReadStart(ctx, func(err error) {
 		if err != nil {
@@ -162,7 +160,7 @@ func (p *HandlerChangeDest) resendRelevantNotifications(ctx context.Context, new
 	if err != nil {
 		return lib.WrapError(ErrChangeDest, err)
 	}
-	p.log.Warnf("set version mask sent")
+	p.log.Debugf("set version mask sent")
 
 	job, ok := newDest.GetLatestJob()
 	if !ok {
@@ -175,14 +173,14 @@ func (p *HandlerChangeDest) resendRelevantNotifications(ctx context.Context, new
 		return lib.WrapError(ErrChangeDest, err)
 	}
 	p.proxy.source.SetExtraNonce(job.GetExtraNonce1(), job.GetExtraNonce2Size())
-	p.log.Warnf("extranonce sent")
+	p.log.Debugf("extranonce sent")
 
 	// 3. SET_DIFFICULTY
 	err = p.proxy.source.Write(ctx, m.NewMiningSetDifficulty(job.GetDiff()))
 	if err != nil {
 		return lib.WrapError(ErrChangeDest, err)
 	}
-	p.log.Warnf("set difficulty sent")
+	p.log.Debugf("set difficulty sent")
 
 	// 4. NOTIFY
 	msg := job.GetNotify()
@@ -192,7 +190,7 @@ func (p *HandlerChangeDest) resendRelevantNotifications(ctx context.Context, new
 	if err != nil {
 		return lib.WrapError(ErrChangeDest, err)
 	}
-	p.log.Warnf("notify sent")
+	p.log.Debugf("notify sent")
 
 	return nil
 }
