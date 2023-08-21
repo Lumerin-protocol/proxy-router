@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 
 	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
@@ -18,7 +17,6 @@ type HandlerMining struct {
 	log   gi.ILogger
 
 	// internal
-	unansweredMsg sync.WaitGroup // number of unanswered messages from the source
 }
 
 func NewHandlerMining(proxy *Proxy, log gi.ILogger) *HandlerMining {
@@ -72,7 +70,7 @@ func (p *HandlerMining) destInterceptor(ctx context.Context, msg i.MiningMessage
 // onMiningSubmit is only called when handshake is completed. It doesn't require determinism
 // in message ordering, so to improve performance we can use asynchronous pipe
 func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSubmit) (i.MiningMessageGeneric, error) {
-	p.unansweredMsg.Add(1)
+	p.proxy.unansweredMsg.Add(1)
 
 	dest := p.proxy.dest
 	var res *m.MiningResult
@@ -146,7 +144,7 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 			p.proxy.cancelRun()
 			return
 		}
-		p.unansweredMsg.Done()
+		p.proxy.unansweredMsg.Done()
 
 		if res.(*m.MiningResult).IsError() {
 			if weAccepted {

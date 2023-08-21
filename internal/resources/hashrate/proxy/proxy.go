@@ -44,6 +44,7 @@ type Proxy struct {
 	pipe                    *Pipe
 	cancelRun               context.CancelFunc // cancels Run() task
 	setDestLock             sync.Mutex         // mutex to protect SetDest() from concurrent calls
+	unansweredMsg           sync.WaitGroup     // number of unanswered messages from the source
 
 	// deps
 	source        *ConnSource                // initiator of the communication, miner
@@ -132,6 +133,11 @@ func (p *Proxy) Run(ctx context.Context) error {
 			return err
 		}
 
+		if errors.Is(err, context.Canceled) {
+			p.log.Warnf("proxy %s stopped", p.ID)
+			return err
+		}
+
 		p.log.Errorf("error running pipe: %s", err)
 
 		// other errors
@@ -156,6 +162,8 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 	cachedDest, ok := p.destMap.Load(newDestURL.String())
 	if ok {
 		p.log.Debugf("reusing dest connection %s from cache", newDestURL.String())
+		// limit waiting time, disconnect if not answered in time
+		p.unansweredMsg.Wait()
 		err := cachedDest.AutoReadStop()
 		if err != nil {
 			p.log.Errorf("error stopping autoread for cached dest %s: %s", newDestURL.String(), err)
