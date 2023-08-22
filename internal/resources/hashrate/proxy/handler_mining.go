@@ -101,7 +101,7 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 			p.log.Warnf("duplicate share, jobID %s, msg id: %d", msgTyped.GetJobId(), msgTyped.GetID())
 			res = m.NewMiningResultDuplicatedShare(msgTyped.GetID())
 		} else if errors.Is(err, validator.ErrLowDifficulty) {
-			p.log.Warnf("low difficulty jobID %s, msg id: %d, diff %s", msgTyped.GetJobId(), msgTyped.GetID(), diff)
+			p.log.Warnf("low difficulty jobID %s, msg id: %d, diff %.f", msgTyped.GetJobId(), msgTyped.GetID(), diff)
 			res = m.NewMiningResultLowDifficulty(msgTyped.GetID())
 		}
 	} else {
@@ -161,7 +161,7 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 			} else {
 				dest.GetStats().WeRejectedTheyAccepted++
 				p.proxy.source.GetStats().WeRejectedTheyAccepted++
-				p.log.Warnf("we rejected submit, but dest accepted, diff: %d", diff)
+				p.log.Warnf("we rejected submit, but dest accepted, diff: %.f", diff)
 			}
 		}
 	}(res)
