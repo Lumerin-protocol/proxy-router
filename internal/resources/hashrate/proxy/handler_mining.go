@@ -109,7 +109,7 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 	} else {
 		p.proxy.source.GetStats().WeAcceptedShares++
 		// miner hashrate
-		p.proxy.sourceHR.OnSubmit(dest.GetDiff())
+		p.proxy.hashrate.OnSubmit(dest.GetDiff())
 
 		// contract hashrate
 		p.proxy.onSubmitMutex.RLock()
@@ -157,8 +157,8 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 		} else {
 			if weAccepted {
 				dest.GetStats().WeAcceptedTheyAccepted++
-				p.proxy.destHR.OnSubmit(dest.GetDiff())
-				p.log.Infof("new submit, diff: %0.f, hrGHS %d", diff, p.proxy.destHR.GetHashrateGHS())
+				p.proxy.hashrate.OnSubmit(dest.GetDiff())
+				p.log.Infof("new submit, diff: %0.f, hrGHS %d", diff, p.proxy.hashrate.GetHashrateGHS())
 			} else {
 				dest.GetStats().WeRejectedTheyAccepted++
 				p.proxy.source.GetStats().WeRejectedTheyAccepted++

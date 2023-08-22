@@ -39,8 +39,7 @@ type Proxy struct {
 
 	// state
 	destToSourceStartSignal chan struct{}      // signal to start reading from destination
-	sourceHR                *hashrate.Hashrate // hashrate of the source validated by the proxy
-	destHR                  *hashrate.Hashrate // hashrate of the destination validated by the destination
+	hashrate                *hashrate.Hashrate // hashrate of the source validated by the proxy
 	pipe                    *Pipe
 	cancelRun               context.CancelFunc // cancels Run() task
 	setDestLock             sync.Mutex         // mutex to protect SetDest() from concurrent calls
@@ -68,8 +67,7 @@ func NewProxy(ID string, source *ConnSource, destFactory DestConnFactory, destUR
 		destFactory: destFactory,
 		log:         log,
 
-		sourceHR: hashrate.NewHashrate(),
-		destHR:   hashrate.NewHashrate(),
+		hashrate: hashrate.NewHashrate(),
 		onSubmit: nil,
 		// globalHashrate:          hashrate.NewHashrate(),
 	}
@@ -267,7 +265,16 @@ func (p *Proxy) GetDifficulty() float64 {
 }
 
 func (p *Proxy) GetHashrate() float64 {
-	return float64(p.sourceHR.GetHashrateGHS())
+	return float64(p.hashrate.GetHashrateGHS())
+}
+
+func (p *Proxy) GetHashrateV2() map[string]float64 {
+	return map[string]float64{
+		"hashrate_5m":      float64(p.hashrate.GetHashrate5minAvgGHS()),
+		"hashrate_30m":     float64(p.hashrate.GetHashrate30minAvgGHS()),
+		"hashrate_1h":      float64(p.hashrate.GetHashrate1hAvgGHS()),
+		"hashrate_overall": float64(p.hashrate.GetHashrateGHS()),
+	}
 }
 
 func (p *Proxy) GetConnectedAt() time.Time {

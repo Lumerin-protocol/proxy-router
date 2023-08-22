@@ -177,34 +177,24 @@ func (c *HTTPHandler) GetMiners(ctx *gin.Context) {
 }
 
 func (c *HTTPHandler) MapMiner(m *allocator.Scheduler) *Miner {
-	hashrate := m.HashrateGHS()
 	// destItems, _ := mapDestItems(m.GetCurrentDestSplit(), m.GetHashRateGHS())
-	// upcomingDest, _ := mapDestItems(m.GetUpcomingDestSplit(), m.GetHashRateGHS())
 	// SMA9m, _ := hashrate.GetHashrateAvgGHSCustom(0)
 
 	return &Miner{
 		Resource: Resource{
 			Self: c.publicUrl.JoinPath(fmt.Sprintf("/miners/%s", m.GetID())).String(),
 		},
-		ID:     m.GetID(),
-		Status: m.GetStatus().String(),
-		// TotalHashrateGHS:  m.GetHashRateGHS(),
-		CurrentDifficulty: int(m.GetCurrentDifficulty()),
-		HashrateAvgGHS: HashrateAvgGHS{
-			T5m: int(hashrate),
-			// T5m:   hashrate.GetHashrate5minAvgGHS(),
-			// T30m:  hashrate.GetHashrate30minAvgGHS(),
-			// T1h:   hashrate.GetHashrate1hAvgGHS(),
-			// SMA9m: SMA9m,
-		},
-		// Destinations:         destItems,
-		// UpcomingDestinations: upcomingDest,
+		ID:                    m.GetID(),
+		Status:                m.GetStatus().String(),
+		CurrentDifficulty:     int(m.GetCurrentDifficulty()),
+		HashrateAvgGHS:        m.GetHashrateV2(),
 		CurrentDestination:    m.GetCurrentDest().String(),
 		WorkerName:            m.GetWorkerName(),
 		ConnectedAt:           m.GetConnectedAt().Format(time.RFC3339),
 		Stats:                 m.GetStats(),
 		UptimeSeconds:         int(m.GetUptime().Seconds()),
 		ActivePoolConnections: mapPoolConnection(m),
+		// Destinations:         destItems,
 		// IsFaulty:             m.IsFaulty(),
 	}
 }

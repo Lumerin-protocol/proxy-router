@@ -224,3 +224,7 @@ func (p *Scheduler) GetUptime() time.Duration {
 func (p *Scheduler) GetDestConns() *map[string]string {
 	return p.proxy.GetDestConns()
 }
+
+func (p *Scheduler) GetHashrateV2() map[string]float64 {
+	return p.proxy.GetHashrateV2()
+}

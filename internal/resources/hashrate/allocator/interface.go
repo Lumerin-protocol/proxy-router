@@ -13,6 +13,7 @@ type StratumProxyInterface interface {
 
 	GetID() string
 	GetHashrate() float64
+	GetHashrateV2() map[string]float64
 	GetDifficulty() float64
 	GetDest() *url.URL
 	GetSourceWorkerName() string

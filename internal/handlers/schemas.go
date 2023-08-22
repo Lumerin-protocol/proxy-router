@@ -19,10 +19,8 @@ type Miner struct {
 
 	ID                    string
 	Status                string
-	TotalHashrateGHS      int
-	HashrateAvgGHS        HashrateAvgGHS
+	HashrateAvgGHS        map[string]float64
 	Destinations          *[]DestItem
-	UpcomingDestinations  *[]DestItem
 	CurrentDestination    string
 	CurrentDifficulty     int
 	WorkerName            string
