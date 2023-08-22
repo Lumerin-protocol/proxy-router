@@ -9,6 +9,7 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	h "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy"
 )
 
 const (
@@ -23,20 +24,22 @@ type Task struct {
 
 // Scheduler is a proxy wrapper that can schedule one-time tasks to different destinations
 type Scheduler struct {
-	proxy         StratumProxyInterface
-	primaryDest   *url.URL
-	tasks         lib.Stack[Task]
-	totalTaskJob  float64
-	newTaskSignal chan struct{}
-	log           interfaces.ILogger
+	proxy             StratumProxyInterface
+	hashrateCounterID string
+	primaryDest       *url.URL
+	tasks             lib.Stack[Task]
+	totalTaskJob      float64
+	newTaskSignal     chan struct{}
+	log               interfaces.ILogger
 }
 
-func NewScheduler(proxy StratumProxyInterface, defaultDest *url.URL, log interfaces.ILogger) *Scheduler {
+func NewScheduler(proxy StratumProxyInterface, hashrateCounterID string, defaultDest *url.URL, log interfaces.ILogger) *Scheduler {
 	return &Scheduler{
-		proxy:         proxy,
-		primaryDest:   defaultDest,
-		log:           log,
-		newTaskSignal: make(chan struct{}, 1),
+		proxy:             proxy,
+		primaryDest:       defaultDest,
+		hashrateCounterID: hashrateCounterID,
+		log:               log,
+		newTaskSignal:     make(chan struct{}, 1),
 	}
 }
 
@@ -164,7 +167,7 @@ func (p *Scheduler) IsAcceptingTasks(duration time.Duration) bool {
 	for _, tsk := range p.tasks {
 		totalJob += tsk.JobSubmitted
 	}
-	maxJob := h.GHSToJobSubmitted(p.proxy.GetHashrate()) * duration.Seconds()
+	maxJob := h.GHSToJobSubmitted(p.HashrateGHS()) * duration.Seconds()
 	return p.tasks.Size() > 0 && totalJob < maxJob
 }
 
@@ -178,7 +181,11 @@ func (p *Scheduler) SetPrimaryDest(dest *url.URL) {
 }
 
 func (p *Scheduler) HashrateGHS() float64 {
-	return p.proxy.GetHashrate()
+	hr, ok := p.proxy.GetHashrateV2().GetHashrateAvgGHSCustom(p.hashrateCounterID)
+	if !ok {
+		panic("hashrate counter not found")
+	}
+	return float64(hr)
 }
 
 func (p *Scheduler) GetStatus() MinerStatus {
@@ -225,6 +232,6 @@ func (p *Scheduler) GetDestConns() *map[string]string {
 	return p.proxy.GetDestConns()
 }
 
-func (p *Scheduler) GetHashrateV2() map[string]float64 {
+func (p *Scheduler) GetHashrateV2() proxy.Hashrate {
 	return p.proxy.GetHashrateV2()
 }

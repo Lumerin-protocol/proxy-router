@@ -15,8 +15,6 @@ type HandlerMining struct {
 	// deps
 	proxy *Proxy
 	log   gi.ILogger
-
-	// internal
 }
 
 func NewHandlerMining(proxy *Proxy, log gi.ILogger) *HandlerMining {
@@ -158,7 +156,8 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 			if weAccepted {
 				dest.GetStats().WeAcceptedTheyAccepted++
 				p.proxy.hashrate.OnSubmit(dest.GetDiff())
-				p.log.Infof("new submit, diff: %0.f, hrGHS %d", diff, p.proxy.hashrate.GetHashrateGHS())
+				hr, _ := p.proxy.hashrate.GetHashrateAvgGHSCustom("mean")
+				p.log.Infof("new submit, diff: %0.f, hrGHS %d", diff, hr)
 			} else {
 				dest.GetStats().WeRejectedTheyAccepted++
 				p.proxy.source.GetStats().WeRejectedTheyAccepted++

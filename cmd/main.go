@@ -18,6 +18,7 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/repositories/transport"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/contract"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy"
 )
 
@@ -47,6 +48,22 @@ func main() {
 		panic(err)
 	}
 
+	var (
+		HashrateCounterDefault = "ema--2.5m"
+		cycleDuration          = 5 * time.Minute
+	)
+
+	hashrateFactory := func() *hashrate.Hashrate {
+		return hashrate.NewHashrateV2(
+			map[string]hashrate.Counter{
+				HashrateCounterDefault: hashrate.NewEma(2*time.Minute + 30*time.Second),
+				"ema-10m":              hashrate.NewEma(10 * time.Minute),
+				"ema-30m":              hashrate.NewEma(30 * time.Minute),
+				"ema-60m":              hashrate.NewEma(1 * time.Hour),
+			},
+		)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	shutdownChan := make(chan os.Signal, 1)
@@ -72,7 +89,7 @@ func main() {
 		return proxy.ConnectDest(ctx, url, connLog.Named(connLogID))
 	}
 
-	alloc := allocator.NewAllocator(lib.NewCollection[*allocator.Scheduler](), 10*time.Minute, log.Named("ALLOCATOR"))
+	alloc := allocator.NewAllocator(lib.NewCollection[*allocator.Scheduler](), log.Named("ALLOCATOR"))
 
 	server := transport.NewTCPServer("0.0.0.0:3333", connLog)
 	server.SetConnectionHandler(func(ctx context.Context, conn net.Conn) {
@@ -81,8 +98,8 @@ func main() {
 		sourceConn := proxy.NewSourceConn(proxy.CreateConnection(conn, ID, 5*time.Minute, 5*time.Minute, sourceLog), sourceLog)
 
 		url := *destUrl // clones url
-		currentProxy := proxy.NewProxy(ID, sourceConn, DestConnFactory, &url, proxyLog)
-		scheduler := allocator.NewScheduler(currentProxy, destUrl, schedulerLog)
+		currentProxy := proxy.NewProxy(ID, sourceConn, DestConnFactory, hashrateFactory, &url, proxyLog)
+		scheduler := allocator.NewScheduler(currentProxy, HashrateCounterDefault, destUrl, schedulerLog)
 		alloc.GetMiners().Store(scheduler)
 		err = scheduler.Run(ctx)
 		if err != nil {
@@ -93,7 +110,7 @@ func main() {
 	})
 
 	publicUrl, _ := url.Parse("http://localhost:3001")
-	hrContractFactory := contract.NewContractFactory(alloc, log)
+	hrContractFactory := contract.NewContractFactory(alloc, cycleDuration, hashrateFactory, log)
 	cf := contractfactory.ContractFactory(hrContractFactory)
 	cm := contractmanager.NewContractManager(cf, log)
 	handl := handlers.NewHTTPHandler(alloc, cm, publicUrl, log)

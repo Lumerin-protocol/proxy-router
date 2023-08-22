@@ -11,17 +11,14 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-const (
-	ContractCycleDuration = 5 * time.Minute
-)
-
 type ContractWatcher struct {
 	data *contractmanager.ContractData
 
-	state                contractmanager.ContractState
-	fullMiners           []string
-	actualHRGHS          hashrate.Hashrate
-	fulfillmentStartedAt *time.Time
+	state                 contractmanager.ContractState
+	fullMiners            []string
+	actualHRGHS           *hashrate.Hashrate
+	fulfillmentStartedAt  *time.Time
+	contractCycleDuration time.Duration
 
 	//deps
 	allocator *allocator.Allocator
@@ -33,14 +30,15 @@ const (
 	ResourceEstimateHashrateGHS = "hashrate_ghs"
 )
 
-func NewContractWatcherSeller(data *contractmanager.ContractData, allocator *allocator.Allocator, log interfaces.ILogger) *ContractWatcher {
+func NewContractWatcherSeller(data *contractmanager.ContractData, cycleDuration time.Duration, hashrateFactory func() *hashrate.Hashrate, allocator *allocator.Allocator, log interfaces.ILogger) *ContractWatcher {
 	return &ContractWatcher{
-		data:        data,
-		state:       contractmanager.ContractStatePending,
-		allocator:   allocator,
-		fullMiners:  []string{},
-		actualHRGHS: *hashrate.NewHashrate(),
-		log:         log,
+		data:                  data,
+		state:                 contractmanager.ContractStatePending,
+		allocator:             allocator,
+		fullMiners:            []string{},
+		contractCycleDuration: cycleDuration,
+		actualHRGHS:           hashrateFactory(),
+		log:                   log,
 	}
 }
 
@@ -65,7 +63,7 @@ func (p *ContractWatcher) Run(ctx context.Context) error {
 				p.log.Debugf("no full miners were allocated for this contract")
 			}
 
-			minerID, ok := p.allocator.AllocatePartialForHR(remainderGHS, p.data.Dest, ContractCycleDuration, onSubmit)
+			minerID, ok := p.allocator.AllocatePartialForHR(remainderGHS, p.data.Dest, p.contractCycleDuration, onSubmit)
 			if ok {
 				p.log.Debugf("remainderGHS: %.1f, was allocated by partial miners %v", remainderGHS, minerID)
 			} else {
@@ -110,10 +108,10 @@ func (p *ContractWatcher) Run(ctx context.Context) error {
 		case <-time.After(time.Until(*p.GetEndTime())):
 			p.log.Warnf("contract ended")
 			return nil
-		case <-time.After(ContractCycleDuration):
+		case <-time.After(p.contractCycleDuration):
 		}
 
-		lastCycleGHS := hashrate.JobSubmittedToGHS(lastCycleJobSubmitted / ContractCycleDuration.Seconds())
+		lastCycleGHS := hashrate.JobSubmittedToGHS(lastCycleJobSubmitted / p.contractCycleDuration.Seconds())
 		lastCycleJobSubmitted = 0.0
 		underSubmittedGHS := p.GetHashrateGHS() - lastCycleGHS
 		remainderGHS += underSubmittedGHS
@@ -162,9 +160,7 @@ func (p *ContractWatcher) GetResourceEstimates() map[string]float64 {
 }
 
 func (p *ContractWatcher) GetResourceEstimatesActual() map[string]float64 {
-	return map[string]float64{
-		ResourceEstimateHashrateGHS: float64(p.actualHRGHS.GetHashrateGHS()),
-	}
+	return p.actualHRGHS.GetHashrateAvgGHSAll()
 }
 
 func (p *ContractWatcher) GetResourceType() string {

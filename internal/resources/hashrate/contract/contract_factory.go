@@ -2,21 +2,27 @@ package contract
 
 import (
 	"fmt"
+	"time"
 
 	contractmanager "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/contractmanager"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 )
 
 type ContractFactory struct {
-	allocator *allocator.Allocator
-	log       interfaces.ILogger
+	allocator       *allocator.Allocator
+	hashrateFactory func() *hashrate.Hashrate
+	cycleDuration   time.Duration
+	log             interfaces.ILogger
 }
 
-func NewContractFactory(allocator *allocator.Allocator, log interfaces.ILogger) *ContractFactory {
+func NewContractFactory(allocator *allocator.Allocator, cycleDuration time.Duration, hashrateFactory func() *hashrate.Hashrate, log interfaces.ILogger) *ContractFactory {
 	return &ContractFactory{
-		allocator: allocator,
-		log:       log,
+		allocator:       allocator,
+		hashrateFactory: hashrateFactory,
+		cycleDuration:   cycleDuration,
+		log:             log,
 	}
 }
 
@@ -26,7 +32,7 @@ func (c *ContractFactory) CreateContract(contractData *contractmanager.ContractD
 	}
 	switch contractData.ContractRole {
 	case contractmanager.ContractRoleSeller:
-		return NewContractWatcherSeller(contractData, c.allocator, c.log.Named(contractData.ContractID)), nil
+		return NewContractWatcherSeller(contractData, c.cycleDuration, c.hashrateFactory, c.allocator, c.log.Named(contractData.ContractID)), nil
 	case contractmanager.ContractRoleBuyer:
 		return NewContractWatcherBuyer(contractData, c.allocator, c.log.Named(contractData.ContractID)), nil
 	default:

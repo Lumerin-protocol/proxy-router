@@ -3,112 +3,26 @@ package hashrate
 import (
 	"math"
 	"time"
-
-	"go.uber.org/atomic"
 )
 
+const MeanCounterKey = "mean"
+
 type Hashrate struct {
-	emaBase Counter
-	ema5m   Counter
-	ema30m  Counter
-	ema1h   Counter
-	custom  map[time.Duration]Counter
-
-	totalWork       atomic.Uint64
-	firstSubmitTime atomic.Int64 // stores first submit time in unix seconds
-	lastSubmitTime  atomic.Int64 // stores last submit time in unix seconds
+	custom map[string]Counter
 }
 
-func NewHashrate(durations ...time.Duration) *Hashrate {
-	instance := &Hashrate{
-		emaBase: NewEma(2 * time.Minute),
-		ema5m:   NewEma(5 * time.Minute),
-		ema30m:  NewEma(30 * time.Minute),
-		ema1h:   NewEma(1 * time.Hour),
+func NewHashrateV2(counters map[string]Counter) *Hashrate {
+	counters[MeanCounterKey] = NewMean()
+
+	return &Hashrate{
+		custom: counters,
 	}
-
-	if len(durations) > 0 {
-		custom := make(map[time.Duration]Counter, len(durations))
-		for _, duration := range durations {
-			custom[duration] = NewEma(duration)
-		}
-		instance.custom = custom
-	}
-
-	return instance
-}
-
-func NewHashrateV2(counters ...Counter) *Hashrate {
-	instance := NewHashrate()
-
-	if len(counters) > 0 {
-		custom := make(map[time.Duration]Counter, len(counters))
-		for i, counter := range counters {
-			custom[time.Duration(i)] = counter
-		}
-		instance.custom = custom
-	}
-
-	return instance
 }
 
 func (h *Hashrate) OnSubmit(diff float64) {
-
-	h.emaBase.Add(diff)
-	h.ema5m.Add(diff)
-	h.ema30m.Add(diff)
-	h.ema1h.Add(diff)
-
-	h.totalWork.Add(uint64(diff))
-
-	now := time.Now()
-	h.maybeSetFirstSubmitTime(now)
-	h.setLastSubmitTime(now)
-
 	for _, item := range h.custom {
 		item.Add(diff)
 	}
-}
-
-func (h *Hashrate) GetTotalWork() uint64 {
-	return h.totalWork.Load()
-}
-
-func (h *Hashrate) GetLastSubmitTime() time.Time {
-	return time.Unix(h.lastSubmitTime.Load(), 0)
-}
-
-func (h *Hashrate) maybeSetFirstSubmitTime(t time.Time) {
-	h.firstSubmitTime.CAS(0, t.Unix())
-}
-
-func (h *Hashrate) setLastSubmitTime(t time.Time) {
-	h.lastSubmitTime.Store(t.Unix())
-}
-
-func (h *Hashrate) GetTotalDuration() time.Duration {
-	durationSeconds := h.lastSubmitTime.Load() - h.firstSubmitTime.Load()
-	return time.Duration(durationSeconds) * time.Second
-}
-
-func (h *Hashrate) GetHashrateGHS() int {
-	return h.averageSubmitDiffToGHS(h.emaBase.ValuePer(time.Second))
-}
-
-func (h *Hashrate) GetHashrate5minAvgGHS() int {
-	return h.averageSubmitDiffToGHS(h.ema5m.ValuePer(time.Second))
-}
-
-func (h *Hashrate) GetHashrate30minAvgGHS() int {
-	return h.averageSubmitDiffToGHS(h.ema30m.ValuePer(time.Second))
-}
-
-func (h *Hashrate) GetHashrate1hAvgGHS() int {
-	return h.averageSubmitDiffToGHS(h.ema1h.ValuePer(time.Second))
-}
-
-func (h *Hashrate) GetTotalAverageGHS() int {
-	return h.averageSubmitDiffToGHS(float64(h.GetTotalWork()) / h.GetTotalDuration().Seconds())
 }
 
 // averageSubmitDiffToGHS converts average value provided by ema to hashrate in GH/S
@@ -116,12 +30,32 @@ func (h *Hashrate) averageSubmitDiffToGHS(averagePerSecond float64) int {
 	return HSToGHS(JobSubmittedToHS(averagePerSecond))
 }
 
-func (h *Hashrate) GetHashrateAvgGHSCustom(avg time.Duration) (hrGHS int, ok bool) {
-	ema, ok := h.custom[avg]
+func (h *Hashrate) GetHashrateAvgGHSCustom(ID string) (hrGHS int, ok bool) {
+	ema, ok := h.custom[ID]
 	if !ok {
 		return 0, false
 	}
 	return h.averageSubmitDiffToGHS(ema.ValuePer(time.Second)), true
+}
+
+func (h *Hashrate) GetHashrateAvgGHSAll() map[string]float64 {
+	m := make(map[string]float64, len(h.custom))
+	for key, item := range h.custom {
+		m[key] = float64(h.averageSubmitDiffToGHS(item.ValuePer(time.Second)))
+	}
+	return m
+}
+
+func (h *Hashrate) GetTotalWork() int {
+	return int(h.custom[MeanCounterKey].Value())
+}
+
+func (h *Hashrate) GetTotalDuration() time.Duration {
+	return h.custom[MeanCounterKey].(*Mean).GetTotalDuration()
+}
+
+func (h *Hashrate) GetLastSubmitTime() time.Time {
+	return h.custom[MeanCounterKey].(*Mean).GetLastSubmitTime()
 }
 
 func JobSubmittedToHS(jobSubmitted float64) float64 {

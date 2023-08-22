@@ -29,18 +29,16 @@ type AllocatorInterface interface {
 }
 
 type Allocator struct {
-	proxies               *lib.Collection[*Scheduler]
-	proxyState            sync.Map // map[string]bool map[proxyID]contractID
-	contractCycleDuration time.Duration
-	log                   gi.ILogger
+	proxies    *lib.Collection[*Scheduler]
+	proxyState sync.Map // map[string]bool map[proxyID]contractID
+	log        gi.ILogger
 }
 
-func NewAllocator(proxies *lib.Collection[*Scheduler], contractCycleDuration time.Duration, log gi.ILogger) *Allocator {
+func NewAllocator(proxies *lib.Collection[*Scheduler], log gi.ILogger) *Allocator {
 	return &Allocator{
-		proxies:               proxies,
-		proxyState:            sync.Map{},
-		contractCycleDuration: contractCycleDuration,
-		log:                   log,
+		proxies:    proxies,
+		proxyState: sync.Map{},
+		log:        log,
 	}
 }
 
@@ -71,7 +69,7 @@ func (p *Allocator) AllocateFullMinersForHR(hrGHS float64, dest *url.URL, durati
 }
 
 func (p *Allocator) AllocatePartialForHR(hrGHS float64, dest *url.URL, cycleDuration time.Duration, onSubmit func(diff float64)) (string, bool) {
-	partialMiners := p.GetPartialMiners()
+	partialMiners := p.GetPartialMiners(cycleDuration)
 	p.log.Debugf("partial miners: %v", partialMiners)
 	// minerIDs := []string{}
 	jobForCycle := hashrate.GHSToJobSubmitted(hrGHS) * cycleDuration.Seconds()
@@ -131,13 +129,13 @@ func (p *Allocator) GetFreeMiners() []MinerItem {
 	return freeMiners
 }
 
-func (p *Allocator) GetPartialMiners() []MinerItemJobScheduled {
+func (p *Allocator) GetPartialMiners(contractCycleDuration time.Duration) []MinerItemJobScheduled {
 	partialMiners := []MinerItemJobScheduled{}
 	p.proxies.Range(func(item *Scheduler) bool {
 		if item.IsVetting() {
 			return true
 		}
-		if item.IsAcceptingTasks(p.contractCycleDuration) {
+		if item.IsAcceptingTasks(contractCycleDuration) {
 			partialMiners = append(partialMiners, MinerItemJobScheduled{
 				ID:       item.GetID(),
 				Job:      item.GetTotalTaskJob(),

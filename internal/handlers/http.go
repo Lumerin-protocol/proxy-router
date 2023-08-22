@@ -187,7 +187,7 @@ func (c *HTTPHandler) MapMiner(m *allocator.Scheduler) *Miner {
 		ID:                    m.GetID(),
 		Status:                m.GetStatus().String(),
 		CurrentDifficulty:     int(m.GetCurrentDifficulty()),
-		HashrateAvgGHS:        m.GetHashrateV2(),
+		HashrateAvgGHS:        mapHRToInt(m),
 		CurrentDestination:    m.GetCurrentDest().String(),
 		WorkerName:            m.GetWorkerName(),
 		ConnectedAt:           m.GetConnectedAt().Format(time.RFC3339),
@@ -262,4 +262,13 @@ func TimePtrToStringPtr(t *time.Time) *string {
 
 func mapPoolConnection(m *allocator.Scheduler) *map[string]string {
 	return m.GetDestConns()
+}
+
+func mapHRToInt(m *allocator.Scheduler) map[string]int {
+	hrFloat := m.GetHashrateV2().GetHashrateAvgGHSAll()
+	hrInt := make(map[string]int, len(hrFloat))
+	for k, v := range hrFloat {
+		hrInt[k] = int(v)
+	}
+	return hrInt
 }

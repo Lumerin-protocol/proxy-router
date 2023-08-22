@@ -19,7 +19,7 @@ type Miner struct {
 
 	ID                    string
 	Status                string
-	HashrateAvgGHS        map[string]float64
+	HashrateAvgGHS        map[string]int
 	Destinations          *[]DestItem
 	CurrentDestination    string
 	CurrentDifficulty     int
@@ -70,11 +70,4 @@ type DestItem struct {
 	URI         string
 	Fraction    float64
 	HashrateGHS int
-}
-
-type HashrateAvgGHS struct {
-	T5m   int `json:"5m"`
-	T30m  int `json:"30m"`
-	T1h   int `json:"1h"`
-	SMA9m int `json:"SMA9m"`
 }
