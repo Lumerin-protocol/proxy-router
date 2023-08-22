@@ -2,6 +2,7 @@ package transport
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -74,6 +75,10 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener net.Listener) e
 
 		conn, err := listener.Accept()
 
+		if errors.Is(err, net.ErrClosed) {
+			return fmt.Errorf("incoming connection listener was closed")
+		}
+
 		if err != nil {
 			p.log.Errorf("incoming connection accept error: %s", err)
 			continue
@@ -84,10 +89,14 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener net.Listener) e
 			p.handler(ctx, conn)
 
 			err = conn.Close()
+			if errors.Is(err, net.ErrClosed) {
+				return
+			}
 			if err != nil {
 				p.log.Warnf("error during closing connection: %s", err)
 				return
 			}
+			p.log.Debugf("connection closed")
 		}()
 
 	}
