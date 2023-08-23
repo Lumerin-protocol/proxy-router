@@ -1,6 +1,6 @@
 module gitlab.com/TitanInd/proxy/proxy-router-v3
 
-go 1.18
+go 1.19
 
 require (
 	github.com/Lumerin-protocol/contracts-go v0.0.25

@@ -2,7 +2,7 @@ run:
 	go run cmd/main.go
 
 build:
-	go build -o bin/main cmd/main.go 
+	go build -ldflags="-s -w" -o bin/hashrouter cmd/main.go 
 
 clean:
 	rm -rf bin logs
