@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/url"
 	"os"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/config"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/contractfactory"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/contractmanager"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/handlers"
@@ -23,34 +23,34 @@ import (
 )
 
 func main() {
-	appLogLevel := "debug"
-	schedulerLogLevel := "debug"
-	proxyLogLevel := "info"
-	connectionLogLevel := "info"
-
-	log, err := lib.NewLogger(false, appLogLevel, true, true)
+	var cfg config.Config
+	err := config.LoadConfig(&cfg, &os.Args)
 	if err != nil {
 		panic(err)
 	}
 
-	schedulerLog, err := lib.NewLogger(false, schedulerLogLevel, true, true)
+	log, err := lib.NewLogger(false, cfg.Log.LevelApp, cfg.Log.LogToFile, cfg.Log.Color)
 	if err != nil {
 		panic(err)
 	}
 
-	proxyLog, err := lib.NewLogger(false, proxyLogLevel, true, true)
+	schedulerLog, err := lib.NewLogger(false, cfg.Log.LevelScheduler, cfg.Log.LogToFile, cfg.Log.Color)
 	if err != nil {
 		panic(err)
 	}
 
-	connLog, err := lib.NewLogger(false, connectionLogLevel, true, true)
+	proxyLog, err := lib.NewLogger(false, cfg.Log.LevelProxy, cfg.Log.LogToFile, cfg.Log.Color)
+	if err != nil {
+		panic(err)
+	}
+
+	connLog, err := lib.NewLogger(false, cfg.Log.LevelConnection, cfg.Log.LogToFile, cfg.Log.Color)
 	if err != nil {
 		panic(err)
 	}
 
 	var (
 		HashrateCounterDefault = "ema--2.5m"
-		cycleDuration          = 5 * time.Minute
 	)
 
 	hashrateFactory := func() *hashrate.Hashrate {
@@ -82,8 +82,10 @@ func main() {
 		_ = log.Sync()
 	}()
 
-	destUrl, _ := url.Parse("tcp://shev8.local:anything123@stratum.slushpool.com:3333")
-	// destUrl, _ := url.Parse("tcp://shev8.local:anything123@0.0.0.0:3001")
+	destUrl, err := url.Parse(cfg.Pool.Address)
+	if err != nil {
+		panic(err)
+	}
 
 	var DestConnFactory = func(ctx context.Context, url *url.URL, connLogID string) (*proxy.ConnDest, error) {
 		return proxy.ConnectDest(ctx, url, connLog.Named(connLogID))
@@ -91,7 +93,7 @@ func main() {
 
 	alloc := allocator.NewAllocator(lib.NewCollection[*allocator.Scheduler](), log.Named("ALLOCATOR"))
 
-	server := transport.NewTCPServer("0.0.0.0:3333", connLog)
+	server := transport.NewTCPServer(cfg.Proxy.Address, connLog)
 	server.SetConnectionHandler(func(ctx context.Context, conn net.Conn) {
 		ID := conn.RemoteAddr().String()
 		sourceLog := connLog.Named("[SRC] " + ID)
@@ -109,14 +111,14 @@ func main() {
 		return
 	})
 
-	publicUrl, _ := url.Parse("http://localhost:3001")
-	hrContractFactory := contract.NewContractFactory(alloc, cycleDuration, hashrateFactory, log)
+	publicUrl, _ := url.Parse(cfg.Web.PublicUrl)
+	hrContractFactory := contract.NewContractFactory(alloc, cfg.Hashrate.CycleDuration, hashrateFactory, log)
 	cf := contractfactory.ContractFactory(hrContractFactory)
 	cm := contractmanager.NewContractManager(cf, log)
 	handl := handlers.NewHTTPHandler(alloc, cm, publicUrl, log)
 
 	// create server gin
-	// gin.SetMode(gin.DebugMode)
+	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.SetTrustedProxies(nil)
 	r.Use(gin.Recovery())
@@ -128,10 +130,10 @@ func main() {
 	r.POST("/contracts", handl.CreateContract)
 
 	go func() {
-		httpPort := 3001
-		log.Infof("http server is listening: http://localhost:%d", httpPort)
+		addr := cfg.Web.Address
+		log.Infof("http server is listening: %s", addr)
 
-		err = r.Run(fmt.Sprintf(":%d", httpPort))
+		err = r.Run(addr)
 		if err != nil {
 			panic(err)
 		}
