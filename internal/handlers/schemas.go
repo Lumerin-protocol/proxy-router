@@ -18,12 +18,12 @@ type Miner struct {
 	Resource
 
 	ID                    string
+	WorkerName            string
 	Status                string
 	HashrateAvgGHS        map[string]int
 	Destinations          *[]DestItem
 	CurrentDestination    string
 	CurrentDifficulty     int
-	WorkerName            string
 	ConnectedAt           string
 	UptimeSeconds         int
 	ActivePoolConnections *map[string]string `json:",omitempty"`
