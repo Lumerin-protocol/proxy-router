@@ -20,6 +20,7 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/contract"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/system"
 )
 
 func main() {
@@ -47,6 +48,32 @@ func main() {
 	connLog, err := lib.NewLogger(false, cfg.Log.LevelConnection, cfg.Log.LogToFile, cfg.Log.Color)
 	if err != nil {
 		panic(err)
+	}
+
+	if cfg.System.Enable {
+		sysConfig, err := system.CreateConfigurator(log)
+		if err != nil {
+			panic(err)
+		}
+
+		err = sysConfig.ApplyConfig(&system.Config{
+			LocalPortRange:   cfg.System.LocalPortRange,
+			TcpMaxSynBacklog: cfg.System.TcpMaxSynBacklog,
+			Somaxconn:        cfg.System.Somaxconn,
+			NetdevMaxBacklog: cfg.System.NetdevMaxBacklog,
+			RlimitSoft:       cfg.System.RlimitSoft,
+			RlimitHard:       cfg.System.RlimitHard,
+		})
+		if err != nil {
+			panic(err)
+		}
+
+		defer func() {
+			err = sysConfig.RestoreConfig()
+			if err != nil {
+				panic(err)
+			}
+		}()
 	}
 
 	var (

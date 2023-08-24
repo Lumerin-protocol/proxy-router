@@ -41,6 +41,15 @@ type Config struct {
 	Proxy struct {
 		Address string `env:"PROXY_ADDRESS" flag:"proxy-address" validate:"required,hostname_port"`
 	}
+	System struct {
+		Enable           bool   `env:"SYS_ENABLE" flag:"sys-enable" desc:"enable system level configuration adjustments"`
+		LocalPortRange   string `env:"SYS_LOCAL_PORT_RANGE" flag:"sys-local-port-range" desc:"" validate:""`
+		NetdevMaxBacklog string `env:"SYS_NET_DEV_MAX_BACKLOG" flag:"sys-netdev-max-backlog" desc:"" validate:""`
+		RlimitHard       uint64 `env:"SYS_RLIMIT_HARD" flag:"sys-rlimit-hard" desc:"" validate:""`
+		RlimitSoft       uint64 `env:"SYS_RLIMIT_SOFT" flag:"sys-rlimit-soft" desc:"" validate:""`
+		Somaxconn        string `env:"SYS_SOMAXCONN" flag:"sys-somaxconn" desc:"" validate:""`
+		TcpMaxSynBacklog string `env:"SYS_TCP_MAX_SYN_BACKLOG" flag:"sys-tcp-max-syn-backlog" desc:"" validate:""`
+	}
 	Web struct {
 		Address   string `env:"WEB_ADDRESS" flag:"web-address" desc:"http server address host:port" validate:"required,hostname_port" default:"0.0.0.0:3333"`
 		PublicUrl string `env:"WEB_PUBLIC_URL" flag:"web-public-url" desc:"public url of the proxyrouter, falls back to web-address if empty" validate:"omitempty,url"`
@@ -51,15 +60,24 @@ func (cfg *Config) SetDefaults() {
 	if cfg.Environment == "" {
 		cfg.Environment = "development"
 	}
+
+	// Hashrate
+
 	if cfg.Hashrate.CycleDuration == 0 {
 		cfg.Hashrate.CycleDuration = time.Duration(10 * time.Minute)
 	}
 	if cfg.Hashrate.ValidationBufferPeriod == 0 {
 		cfg.Hashrate.ValidationBufferPeriod = time.Duration(10 * time.Minute)
 	}
+
+	// Miner
+
 	if cfg.Miner.VettingDuration == 0 {
 		cfg.Miner.VettingDuration = time.Duration(5 * time.Minute)
 	}
+
+	// Log
+
 	if cfg.Log.LevelConnection == "" {
 		cfg.Log.LevelConnection = "info"
 	}
@@ -72,6 +90,30 @@ func (cfg *Config) SetDefaults() {
 	if cfg.Log.LevelApp == "" {
 		cfg.Log.LevelApp = "info"
 	}
+
+	// System
+
+	if cfg.System.LocalPortRange == "" {
+		cfg.System.LocalPortRange = "1024 65535"
+	}
+	if cfg.System.TcpMaxSynBacklog == "" {
+		cfg.System.TcpMaxSynBacklog = "100000"
+	}
+	if cfg.System.Somaxconn == "" {
+		cfg.System.Somaxconn = "100000"
+	}
+	if cfg.System.NetdevMaxBacklog == "" {
+		cfg.System.NetdevMaxBacklog = "100000"
+	}
+	if cfg.System.RlimitSoft == 0 {
+		cfg.System.RlimitSoft = 524288
+	}
+	if cfg.System.RlimitHard == 0 {
+		cfg.System.RlimitHard = 524288
+	}
+
+	// Proxy
+
 	if cfg.Proxy.Address == "" {
 		cfg.Proxy.Address = "0.0.0.0:3333"
 	}
