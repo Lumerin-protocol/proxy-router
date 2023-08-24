@@ -79,7 +79,7 @@ func CreateConnection(conn net.Conn, address string, readTimeout, writeTimeout t
 
 // Connect connects to destination with default close timeouts
 func Connect(address *url.URL, log gi.ILogger) (*StratumConnection, error) {
-	conn, err := net.DialTimeout(address.Scheme, address.Host, DIAL_TIMEOUT)
+	conn, err := net.DialTimeout("tcp", address.Host, DIAL_TIMEOUT)
 	if err != nil {
 		return nil, err
 	}
