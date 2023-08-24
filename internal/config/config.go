@@ -1,6 +1,9 @@
 package config
 
-import "time"
+import (
+	"runtime"
+	"time"
+)
 
 // Validation tags described here: https://pkg.go.dev/github.com/go-playground/validator/v10
 type Config struct {
@@ -88,10 +91,12 @@ func (cfg *Config) SetDefaults() {
 		cfg.Log.LevelScheduler = "info"
 	}
 	if cfg.Log.LevelApp == "" {
-		cfg.Log.LevelApp = "info"
+		cfg.Log.LevelApp = "debug"
 	}
 
 	// System
+
+	cfg.System.Enable = true // TODO: Temporary override, remove this line
 
 	if cfg.System.LocalPortRange == "" {
 		cfg.System.LocalPortRange = "1024 65535"
@@ -99,8 +104,14 @@ func (cfg *Config) SetDefaults() {
 	if cfg.System.TcpMaxSynBacklog == "" {
 		cfg.System.TcpMaxSynBacklog = "100000"
 	}
-	if cfg.System.Somaxconn == "" {
+	if cfg.System.Somaxconn == "" && runtime.GOOS == "linux" {
 		cfg.System.Somaxconn = "100000"
+	}
+	if cfg.System.Somaxconn == "" && runtime.GOOS == "darwin" {
+		// setting high value like 1000000 on darwin
+		// for some reason blocks incoming connections
+		// TODO: investigate best value for this
+		cfg.System.Somaxconn = "2048"
 	}
 	if cfg.System.NetdevMaxBacklog == "" {
 		cfg.System.NetdevMaxBacklog = "100000"

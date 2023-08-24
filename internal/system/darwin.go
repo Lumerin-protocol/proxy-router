@@ -67,6 +67,7 @@ func (c *DarwinConfigurator) ApplyConfig(cfg *Config) error {
 
 	// net.core.netdev_max_backlog is not available on Darwin
 
+	// TODO: ensure these limits are actually applied
 	err = syscall.Setrlimit(syscall.RLIMIT_NOFILE, &syscall.Rlimit{
 		Cur: cfg.RlimitSoft,
 		Max: cfg.RlimitHard,
