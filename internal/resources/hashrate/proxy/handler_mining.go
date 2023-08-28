@@ -81,7 +81,7 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 	if !weAccepted && errors.Is(err, validator.ErrJobNotFound) {
 
 		d := p.proxy.GetDestByJobID(msgTyped.GetJobId())
-		if dest != nil {
+		if d != nil {
 			p.log.Warnf("job %s found in different dest %s", msgTyped.GetJobId(), d.GetID())
 			diff, err = d.ValidateAndAddShare(msgTyped)
 			weAccepted = err == nil
