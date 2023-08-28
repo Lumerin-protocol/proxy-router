@@ -30,13 +30,13 @@ func (c *SystemConfigurator) ApplyConfig(cfg *Config) error {
 			return err
 		}
 		c.backup = backup
-		c.log.Debugf("System config backed up: %+v", c.backup)
+		c.log.Debugf("system config backed up: %+v", c.backup)
 	}
 	err := c.osConfigurator.ApplyConfig(cfg)
 	if err != nil {
 		return err
 	}
-	c.log.Debugf("System config applied: %+v", cfg)
+	c.log.Debugf("system config applied: %+v", cfg)
 	return nil
 }
 
@@ -45,6 +45,6 @@ func (c *SystemConfigurator) RestoreConfig() error {
 	if err != nil {
 		return err
 	}
-	c.log.Debugf("System config restored: %+v", c.backup)
+	c.log.Debugf("system config restored: %+v", c.backup)
 	return nil
 }

@@ -65,12 +65,14 @@ func main() {
 			RlimitHard:       cfg.System.RlimitHard,
 		})
 		if err != nil {
-			panic(err)
+			log.Warnf("failed to apply system config, try using sudo or set SYS_ENABLE to false to disable\n%s", err)
+			os.Exit(1)
 		}
 
 		defer func() {
 			err = sysConfig.RestoreConfig()
 			if err != nil {
+				log.Warnf("failed to restore system config\n%s", err)
 				panic(err)
 			}
 		}()

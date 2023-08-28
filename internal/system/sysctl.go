@@ -19,8 +19,9 @@ func sysctlGet(name string) (string, error) {
 // error will contain full output of the command (stdout + stderr)
 func run(name string, arg ...string) (out string, err error) {
 	outBytes, err := exec.Command(name, arg...).CombinedOutput()
+	output := strings.TrimSpace(string(outBytes))
 	if err != nil {
-		return "", fmt.Errorf("%s: %s", err, outBytes)
+		return "", fmt.Errorf("%s: %s", err, output)
 	}
-	return strings.TrimSpace(string(outBytes)), nil
+	return output, nil
 }
