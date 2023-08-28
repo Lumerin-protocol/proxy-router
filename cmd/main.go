@@ -24,36 +24,56 @@ import (
 )
 
 func main() {
+	err := start()
+	if err != nil {
+		os.Exit(1)
+	}
+	os.Exit(0)
+}
+
+func start() error {
 	var cfg config.Config
 	err := config.LoadConfig(&cfg, &os.Args)
 	if err != nil {
-		panic(err)
+		return err
+	}
+
+	destUrl, err := url.Parse(cfg.Pool.Address)
+	if err != nil {
+		return err
 	}
 
 	log, err := lib.NewLogger(false, cfg.Log.LevelApp, cfg.Log.LogToFile, cfg.Log.Color)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	schedulerLog, err := lib.NewLogger(false, cfg.Log.LevelScheduler, cfg.Log.LogToFile, cfg.Log.Color)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	proxyLog, err := lib.NewLogger(false, cfg.Log.LevelProxy, cfg.Log.LogToFile, cfg.Log.Color)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	connLog, err := lib.NewLogger(false, cfg.Log.LevelConnection, cfg.Log.LogToFile, cfg.Log.Color)
 	if err != nil {
-		panic(err)
+		return err
 	}
+
+	defer func() {
+		_ = log.Sync()
+		_ = schedulerLog.Sync()
+		_ = proxyLog.Sync()
+		_ = connLog.Sync()
+	}()
 
 	if cfg.System.Enable {
 		sysConfig, err := system.CreateConfigurator(log)
 		if err != nil {
-			panic(err)
+			return err
 		}
 
 		err = sysConfig.ApplyConfig(&system.Config{
@@ -66,14 +86,14 @@ func main() {
 		})
 		if err != nil {
 			log.Warnf("failed to apply system config, try using sudo or set SYS_ENABLE to false to disable\n%s", err)
-			os.Exit(1)
+			return err
 		}
 
 		defer func() {
 			err = sysConfig.RestoreConfig()
 			if err != nil {
 				log.Warnf("failed to restore system config\n%s", err)
-				panic(err)
+				return
 			}
 		}()
 	}
@@ -106,15 +126,6 @@ func main() {
 		log.Warnf("Received signal: %s. Forcing exit...", s)
 		os.Exit(1)
 	}()
-
-	defer func() {
-		_ = log.Sync()
-	}()
-
-	destUrl, err := url.Parse(cfg.Pool.Address)
-	if err != nil {
-		panic(err)
-	}
 
 	var DestConnFactory = func(ctx context.Context, url *url.URL, connLogID string) (*proxy.ConnDest, error) {
 		return proxy.ConnectDest(ctx, url, connLog.Named(connLogID))
@@ -164,10 +175,12 @@ func main() {
 
 		err = r.Run(addr)
 		if err != nil {
-			panic(err)
+			log.Error(err)
+			return
 		}
 	}()
 
 	err = server.Run(ctx)
 	log.Infof("App exited due to %s", err)
+	return err
 }
