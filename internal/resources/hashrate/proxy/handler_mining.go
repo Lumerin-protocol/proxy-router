@@ -127,6 +127,8 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 	// to avoid blocking source/dest when one of them is slow
 	// and fix error handling to avoid p.cancelRun
 	go func(res1 *m.MiningResult) {
+		defer p.proxy.unansweredMsg.Done()
+
 		err = p.proxy.source.Write(ctx, res1)
 		if err != nil {
 			p.log.Error("cannot write response to miner: ", err)
@@ -142,7 +144,6 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 			p.proxy.cancelRun()
 			return
 		}
-		p.proxy.unansweredMsg.Done()
 
 		if res.(*m.MiningResult).IsError() {
 			if weAccepted {

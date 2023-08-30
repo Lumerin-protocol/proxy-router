@@ -96,6 +96,7 @@ func (p *Proxy) Run(ctx context.Context) error {
 	p.cancelRun = cancel
 
 	err := p.pipe.Run(ctx)
+	p.unansweredMsg.Wait()
 	if err != nil {
 		// destination error
 		if errors.Is(err, ErrDest) {
@@ -106,7 +107,6 @@ func (p *Proxy) Run(ctx context.Context) error {
 			}
 			p.dest.conn.Close()
 			p.destMap.Delete(p.destURL.String())
-			p.dest = nil
 			p.source.conn.Close()
 			return err
 			// TODO: reconnect to the same dest
@@ -127,7 +127,6 @@ func (p *Proxy) Run(ctx context.Context) error {
 				return true
 			})
 			p.source.conn.Close()
-			p.source = nil
 			return err
 		}
 
