@@ -58,6 +58,7 @@ func (p *Scheduler) Run(ctx context.Context) error {
 
 	select {
 	case <-ctx.Done():
+		<-proxyTask.Done()
 		return ctx.Err()
 	case <-proxyTask.Done():
 		return proxyTask.Err()
@@ -96,6 +97,7 @@ func (p *Scheduler) Run(ctx context.Context) error {
 
 			select {
 			case <-ctx.Done():
+				<-proxyTask.Done()
 				return ctx.Err()
 			case <-proxyTask.Done():
 				return proxyTask.Err()
@@ -107,6 +109,7 @@ func (p *Scheduler) Run(ctx context.Context) error {
 
 		select {
 		case <-ctx.Done():
+			<-proxyTask.Done()
 			return ctx.Err()
 		case <-proxyTask.Done():
 			return proxyTask.Err()
@@ -123,6 +126,7 @@ func (p *Scheduler) Run(ctx context.Context) error {
 
 		select {
 		case <-ctx.Done():
+			<-proxyTask.Done()
 			return ctx.Err()
 		case <-proxyTask.Done():
 			return proxyTask.Err()

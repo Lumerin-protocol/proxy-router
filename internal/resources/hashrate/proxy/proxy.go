@@ -82,10 +82,17 @@ var (
 
 // runs proxy until handshake is done
 func (p *Proxy) Connect(ctx context.Context) error {
-	return NewHandlerFirstConnect(p, p.log).Connect(ctx)
+	err := NewHandlerFirstConnect(p, p.log).Connect(ctx)
+	if err != nil {
+		p.closeConnections()
+		return err
+	}
+	return nil
 }
 
 func (p *Proxy) Run(ctx context.Context) error {
+	defer p.closeConnections()
+
 	handler := NewHandlerMining(p, p.log)
 
 	p.pipe = NewPipe(p.source, p.dest, handler.sourceInterceptor, handler.destInterceptor, p.log)
@@ -97,6 +104,7 @@ func (p *Proxy) Run(ctx context.Context) error {
 
 	err := p.pipe.Run(ctx)
 	p.unansweredMsg.Wait()
+
 	if err != nil {
 		// destination error
 		if errors.Is(err, ErrDest) {
@@ -105,9 +113,7 @@ func (p *Proxy) Run(ctx context.Context) error {
 			} else {
 				p.log.Errorf("destination error, source %s dest %s: %s", p.source.GetID(), p.dest.GetID(), err)
 			}
-			p.dest.conn.Close()
-			p.destMap.Delete(p.destURL.String())
-			p.source.conn.Close()
+
 			return err
 			// TODO: reconnect to the same dest
 			// return p.SetDest(ctx, p.destURL, p.onSubmit)
@@ -120,18 +126,11 @@ func (p *Proxy) Run(ctx context.Context) error {
 			} else {
 				p.log.Errorf("source connection error, source %s: %s", p.source.GetID(), err)
 			}
-			// close all dest connections
-			p.destMap.Range(func(dest *ConnDest) bool {
-				dest.conn.Close()
-				p.destMap.Delete(dest.GetID())
-				return true
-			})
-			p.source.conn.Close()
 			return err
 		}
 
 		if errors.Is(err, context.Canceled) {
-			p.log.Warnf("proxy %s stopped", p.ID)
+			p.log.Warnf("proxy stopped %s", p.ID)
 			return err
 		}
 
@@ -223,6 +222,19 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 
 	p.log.Debugf("resumed piping")
 	return nil
+}
+
+func (p *Proxy) closeConnections() {
+	if p.dest != nil {
+		p.dest.conn.Close()
+	}
+	p.destMap.Delete(p.destURL.String())
+
+	p.destMap.Range(func(dest *ConnDest) bool {
+		dest.conn.Close()
+		p.destMap.Delete(dest.GetID())
+		return true
+	})
 }
 
 func (p *Proxy) GetDestByJobID(jobID string) *ConnDest {

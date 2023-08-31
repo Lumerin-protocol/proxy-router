@@ -137,7 +137,7 @@ func start() error {
 	server.SetConnectionHandler(func(ctx context.Context, conn net.Conn) {
 		ID := conn.RemoteAddr().String()
 		sourceLog := connLog.Named("[SRC] " + ID)
-		sourceConn := proxy.NewSourceConn(proxy.CreateConnection(conn, ID, 5*time.Minute, 5*time.Minute, sourceLog), sourceLog)
+		sourceConn := proxy.NewSourceConn(proxy.CreateConnection(conn, ID, cfg.Miner.ShareTimeout, 5*time.Minute, sourceLog), sourceLog)
 
 		url := *destUrl // clones url
 		currentProxy := proxy.NewProxy(ID, sourceConn, DestConnFactory, hashrateFactory, &url, proxyLog)

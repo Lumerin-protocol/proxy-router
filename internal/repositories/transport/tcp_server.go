@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"sync"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 )
@@ -57,6 +58,7 @@ func (p *TCPServer) Run(ctx context.Context) error {
 		}
 		err = ctx.Err()
 		p.log.Infof("tcp server closed: %s", p.serverAddr)
+		<-serverErr
 		return err
 	case err = <-serverErr:
 	}
@@ -65,6 +67,8 @@ func (p *TCPServer) Run(ctx context.Context) error {
 }
 
 func (p *TCPServer) startAccepting(ctx context.Context, listener net.Listener) error {
+	wg := sync.WaitGroup{} // waits for all handlers to finish to ensure proper cleanup
+	defer wg.Wait()
 
 	for {
 		select {
@@ -84,19 +88,23 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener net.Listener) e
 			continue
 		}
 
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
+
 			p.log.Debugf("incoming connection accepted")
 			p.handler(ctx, conn)
 
 			err = conn.Close()
 			if errors.Is(err, net.ErrClosed) {
+				p.log.Debugf("incoming connection already closed")
 				return
 			}
 			if err != nil {
 				p.log.Warnf("error during closing connection: %s", err)
 				return
 			}
-			p.log.Debugf("connection closed")
+			p.log.Debugf("incoming connection closed")
 		}()
 
 	}

@@ -209,6 +209,8 @@ func (c *StratumConnection) Close() error {
 	err := c.conn.Close()
 	if err == nil {
 		c.log.Infof("connection closed %s", c.id)
+	} else {
+		c.log.Warnf("connection already closed %s", c.id)
 	}
 
 	c.closeOnce.Do(func() {
