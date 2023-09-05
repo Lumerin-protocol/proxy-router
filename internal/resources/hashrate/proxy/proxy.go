@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"net/url"
 	"sync"
 	"time"
@@ -151,7 +152,7 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 		return nil
 	}
 
-	p.log.Infof("changing destination to %s", newDestURL.String())
+	p.log.Debugf("changing destination to %s", newDestURL.String())
 	destChanger := NewHandlerChangeDest(p, p.destFactory, p.log)
 
 	var newDest *ConnDest
@@ -178,7 +179,7 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 	// stop source and old dest
 	<-p.pipe.StopDestToSource()
 	<-p.pipe.StopSourceToDest()
-	p.log.Warnf("stopped source and old dest")
+	p.log.Debugf("stopped source and old dest")
 
 	// TODO: wait to stop?
 
@@ -187,19 +188,22 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 	dest := p.dest
 	err := dest.AutoReadStart(ctx, func(err error) {
 		if err != nil {
-			p.log.Warnf("dest %s autoread exited with error %s", destUrl, err)
-			err := dest.conn.Close()
-			if err != nil {
-				p.log.Warnf("error closing dest %s: %s", destUrl, err)
+			if !errors.Is(err, net.ErrClosed) {
+				p.log.Warnf("autoread exited with error %s", err)
+				err := dest.conn.Close()
+				if err != nil {
+					p.log.Warnf("error closing dest %s: %s", destUrl, err)
+				}
 			}
-			p.destMap.Delete(destUrl)
-			p.log.Warnf("removed old connection from the map %s", destUrl)
 		}
+
+		p.destMap.Delete(destUrl)
+		p.log.Warnf("removed old connection from the map %s", dest.destUrl)
 	})
 	if err != nil {
 		return err
 	}
-	p.log.Warnf("set old dest to autoread")
+	p.log.Debugf("set old dest to autoread")
 
 	err = destChanger.resendRelevantNotifications(ctx, newDest)
 	if err != nil {
@@ -215,12 +219,11 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 	p.onSubmitMutex.Unlock()
 
 	p.pipe.SetDest(newDest)
-	p.log.Infof("changing dest success")
 
 	p.pipe.StartSourceToDest(ctx)
 	p.pipe.StartDestToSource(ctx)
 
-	p.log.Debugf("resumed piping")
+	p.log.Infof("destination changed to %s", newDestURL.String())
 	return nil
 }
 

@@ -92,19 +92,19 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener net.Listener) e
 		go func() {
 			defer wg.Done()
 
-			p.log.Debugf("incoming connection accepted")
+			p.log.Infof("incoming connection accepted")
 			p.handler(ctx, conn)
 
 			err = conn.Close()
 			if errors.Is(err, net.ErrClosed) {
-				p.log.Debugf("incoming connection already closed")
+				p.log.Infof("incoming connection already closed")
 				return
 			}
 			if err != nil {
 				p.log.Warnf("error during closing connection: %s", err)
 				return
 			}
-			p.log.Debugf("incoming connection closed")
+			p.log.Infof("incoming connection closed")
 		}()
 
 	}

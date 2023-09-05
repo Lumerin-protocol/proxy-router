@@ -140,11 +140,17 @@ func (p *HandlerFirstConnect) onMiningConfigure(ctx context.Context, msgTyped *m
 		if err != nil {
 			return nil, lib.WrapError(ErrHandshakeSource, err)
 		}
+		// Brains pool sends extra set-version mask message after configure result
+		// In this implementation is causes issues with titan pool. Miner sends subscribe message twice
+		// and then all submits become incorrect in titan. It may happen because the second message is a little bit
+		// late. So we just skip it for now
+		//
+		// TODO: implement more efficient writing with cancellation support
 
-		err = p.proxy.source.Write(ctx, m.NewMiningSetVersionMask(configureResult.GetVersionRollingMask()))
-		if err != nil {
-			return nil, lib.WrapError(ErrHandshakeSource, err)
-		}
+		// err = p.proxy.source.Write(ctx, m.NewMiningSetVersionMask(configureResult.GetVersionRollingMask()))
+		// if err != nil {
+		// 	return nil, lib.WrapError(ErrHandshakeSource, err)
+		// }
 		return nil, nil
 	})
 

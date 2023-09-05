@@ -139,9 +139,14 @@ func (c *StratumConnection) Read(ctx context.Context) (interfaces.MiningMessageG
 
 		m, err := stratumv1_message.ParseStratumMessage(line)
 
-		if err != nil {
-			c.log.Errorf("unknown stratum message: %s", string(line))
+		if errors.Is(err, stratumv1_message.ErrStratumV1Unknown) {
+			c.log.Warnf("unknown stratum message, ignoring: %s", string(line))
 			continue
+		}
+
+		if err != nil {
+			err2 := fmt.Errorf("invalid stratum message: %s", string(line))
+			return nil, lib.WrapError(err2, err)
 		}
 
 		return m, nil

@@ -99,16 +99,15 @@ func start() error {
 	}
 
 	var (
-		HashrateCounterDefault = "ema--2.5m"
+		HashrateCounterDefault = "ema--5m"
 	)
 
 	hashrateFactory := func() *hashrate.Hashrate {
 		return hashrate.NewHashrateV2(
 			map[string]hashrate.Counter{
-				HashrateCounterDefault: hashrate.NewEma(2*time.Minute + 30*time.Second),
+				HashrateCounterDefault: hashrate.NewEma(5 * time.Minute),
 				"ema-10m":              hashrate.NewEma(10 * time.Minute),
 				"ema-30m":              hashrate.NewEma(30 * time.Minute),
-				"ema-60m":              hashrate.NewEma(1 * time.Hour),
 			},
 		)
 	}
@@ -137,16 +136,22 @@ func start() error {
 	server.SetConnectionHandler(func(ctx context.Context, conn net.Conn) {
 		ID := conn.RemoteAddr().String()
 		sourceLog := connLog.Named("[SRC] " + ID)
-		sourceConn := proxy.NewSourceConn(proxy.CreateConnection(conn, ID, cfg.Miner.ShareTimeout, 5*time.Minute, sourceLog), sourceLog)
+
+		stratumConn := proxy.CreateConnection(conn, ID, cfg.Miner.ShareTimeout, 5*time.Minute, sourceLog)
+		defer stratumConn.Close()
+
+		sourceConn := proxy.NewSourceConn(stratumConn, sourceLog)
 
 		url := *destUrl // clones url
-		currentProxy := proxy.NewProxy(ID, sourceConn, DestConnFactory, hashrateFactory, &url, proxyLog)
-		scheduler := allocator.NewScheduler(currentProxy, HashrateCounterDefault, destUrl, schedulerLog)
+		proxy := proxy.NewProxy(ID, sourceConn, DestConnFactory, hashrateFactory, &url, proxyLog)
+		scheduler := allocator.NewScheduler(proxy, HashrateCounterDefault, destUrl, schedulerLog)
 		alloc.GetMiners().Store(scheduler)
+
 		err = scheduler.Run(ctx)
 		if err != nil {
 			log.Warnf("proxy disconnected: %s", err)
 		}
+
 		alloc.GetMiners().Delete(ID)
 		return
 	})
