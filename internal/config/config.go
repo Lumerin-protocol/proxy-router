@@ -27,6 +27,7 @@ type Config struct {
 	}
 	Miner struct {
 		VettingDuration time.Duration `env:"MINER_VETTING_DURATION" flag:"miner-vetting-duration" validate:"duration"`
+		ShareTimeout    time.Duration `env:"MINER_SHARE_TIMEOUT" flag:"miner-share-timeout" validate:"duration"`
 		// SubmitErrLimit  int           `env:"MINER_SUBMIT_ERR_LIMIT" flag:"miner-submit-err-limit" desc:"amount of consecutive submit errors to consider miner faulty and exclude it from contracts, zero means disable faulty miners tracking"`
 	}
 	Log struct {
@@ -67,7 +68,7 @@ func (cfg *Config) SetDefaults() {
 	// Hashrate
 
 	if cfg.Hashrate.CycleDuration == 0 {
-		cfg.Hashrate.CycleDuration = time.Duration(10 * time.Minute)
+		cfg.Hashrate.CycleDuration = time.Duration(5 * time.Minute)
 	}
 	if cfg.Hashrate.ValidationBufferPeriod == 0 {
 		cfg.Hashrate.ValidationBufferPeriod = time.Duration(10 * time.Minute)
@@ -77,6 +78,10 @@ func (cfg *Config) SetDefaults() {
 
 	if cfg.Miner.VettingDuration == 0 {
 		cfg.Miner.VettingDuration = time.Duration(5 * time.Minute)
+	}
+
+	if cfg.Miner.ShareTimeout == 0 {
+		cfg.Miner.ShareTimeout = time.Duration(2 * time.Minute)
 	}
 
 	// Log
@@ -96,7 +101,7 @@ func (cfg *Config) SetDefaults() {
 
 	// System
 
-	cfg.System.Enable = true // TODO: Temporary override, remove this line
+	// cfg.System.Enable = true // TODO: Temporary override, remove this line
 
 	if cfg.System.LocalPortRange == "" {
 		cfg.System.LocalPortRange = "1024 65535"

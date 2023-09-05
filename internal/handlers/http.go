@@ -10,9 +10,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/contractmanager"
-	cm "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/contractmanager"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/contract"
 	"golang.org/x/exp/slices"
@@ -22,7 +22,7 @@ type Proxy interface {
 	SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(diff float64)) error
 }
 
-type ContractFactory func(contractData *cm.ContractData) (cm.Contract, error)
+type ContractFactory func(contractData *resources.ContractData) (resources.Contract, error)
 
 type HTTPHandler struct {
 	allocator       *allocator.Allocator
@@ -78,14 +78,14 @@ func (h *HTTPHandler) CreateContract(ctx *gin.Context) {
 		return
 	}
 	now := time.Now()
-	h.contractManager.AddContract(&contractmanager.ContractData{
+	h.contractManager.AddContract(&resources.ContractData{
 		ContractID:   lib.GetRandomAddr().String(),
 		Seller:       "",
 		Buyer:        "",
 		Dest:         dest,
 		StartedAt:    &now,
 		Duration:     duration,
-		ContractRole: contractmanager.ContractRoleSeller,
+		ContractRole: resources.ContractRoleSeller,
 		ResourceType: contract.ResourceTypeHashrate,
 		ResourceEstimates: map[string]float64{
 			contract.ResourceEstimateHashrateGHS: float64(hrGHS),
@@ -99,7 +99,7 @@ func (c *HTTPHandler) GetContracts(ctx *gin.Context) {
 	// 	// snap := CreateCurrentMinerSnapshot(c.miners)
 
 	data := []Contract{}
-	c.contractManager.GetContracts().Range(func(item contractmanager.Contract) bool {
+	c.contractManager.GetContracts().Range(func(item resources.Contract) bool {
 		contract := MapContract(item, c.publicUrl)
 		// 		contract.Miners = miners
 		data = append(data, *contract)
@@ -192,14 +192,14 @@ func (c *HTTPHandler) MapMiner(m *allocator.Scheduler) *Miner {
 		CurrentDestination:    m.GetCurrentDest().String(),
 		ConnectedAt:           m.GetConnectedAt().Format(time.RFC3339),
 		Stats:                 m.GetStats(),
-		UptimeSeconds:         int(m.GetUptime().Seconds()),
+		Uptime:                formatDuration(m.GetUptime()),
 		ActivePoolConnections: mapPoolConnection(m),
 		// Destinations:         destItems,
 		// IsFaulty:             m.IsFaulty(),
 	}
 }
 
-func MapContract(item contractmanager.Contract, publicUrl *url.URL) *Contract {
+func MapContract(item resources.Contract, publicUrl *url.URL) *Contract {
 	return &Contract{
 		Resource: Resource{
 			Self: publicUrl.JoinPath(fmt.Sprintf("/contracts/%s", item.GetID())).String(),
@@ -218,11 +218,11 @@ func MapContract(item contractmanager.Contract, publicUrl *url.URL) *Contract {
 	}
 }
 
-func MapContractState(state contractmanager.ContractState) string {
+func MapContractState(state resources.ContractState) string {
 	switch state {
-	case contractmanager.ContractStatePending:
+	case resources.ContractStatePending:
 		return "pending"
-	case contractmanager.ContractStateRunning:
+	case resources.ContractStateRunning:
 		return "running"
 	}
 	return "unknown"
@@ -271,4 +271,8 @@ func mapHRToInt(m *allocator.Scheduler) map[string]int {
 		hrInt[k] = int(v)
 	}
 	return hrInt
+}
+
+func formatDuration(dur time.Duration) string {
+	return dur.Round(time.Second).String()
 }

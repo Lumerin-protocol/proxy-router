@@ -25,7 +25,7 @@ type Miner struct {
 	CurrentDestination    string
 	CurrentDifficulty     int
 	ConnectedAt           string
-	UptimeSeconds         int
+	Uptime                string
 	ActivePoolConnections *map[string]string `json:",omitempty"`
 	History               *[]HistoryItem     `json:",omitempty"`
 	IsFaulty              bool

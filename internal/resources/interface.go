@@ -1,4 +1,4 @@
-package contractmanager
+package resources
 
 import (
 	"context"

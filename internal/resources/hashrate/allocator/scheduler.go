@@ -17,9 +17,9 @@ const (
 )
 
 type Task struct {
-	Dest         *url.URL
-	JobSubmitted float64
-	OnSubmit     func(diff float64)
+	Dest                 *url.URL
+	RemainingJobToSubmit float64
+	OnSubmit             func(diff float64, ID string)
 }
 
 // Scheduler is a proxy wrapper that can schedule one-time tasks to different destinations
@@ -30,6 +30,7 @@ type Scheduler struct {
 	tasks             lib.Stack[Task]
 	totalTaskJob      float64
 	newTaskSignal     chan struct{}
+	resetTasksSignal  chan struct{}
 	log               interfaces.ILogger
 }
 
@@ -70,23 +71,23 @@ func (p *Scheduler) Run(ctx context.Context) error {
 	for {
 		// do tasks
 		for {
+			p.resetTasksSignal = make(chan struct{})
 			task, ok := p.tasks.Peek()
 			if !ok {
 				break
 			}
-			p.totalTaskJob -= task.JobSubmitted
+			p.totalTaskJob -= task.RemainingJobToSubmit
 			jobDone := make(chan struct{})
 			jobDoneOnce := sync.Once{}
 
-			p.log.Debugf("start doing task %s, for job %.1f", task.Dest.String(), task.JobSubmitted)
+			p.log.Debugf("start doing task %s, for job %.1f", task.Dest.String(), task.RemainingJobToSubmit)
 
 			err := p.proxy.SetDest(ctx, task.Dest, func(diff float64) {
-				task.JobSubmitted -= diff
-				p.log.Debugf("task miner %s dest %s jobSubmitted left: %.0f", p.proxy.GetID(), task.Dest, task.JobSubmitted)
-				task.OnSubmit(diff)
-				if task.JobSubmitted <= 0 {
+				task.RemainingJobToSubmit -= diff
+				task.OnSubmit(diff, p.proxy.GetID())
+				if task.RemainingJobToSubmit <= 0 {
 					jobDoneOnce.Do(func() {
-						p.log.Debugf("finished doing task %s, for job %.1f", task.Dest.String(), task.JobSubmitted)
+						p.log.Debugf("finished doing task %s, for job %.1f", task.Dest.String(), task.RemainingJobToSubmit)
 						close(jobDone)
 					})
 				}
@@ -101,6 +102,8 @@ func (p *Scheduler) Run(ctx context.Context) error {
 				return ctx.Err()
 			case <-proxyTask.Done():
 				return proxyTask.Err()
+			case <-p.resetTasksSignal:
+				close(jobDone)
 			case <-jobDone:
 			}
 
@@ -135,12 +138,12 @@ func (p *Scheduler) Run(ctx context.Context) error {
 	}
 }
 
-func (p *Scheduler) AddTask(dest *url.URL, jobSubmitted float64, onSubmit func(diff float64)) {
+func (p *Scheduler) AddTask(dest *url.URL, jobSubmitted float64, onSubmit func(diff float64, ID string)) {
 	shouldSignal := p.tasks.Size() == 0
 	p.tasks.Push(Task{
-		Dest:         dest,
-		JobSubmitted: jobSubmitted,
-		OnSubmit:     onSubmit,
+		Dest:                 dest,
+		RemainingJobToSubmit: jobSubmitted,
+		OnSubmit:             onSubmit,
 	})
 	p.totalTaskJob += jobSubmitted
 	if shouldSignal {
@@ -149,8 +152,9 @@ func (p *Scheduler) AddTask(dest *url.URL, jobSubmitted float64, onSubmit func(d
 	p.log.Debugf("added new task, dest: %s, for jobSubmitted: %.1f, totalTaskJob: %.1f", dest, jobSubmitted, p.totalTaskJob)
 }
 
-func (p *Scheduler) RemoveTasks() {
+func (p *Scheduler) ResetTasks() {
 	p.tasks.Clear()
+	close(p.resetTasksSignal)
 }
 
 func (p *Scheduler) GetTaskCount() int {
@@ -169,13 +173,13 @@ func (p *Scheduler) IsFree() bool {
 func (p *Scheduler) IsAcceptingTasks(duration time.Duration) bool {
 	totalJob := 0.0
 	for _, tsk := range p.tasks {
-		totalJob += tsk.JobSubmitted
+		totalJob += tsk.RemainingJobToSubmit
 	}
 	maxJob := h.GHSToJobSubmitted(p.HashrateGHS()) * duration.Seconds()
 	return p.tasks.Size() > 0 && totalJob < maxJob
 }
 
-func (p *Scheduler) AddHashrate(dest *url.URL, hrGHS float64, onSubmit func(diff float64)) {
+func (p *Scheduler) AddHashrate(dest *url.URL, hrGHS float64, onSubmit func(diff float64, ID string)) {
 	p.AddTask(dest, h.GHSToJobSubmitted(hrGHS), onSubmit)
 }
 

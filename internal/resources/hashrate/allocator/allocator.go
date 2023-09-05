@@ -12,6 +12,10 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+const (
+	HashratePredictionAdjustment = 1
+)
+
 type MinerItem struct {
 	ID    string
 	HrGHS float64
@@ -46,17 +50,19 @@ func (p *Allocator) Run(ctx context.Context) error {
 	return nil
 }
 
-func (p *Allocator) AllocateFullMinersForHR(hrGHS float64, dest *url.URL, duration time.Duration, onSubmit func(diff float64)) (minerIDs []string, deltaGHS float64) {
+func (p *Allocator) AllocateFullMinersForHR(hrGHS float64, dest *url.URL, duration time.Duration, onSubmit func(diff float64, ID string)) (minerIDs []string, deltaGHS float64) {
 	miners := p.GetFreeMiners()
 
 	for _, miner := range miners {
-		if miner.HrGHS <= hrGHS {
+		adjustedMinerGHS := miner.HrGHS
+		if adjustedMinerGHS <= hrGHS {
 			minerIDs = append(minerIDs, miner.ID)
 			proxy, ok := p.proxies.Load(miner.ID)
 			if ok {
-				proxy.AddTask(dest, hashrate.GHSToJobSubmitted(miner.HrGHS)*duration.Seconds(), onSubmit)
+				proxy.AddTask(dest, hashrate.GHSToJobSubmitted(adjustedMinerGHS)*duration.Seconds(), onSubmit)
+				p.log.Infof("miner %s allocated for %f GHS", miner.ID, adjustedMinerGHS)
 			}
-			hrGHS -= miner.HrGHS
+			hrGHS -= adjustedMinerGHS
 		}
 	}
 
@@ -68,9 +74,8 @@ func (p *Allocator) AllocateFullMinersForHR(hrGHS float64, dest *url.URL, durati
 	// })
 }
 
-func (p *Allocator) AllocatePartialForHR(hrGHS float64, dest *url.URL, cycleDuration time.Duration, onSubmit func(diff float64)) (string, bool) {
+func (p *Allocator) AllocatePartialForHR(hrGHS float64, dest *url.URL, cycleDuration time.Duration, onSubmit func(diff float64, ID string)) (string, bool) {
 	partialMiners := p.GetPartialMiners(cycleDuration)
-	p.log.Debugf("partial miners: %v", partialMiners)
 	// minerIDs := []string{}
 	jobForCycle := hashrate.GHSToJobSubmitted(hrGHS) * cycleDuration.Seconds()
 
@@ -88,18 +93,13 @@ func (p *Allocator) AllocatePartialForHR(hrGHS float64, dest *url.URL, cycleDura
 
 	// search in free miners
 	freeMiners := p.GetFreeMiners()
-	p.log.Debugf("free miners: %v", freeMiners)
-
 	for _, miner := range freeMiners {
 		remainingJob := hashrate.GHSToJobSubmitted(miner.HrGHS) * cycleDuration.Seconds()
-		p.log.Debugf("remainingJob: %.1f, jobForCycle: %.1f", remainingJob, jobForCycle)
 		if remainingJob >= jobForCycle {
 			m, ok := p.proxies.Load(miner.ID)
 			if ok {
 				m.AddTask(dest, jobForCycle, onSubmit)
 				return miner.ID, true
-			} else {
-				p.log.Warnf("not found proxy %s", miner.ID)
 			}
 		}
 	}
@@ -116,7 +116,7 @@ func (p *Allocator) GetFreeMiners() []MinerItem {
 		if item.IsFree() {
 			freeMiners = append(freeMiners, MinerItem{
 				ID:    item.GetID(),
-				HrGHS: item.HashrateGHS(),
+				HrGHS: item.HashrateGHS() * HashratePredictionAdjustment,
 			})
 		}
 		return true
@@ -136,10 +136,13 @@ func (p *Allocator) GetPartialMiners(contractCycleDuration time.Duration) []Mine
 			return true
 		}
 		if item.IsAcceptingTasks(contractCycleDuration) {
+			job := item.GetTotalTaskJob() * HashratePredictionAdjustment
+			fraction := float64(hashrate.JobSubmittedToGHS(job)) / (item.HashrateGHS() * HashratePredictionAdjustment)
+
 			partialMiners = append(partialMiners, MinerItemJobScheduled{
 				ID:       item.GetID(),
-				Job:      item.GetTotalTaskJob(),
-				Fraction: float64(hashrate.JobSubmittedToGHS(item.GetTotalTaskJob())) / item.HashrateGHS(),
+				Job:      job,
+				Fraction: fraction,
 			})
 		}
 		return true
