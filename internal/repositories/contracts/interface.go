@@ -1,4 +1,4 @@
-package dataaccess
+package contracts
 
 import (
 	"context"

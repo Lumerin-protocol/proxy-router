@@ -1,15 +1,15 @@
 package contract
 
 import (
-	cm "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/contractmanager"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
 )
 
-func NewContractWatcherBuyer(data *cm.ContractData, allocator *allocator.Allocator, log interfaces.ILogger) *ContractWatcher {
+func NewContractWatcherBuyer(data *resources.ContractData, allocator *allocator.Allocator, log interfaces.ILogger) *ContractWatcher {
 	return &ContractWatcher{
 		data:       data,
-		state:      cm.ContractStatePending,
+		state:      resources.ContractStatePending,
 		allocator:  allocator,
 		fullMiners: []string{},
 		// actualHRGHS: *hashrate.NewHashrate(),

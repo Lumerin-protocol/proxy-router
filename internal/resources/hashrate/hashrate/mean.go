@@ -1,15 +1,14 @@
 package hashrate
 
 import (
+	"sync/atomic"
 	"time"
-
-	"go.uber.org/atomic"
 )
 
 type Mean struct {
-	totalWork       atomic.Uint64
-	firstSubmitTime atomic.Int64 // stores first submit time in unix seconds
-	lastSubmitTime  atomic.Int64 // stores last submit time in unix seconds
+	totalWork       *atomic.Uint64
+	firstSubmitTime *atomic.Int64 // stores first submit time in unix seconds
+	lastSubmitTime  *atomic.Int64 // stores last submit time in unix seconds
 }
 
 // NewMean creates a new Mean hashrate counter, which adds all submitted work and divides it by the total duration
@@ -52,7 +51,7 @@ func (h *Mean) GetTotalDuration() time.Duration {
 }
 
 func (h *Mean) maybeSetFirstSubmitTime(t time.Time) {
-	h.firstSubmitTime.CAS(0, t.Unix())
+	h.firstSubmitTime.CompareAndSwap(0, t.Unix())
 }
 
 func (h *Mean) setLastSubmitTime(t time.Time) {
