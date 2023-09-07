@@ -59,7 +59,7 @@ type Proxy struct {
 }
 
 // TODO: pass connection factory for destURL
-func NewProxy(ID string, source *ConnSource, destFactory DestConnFactory, hashrateFactory func() *hashrate.Hashrate, destURL *url.URL, log gi.ILogger) *Proxy {
+func NewProxy(ID string, source *ConnSource, destFactory DestConnFactory, hashrateFactory HashrateFactory, globalHashrate GlobalHashrateCounter, destURL *url.URL, log gi.ILogger) *Proxy {
 	proxy := &Proxy{
 		ID:          ID,
 		source:      source,
@@ -68,8 +68,9 @@ func NewProxy(ID string, source *ConnSource, destFactory DestConnFactory, hashra
 		destFactory: destFactory,
 		log:         log,
 
-		hashrate: hashrateFactory(),
-		onSubmit: nil,
+		hashrate:       hashrateFactory(),
+		globalHashrate: globalHashrate,
+		onSubmit:       nil,
 		// globalHashrate:          hashrate.NewHashrate(),
 	}
 

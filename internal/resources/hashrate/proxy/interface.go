@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"time"
 
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
 	m "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
 )
@@ -22,7 +23,7 @@ type GlobalHashrateCounter interface {
 type Hashrate interface {
 	GetHashrateAvgGHSCustom(ID string) (hrGHS int, ok bool)
 	GetHashrateAvgGHSAll() map[string]float64
-	GetTotalWork() int
+	GetTotalWork() float64
 	GetTotalDuration() time.Duration
 	GetLastSubmitTime() time.Time
 }
@@ -32,3 +33,5 @@ type DestConnFactory = func(ctx context.Context, url *url.URL, logID string) (*C
 type Interceptor = func(context.Context, i.MiningMessageGeneric) (i.MiningMessageGeneric, error)
 
 type ResultHandler = func(a *m.MiningResult) (msg i.MiningMessageWithID, err error)
+
+type HashrateFactory = func() *hashrate.Hashrate

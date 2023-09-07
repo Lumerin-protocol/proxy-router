@@ -34,7 +34,9 @@ func RunTestProxy() (p *Proxy, s *StratumConnection, d *StratumConnection, cance
 		return hashrate.NewHashrateV2(map[string]hashrate.Counter{})
 	}
 
-	proxy := NewProxy("test", sourceConn, destConnFactory, hashrateFactory, destURL, log)
+	globalHashrate := hashrate.NewGlobalHashrate(hashrateFactory)
+
+	proxy := NewProxy("test", sourceConn, destConnFactory, hashrateFactory, globalHashrate, destURL, log)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	runErrorCh := make(chan error)

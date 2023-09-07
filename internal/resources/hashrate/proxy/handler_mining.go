@@ -109,6 +109,9 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 
 		// miner hashrate
 		p.proxy.hashrate.OnSubmit(dest.GetDiff())
+		// workername hashrate
+		p.proxy.globalHashrate.OnSubmit(p.proxy.source.GetWorkerName(), dest.GetDiff())
+
 		hr, _ := p.proxy.hashrate.GetHashrateAvgGHSCustom("mean")
 		p.log.Debugf("new submit, diff: %0.f, hrGHS %d", diff, hr)
 
@@ -121,9 +124,6 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 
 		res = m.NewMiningResultSuccess(msgTyped.GetID())
 	}
-
-	// workername hashrate
-	// s.globalHashrate.OnSubmit(s.source.GetWorkerName(), s.dest.GetDiff())
 
 	// does not wait for response from destination pool
 	// TODO: implement buffering for source/dest messages

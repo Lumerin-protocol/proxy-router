@@ -11,7 +11,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/config"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/contractfactory"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/contractmanager"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/handlers"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
@@ -98,6 +97,22 @@ func start() error {
 		}()
 	}
 
+	// graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	shutdownChan := make(chan os.Signal, 1)
+	signal.Notify(shutdownChan, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		s := <-shutdownChan
+		log.Warnf("Received signal: %s", s)
+		cancel()
+
+		s = <-shutdownChan
+		log.Warnf("Received signal: %s. Forcing exit...", s)
+		os.Exit(1)
+	}()
+
 	var (
 		HashrateCounterDefault = "ema--5m"
 	)
@@ -112,23 +127,11 @@ func start() error {
 		)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-
-	shutdownChan := make(chan os.Signal, 1)
-	signal.Notify(shutdownChan, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		s := <-shutdownChan
-		log.Warnf("Received signal: %s", s)
-		cancel()
-
-		s = <-shutdownChan
-		log.Warnf("Received signal: %s. Forcing exit...", s)
-		os.Exit(1)
-	}()
-
-	var DestConnFactory = func(ctx context.Context, url *url.URL, connLogID string) (*proxy.ConnDest, error) {
+	destConnFactory := func(ctx context.Context, url *url.URL, connLogID string) (*proxy.ConnDest, error) {
 		return proxy.ConnectDest(ctx, url, connLog.Named(connLogID))
 	}
+
+	globalHashrate := hashrate.NewGlobalHashrate(hashrateFactory)
 
 	alloc := allocator.NewAllocator(lib.NewCollection[*allocator.Scheduler](), log.Named("ALLOCATOR"))
 
@@ -143,7 +146,7 @@ func start() error {
 		sourceConn := proxy.NewSourceConn(stratumConn, sourceLog)
 
 		url := *destUrl // clones url
-		proxy := proxy.NewProxy(ID, sourceConn, DestConnFactory, hashrateFactory, &url, proxyLog)
+		proxy := proxy.NewProxy(ID, sourceConn, destConnFactory, hashrateFactory, globalHashrate, &url, proxyLog)
 		scheduler := allocator.NewScheduler(proxy, HashrateCounterDefault, destUrl, schedulerLog)
 		alloc.GetMiners().Store(scheduler)
 
@@ -178,6 +181,7 @@ func start() error {
 
 	r.GET("/miners", handl.GetMiners)
 	r.GET("/contracts", handl.GetContracts)
+	r.GET("/workers", handl.GetWorkers)
 
 	r.POST("/change-dest", handl.ChangeDest)
 	r.POST("/contracts", handl.CreateContract)
