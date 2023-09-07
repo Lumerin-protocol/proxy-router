@@ -9,20 +9,20 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	dataaccess "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/repositories/contracts"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
 )
 
 type ContractManager struct {
 	contracts       *lib.Collection[resources.Contract]
 	contractFactory ContractFactory
 
-	store *dataaccess.HashrateEthereum
-
+	store  *dataaccess.HashrateEthereum
 	cfAddr common.Address
 
 	log interfaces.ILogger
 }
 
-type ContractFactory func(contractData *resources.ContractData) (resources.Contract, error)
+type ContractFactory func(contractData *hashrate.Terms) (resources.Contract, error)
 
 func NewContractManager(contractFactory ContractFactory, log interfaces.ILogger) *ContractManager {
 	return &ContractManager{
@@ -61,6 +61,8 @@ func (cm *ContractManager) Run(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
+		case err := <-sub.Err():
+			return err
 		}
 	}
 }
@@ -110,7 +112,7 @@ func (cm *ContractManager) handleContractDeleteUpdated(ctx context.Context, even
 	return nil
 }
 
-func (cm *ContractManager) AddContract(data *resources.ContractData) {
+func (cm *ContractManager) AddContract(data *hashrate.Terms) {
 	cntr, err := cm.contractFactory(data)
 	if err != nil {
 		cm.log.Error("contract factory error %s", err)

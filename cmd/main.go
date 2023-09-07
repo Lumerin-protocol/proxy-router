@@ -156,10 +156,18 @@ func start() error {
 		return
 	})
 
-	publicUrl, _ := url.Parse(cfg.Web.PublicUrl)
-	hrContractFactory := contract.NewContractFactory(alloc, cfg.Hashrate.CycleDuration, hashrateFactory, log)
-	cf := contractfactory.ContractFactory(hrContractFactory)
-	cm := contractmanager.NewContractManager(cf, log)
+	publicUrl, err := url.Parse(cfg.Web.PublicUrl)
+	if err != nil {
+		return err
+	}
+
+	walletAddr, err := lib.PrivKeyStringToAddr(cfg.Marketplace.WalletPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	hrContractFactory := contract.NewContractFactory(walletAddr, alloc, cfg.Hashrate.CycleDuration, hashrateFactory, log)
+	cm := contractmanager.NewContractManager(hrContractFactory.CreateContract, log)
 	handl := handlers.NewHTTPHandler(alloc, cm, publicUrl, log)
 
 	// create server gin

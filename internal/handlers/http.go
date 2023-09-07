@@ -13,6 +13,7 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/contract"
 	"golang.org/x/exp/slices"
@@ -22,7 +23,7 @@ type Proxy interface {
 	SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(diff float64)) error
 }
 
-type ContractFactory func(contractData *resources.ContractData) (resources.Contract, error)
+type ContractFactory func(contractData *hashrate.Terms) (resources.Contract, error)
 
 type HTTPHandler struct {
 	allocator       *allocator.Allocator
@@ -78,26 +79,20 @@ func (h *HTTPHandler) CreateContract(ctx *gin.Context) {
 		return
 	}
 	now := time.Now()
-	h.contractManager.AddContract(&resources.ContractData{
-		ContractID:   lib.GetRandomAddr().String(),
-		Seller:       "",
-		Buyer:        "",
-		Dest:         dest,
-		StartedAt:    &now,
-		Duration:     duration,
-		ContractRole: resources.ContractRoleSeller,
-		ResourceType: contract.ResourceTypeHashrate,
-		ResourceEstimates: map[string]float64{
-			contract.ResourceEstimateHashrateGHS: float64(hrGHS),
-		},
+	h.contractManager.AddContract(&hashrate.Terms{
+		ContractID: lib.GetRandomAddr().String(),
+		Seller:     "",
+		Buyer:      "",
+		Dest:       dest,
+		StartedAt:  &now,
+		Duration:   duration,
+		Hashrate:   float64(hrGHS) * 1e9,
 	})
 
 	ctx.JSON(200, gin.H{"status": "ok"})
 }
 
 func (c *HTTPHandler) GetContracts(ctx *gin.Context) {
-	// 	// snap := CreateCurrentMinerSnapshot(c.miners)
-
 	data := []Contract{}
 	c.contractManager.GetContracts().Range(func(item resources.Contract) bool {
 		contract := MapContract(item, c.publicUrl)
@@ -204,17 +199,17 @@ func MapContract(item resources.Contract, publicUrl *url.URL) *Contract {
 		Resource: Resource{
 			Self: publicUrl.JoinPath(fmt.Sprintf("/contracts/%s", item.GetID())).String(),
 		},
-		ID:                      item.GetID(),
-		BuyerAddr:               item.GetBuyer(),
-		SellerAddr:              item.GetSeller(),
-		ResourceEstimatesTarget: item.GetResourceEstimates(),
-		ResourceEstimatesActual: item.GetResourceEstimatesActual(),
-		DurationSeconds:         int(item.GetDuration().Seconds()),
-		StartTimestamp:          TimePtrToStringPtr(item.GetStartedAt()),
-		EndTimestamp:            TimePtrToStringPtr(item.GetEndTime()),
-		ApplicationStatus:       MapContractState(item.GetState()),
-		BlockchainStatus:        "not implemented",
-		Dest:                    item.GetDest(),
+		ID:         item.GetID(),
+		BuyerAddr:  item.GetBuyer(),
+		SellerAddr: item.GetSeller(),
+		// ResourceEstimatesTarget: item.GetResourceEstimates(),
+		// ResourceEstimatesActual: item.GetResourceEstimatesActual(),
+		DurationSeconds:   int(item.GetDuration().Seconds()),
+		StartTimestamp:    TimePtrToStringPtr(item.GetStartedAt()),
+		EndTimestamp:      TimePtrToStringPtr(item.GetEndTime()),
+		ApplicationStatus: MapContractState(item.GetState()),
+		BlockchainStatus:  "not implemented",
+		Dest:              item.GetDest(),
 	}
 }
 

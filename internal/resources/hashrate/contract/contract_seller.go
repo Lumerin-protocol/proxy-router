@@ -9,17 +9,14 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources"
+	hashrateContract "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 	"golang.org/x/exp/slices"
 )
 
-var (
-	ErrContractClosed = errors.New("contract closed")
-)
-
-type ContractWatcher struct {
-	data *resources.ContractData
+type ContractWatcherSeller struct {
+	data *hashrateContract.Terms
 
 	state                 resources.ContractState
 	fullMiners            []string
@@ -34,13 +31,8 @@ type ContractWatcher struct {
 	log       interfaces.ILogger
 }
 
-const (
-	ResourceTypeHashrate        = "hashrate"
-	ResourceEstimateHashrateGHS = "hashrate_ghs"
-)
-
-func NewContractWatcherSeller(data *resources.ContractData, cycleDuration time.Duration, hashrateFactory func() *hashrate.Hashrate, allocator *allocator.Allocator, log interfaces.ILogger) *ContractWatcher {
-	return &ContractWatcher{
+func NewContractWatcherSeller(data *hashrateContract.Terms, cycleDuration time.Duration, hashrateFactory func() *hashrate.Hashrate, allocator *allocator.Allocator, log interfaces.ILogger) *ContractWatcherSeller {
+	return &ContractWatcherSeller{
 		data:                  data,
 		state:                 resources.ContractStatePending,
 		allocator:             allocator,
@@ -51,7 +43,7 @@ func NewContractWatcherSeller(data *resources.ContractData, cycleDuration time.D
 	}
 }
 
-func (p *ContractWatcher) StartFulfilling(ctx context.Context) {
+func (p *ContractWatcherSeller) StartFulfilling(ctx context.Context) {
 	p.log.Infof("contract started fulfilling")
 	startedAt := time.Now()
 	p.fulfillmentStartedAt = &startedAt
@@ -60,29 +52,29 @@ func (p *ContractWatcher) StartFulfilling(ctx context.Context) {
 	p.tsk.Start(ctx)
 }
 
-func (p *ContractWatcher) StopFulfilling() {
+func (p *ContractWatcherSeller) StopFulfilling() {
 	<-p.tsk.Stop()
 	p.log.Infof("contract stopped fulfilling")
 }
 
-func (p *ContractWatcher) Done() <-chan struct{} {
+func (p *ContractWatcherSeller) Done() <-chan struct{} {
 	return p.tsk.Done()
 }
 
-func (p *ContractWatcher) Err() error {
+func (p *ContractWatcherSeller) Err() error {
 	if errors.Is(p.tsk.Err(), context.Canceled) {
 		return ErrContractClosed
 	}
 	return p.tsk.Err()
 }
 
-func (p *ContractWatcher) SetData(data *resources.ContractData) {
+func (p *ContractWatcherSeller) SetData(data *hashrateContract.Terms) {
 	p.data = data
 }
 
 // Run is the main loop of the contract. It is responsible for allocating miners for the contract.
 // Returns nil if the contract ended successfully, ErrClosed if the contract was closed before it ended.
-func (p *ContractWatcher) Run(ctx context.Context) error {
+func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 	partialDeliveryTargetGHS := p.GetHashrateGHS()
 	thisCycleJobSubmitted := atomic.Uint64{}
 	thisCyclePartialAllocation := 0.0
@@ -206,19 +198,19 @@ func (p *ContractWatcher) Run(ctx context.Context) error {
 	}
 }
 
-func (p *ContractWatcher) GetRole() resources.ContractRole {
+func (p *ContractWatcherSeller) GetRole() resources.ContractRole {
 	return resources.ContractRoleSeller
 }
 
-func (p *ContractWatcher) GetDest() string {
+func (p *ContractWatcherSeller) GetDest() string {
 	return p.data.Dest.String()
 }
 
-func (p *ContractWatcher) GetDuration() time.Duration {
+func (p *ContractWatcherSeller) GetDuration() time.Duration {
 	return p.data.Duration
 }
 
-func (p *ContractWatcher) GetEndTime() *time.Time {
+func (p *ContractWatcherSeller) GetEndTime() *time.Time {
 	if p.data.StartedAt == nil {
 		return nil
 	}
@@ -226,42 +218,42 @@ func (p *ContractWatcher) GetEndTime() *time.Time {
 	return &endTime
 }
 
-func (p *ContractWatcher) GetFulfillmentStartedAt() *time.Time {
+func (p *ContractWatcherSeller) GetFulfillmentStartedAt() *time.Time {
 	return p.fulfillmentStartedAt
 }
 
-func (p *ContractWatcher) GetID() string {
+func (p *ContractWatcherSeller) GetID() string {
 	return p.data.ContractID
 }
 
-func (p *ContractWatcher) GetHashrateGHS() float64 {
-	return p.data.ResourceEstimates[ResourceEstimateHashrateGHS]
+func (p *ContractWatcherSeller) GetHashrateGHS() float64 {
+	return p.data.Hashrate
 }
 
-func (p *ContractWatcher) GetResourceEstimates() map[string]float64 {
-	return p.data.ResourceEstimates
-}
+// func (p *ContractWatcher) GetResourceEstimates() map[string]float64 {
+// 	return p.data.ResourceEstimates
+// }
 
-func (p *ContractWatcher) GetResourceEstimatesActual() map[string]float64 {
+func (p *ContractWatcherSeller) GetResourceEstimatesActual() map[string]float64 {
 	return p.actualHRGHS.GetHashrateAvgGHSAll()
 }
 
-func (p *ContractWatcher) GetResourceType() string {
+func (p *ContractWatcherSeller) GetResourceType() string {
 	return ResourceTypeHashrate
 }
 
-func (p *ContractWatcher) GetSeller() string {
+func (p *ContractWatcherSeller) GetSeller() string {
 	return p.data.Seller
 }
 
-func (p *ContractWatcher) GetBuyer() string {
+func (p *ContractWatcherSeller) GetBuyer() string {
 	return p.data.Buyer
 }
 
-func (p *ContractWatcher) GetStartedAt() *time.Time {
+func (p *ContractWatcherSeller) GetStartedAt() *time.Time {
 	return p.data.StartedAt
 }
 
-func (p *ContractWatcher) GetState() resources.ContractState {
+func (p *ContractWatcherSeller) GetState() resources.ContractState {
 	return p.state
 }

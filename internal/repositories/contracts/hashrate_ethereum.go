@@ -15,7 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
 )
 
 type HashrateEthereum struct {
@@ -75,7 +75,7 @@ func (g *HashrateEthereum) GetContractsIDs(ctx context.Context) ([]string, error
 	return addresses, nil
 }
 
-func (g *HashrateEthereum) GetContract(ctx context.Context, contractID string) (*resources.ContractData, error) {
+func (g *HashrateEthereum) GetContract(ctx context.Context, contractID string) (*hashrate.Terms, error) {
 	instance, err := implementation.NewImplementation(common.HexToAddress(contractID), g.client)
 	if err != nil {
 		g.log.Error(err)
@@ -88,7 +88,7 @@ func (g *HashrateEthereum) GetContract(ctx context.Context, contractID string) (
 		return nil, err
 	}
 
-	return &resources.ContractData{
+	return &hashrate.Terms{
 		ContractID: contractID,
 		Seller:     data.Seller.Hex(),
 		Buyer:      data.Buyer.Hex(),

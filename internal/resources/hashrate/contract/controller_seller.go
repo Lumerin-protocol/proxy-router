@@ -11,13 +11,13 @@ import (
 
 type ControllerSeller struct {
 	store    *dataaccess.HashrateEthereum
-	contract *ContractWatcher
+	contract *ContractWatcherSeller
 	sub      *event.Subscription
 	ch       chan interface{}
 	privKey  string
 }
 
-func NewControllerSeller(contract *ContractWatcher, sub *event.Subscription, ch chan interface{}) *ControllerSeller {
+func NewControllerSeller(contract *ContractWatcherSeller, sub *event.Subscription, ch chan interface{}) *ControllerSeller {
 	return &ControllerSeller{
 		contract: contract,
 		sub:      sub,
