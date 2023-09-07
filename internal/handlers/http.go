@@ -15,7 +15,7 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/contract"
+	hr "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 	"golang.org/x/exp/slices"
 )
 
@@ -26,17 +26,19 @@ type Proxy interface {
 type ContractFactory func(contractData *hashrate.Terms) (resources.Contract, error)
 
 type HTTPHandler struct {
+	globalHashrate  *hr.GlobalHashrate
 	allocator       *allocator.Allocator
 	contractManager *contractmanager.ContractManager
 	publicUrl       *url.URL
 	log             interfaces.ILogger
 }
 
-func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractmanager.ContractManager, publicUrl *url.URL, log interfaces.ILogger) *HTTPHandler {
+func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractmanager.ContractManager, globalHashrate *hr.GlobalHashrate, publicUrl *url.URL, log interfaces.ILogger) *HTTPHandler {
 	return &HTTPHandler{
-		publicUrl:       publicUrl,
 		allocator:       allocator,
 		contractManager: contractManager,
+		globalHashrate:  globalHashrate,
+		publicUrl:       publicUrl,
 		log:             log,
 	}
 }
@@ -192,6 +194,25 @@ func (c *HTTPHandler) MapMiner(m *allocator.Scheduler) *Miner {
 		// Destinations:         destItems,
 		// IsFaulty:             m.IsFaulty(),
 	}
+}
+
+func (c *HTTPHandler) GetWorkers(ctx *gin.Context) {
+	workers := []*Worker{}
+
+	c.globalHashrate.Range(func(item *hr.WorkerHashrateModel) bool {
+		worker := &Worker{
+			WorkerName: item.ID,
+			Hashrate:   item.GetHashrateAvgGHSAll(),
+		}
+		workers = append(workers, worker)
+		return true
+	})
+
+	slices.SortStableFunc(workers, func(a *Worker, b *Worker) bool {
+		return a.WorkerName < b.WorkerName
+	})
+
+	ctx.JSON(200, workers)
 }
 
 func MapContract(item resources.Contract, publicUrl *url.URL) *Contract {

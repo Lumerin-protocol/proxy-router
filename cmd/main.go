@@ -171,7 +171,7 @@ func start() error {
 
 	hrContractFactory := contract.NewContractFactory(walletAddr, alloc, cfg.Hashrate.CycleDuration, hashrateFactory, log)
 	cm := contractmanager.NewContractManager(hrContractFactory.CreateContract, log)
-	handl := handlers.NewHTTPHandler(alloc, cm, publicUrl, log)
+	handl := handlers.NewHTTPHandler(alloc, cm, globalHashrate, publicUrl, log)
 
 	// create server gin
 	gin.SetMode(gin.ReleaseMode)

@@ -71,3 +71,8 @@ type DestItem struct {
 	Fraction    float64
 	HashrateGHS int
 }
+
+type Worker struct {
+	WorkerName string
+	Hashrate   map[string]float64
+}
