@@ -14,7 +14,11 @@ type Mean struct {
 // NewMean creates a new Mean hashrate counter, which adds all submitted work and divides it by the total duration
 // it is also used to track the first and last submit time and total work
 func NewMean() *Mean {
-	return &Mean{}
+	return &Mean{
+		totalWork:       &atomic.Uint64{},
+		firstSubmitTime: &atomic.Int64{},
+		lastSubmitTime:  &atomic.Int64{},
+	}
 }
 
 func (h *Mean) Add(diff float64) {

@@ -46,8 +46,8 @@ func (h *Hashrate) GetHashrateAvgGHSAll() map[string]float64 {
 	return m
 }
 
-func (h *Hashrate) GetTotalWork() int {
-	return int(h.custom[MeanCounterKey].Value())
+func (h *Hashrate) GetTotalWork() float64 {
+	return h.custom[MeanCounterKey].Value()
 }
 
 func (h *Hashrate) GetTotalDuration() time.Duration {
