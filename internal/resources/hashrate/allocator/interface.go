@@ -14,7 +14,7 @@ type StratumProxyInterface interface {
 	SetDest(ctx context.Context, dest *url.URL, onSubmit func(diff float64)) error
 
 	GetID() string
-	GetHashrateV2() proxy.Hashrate
+	GetHashrate() proxy.Hashrate
 	GetDifficulty() float64
 	GetDest() *url.URL
 	GetSourceWorkerName() string

@@ -4,34 +4,50 @@ import (
 	"context"
 
 	"github.com/Lumerin-protocol/contracts-go/implementation"
-	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/common"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	dataaccess "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/repositories/contracts"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources"
 )
 
 type ControllerBuyer struct {
-	store    *dataaccess.HashrateEthereum
-	contract *ContractWatcherBuyer
-	sub      *event.Subscription
-	ch       chan interface{}
-	privKey  string
+	*ContractWatcherBuyer
+	store   *dataaccess.HashrateEthereum
+	tsk     *lib.Task
+	privKey string
 }
 
-func NewControllerBuyer(contract *ContractWatcherBuyer, sub *event.Subscription, ch chan interface{}) *ControllerBuyer {
+func NewControllerBuyer(contract *ContractWatcherBuyer, store *dataaccess.HashrateEthereum, privKey string) *ControllerBuyer {
 	return &ControllerBuyer{
-		contract: contract,
-		sub:      sub,
-		ch:       ch,
+		ContractWatcherBuyer: contract,
+		store:                store,
+		privKey:              privKey,
 	}
 }
 
 func (c *ControllerBuyer) Run(ctx context.Context) error {
+	sub, err := c.store.CreateImplementationSubscription(ctx, common.HexToAddress(c.GetID()))
+	if err != nil {
+		return err
+	}
+	defer sub.Unsubscribe()
+	c.log.Infof("started watching contract as buyer, address %s", c.GetID())
+
+	c.ContractWatcherBuyer.StartFulfilling(ctx)
+
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case event := <-c.ch:
-			return c.controller(ctx, event)
+		case event := <-sub.Events():
+			err := c.controller(ctx, event)
+			if err != nil {
+				return err
+			}
+		case err := <-sub.Err():
+			return err
+		case <-c.ContractWatcherBuyer.Done():
+			return c.ContractWatcherBuyer.Err()
 		}
 	}
 }
@@ -55,15 +71,15 @@ func (c *ControllerBuyer) handleContractPurchased(ctx context.Context, event *im
 }
 
 func (c *ControllerBuyer) handleContractClosed(ctx context.Context, event *implementation.ImplementationContractClosed) error {
-	if c.contract.GetState() == resources.ContractStatePending {
-		c.contract.StopFulfilling()
+	if c.GetState() == resources.ContractStatePending {
+		c.StopFulfilling()
 	}
 
-	data, err := c.store.GetContract(ctx, c.contract.GetID())
+	data, err := c.store.GetContract(ctx, c.GetID())
 	if err != nil {
 		return err
 	}
-	c.contract.SetData(data)
+	c.SetData(data)
 	return nil
 }
 

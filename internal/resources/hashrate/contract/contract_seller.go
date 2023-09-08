@@ -211,10 +211,10 @@ func (p *ContractWatcherSeller) GetDuration() time.Duration {
 }
 
 func (p *ContractWatcherSeller) GetEndTime() *time.Time {
-	if p.data.StartedAt == nil {
+	if p.data.StartsAt == nil {
 		return nil
 	}
-	endTime := p.data.StartedAt.Add(p.data.Duration)
+	endTime := p.data.StartsAt.Add(p.data.Duration)
 	return &endTime
 }
 
@@ -251,7 +251,7 @@ func (p *ContractWatcherSeller) GetBuyer() string {
 }
 
 func (p *ContractWatcherSeller) GetStartedAt() *time.Time {
-	return p.data.StartedAt
+	return p.data.StartsAt
 }
 
 func (p *ContractWatcherSeller) GetState() resources.ContractState {

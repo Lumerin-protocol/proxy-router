@@ -3,6 +3,7 @@ package contract
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
@@ -13,37 +14,49 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 )
 
-type ContractWatcherBuyer struct {
-	data *hashrateContract.Terms
+type ValidationState int8
 
+const (
+	ValidationStateWaitingFirstShare ValidationState = 0
+	ValidationStateNotValidating     ValidationState = 1
+	ValidationStateValidating        ValidationState = 2
+	ValidationStateFinished          ValidationState = 3
+)
+
+type ContractWatcherBuyer struct {
+	// config
+	firstShareTimeout      time.Duration // time to wait for the first share to arrive, otherwise close contract
+	validationStartTimeout time.Duration // time when validation kicks in
+	shareTimeout           time.Duration // time to wait for the share to arrive, otherwise close contract
+	hrErrorThreshold       float64       // hashrate relative error threshold for the contract to be considered fulfilling accurately
+
+	terms                 *hashrateContract.EncryptedTerms
 	state                 resources.ContractState
-	actualHRGHS           *hashrate.Hashrate
+	validationState       ValidationState
 	fulfillmentStartedAt  *time.Time
 	contractCycleDuration time.Duration
 
 	tsk *lib.Task
 
 	//deps
-	allocator *allocator.Allocator
-	log       interfaces.ILogger
+	allocator      *allocator.Allocator
+	globalHashrate *hashrate.GlobalHashrate
+	log            interfaces.ILogger
 }
 
-func NewContractWatcherBuyer(data *hashrateContract.Terms, cycleDuration time.Duration, hashrateFactory func() *hashrate.Hashrate, allocator *allocator.Allocator, log interfaces.ILogger) *ContractWatcherBuyer {
+func NewContractWatcherBuyer(data *hashrateContract.EncryptedTerms, cycleDuration time.Duration, hashrateFactory func() *hashrate.Hashrate, allocator *allocator.Allocator, log interfaces.ILogger) *ContractWatcherBuyer {
 	return &ContractWatcherBuyer{
-		data:                  data,
+		terms:                 data,
 		state:                 resources.ContractStatePending,
 		allocator:             allocator,
 		contractCycleDuration: cycleDuration,
-		actualHRGHS:           hashrateFactory(),
 		log:                   log,
 	}
 }
 
 func (p *ContractWatcherBuyer) StartFulfilling(ctx context.Context) {
 	p.log.Infof("buyer contract started fulfilling")
-	startedAt := time.Now()
-	p.fulfillmentStartedAt = &startedAt
-	p.state = resources.ContractStateRunning
+
 	p.tsk = lib.NewTaskFunc(p.Run)
 	p.tsk.Start(ctx)
 }
@@ -64,154 +77,139 @@ func (p *ContractWatcherBuyer) Err() error {
 	return p.tsk.Err()
 }
 
-func (p *ContractWatcherBuyer) SetData(data *hashrateContract.Terms) {
-	p.data = data
+func (p *ContractWatcherBuyer) SetData(data *hashrateContract.EncryptedTerms) {
+	p.terms = data
 }
 
 func (p *ContractWatcherBuyer) Run(ctx context.Context) error {
+	p.state = resources.ContractStateRunning
+	startedAt := time.Now()
+	p.fulfillmentStartedAt = &startedAt
 
-	// partialDeliveryTargetGHS := p.GetHashrateGHS()
-	// thisCycleJobSubmitted := atomic.Uint64{}
-	// thisCyclePartialAllocation := 0.0
+	// instead of resetting write a method that creates separate counters for each worker at given moment of time
+	p.globalHashrate.Reset(p.terms.ContractID)
 
-	// onSubmit := func(diff float64, minerID string) {
-	// 	p.log.Infof("contract submit %s, %.0f, total work %d", minerID, diff, thisCycleJobSubmitted.Load())
-	// 	p.actualHRGHS.OnSubmit(diff)
-	// 	thisCycleJobSubmitted.Add(uint64(diff))
-	// 	// TODO: catch overdelivery here and cancel tasks
-	// }
+	ticker := time.NewTicker(p.contractCycleDuration)
+	defer ticker.Stop()
 
-	// for {
-	// 	p.log.Debugf("new contract cycle:  partialDeliveryTargetGHS=%.1f, thisCyclePartialAllocation=%.0f",
-	// 		partialDeliveryTargetGHS, thisCyclePartialAllocation,
-	// 	)
-	// 	if partialDeliveryTargetGHS > 0 {
-	// 		fullMiners, newRemainderGHS := p.allocator.AllocateFullMinersForHR(partialDeliveryTargetGHS, p.data.Dest, p.GetDuration(), onSubmit)
-	// 		if len(fullMiners) > 0 {
-	// 			partialDeliveryTargetGHS = newRemainderGHS
-	// 			p.log.Infof("fully allocated %d miners, new partialDeliveryTargetGHS = %.1f", len(fullMiners), partialDeliveryTargetGHS)
-	// 			p.fullMiners = append(p.fullMiners, fullMiners...)
-	// 		} else {
-	// 			p.log.Debugf("no full miners were allocated for this contract")
-	// 		}
+	endTimer := time.Timer{}
+	for {
+		endTimer.Reset(time.Until(*p.GetEndTime()))
+		select {
+		case <-ctx.Done():
+			if !endTimer.Stop() {
+				<-endTimer.C
+			}
+			return ctx.Err()
+		case <-endTimer.C:
+			return nil
+		case <-ticker.C:
+			if !endTimer.Stop() {
+				<-endTimer.C
+			}
 
-	// 		thisCyclePartialAllocation = partialDeliveryTargetGHS
-	// 		minerID, ok := p.allocator.AllocatePartialForHR(partialDeliveryTargetGHS, p.data.Dest, p.contractCycleDuration, onSubmit)
-	// 		if ok {
-	// 			p.log.Debugf("remainderGHS: %.1f, was allocated by partial miners %v", partialDeliveryTargetGHS, minerID)
-	// 		} else {
-	// 			p.log.Warnf("remainderGHS: %.1f, was not allocated by partial miners", partialDeliveryTargetGHS)
-	// 		}
-	// 	}
+			err := p.checkIncomingHashrate(ctx)
+			if err != nil {
+				return err
+			}
+		}
+	}
+}
 
-	// 	// in case of too much hashrate
-	// 	if partialDeliveryTargetGHS < 0 {
-	// 		p.log.Info("removing least powerful miner from contract")
-	// 		var items []*allocator.MinerItem
-	// 		for _, minerID := range p.fullMiners {
-	// 			miner, ok := p.allocator.GetMiners().Load(minerID)
-	// 			if !ok {
-	// 				continue
-	// 			}
-	// 			items = append(items, &allocator.MinerItem{
-	// 				ID:    miner.GetID(),
-	// 				HrGHS: miner.HashrateGHS(),
-	// 			})
-	// 		}
+func (p *ContractWatcherBuyer) checkIncomingHashrate(ctx context.Context) error {
+	if p.validationState == ValidationStateWaitingFirstShare && p.isFirstShareTimeout() {
+		p.validationState = ValidationStateNotValidating
+	}
 
-	// 		if len(items) > 0 {
-	// 			slices.SortStableFunc(items, func(a, b *allocator.MinerItem) bool {
-	// 				return b.HrGHS > a.HrGHS
-	// 			})
-	// 			minerToRemove := items[0].ID
-	// 			miner, ok := p.allocator.GetMiners().Load(minerToRemove)
-	// 			if ok {
-	// 				// replace with more specific remove (by tag which could be a contractID)
-	// 				miner.ResetTasks()
-	// 				p.log.Debugf("miner %s tasks removed", miner.GetID())
-	// 				// TODO: remove from full miners
-	// 				newFullMiners := make([]string, len(p.fullMiners)-1)
-	// 				i := 0
-	// 				for _, minerID := range p.fullMiners {
-	// 					if minerID == minerToRemove {
-	// 						continue
-	// 					}
-	// 					newFullMiners[i] = minerID
-	// 					i++
-	// 				}
-	// 				p.fullMiners = newFullMiners
+	if p.validationState == ValidationStateNotValidating && p.isValidationStartTimeout() {
+		p.validationState = ValidationStateValidating
+	}
 
-	// 				// sets new target and restarts the cycle
-	// 				partialDeliveryTargetGHS = miner.HashrateGHS() + partialDeliveryTargetGHS
-	// 				continue
-	// 			}
-	// 		} else {
-	// 			p.log.Warnf("no miners found to be removed")
-	// 		}
-	// 	}
+	if p.isContractExpired() {
+		p.validationState = ValidationStateFinished
+	}
 
-	// 	select {
-	// 	case <-ctx.Done():
-	// 		return ctx.Err()
-	// 	case <-time.After(time.Until(*p.GetEndTime())):
-	// 		expectedJob := hashrate.GHSToJobSubmitted(p.GetHashrateGHS()) * p.GetDuration().Seconds()
-	// 		actualJob := p.actualHRGHS.GetTotalWork()
-	// 		undeliveredJob := expectedJob - float64(actualJob)
-	// 		undeliveredFraction := undeliveredJob / expectedJob
+	isHashrateOK := p.isReceivingAcceptableHashrate()
 
-	// 		for _, minerID := range p.fullMiners {
-	// 			miner, ok := p.allocator.GetMiners().Load(minerID)
-	// 			if !ok {
-	// 				continue
-	// 			}
-	// 			miner.ResetTasks()
-	// 			p.log.Debugf("miner %s tasks removed", miner.GetID())
-	// 		}
-	// 		p.fullMiners = p.fullMiners[:0]
+	switch p.validationState {
+	case ValidationStateWaitingFirstShare:
+		// no validation
+		return nil
+	case ValidationStateNotValidating:
+		// on this stage there should be at least one share
+		lastShareTime, ok := p.globalHashrate.GetLastSubmitTime(p.getWorkerName())
+		if !ok {
+			return fmt.Errorf("no share submitted within firstShareTimeout (%s)", p.firstShareTimeout)
+		}
+		if time.Since(lastShareTime) > p.shareTimeout {
+			return fmt.Errorf("no share submitted within shareTimeout (%s)", p.shareTimeout)
+		}
+		return nil
+	case ValidationStateValidating:
+		lastShareTime, ok := p.globalHashrate.GetLastSubmitTime(p.getWorkerName())
+		if !ok {
+			errMsg := "on ValidationStateValidating there should be at least one share"
+			p.log.DPanic(errMsg)
+			return fmt.Errorf(errMsg)
+		}
+		if time.Since(lastShareTime) > p.shareTimeout {
+			return fmt.Errorf("no share submitted within shareTimeout (%s)", p.shareTimeout)
+		}
+		if !isHashrateOK {
+			return fmt.Errorf("contract is not delivering accurate hashrate")
+		}
+		return nil
+	case ValidationStateFinished:
+		return fmt.Errorf("contract is finished")
+	default:
+		return fmt.Errorf("unknown validation state")
+	}
+}
 
-	// 		// partial miners tasks are not reset because they are not allocated
-	// 		// for the full duration of the contract
+func (p *ContractWatcherBuyer) isReceivingAcceptableHashrate() bool {
+	// ignoring ok cause actualHashrate will be zero then
+	actualHashrate, _ := p.globalHashrate.GetHashRateGHS(p.getWorkerName(), "mean")
+	targetHashrateGHS := p.GetHashrateGHS()
 
-	// 		p.log.Infof("contract ended, undelivered work %d, undelivered fraction %.2f",
-	// 			int(undeliveredJob), undeliveredFraction)
-	// 		return nil
-	// 	case <-time.After(p.contractCycleDuration):
-	// 	}
+	hrError := lib.RelativeError(targetHashrateGHS, actualHashrate)
 
-	// 	thisCycleActualGHS := hashrate.JobSubmittedToGHS(float64(thisCycleJobSubmitted.Load()) / p.contractCycleDuration.Seconds())
-	// 	thisCycleUnderDeliveryGHS := p.GetHashrateGHS() - thisCycleActualGHS
+	hrMsg := fmt.Sprintf(
+		"worker %s, target HR %.0f, whole contract average HR %.0f, error %.0f%%, threshold(%.0f%%)",
+		p.getWorkerName(), targetHashrateGHS, actualHashrate, hrError*100, p.hrErrorThreshold*100,
+	)
 
-	// 	// plan for the next cycle is to compensate for the under delivery of this cycle
-	// 	partialDeliveryTargetGHS = partialDeliveryTargetGHS + thisCycleUnderDeliveryGHS
+	if hrError < p.hrErrorThreshold {
+		p.log.Infof("contract is delivering accurately: %s", hrMsg)
+		return true
+	}
 
-	// 	thisCycleJobSubmitted.Store(0)
+	if actualHashrate > targetHashrateGHS {
+		p.log.Infof("contract is overdelivering: %s", hrMsg)
+		// contract overdelivery is fine for buyer
+		return true
+	}
 
-	// 	p.log.Infof(
-	// 		"contract cycle ended, thisCycleActualGHS = %.1f, thisCycleUnderDeliveryGHS=%.1f, partialDeliveryTargetGHS=%.1f",
-	// 		thisCycleActualGHS, thisCycleUnderDeliveryGHS, partialDeliveryTargetGHS,
-	// 	)
-	// }
-
-	return nil
+	p.log.Warnf("contract is underdelivering: %s", hrMsg)
+	return false
 }
 
 func (p *ContractWatcherBuyer) GetRole() resources.ContractRole {
-	return resources.ContractRoleSeller
+	return resources.ContractRoleBuyer
 }
 
 func (p *ContractWatcherBuyer) GetDest() string {
-	return p.data.Dest.String()
+	return ""
 }
 
 func (p *ContractWatcherBuyer) GetDuration() time.Duration {
-	return p.data.Duration
+	return p.terms.Duration
 }
 
 func (p *ContractWatcherBuyer) GetEndTime() *time.Time {
-	if p.data.StartedAt == nil {
+	if p.terms.StartsAt == nil {
 		return nil
 	}
-	endTime := p.data.StartedAt.Add(p.data.Duration)
+	endTime := p.terms.StartsAt.Add(p.terms.Duration)
 	return &endTime
 }
 
@@ -220,11 +218,11 @@ func (p *ContractWatcherBuyer) GetFulfillmentStartedAt() *time.Time {
 }
 
 func (p *ContractWatcherBuyer) GetID() string {
-	return p.data.ContractID
+	return p.terms.ContractID
 }
 
 func (p *ContractWatcherBuyer) GetHashrateGHS() float64 {
-	return p.data.Hashrate
+	return p.terms.Hashrate
 }
 
 // func (p *ContractWatcher) GetResourceEstimates() map[string]float64 {
@@ -232,7 +230,8 @@ func (p *ContractWatcherBuyer) GetHashrateGHS() float64 {
 // }
 
 func (p *ContractWatcherBuyer) GetResourceEstimatesActual() map[string]float64 {
-	return p.actualHRGHS.GetHashrateAvgGHSAll()
+	res, _ := p.globalHashrate.GetHashRateGHSAll(p.getWorkerName())
+	return res
 }
 
 func (p *ContractWatcherBuyer) GetResourceType() string {
@@ -240,17 +239,37 @@ func (p *ContractWatcherBuyer) GetResourceType() string {
 }
 
 func (p *ContractWatcherBuyer) GetSeller() string {
-	return p.data.Seller
+	return p.terms.Seller
 }
 
 func (p *ContractWatcherBuyer) GetBuyer() string {
-	return p.data.Buyer
+	return p.terms.Buyer
 }
 
 func (p *ContractWatcherBuyer) GetStartedAt() *time.Time {
-	return p.data.StartedAt
+	return p.terms.StartsAt
 }
 
 func (p *ContractWatcherBuyer) GetState() resources.ContractState {
 	return p.state
+}
+
+func (p *ContractWatcherBuyer) isFirstShareTimeout() bool {
+	return time.Since(*p.fulfillmentStartedAt) > p.firstShareTimeout
+}
+
+func (p *ContractWatcherBuyer) isValidationStartTimeout() bool {
+	return time.Since(*p.fulfillmentStartedAt) > p.validationStartTimeout
+}
+
+func (p *ContractWatcherBuyer) isContractExpired() bool {
+	endTime := p.GetEndTime()
+	if endTime == nil {
+		return false
+	}
+	return time.Now().After(*endTime)
+}
+
+func (p *ContractWatcherBuyer) getWorkerName() string {
+	return p.terms.ContractID
 }

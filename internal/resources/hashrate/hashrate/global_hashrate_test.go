@@ -20,7 +20,7 @@ func TestGlobalHashrate(t *testing.T) {
 	workerName := "kiki"
 
 	hashrateFactory := func() *Hashrate {
-		return NewHashrateV2(
+		return NewHashrate(
 			map[string]Counter{
 				HashrateCounterDefault: NewEma(HashrateCounterDefaultDuration),
 				"ema-10m":              NewEma(10 * time.Minute),

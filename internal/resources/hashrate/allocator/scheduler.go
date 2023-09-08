@@ -189,7 +189,7 @@ func (p *Scheduler) SetPrimaryDest(dest *url.URL) {
 }
 
 func (p *Scheduler) HashrateGHS() float64 {
-	hr, ok := p.proxy.GetHashrateV2().GetHashrateAvgGHSCustom(p.hashrateCounterID)
+	hr, ok := p.proxy.GetHashrate().GetHashrateAvgGHSCustom(p.hashrateCounterID)
 	if !ok {
 		panic("hashrate counter not found")
 	}
@@ -240,6 +240,6 @@ func (p *Scheduler) GetDestConns() *map[string]string {
 	return p.proxy.GetDestConns()
 }
 
-func (p *Scheduler) GetHashrateV2() proxy.Hashrate {
-	return p.proxy.GetHashrateV2()
+func (p *Scheduler) GetHashrate() proxy.Hashrate {
+	return p.proxy.GetHashrate()
 }

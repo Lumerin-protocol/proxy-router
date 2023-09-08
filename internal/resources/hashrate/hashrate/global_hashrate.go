@@ -31,12 +31,20 @@ func (t *GlobalHashrate) GetLastSubmitTime(workerName string) (tm time.Time, ok 
 	return record.hr.GetLastSubmitTime(), true
 }
 
-func (t *GlobalHashrate) GetHashRateGHS(workerName string, counterID string) (hrGHS int, ok bool) {
+func (t *GlobalHashrate) GetHashRateGHS(workerName string, counterID string) (hrGHS float64, ok bool) {
 	record, ok := t.data.Load(workerName)
 	if !ok {
 		return 0, false
 	}
-	return record.GetHashRateGHS(counterID), true
+	return record.GetHashRateGHS(counterID)
+}
+
+func (t *GlobalHashrate) GetHashRateGHSAll(workerName string) (hrGHS map[string]float64, ok bool) {
+	record, ok := t.data.Load(workerName)
+	if !ok {
+		return nil, false
+	}
+	return record.GetHashrateAvgGHSAll(), true
 }
 
 func (t *GlobalHashrate) GetTotalWork(workerName string) (work float64, ok bool) {
@@ -79,9 +87,8 @@ func (m *WorkerHashrateModel) OnSubmit(diff float64) {
 	m.hr.OnSubmit(diff)
 }
 
-func (m *WorkerHashrateModel) GetHashRateGHS(counterID string) int {
-	hr, _ := m.hr.GetHashrateAvgGHSCustom(counterID)
-	return hr
+func (m *WorkerHashrateModel) GetHashRateGHS(counterID string) (float64, bool) {
+	return m.hr.GetHashrateAvgGHSCustom(counterID)
 }
 
 func (m *WorkerHashrateModel) GetHashrateAvgGHSAll() map[string]float64 {
