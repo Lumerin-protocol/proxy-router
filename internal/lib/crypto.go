@@ -2,11 +2,59 @@ package lib
 
 import (
 	"crypto/ecdsa"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
+	"log"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/ecies"
 )
+
+func DecryptString(str string, privateKey string) (string, error) {
+	pkECDSA, err := crypto.HexToECDSA(privateKey)
+	if err != nil {
+		return "", err
+	}
+
+	pkECIES := ecies.ImportECDSA(pkECDSA)
+	destUrlBytes, err := hex.DecodeString(str)
+	if err != nil {
+		return "", err
+	}
+
+	decryptedDestUrlBytes, err := pkECIES.Decrypt(destUrlBytes, nil, nil)
+	if err != nil {
+		return "", err
+	}
+
+	return string(decryptedDestUrlBytes), nil
+}
+
+func EncryptString(str string, publicKeyHex string) (string, error) {
+	pubKeyBytes, err := hex.DecodeString(publicKeyHex)
+	if err != nil {
+		return "", err
+	}
+
+	urlBytes := []byte(str)
+
+	publicKey, err := crypto.UnmarshalPubkey(pubKeyBytes)
+	if err != nil {
+		return "", err
+	}
+
+	pk := ecies.ImportECDSAPublic(publicKey)
+
+	// Encrypt using ECIES
+	ciphertext, err := ecies.Encrypt(rand.Reader, pk, urlBytes, nil, nil)
+	if err != nil {
+		log.Fatalf("Error encrypting: %v", err)
+	}
+
+	return hex.EncodeToString(ciphertext), nil
+}
 
 func PrivKeyToAddr(privateKey *ecdsa.PrivateKey) (common.Address, error) {
 	publicKey := privateKey.Public()
