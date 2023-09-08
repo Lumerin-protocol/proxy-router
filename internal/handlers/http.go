@@ -30,17 +30,32 @@ type HTTPHandler struct {
 	allocator       *allocator.Allocator
 	contractManager *contractmanager.ContractManager
 	publicUrl       *url.URL
+	pubKey          string
 	log             interfaces.ILogger
 }
 
-func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractmanager.ContractManager, globalHashrate *hr.GlobalHashrate, publicUrl *url.URL, log interfaces.ILogger) *HTTPHandler {
-	return &HTTPHandler{
+func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractmanager.ContractManager, globalHashrate *hr.GlobalHashrate, publicUrl *url.URL, log interfaces.ILogger) *gin.Engine {
+	handl := &HTTPHandler{
 		allocator:       allocator,
 		contractManager: contractManager,
 		globalHashrate:  globalHashrate,
 		publicUrl:       publicUrl,
 		log:             log,
 	}
+
+	gin.SetMode(gin.ReleaseMode)
+	r := gin.New()
+
+	r.GET("/miners", handl.GetMiners)
+	r.GET("/contracts", handl.GetContracts)
+	r.GET("/workers", handl.GetWorkers)
+
+	r.POST("/change-dest", handl.ChangeDest)
+	r.POST("/contracts", handl.CreateContract)
+
+	r.SetTrustedProxies(nil)
+
+	return r
 }
 
 func (h *HTTPHandler) ChangeDest(ctx *gin.Context) {
@@ -81,14 +96,21 @@ func (h *HTTPHandler) CreateContract(ctx *gin.Context) {
 		return
 	}
 	now := time.Now()
-	h.contractManager.AddContract(&hashrate.Terms{
-		ContractID: lib.GetRandomAddr().String(),
-		Seller:     "",
-		Buyer:      "",
-		Dest:       dest,
-		StartedAt:  &now,
-		Duration:   duration,
-		Hashrate:   float64(hrGHS) * 1e9,
+	destEnc, err := lib.EncryptString(dest.String(), h.pubKey)
+	if err != nil {
+		ctx.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+	h.contractManager.AddContract(&hashrate.EncryptedTerms{
+		Base: hashrate.Base{
+			ContractID: lib.GetRandomAddr().String(),
+			Seller:     "",
+			Buyer:      "",
+			StartsAt:   &now,
+			Duration:   duration,
+			Hashrate:   float64(hrGHS) * 1e9,
+		},
+		DestEncrypted: destEnc,
 	})
 
 	ctx.JSON(200, gin.H{"status": "ok"})
@@ -281,7 +303,7 @@ func mapPoolConnection(m *allocator.Scheduler) *map[string]string {
 }
 
 func mapHRToInt(m *allocator.Scheduler) map[string]int {
-	hrFloat := m.GetHashrateV2().GetHashrateAvgGHSAll()
+	hrFloat := m.GetHashrate().GetHashrateAvgGHSAll()
 	hrInt := make(map[string]int, len(hrFloat))
 	for k, v := range hrFloat {
 		hrInt[k] = int(v)

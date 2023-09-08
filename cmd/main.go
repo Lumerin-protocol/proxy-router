@@ -2,29 +2,33 @@ package main
 
 import (
 	"context"
-	"net"
+	"fmt"
 	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/config"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/contractmanager"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/handlers"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/repositories/contracts"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/repositories/transport"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/contract"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/system"
+	"golang.org/x/sync/errgroup"
 )
 
 func main() {
 	err := start()
 	if err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
 	os.Exit(0)
@@ -118,7 +122,7 @@ func start() error {
 	)
 
 	hashrateFactory := func() *hashrate.Hashrate {
-		return hashrate.NewHashrateV2(
+		return hashrate.NewHashrate(
 			map[string]hashrate.Counter{
 				HashrateCounterDefault: hashrate.NewEma(5 * time.Minute),
 				"ema-10m":              hashrate.NewEma(10 * time.Minute),
@@ -132,72 +136,63 @@ func start() error {
 	}
 
 	globalHashrate := hashrate.NewGlobalHashrate(hashrateFactory)
-
 	alloc := allocator.NewAllocator(lib.NewCollection[*allocator.Scheduler](), log.Named("ALLOCATOR"))
 
-	server := transport.NewTCPServer(cfg.Proxy.Address, connLog)
-	server.SetConnectionHandler(func(ctx context.Context, conn net.Conn) {
-		ID := conn.RemoteAddr().String()
-		sourceLog := connLog.Named("[SRC] " + ID)
+	tcpServer := transport.NewTCPServer(cfg.Proxy.Address, connLog)
+	tcpHandler := handlers.NewTCPHandler(
+		log, connLog, proxyLog, schedulerLog,
+		cfg.Miner.ShareTimeout,
+		destUrl,
+		destConnFactory, hashrateFactory,
+		globalHashrate, HashrateCounterDefault,
+		alloc,
+	)
+	tcpServer.SetConnectionHandler(tcpHandler)
 
-		stratumConn := proxy.CreateConnection(conn, ID, cfg.Miner.ShareTimeout, 5*time.Minute, sourceLog)
-		defer stratumConn.Close()
-
-		sourceConn := proxy.NewSourceConn(stratumConn, sourceLog)
-
-		url := *destUrl // clones url
-		proxy := proxy.NewProxy(ID, sourceConn, destConnFactory, hashrateFactory, globalHashrate, &url, proxyLog)
-		scheduler := allocator.NewScheduler(proxy, HashrateCounterDefault, destUrl, schedulerLog)
-		alloc.GetMiners().Store(scheduler)
-
-		err = scheduler.Run(ctx)
-		if err != nil {
-			log.Warnf("proxy disconnected: %s", err)
-		}
-
-		alloc.GetMiners().Delete(ID)
-		return
-	})
+	ethClient, err := ethclient.DialContext(ctx, cfg.Blockchain.EthNodeAddress)
+	if err != nil {
+		return err
+	}
 
 	publicUrl, err := url.Parse(cfg.Web.PublicUrl)
 	if err != nil {
 		return err
 	}
 
-	walletAddr, err := lib.PrivKeyStringToAddr(cfg.Marketplace.WalletPrivateKey)
+	store := contracts.NewHashrateEthereum(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), ethClient, log)
+
+	hrContractFactory, err := contract.NewContractFactory(cfg.Marketplace.WalletPrivateKey, alloc, cfg.Hashrate.CycleDuration, hashrateFactory, store, log)
 	if err != nil {
 		return err
 	}
 
-	hrContractFactory := contract.NewContractFactory(walletAddr, alloc, cfg.Hashrate.CycleDuration, hashrateFactory, log)
-	cm := contractmanager.NewContractManager(hrContractFactory.CreateContract, log)
+	ownerAddr, err := lib.PrivKeyStringToAddr(cfg.Marketplace.WalletPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("owner address: %s", ownerAddr.String())
+
+	cm := contractmanager.NewContractManager(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), ownerAddr, hrContractFactory.CreateContract, store, log)
+
 	handl := handlers.NewHTTPHandler(alloc, cm, globalHashrate, publicUrl, log)
+	httpServer := transport.NewServer(cfg.Web.Address, handl, log)
 
-	// create server gin
-	gin.SetMode(gin.ReleaseMode)
-	r := gin.New()
-	r.SetTrustedProxies(nil)
-	r.Use(gin.Recovery())
+	g, ctx := errgroup.WithContext(ctx)
 
-	r.GET("/miners", handl.GetMiners)
-	r.GET("/contracts", handl.GetContracts)
-	r.GET("/workers", handl.GetWorkers)
+	g.Go(func() error {
+		return httpServer.Run(ctx)
+	})
 
-	r.POST("/change-dest", handl.ChangeDest)
-	r.POST("/contracts", handl.CreateContract)
+	g.Go(func() error {
+		return tcpServer.Run(ctx)
+	})
 
-	go func() {
-		addr := cfg.Web.Address
-		log.Infof("http server is listening: %s", addr)
+	g.Go(func() error {
+		return cm.Run(ctx)
+	})
 
-		err = r.Run(addr)
-		if err != nil {
-			log.Error(err)
-			return
-		}
-	}()
-
-	err = server.Run(ctx)
+	err = g.Wait()
 	log.Infof("App exited due to %s", err)
 	return err
 }

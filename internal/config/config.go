@@ -2,6 +2,7 @@ package config
 
 import (
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -73,6 +74,11 @@ func (cfg *Config) SetDefaults() {
 	if cfg.Hashrate.ValidationBufferPeriod == 0 {
 		cfg.Hashrate.ValidationBufferPeriod = time.Duration(10 * time.Minute)
 	}
+
+	// Marketplace
+
+	// normalizes private key
+	cfg.Marketplace.WalletPrivateKey = strings.TrimPrefix(cfg.Marketplace.WalletPrivateKey, "0x")
 
 	// Miner
 
