@@ -11,7 +11,7 @@ type Hashrate struct {
 	custom map[string]Counter
 }
 
-func NewHashrateV2(counters map[string]Counter) *Hashrate {
+func NewHashrate(counters map[string]Counter) *Hashrate {
 	counters[MeanCounterKey] = NewMean()
 
 	return &Hashrate{
@@ -26,11 +26,11 @@ func (h *Hashrate) OnSubmit(diff float64) {
 }
 
 // averageSubmitDiffToGHS converts average value provided by ema to hashrate in GH/S
-func (h *Hashrate) averageSubmitDiffToGHS(averagePerSecond float64) int {
-	return HSToGHS(JobSubmittedToHS(averagePerSecond))
+func (h *Hashrate) averageSubmitDiffToGHS(averagePerSecond float64) float64 {
+	return JobSubmittedToGHS(averagePerSecond)
 }
 
-func (h *Hashrate) GetHashrateAvgGHSCustom(ID string) (hrGHS int, ok bool) {
+func (h *Hashrate) GetHashrateAvgGHSCustom(ID string) (hrGHS float64, ok bool) {
 	ema, ok := h.custom[ID]
 	if !ok {
 		return 0, false

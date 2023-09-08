@@ -279,7 +279,7 @@ func (p *Proxy) GetDifficulty() float64 {
 	return p.dest.GetDiff()
 }
 
-func (p *Proxy) GetHashrateV2() Hashrate {
+func (p *Proxy) GetHashrate() Hashrate {
 	return p.hashrate
 }
 

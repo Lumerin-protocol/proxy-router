@@ -21,7 +21,7 @@ type GlobalHashrateCounter interface {
 }
 
 type Hashrate interface {
-	GetHashrateAvgGHSCustom(ID string) (hrGHS int, ok bool)
+	GetHashrateAvgGHSCustom(ID string) (hrGHS float64, ok bool)
 	GetHashrateAvgGHSAll() map[string]float64
 	GetTotalWork() float64
 	GetTotalDuration() time.Duration

@@ -31,7 +31,7 @@ func RunTestProxy() (p *Proxy, s *StratumConnection, d *StratumConnection, cance
 		return destConn, nil
 	}
 	hashrateFactory := func() *hashrate.Hashrate {
-		return hashrate.NewHashrateV2(map[string]hashrate.Counter{})
+		return hashrate.NewHashrate(map[string]hashrate.Counter{})
 	}
 
 	globalHashrate := hashrate.NewGlobalHashrate(hashrateFactory)
