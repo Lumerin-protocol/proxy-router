@@ -70,7 +70,7 @@ func TestWatchClonefactoryContractPurchased(t *testing.T) {
 	ctx := context.Background()
 	ethGateway := makeEthGateway(t, ctx)
 
-	sub, ch, err := ethGateway.CreateCloneFactorySubscription(ctx, common.HexToAddress(CLONEFACTORY_ADDR))
+	sub, err := ethGateway.CreateCloneFactorySubscription(ctx, common.HexToAddress(CLONEFACTORY_ADDR))
 	require.NoError(t, err)
 	defer sub.Unsubscribe()
 
@@ -81,7 +81,7 @@ func TestWatchClonefactoryContractPurchased(t *testing.T) {
 	}()
 
 	select {
-	case event := <-ch:
+	case event := <-sub.Events():
 		purchasedEvent, ok := event.(*clonefactory.ClonefactoryClonefactoryContractPurchased)
 		require.True(t, ok)
 		require.Equal(t, common.HexToAddress(CONTRACT_ID), purchasedEvent.Address)
@@ -96,7 +96,7 @@ func TestImplementationContractClosed(t *testing.T) {
 	ctx := context.Background()
 	ethGateway := makeEthGateway(t, ctx)
 
-	sub, ch, err := ethGateway.CreateImplementationSubscription(ctx, common.HexToAddress(CONTRACT_ID))
+	sub, err := ethGateway.CreateImplementationSubscription(ctx, common.HexToAddress(CONTRACT_ID))
 	require.NoError(t, err)
 	defer sub.Unsubscribe()
 
@@ -106,7 +106,7 @@ func TestImplementationContractClosed(t *testing.T) {
 	}()
 
 	select {
-	case event := <-ch:
+	case event := <-sub.Events():
 		closedEvent, ok := event.(*implementation.ImplementationContractClosed)
 		require.True(t, ok)
 		require.Equal(t, lib.MustPrivKeyStringToAddr(PRIVATE_KEY_2), closedEvent.Buyer)

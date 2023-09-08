@@ -12,15 +12,20 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/event"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
+	hr "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
+)
+
+const (
+	SUBSCRIPTION_MAX_RECONNECTS  = 50
+	SUBSCRIPTION_RECONNECT_DELAY = 10 * time.Second
 )
 
 type HashrateEthereum struct {
 	// config
-	legacyTx bool
+	legacyTx bool // use legacy transaction fee, for local node testing
 
 	// state
 	nonce   uint64
@@ -63,7 +68,6 @@ func (g *HashrateEthereum) SetLegacyTx(legacyTx bool) {
 func (g *HashrateEthereum) GetContractsIDs(ctx context.Context) ([]string, error) {
 	hashrateContractAddresses, err := g.cloneFactory.GetContractList(&bind.CallOpts{Context: ctx})
 	if err != nil {
-		g.log.Error(err)
 		return nil, err
 	}
 
@@ -75,10 +79,9 @@ func (g *HashrateEthereum) GetContractsIDs(ctx context.Context) ([]string, error
 	return addresses, nil
 }
 
-func (g *HashrateEthereum) GetContract(ctx context.Context, contractID string) (*hashrate.Terms, error) {
+func (g *HashrateEthereum) GetContract(ctx context.Context, contractID string) (*hashrate.EncryptedTerms, error) {
 	instance, err := implementation.NewImplementation(common.HexToAddress(contractID), g.client)
 	if err != nil {
-		g.log.Error(err)
 		return nil, err
 	}
 
@@ -88,18 +91,23 @@ func (g *HashrateEthereum) GetContract(ctx context.Context, contractID string) (
 		return nil, err
 	}
 
-	return &hashrate.Terms{
-		ContractID: contractID,
-		Seller:     data.Seller.Hex(),
-		Buyer:      data.Buyer.Hex(),
-		// EncryptedDest:  data.EncryptedPoolData,
-		// StartedAt:      time.Unix(data.StartingBlockTimestamp.Int64(), 0),
-		Duration: time.Duration(data.Length.Int64()) * time.Second,
-		// HashrateGHS:    hashrate.HSToGHS(float64(data.Speed.Int64())),
-		// HasFutureTerms: data.HasFutureTerms,
-		// IsDeleted:      data.IsDeleted,
-		// State:          data.State,
-	}, nil
+	terms := &hashrate.EncryptedTerms{
+		Base: hashrate.Base{
+			ContractID: contractID,
+			Seller:     data.Seller.Hex(),
+			Duration:   time.Duration(data.Length.Int64()) * time.Second,
+			Hashrate:   float64(hr.HSToGHS(float64(data.Speed.Int64()))),
+		},
+	}
+
+	if data.State == 1 { // running
+		startsAt := time.Unix(data.StartingBlockTimestamp.Int64(), 0)
+		terms.StartsAt = &startsAt
+		terms.Buyer = data.Buyer.Hex()
+		terms.DestEncrypted = data.EncryptedPoolData
+	}
+
+	return terms, nil
 }
 
 func (g *HashrateEthereum) PurchaseContract(ctx context.Context, contractID string, privKey string) error {
@@ -108,7 +116,6 @@ func (g *HashrateEthereum) PurchaseContract(ctx context.Context, contractID stri
 
 	opts, err := g.getTransactOpts(ctx, privKey)
 	if err != nil {
-		g.log.Error(err)
 		return err
 	}
 
@@ -145,13 +152,11 @@ func (g *HashrateEthereum) CloseContract(ctx context.Context, contractID string,
 
 	instance, err := implementation.NewImplementation(common.HexToAddress(contractID), g.client)
 	if err != nil {
-		g.log.Error(err)
 		return err
 	}
 
 	transactOpts, err := g.getTransactOpts(ctx, privKey)
 	if err != nil {
-		g.log.Error(err)
 		return err
 	}
 
@@ -181,24 +186,22 @@ func (g *HashrateEthereum) CloseContract(ctx context.Context, contractID string,
 	}
 }
 
-func (s *HashrateEthereum) CreateCloneFactorySubscription(ctx context.Context, clonefactoryAddr common.Address) (event.Subscription, <-chan interface{}, error) {
-	return WatchContractEvents(ctx, s.client, clonefactoryAddr, CreateEventMapper(clonefactoryEventFactory, s.cfABI))
+func (s *HashrateEthereum) CreateCloneFactorySubscription(ctx context.Context, clonefactoryAddr common.Address) (*lib.Subscription, error) {
+	return WatchContractEvents(ctx, s.client, clonefactoryAddr, CreateEventMapper(clonefactoryEventFactory, s.cfABI), SUBSCRIPTION_MAX_RECONNECTS, SUBSCRIPTION_RECONNECT_DELAY, s.log)
 }
 
-func (s *HashrateEthereum) CreateImplementationSubscription(ctx context.Context, contractAddr common.Address) (event.Subscription, <-chan interface{}, error) {
-	return WatchContractEvents(ctx, s.client, contractAddr, CreateEventMapper(implementationEventFactory, s.implABI))
+func (s *HashrateEthereum) CreateImplementationSubscription(ctx context.Context, contractAddr common.Address) (*lib.Subscription, error) {
+	return WatchContractEvents(ctx, s.client, contractAddr, CreateEventMapper(implementationEventFactory, s.implABI), SUBSCRIPTION_MAX_RECONNECTS, SUBSCRIPTION_RECONNECT_DELAY, s.log)
 }
 
 func (g *HashrateEthereum) getTransactOpts(ctx context.Context, privKey string) (*bind.TransactOpts, error) {
 	privateKey, err := crypto.HexToECDSA(privKey)
 	if err != nil {
-		g.log.Error(err)
 		return nil, err
 	}
 
 	chainId, err := g.client.ChainID(ctx)
 	if err != nil {
-		g.log.Error(err)
 		return nil, err
 	}
 
@@ -211,7 +214,6 @@ func (g *HashrateEthereum) getTransactOpts(ctx context.Context, privKey string) 
 	if g.legacyTx {
 		gasPrice, err := g.client.SuggestGasPrice(ctx)
 		if err != nil {
-			g.log.Error(err)
 			return nil, err
 		}
 		transactOpts.GasPrice = gasPrice
