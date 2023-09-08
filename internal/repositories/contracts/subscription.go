@@ -2,13 +2,15 @@ package contracts
 
 import (
 	"context"
+	"time"
 
 	"github.com/Lumerin-protocol/contracts-go/clonefactory"
 	"github.com/Lumerin-protocol/contracts-go/implementation"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/event"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 )
 
 type EventMapper func(types.Log) (interface{}, error)
@@ -42,42 +44,71 @@ func clonefactoryEventFactory(name string) interface{} {
 }
 
 // WatchContractEvents watches for all events from the contract and converts them to the concrete type, using mapper
-func WatchContractEvents(ctx context.Context, client EthereumClient, contractAddr common.Address, mapper EventMapper) (event.Subscription, <-chan interface{}, error) {
-	query := ethereum.FilterQuery{
-		Addresses: []common.Address{contractAddr},
-	}
-	in := make(chan types.Log)
-	sub, err := client.SubscribeFilterLogs(ctx, query, in)
-	if err != nil {
-		return nil, nil, err
-	}
+func WatchContractEvents(ctx context.Context, client EthereumClient, contractAddr common.Address, mapper EventMapper, maxReconnects int, reconnectDelay time.Duration, log interfaces.ILogger) (*lib.Subscription, error) {
 	sink := make(chan interface{})
 
-	return event.NewSubscription(func(quit <-chan struct{}) error {
-		defer sub.Unsubscribe()
+	return lib.NewSubscription(func(quit <-chan struct{}) error {
 		defer close(sink)
+
+		query := ethereum.FilterQuery{
+			Addresses: []common.Address{contractAddr},
+		}
+		in := make(chan types.Log)
 		defer close(in)
 
-		for {
-			select {
-			case log := <-in:
-				event, err := mapper(log)
-				if err != nil {
-					return err
-				}
+		var lastErr error
 
+	RETRY_LOOP:
+		for attempts := 0; attempts < maxReconnects; attempts++ {
+			sub, err := client.SubscribeFilterLogs(ctx, query, in)
+			if err != nil {
+				lastErr = err
+				continue
+			}
+
+			defer sub.Unsubscribe()
+
+		EVENTS_LOOP:
+			for {
 				select {
-				case sink <- event:
+				case log := <-in:
+					event, err := mapper(log)
+					if err != nil {
+						// mapper error, retry won't help
+						return err
+					}
+
+					select {
+					case sink <- event:
+					case err := <-sub.Err():
+						lastErr = err
+						break EVENTS_LOOP
+					case <-quit:
+						return nil
+					case <-ctx.Done():
+						return ctx.Err()
+					}
 				case err := <-sub.Err():
-					return err
+					lastErr = err
+					break EVENTS_LOOP
 				case <-quit:
 					return nil
+				case <-ctx.Done():
+					return ctx.Err()
 				}
-			case err := <-sub.Err():
-				return err
+			}
+			log.Warnf("subscription error: %s", lastErr)
+
+			select {
 			case <-quit:
 				return nil
+			case <-time.After(reconnectDelay):
+				continue RETRY_LOOP
+			case <-ctx.Done():
+				return ctx.Err()
 			}
 		}
-	}), sink, nil
+
+		return lastErr
+	}, sink), nil
 }
