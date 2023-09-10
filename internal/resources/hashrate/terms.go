@@ -1,10 +1,16 @@
 package hashrate
 
 import (
+	"fmt"
 	"net/url"
 	"time"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
+)
+
+var (
+	ErrInvalidDestURL    = fmt.Errorf("invalid url")
+	ErrCannotDecryptDest = fmt.Errorf("cannot decrypt")
 )
 
 type BlockchainState int
@@ -82,6 +88,7 @@ func (t *Terms) Encrypt(privateKey string) (*Terms, error) {
 			StartsAt:   t.StartsAt,
 			Duration:   t.Duration,
 			Hashrate:   t.Hashrate,
+			State:      t.State,
 		},
 		Dest: destUrl,
 	}, nil
@@ -98,12 +105,12 @@ func (t *EncryptedTerms) Decrypt(privateKey string) (*Terms, error) {
 	if t.DestEncrypted != "" {
 		dest, err := lib.DecryptString(t.DestEncrypted, privateKey)
 		if err != nil {
-			return nil, err
+			return nil, lib.WrapError(ErrCannotDecryptDest, fmt.Errorf("%s: %s", err, t.DestEncrypted))
 		}
 
 		destUrl, err = url.Parse(dest)
 		if err != nil {
-			return nil, err
+			return nil, lib.WrapError(ErrInvalidDestURL, fmt.Errorf("%s: %s", err, dest))
 		}
 	} else {
 		destUrl = nil
@@ -117,6 +124,7 @@ func (t *EncryptedTerms) Decrypt(privateKey string) (*Terms, error) {
 			StartsAt:   t.StartsAt,
 			Duration:   t.Duration,
 			Hashrate:   t.Hashrate,
+			State:      t.State,
 		},
 		Dest: destUrl,
 	}, nil
