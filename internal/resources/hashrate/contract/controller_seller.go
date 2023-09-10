@@ -85,6 +85,7 @@ func (c *ControllerSeller) controller(ctx context.Context, event interface{}) er
 }
 
 func (c *ControllerSeller) handleContractPurchased(ctx context.Context, event *implementation.ImplementationContractPurchased) error {
+	c.log.Debugf("got purchased event for contract %s", c.GetID())
 	if c.GetState() == resources.ContractStateRunning {
 		return nil
 	}
@@ -104,7 +105,8 @@ func (c *ControllerSeller) handleContractPurchased(ctx context.Context, event *i
 }
 
 func (c *ControllerSeller) handleContractClosed(ctx context.Context, event *implementation.ImplementationContractClosed) error {
-	if c.GetState() == resources.ContractStatePending {
+	c.log.Warnf("got closed event for contract")
+	if c.GetState() == resources.ContractStateRunning {
 		c.StopFulfilling()
 	}
 

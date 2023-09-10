@@ -56,6 +56,7 @@ func (p *ContractWatcherSeller) StartFulfilling(ctx context.Context) {
 
 func (p *ContractWatcherSeller) StopFulfilling() {
 	<-p.tsk.Stop()
+	p.state = resources.ContractStatePending
 	p.log.Infof("contract stopped fulfilling")
 }
 
@@ -89,14 +90,14 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 	}
 
 	for {
-		p.log.Debugf("new contract cycle:  partialDeliveryTargetGHS=%.1f, thisCyclePartialAllocation=%.0f",
+		p.log.Debugf("new contract cycle:  partialDeliveryTargetGHS=%.0f, thisCyclePartialAllocation=%.0f",
 			partialDeliveryTargetGHS, thisCyclePartialAllocation,
 		)
 		if partialDeliveryTargetGHS > 0 {
 			fullMiners, newRemainderGHS := p.allocator.AllocateFullMinersForHR(partialDeliveryTargetGHS, p.data.Dest, p.GetDuration(), onSubmit)
 			if len(fullMiners) > 0 {
 				partialDeliveryTargetGHS = newRemainderGHS
-				p.log.Infof("fully allocated %d miners, new partialDeliveryTargetGHS = %.1f", len(fullMiners), partialDeliveryTargetGHS)
+				p.log.Infof("fully allocated %d miners, new partialDeliveryTargetGHS = %.0f", len(fullMiners), partialDeliveryTargetGHS)
 				p.fullMiners = append(p.fullMiners, fullMiners...)
 			} else {
 				p.log.Debugf("no full miners were allocated for this contract")
@@ -105,9 +106,9 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 			thisCyclePartialAllocation = partialDeliveryTargetGHS
 			minerID, ok := p.allocator.AllocatePartialForHR(partialDeliveryTargetGHS, p.data.Dest, p.contractCycleDuration, onSubmit)
 			if ok {
-				p.log.Debugf("remainderGHS: %.1f, was allocated by partial miners %v", partialDeliveryTargetGHS, minerID)
+				p.log.Debugf("remainderGHS: %.0f, was allocated by partial miners %v", partialDeliveryTargetGHS, minerID)
 			} else {
-				p.log.Warnf("remainderGHS: %.1f, was not allocated by partial miners", partialDeliveryTargetGHS)
+				p.log.Warnf("remainderGHS: %.0f, was not allocated by partial miners", partialDeliveryTargetGHS)
 			}
 		}
 
@@ -194,7 +195,7 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 		thisCycleJobSubmitted.Store(0)
 
 		p.log.Infof(
-			"contract cycle ended, thisCycleActualGHS = %.1f, thisCycleUnderDeliveryGHS=%.1f, partialDeliveryTargetGHS=%.1f",
+			"contract cycle ended, thisCycleActualGHS = %.0f, thisCycleUnderDeliveryGHS=%.0f, partialDeliveryTargetGHS=%.0f",
 			thisCycleActualGHS, thisCycleUnderDeliveryGHS, partialDeliveryTargetGHS,
 		)
 	}
