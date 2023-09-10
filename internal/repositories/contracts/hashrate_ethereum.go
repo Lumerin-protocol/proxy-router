@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	SUBSCRIPTION_MAX_RECONNECTS  = 50
-	SUBSCRIPTION_RECONNECT_DELAY = 10 * time.Second
+	SUBSCRIPTION_MAX_RECONNECTS  = 50               // max consequent reconnects
+	SUBSCRIPTION_RECONNECT_DELAY = 10 * time.Second // delay between reconnects
 )
 
 type HashrateEthereum struct {

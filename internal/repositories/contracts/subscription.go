@@ -65,6 +65,10 @@ func WatchContractEvents(ctx context.Context, client EthereumClient, contractAdd
 				lastErr = err
 				continue
 			}
+			if attempts > 0 {
+				log.Warnf("subscription reconnected")
+			}
+			attempts = 0
 
 			defer sub.Unsubscribe()
 

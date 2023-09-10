@@ -80,14 +80,14 @@ func (p *Scheduler) Run(ctx context.Context) error {
 			jobDone := make(chan struct{})
 			jobDoneOnce := sync.Once{}
 
-			p.log.Debugf("start doing task %s, for job %.1f", task.Dest.String(), task.RemainingJobToSubmit)
+			p.log.Debugf("start doing task %s, for job %.0f", task.Dest.String(), task.RemainingJobToSubmit)
 
 			err := p.proxy.SetDest(ctx, task.Dest, func(diff float64) {
 				task.RemainingJobToSubmit -= diff
 				task.OnSubmit(diff, p.proxy.GetID())
 				if task.RemainingJobToSubmit <= 0 {
 					jobDoneOnce.Do(func() {
-						p.log.Debugf("finished doing task %s, for job %.1f", task.Dest.String(), task.RemainingJobToSubmit)
+						p.log.Debugf("finished doing task %s, for job %.0f", task.Dest.String(), task.RemainingJobToSubmit)
 						close(jobDone)
 					})
 				}
@@ -149,7 +149,7 @@ func (p *Scheduler) AddTask(dest *url.URL, jobSubmitted float64, onSubmit func(d
 	if shouldSignal {
 		p.newTaskSignal <- struct{}{}
 	}
-	p.log.Debugf("added new task, dest: %s, for jobSubmitted: %.1f, totalTaskJob: %.1f", dest, jobSubmitted, p.totalTaskJob)
+	p.log.Debugf("added new task, dest: %s, for jobSubmitted: %.0f, totalTaskJob: %.0f", dest, jobSubmitted, p.totalTaskJob)
 }
 
 func (p *Scheduler) ResetTasks() {
