@@ -2,7 +2,6 @@ package contractmanager
 
 import (
 	"context"
-	"time"
 
 	"github.com/Lumerin-protocol/contracts-go/clonefactory"
 	"github.com/ethereum/go-ethereum/common"
@@ -63,6 +62,7 @@ func (cm *ContractManager) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
+			//TODO: wait until all child contracts are stopped
 			return nil
 		case event := <-sub.Events():
 			err := cm.cloneFactoryController(ctx, event)
@@ -99,6 +99,13 @@ func (cm *ContractManager) handleContractCreated(ctx context.Context, event *clo
 }
 
 func (cm *ContractManager) handleContractPurchased(ctx context.Context, event *clonefactory.ClonefactoryClonefactoryContractPurchased) error {
+	terms, err := cm.store.GetContract(ctx, event.Address.Hex())
+	if err != nil {
+		return err
+	}
+	if terms.GetBuyer() == cm.ownerAddr.String() {
+		cm.AddContract(terms)
+	}
 	return nil
 }
 
@@ -125,16 +132,22 @@ func (cm *ContractManager) handleContractDeleteUpdated(ctx context.Context, even
 }
 
 func (cm *ContractManager) AddContract(data *hashrate.EncryptedTerms) {
+	_, ok := cm.contracts.Load(data.GetID())
+	if ok {
+		cm.log.Error("contract already exists in store")
+		return
+	}
+
 	cntr, err := cm.contractFactory(data)
 	if err != nil {
 		cm.log.Errorf("contract factory error %s", err)
+		return
 	}
-	cm.contracts.Store(cntr)
 
 	go func() {
 		err := cntr.Run(context.TODO())
 		if err != nil {
-			cm.log.Error("contract ended, error %s", err)
+			cm.log.Errorf("contract ended, error %s", err)
 		}
 	}()
 }
@@ -145,14 +158,4 @@ func (cm *ContractManager) GetContracts() *lib.Collection[resources.Contract] {
 
 func (cm *ContractManager) isOurContract(terms TermsCommon) bool {
 	return terms.GetSeller() == cm.ownerAddr.String() || terms.GetBuyer() == cm.ownerAddr.String()
-}
-
-type TermsCommon interface {
-	GetID() string
-	GetState() hashrate.BlockchainState
-	GetSeller() string
-	GetBuyer() string
-	GetStartsAt() *time.Time
-	GetDuration() time.Duration
-	GetHashrateGHS() float64
 }
