@@ -161,7 +161,21 @@ func start() error {
 
 	store := contracts.NewHashrateEthereum(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), ethClient, log)
 
-	hrContractFactory, err := contract.NewContractFactory(cfg.Marketplace.WalletPrivateKey, alloc, cfg.Hashrate.CycleDuration, hashrateFactory, store, log)
+	store.SetLegacyTx(cfg.Blockchain.EthLegacyTx)
+
+	hrContractFactory, err := contract.NewContractFactory(
+		alloc,
+		hashrateFactory,
+		globalHashrate,
+		store,
+		log,
+
+		cfg.Marketplace.WalletPrivateKey,
+		cfg.Hashrate.CycleDuration,
+		cfg.Hashrate.ValidationStartTimeout,
+		cfg.Hashrate.ShareTimeout,
+		cfg.Hashrate.ErrorThreshold,
+	)
 	if err != nil {
 		return err
 	}

@@ -16,8 +16,11 @@ import (
 
 type ContractFactory struct {
 	// config
-	privateKey    string // private key of the user
-	cycleDuration time.Duration
+	privateKey             string // private key of the user
+	cycleDuration          time.Duration
+	validationStartTimeout time.Duration
+	shareTimeout           time.Duration
+	hrErrorThreshold       float64
 
 	// state
 	address common.Address // derived from private key
@@ -25,26 +28,43 @@ type ContractFactory struct {
 	// deps
 	store           *contracts.HashrateEthereum
 	allocator       *allocator.Allocator
+	globalHashrate  *hashrate.GlobalHashrate
 	hashrateFactory func() *hashrate.Hashrate
 	log             interfaces.ILogger
 }
 
-func NewContractFactory(privateKey string, allocator *allocator.Allocator, cycleDuration time.Duration, hashrateFactory func() *hashrate.Hashrate, store *contracts.HashrateEthereum, log interfaces.ILogger) (*ContractFactory, error) {
+func NewContractFactory(
+	allocator *allocator.Allocator,
+	hashrateFactory func() *hashrate.Hashrate,
+	globalHashrate *hashrate.GlobalHashrate,
+	store *contracts.HashrateEthereum,
+	log interfaces.ILogger,
+
+	privateKey string,
+	cycleDuration time.Duration,
+	validationStartTimeout time.Duration,
+	shareTimeout time.Duration,
+	hrErrorThreshold float64,
+) (*ContractFactory, error) {
 	address, err := lib.PrivKeyStringToAddr(privateKey)
 	if err != nil {
 		return nil, err
 	}
 
 	return &ContractFactory{
-		privateKey:    privateKey,
-		cycleDuration: cycleDuration,
+		allocator:       allocator,
+		hashrateFactory: hashrateFactory,
+		globalHashrate:  globalHashrate,
+		store:           store,
+		log:             log,
 
 		address: address,
 
-		allocator:       allocator,
-		hashrateFactory: hashrateFactory,
-		store:           store,
-		log:             log,
+		privateKey:             privateKey,
+		cycleDuration:          cycleDuration,
+		validationStartTimeout: validationStartTimeout,
+		shareTimeout:           shareTimeout,
+		hrErrorThreshold:       hrErrorThreshold,
 	}, nil
 }
 
@@ -58,7 +78,19 @@ func (c *ContractFactory) CreateContract(contractData *hashrateContract.Encrypte
 		return NewControllerSeller(watcher, c.store, c.privateKey), nil
 	}
 	if contractData.Buyer == c.address.String() {
-		return NewContractWatcherBuyer(contractData, c.cycleDuration, c.hashrateFactory, c.allocator, c.log.Named(lib.AddrShort(contractData.ContractID))), nil
+		watcher := NewContractWatcherBuyer(
+			contractData,
+			c.hashrateFactory,
+			c.allocator,
+			c.globalHashrate,
+			c.log.Named(lib.AddrShort(contractData.ContractID)),
+
+			c.cycleDuration,
+			c.validationStartTimeout,
+			c.shareTimeout,
+			c.hrErrorThreshold,
+		)
+		return NewControllerBuyer(watcher, c.store, c.privateKey), nil
 	}
 	return nil, fmt.Errorf("invalid terms %+v", contractData)
 }

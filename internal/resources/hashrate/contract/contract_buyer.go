@@ -14,27 +14,17 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 )
 
-type ValidationState int8
-
-const (
-	ValidationStateWaitingFirstShare ValidationState = 0
-	ValidationStateNotValidating     ValidationState = 1
-	ValidationStateValidating        ValidationState = 2
-	ValidationStateFinished          ValidationState = 3
-)
-
 type ContractWatcherBuyer struct {
 	// config
-	firstShareTimeout      time.Duration // time to wait for the first share to arrive, otherwise close contract
+	contractCycleDuration  time.Duration
 	validationStartTimeout time.Duration // time when validation kicks in
 	shareTimeout           time.Duration // time to wait for the share to arrive, otherwise close contract
 	hrErrorThreshold       float64       // hashrate relative error threshold for the contract to be considered fulfilling accurately
 
-	terms                 *hashrateContract.EncryptedTerms
-	state                 resources.ContractState
-	validationState       ValidationState
-	fulfillmentStartedAt  *time.Time
-	contractCycleDuration time.Duration
+	terms                *hashrateContract.EncryptedTerms
+	state                resources.ContractState
+	validationStage      ValidationStage
+	fulfillmentStartedAt *time.Time
 
 	tsk *lib.Task
 
@@ -44,13 +34,29 @@ type ContractWatcherBuyer struct {
 	log            interfaces.ILogger
 }
 
-func NewContractWatcherBuyer(data *hashrateContract.EncryptedTerms, cycleDuration time.Duration, hashrateFactory func() *hashrate.Hashrate, allocator *allocator.Allocator, log interfaces.ILogger) *ContractWatcherBuyer {
+func NewContractWatcherBuyer(
+	terms *hashrateContract.EncryptedTerms,
+	hashrateFactory func() *hashrate.Hashrate,
+	allocator *allocator.Allocator,
+	globalHashrate *hashrate.GlobalHashrate,
+	log interfaces.ILogger,
+
+	cycleDuration time.Duration,
+	validationStartTimeout time.Duration,
+	shareTimeout time.Duration,
+	hrErrorThreshold float64,
+) *ContractWatcherBuyer {
 	return &ContractWatcherBuyer{
-		terms:                 data,
-		state:                 resources.ContractStatePending,
-		allocator:             allocator,
-		contractCycleDuration: cycleDuration,
-		log:                   log,
+		terms:          terms,
+		state:          resources.ContractStatePending,
+		allocator:      allocator,
+		globalHashrate: globalHashrate,
+		log:            log,
+
+		contractCycleDuration:  cycleDuration,
+		validationStartTimeout: validationStartTimeout,
+		shareTimeout:           shareTimeout,
+		hrErrorThreshold:       hrErrorThreshold,
 	}
 }
 
@@ -92,9 +98,16 @@ func (p *ContractWatcherBuyer) Run(ctx context.Context) error {
 	ticker := time.NewTicker(p.contractCycleDuration)
 	defer ticker.Stop()
 
-	endTimer := time.Timer{}
+	endTimer := time.NewTimer(time.Until(*p.GetEndTime()))
+
 	for {
+		err := p.checkIncomingHashrate(ctx)
+		if err != nil {
+			return err
+		}
+
 		endTimer.Reset(time.Until(*p.GetEndTime()))
+
 		select {
 		case <-ctx.Done():
 			if !endTimer.Stop() {
@@ -107,45 +120,40 @@ func (p *ContractWatcherBuyer) Run(ctx context.Context) error {
 			if !endTimer.Stop() {
 				<-endTimer.C
 			}
-
-			err := p.checkIncomingHashrate(ctx)
-			if err != nil {
-				return err
-			}
 		}
 	}
 }
 
-func (p *ContractWatcherBuyer) checkIncomingHashrate(ctx context.Context) error {
-	if p.validationState == ValidationStateWaitingFirstShare && p.isFirstShareTimeout() {
-		p.validationState = ValidationStateNotValidating
-	}
-
-	if p.validationState == ValidationStateNotValidating && p.isValidationStartTimeout() {
-		p.validationState = ValidationStateValidating
+func (p *ContractWatcherBuyer) proceedToNextStage() {
+	if p.validationStage == ValidationStageNotValidating && p.isValidationStartTimeout() {
+		p.validationStage = ValidationStageValidating
+		p.log.Infof("new validation stage %s", p.validationStage)
+		return
 	}
 
 	if p.isContractExpired() {
-		p.validationState = ValidationStateFinished
+		p.validationStage = ValidationStageFinished
+		p.log.Infof("new validation stage %s", p.validationStage)
+		return
 	}
+}
+
+func (p *ContractWatcherBuyer) checkIncomingHashrate(ctx context.Context) error {
+	p.proceedToNextStage()
 
 	isHashrateOK := p.isReceivingAcceptableHashrate()
 
-	switch p.validationState {
-	case ValidationStateWaitingFirstShare:
-		// no validation
-		return nil
-	case ValidationStateNotValidating:
-		// on this stage there should be at least one share
+	switch p.validationStage {
+	case ValidationStageNotValidating:
 		lastShareTime, ok := p.globalHashrate.GetLastSubmitTime(p.getWorkerName())
 		if !ok {
-			return fmt.Errorf("no share submitted within firstShareTimeout (%s)", p.firstShareTimeout)
+			lastShareTime = *p.fulfillmentStartedAt
 		}
 		if time.Since(lastShareTime) > p.shareTimeout {
 			return fmt.Errorf("no share submitted within shareTimeout (%s)", p.shareTimeout)
 		}
 		return nil
-	case ValidationStateValidating:
+	case ValidationStageValidating:
 		lastShareTime, ok := p.globalHashrate.GetLastSubmitTime(p.getWorkerName())
 		if !ok {
 			errMsg := "on ValidationStateValidating there should be at least one share"
@@ -159,7 +167,7 @@ func (p *ContractWatcherBuyer) checkIncomingHashrate(ctx context.Context) error 
 			return fmt.Errorf("contract is not delivering accurate hashrate")
 		}
 		return nil
-	case ValidationStateFinished:
+	case ValidationStageFinished:
 		return fmt.Errorf("contract is finished")
 	default:
 		return fmt.Errorf("unknown validation state")
@@ -174,7 +182,7 @@ func (p *ContractWatcherBuyer) isReceivingAcceptableHashrate() bool {
 	hrError := lib.RelativeError(targetHashrateGHS, actualHashrate)
 
 	hrMsg := fmt.Sprintf(
-		"worker %s, target HR %.0f, whole contract average HR %.0f, error %.0f%%, threshold(%.0f%%)",
+		"worker %s, target GHS %.0f, actual GHS %.0f, error %.0f%%, threshold(%.0f%%)",
 		p.getWorkerName(), targetHashrateGHS, actualHashrate, hrError*100, p.hrErrorThreshold*100,
 	)
 
@@ -252,10 +260,6 @@ func (p *ContractWatcherBuyer) GetStartedAt() *time.Time {
 
 func (p *ContractWatcherBuyer) GetState() resources.ContractState {
 	return p.state
-}
-
-func (p *ContractWatcherBuyer) isFirstShareTimeout() bool {
-	return time.Since(*p.fulfillmentStartedAt) > p.firstShareTimeout
 }
 
 func (p *ContractWatcherBuyer) isValidationStartTimeout() bool {

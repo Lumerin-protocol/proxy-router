@@ -9,9 +9,10 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
 	hashrateContract "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
+	hr "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 	"golang.org/x/exp/slices"
 )
 
@@ -20,7 +21,7 @@ type ContractWatcherSeller struct {
 
 	state                 resources.ContractState
 	fullMiners            []string
-	actualHRGHS           *hashrate.Hashrate
+	actualHRGHS           *hr.Hashrate
 	fulfillmentStartedAt  *time.Time
 	contractCycleDuration time.Duration
 
@@ -31,8 +32,8 @@ type ContractWatcherSeller struct {
 	log       interfaces.ILogger
 }
 
-func NewContractWatcherSeller(data *hashrateContract.Terms, cycleDuration time.Duration, hashrateFactory func() *hashrate.Hashrate, allocator *allocator.Allocator, log interfaces.ILogger) *ContractWatcherSeller {
-	return &ContractWatcherSeller{
+func NewContractWatcherSeller(data *hashrateContract.Terms, cycleDuration time.Duration, hashrateFactory func() *hr.Hashrate, allocator *allocator.Allocator, log interfaces.ILogger) *ContractWatcherSeller {
+	p := &ContractWatcherSeller{
 		data:                  data,
 		state:                 resources.ContractStatePending,
 		allocator:             allocator,
@@ -41,6 +42,8 @@ func NewContractWatcherSeller(data *hashrateContract.Terms, cycleDuration time.D
 		actualHRGHS:           hashrateFactory(),
 		log:                   log,
 	}
+	p.tsk = lib.NewTaskFunc(p.Run)
+	return p
 }
 
 func (p *ContractWatcherSeller) StartFulfilling(ctx context.Context) {
@@ -48,7 +51,6 @@ func (p *ContractWatcherSeller) StartFulfilling(ctx context.Context) {
 	startedAt := time.Now()
 	p.fulfillmentStartedAt = &startedAt
 	p.state = resources.ContractStateRunning
-	p.tsk = lib.NewTaskFunc(p.Run)
 	p.tsk.Start(ctx)
 }
 
@@ -159,7 +161,7 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(time.Until(*p.GetEndTime())):
-			expectedJob := hashrate.GHSToJobSubmitted(p.GetHashrateGHS()) * p.GetDuration().Seconds()
+			expectedJob := hr.GHSToJobSubmitted(p.GetHashrateGHS()) * p.GetDuration().Seconds()
 			actualJob := p.actualHRGHS.GetTotalWork()
 			undeliveredJob := expectedJob - float64(actualJob)
 			undeliveredFraction := undeliveredJob / expectedJob
@@ -183,7 +185,7 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 		case <-time.After(p.contractCycleDuration):
 		}
 
-		thisCycleActualGHS := hashrate.JobSubmittedToGHS(float64(thisCycleJobSubmitted.Load()) / p.contractCycleDuration.Seconds())
+		thisCycleActualGHS := hr.JobSubmittedToGHS(float64(thisCycleJobSubmitted.Load()) / p.contractCycleDuration.Seconds())
 		thisCycleUnderDeliveryGHS := p.GetHashrateGHS() - thisCycleActualGHS
 
 		// plan for the next cycle is to compensate for the under delivery of this cycle
@@ -256,4 +258,17 @@ func (p *ContractWatcherSeller) GetStartedAt() *time.Time {
 
 func (p *ContractWatcherSeller) GetState() resources.ContractState {
 	return p.state
+}
+
+func (p *ContractWatcherSeller) GetBlockchainState() hashrate.BlockchainState {
+	return p.data.State
+}
+
+// ShouldBeRunning checks blockchain state and expiration time and returns true if the contract should be running
+func (p *ContractWatcherSeller) ShouldBeRunning() bool {
+	endTime := p.GetEndTime()
+	if endTime == nil {
+		return false
+	}
+	return p.GetBlockchainState() == hashrate.BlockchainStateRunning && p.GetEndTime().After(time.Now())
 }

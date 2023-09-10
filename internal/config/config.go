@@ -14,17 +14,17 @@ type Config struct {
 	}
 	Environment string `env:"ENVIRONMENT" flag:"environment"`
 	Hashrate    struct {
-		CycleDuration time.Duration `env:"HASHRATE_CYCLE_DURATION" flag:"hashrate-cycle-duration" validate:"duration"`
-		// DiffThreshold          float64       `env:"HASHRATE_DIFF_THRESHOLD" flag:"hashrate-diff-threshold"`
-		ValidationBufferPeriod time.Duration `env:"VALIDATION_BUFFER_PERIOD" flag:"validation-buffer-period" validate:"duration"`
+		CycleDuration          time.Duration `env:"HASHRATE_CYCLE_DURATION"           flag:"hashrate-cycle-duration"           validate:"duration" desc:"duration of the hashrate cycle, after which the hashrate is evaluated, applies to both seller and buyer"`
+		ValidationStartTimeout time.Duration `env:"HASHRATE_VALIDATION_START_TIMEOUT" flag:"hashrate-validation-start-timeout" validate:"duration" desc:"time when validation kicks in, applies for buyer"`
+		ShareTimeout           time.Duration `env:"HASHRATE_SHARE_TIMEOUT"            flag:"hashrate-share-timeout"            validate:"duration" desc:"time to wait for the share to arrive, otherwise close contract, applies for buyer"`
+		ErrorThreshold         float64       `env:"HASHRATE_ERROR_THRESHOLD"          flag:"hashrate-error-threshold"                              desc:"hashrate relative error threshold for the contract to be considered fulfilling accurately, applies for buyer"`
 	}
 	Marketplace struct {
 		CloneFactoryAddress string `env:"CLONE_FACTORY_ADDRESS" flag:"contract-address" validate:"required_if=Disable false,omitempty,eth_addr"`
-		// LumerinTokenAddress string `env:"LUMERIN_TOKEN_ADDRESS" flag:"lumerin-token-address" validate:"required_if=Disable false,omitempty,eth_addr"`
-		Disable          bool   `env:"CONTRACT_DISABLE" flag:"contract-disable"`
-		IsBuyer          bool   `env:"IS_BUYER" flag:"is-buyer"`
-		Mnemonic         string `env:"CONTRACT_MNEMONIC" flag:"contract-mnemonic" validate:"required_without=WalletPrivateKey|required_if=Disable false"`
-		WalletPrivateKey string `env:"WALLET_PRIVATE_KEY" flag:"wallet-private-key" validate:"required_without=Mnemonic|required_if=Disable false"`
+		Disable             bool   `env:"CONTRACT_DISABLE" flag:"contract-disable"`
+		IsBuyer             bool   `env:"IS_BUYER" flag:"is-buyer"`
+		Mnemonic            string `env:"CONTRACT_MNEMONIC" flag:"contract-mnemonic" validate:"required_without=WalletPrivateKey|required_if=Disable false"`
+		WalletPrivateKey    string `env:"WALLET_PRIVATE_KEY" flag:"wallet-private-key" validate:"required_without=Mnemonic|required_if=Disable false"`
 	}
 	Miner struct {
 		VettingDuration time.Duration `env:"MINER_VETTING_DURATION" flag:"miner-vetting-duration" validate:"duration"`
@@ -71,13 +71,20 @@ func (cfg *Config) SetDefaults() {
 	if cfg.Hashrate.CycleDuration == 0 {
 		cfg.Hashrate.CycleDuration = time.Duration(5 * time.Minute)
 	}
-	if cfg.Hashrate.ValidationBufferPeriod == 0 {
-		cfg.Hashrate.ValidationBufferPeriod = time.Duration(10 * time.Minute)
+	if cfg.Hashrate.ValidationStartTimeout == 0 {
+		cfg.Hashrate.ValidationStartTimeout = time.Duration(10 * time.Minute)
+	}
+	if cfg.Hashrate.ShareTimeout == 0 {
+		cfg.Hashrate.ShareTimeout = time.Duration(5 * time.Minute)
+	}
+	if cfg.Hashrate.ErrorThreshold == 0 {
+		cfg.Hashrate.ErrorThreshold = 0.05
 	}
 
 	// Marketplace
 
 	// normalizes private key
+	// TODO: convert and validate to ecies.PrivateKey
 	cfg.Marketplace.WalletPrivateKey = strings.TrimPrefix(cfg.Marketplace.WalletPrivateKey, "0x")
 
 	// Miner

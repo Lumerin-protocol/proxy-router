@@ -6,18 +6,18 @@ import (
 	"github.com/Lumerin-protocol/contracts-go/implementation"
 	"github.com/ethereum/go-ethereum/common"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
-	dataaccess "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/repositories/contracts"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/repositories/contracts"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources"
 )
 
 type ControllerBuyer struct {
 	*ContractWatcherBuyer
-	store   *dataaccess.HashrateEthereum
+	store   *contracts.HashrateEthereum
 	tsk     *lib.Task
 	privKey string
 }
 
-func NewControllerBuyer(contract *ContractWatcherBuyer, store *dataaccess.HashrateEthereum, privKey string) *ControllerBuyer {
+func NewControllerBuyer(contract *ContractWatcherBuyer, store *contracts.HashrateEthereum, privKey string) *ControllerBuyer {
 	return &ControllerBuyer{
 		ContractWatcherBuyer: contract,
 		store:                store,
@@ -47,7 +47,20 @@ func (c *ControllerBuyer) Run(ctx context.Context) error {
 		case err := <-sub.Err():
 			return err
 		case <-c.ContractWatcherBuyer.Done():
-			return c.ContractWatcherBuyer.Err()
+			err := c.ContractWatcherBuyer.Err()
+			if err != nil {
+				// underdelivery, buyer closes the contract
+				c.log.Warnf("buyer contract ended with error: %s", err)
+				err = c.store.CloseContract(ctx, c.GetID(), contracts.CloseoutTypeCancel, c.privKey)
+				if err != nil {
+					c.log.Errorf("error closing contract: %s", err)
+				}
+				c.log.Warnf("buyer contract closed, with type cancel")
+				return nil
+			}
+			// delivery ok, seller will close the contract
+			c.log.Infof("buyer contract ended without an error")
+			return nil
 		}
 	}
 }

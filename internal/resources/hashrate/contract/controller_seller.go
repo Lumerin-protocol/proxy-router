@@ -33,17 +33,39 @@ func (c *ControllerSeller) Run(ctx context.Context) error {
 
 	c.log.Infof("started watching contract as seller, address %s", c.GetID())
 
+	if c.ShouldBeRunning() {
+		c.StartFulfilling(ctx)
+	}
+
 	for {
 		select {
-		case <-ctx.Done():
-			return ctx.Err()
 		case event := <-sub.Events():
 			err := c.controller(ctx, event)
 			if err != nil {
+				c.StopFulfilling()
 				return err
 			}
 		case err := <-sub.Err():
+			c.StopFulfilling()
 			return err
+		case <-c.ContractWatcherSeller.Done():
+			err := c.ContractWatcherSeller.Err()
+			if err != nil {
+				// fulfillment error, buyer will close on underdelivery
+				c.log.Warnf("seller contract ended with error: %s", err)
+				return nil
+			}
+
+			// no error, seller closes the contract after expiration
+			c.log.Warnf("seller contract ended without error")
+			err = c.store.CloseContract(ctx, c.GetID(), contracts.CloseoutTypeWithoutClaim, c.privKey)
+			if err != nil {
+				c.log.Errorf("error closing contract: %s", err)
+				return nil
+			}
+
+			c.log.Warnf("seller contract closed")
+			return nil
 		}
 	}
 }
@@ -67,25 +89,17 @@ func (c *ControllerSeller) handleContractPurchased(ctx context.Context, event *i
 		return nil
 	}
 
-	data, err := c.store.GetContract(ctx, c.GetID())
+	encryptedTerms, err := c.store.GetContract(ctx, c.GetID())
 	if err != nil {
 		return err
 	}
-	terms, err := data.Decrypt(c.privKey)
+	terms, err := encryptedTerms.Decrypt(c.privKey)
 	if err != nil {
 		return err
 	}
 	c.SetData(terms)
+
 	c.StartFulfilling(ctx)
-
-	go func() {
-		<-c.Done()
-		err := c.store.CloseContract(ctx, c.GetID(), contracts.CloseoutTypeWithoutClaim, c.privKey)
-		if err != nil {
-			c.log.Errorf("error closing contract: %s", err)
-		}
-	}()
-
 	return nil
 }
 
