@@ -127,13 +127,13 @@ func (p *ContractWatcherBuyer) Run(ctx context.Context) error {
 func (p *ContractWatcherBuyer) proceedToNextStage() {
 	if p.validationStage == ValidationStageNotValidating && p.isValidationStartTimeout() {
 		p.validationStage = ValidationStageValidating
-		p.log.Infof("new validation stage %s", p.validationStage)
+		p.log.Infof("new validation stage %s", p.validationStage.String())
 		return
 	}
 
 	if p.isContractExpired() {
 		p.validationStage = ValidationStageFinished
-		p.log.Infof("new validation stage %s", p.validationStage)
+		p.log.Infof("new validation stage %s", p.validationStage.String())
 		return
 	}
 }
@@ -233,19 +233,6 @@ func (p *ContractWatcherBuyer) GetHashrateGHS() float64 {
 	return p.terms.Hashrate
 }
 
-// func (p *ContractWatcher) GetResourceEstimates() map[string]float64 {
-// 	return p.data.ResourceEstimates
-// }
-
-func (p *ContractWatcherBuyer) GetResourceEstimatesActual() map[string]float64 {
-	res, _ := p.globalHashrate.GetHashRateGHSAll(p.getWorkerName())
-	return res
-}
-
-func (p *ContractWatcherBuyer) GetResourceType() string {
-	return ResourceTypeHashrate
-}
-
 func (p *ContractWatcherBuyer) GetSeller() string {
 	return p.terms.Seller
 }
@@ -260,6 +247,21 @@ func (p *ContractWatcherBuyer) GetStartedAt() *time.Time {
 
 func (p *ContractWatcherBuyer) GetState() resources.ContractState {
 	return p.state
+}
+
+func (p *ContractWatcherBuyer) GetResourceEstimates() map[string]float64 {
+	return map[string]float64{
+		ResourceEstimateHashrateGHS: p.GetHashrateGHS(),
+	}
+}
+
+func (p *ContractWatcherBuyer) GetResourceEstimatesActual() map[string]float64 {
+	res, _ := p.globalHashrate.GetHashRateGHSAll(p.getWorkerName())
+	return res
+}
+
+func (p *ContractWatcherBuyer) GetResourceType() string {
+	return ResourceTypeHashrate
 }
 
 func (p *ContractWatcherBuyer) isValidationStartTimeout() bool {

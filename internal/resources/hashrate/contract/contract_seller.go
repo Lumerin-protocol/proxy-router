@@ -206,6 +206,9 @@ func (p *ContractWatcherSeller) GetRole() resources.ContractRole {
 }
 
 func (p *ContractWatcherSeller) GetDest() string {
+	if p.data.Dest == nil {
+		return ""
+	}
 	return p.data.Dest.String()
 }
 
@@ -231,18 +234,6 @@ func (p *ContractWatcherSeller) GetID() string {
 
 func (p *ContractWatcherSeller) GetHashrateGHS() float64 {
 	return p.data.Hashrate
-}
-
-// func (p *ContractWatcher) GetResourceEstimates() map[string]float64 {
-// 	return p.data.ResourceEstimates
-// }
-
-func (p *ContractWatcherSeller) GetResourceEstimatesActual() map[string]float64 {
-	return p.actualHRGHS.GetHashrateAvgGHSAll()
-}
-
-func (p *ContractWatcherSeller) GetResourceType() string {
-	return ResourceTypeHashrate
 }
 
 func (p *ContractWatcherSeller) GetSeller() string {
@@ -272,4 +263,20 @@ func (p *ContractWatcherSeller) ShouldBeRunning() bool {
 		return false
 	}
 	return p.GetBlockchainState() == hashrate.BlockchainStateRunning && p.GetEndTime().After(time.Now())
+}
+
+func (p *ContractWatcherSeller) GetResourceType() string {
+	return ResourceTypeHashrate
+}
+
+func (p *ContractWatcherSeller) GetResourceEstimates() map[string]float64 {
+	return map[string]float64{
+		ResourceEstimateHashrateGHS: p.GetHashrateGHS(),
+	}
+}
+
+func (p *ContractWatcherSeller) GetResourceEstimatesActual() map[string]float64 {
+	return map[string]float64{
+		ResourceEstimateHashrateGHS: p.GetHashrateGHS(),
+	}
 }

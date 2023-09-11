@@ -144,6 +144,8 @@ func (cm *ContractManager) AddContract(data *hashrate.EncryptedTerms) {
 		return
 	}
 
+	cm.contracts.Store(cntr)
+
 	go func() {
 		err := cntr.Run(context.TODO())
 		if err != nil {
