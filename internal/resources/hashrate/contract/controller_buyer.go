@@ -97,9 +97,12 @@ func (c *ControllerBuyer) handleContractClosed(ctx context.Context, event *imple
 }
 
 func (c *ControllerBuyer) handleCipherTextUpdated(ctx context.Context, event *implementation.ImplementationCipherTextUpdated) error {
+	// ignoring, if destination cipher is changed then there is going to be a different destination
 	return nil
 }
 
 func (c *ControllerBuyer) handlePurchaseInfoUpdated(ctx context.Context, event *implementation.ImplementationPurchaseInfoUpdated) error {
+	// this event is emitted only when contract is closed, so we can ignore it
+	// and pull updated terms on the next purchase
 	return nil
 }

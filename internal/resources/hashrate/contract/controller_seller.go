@@ -123,9 +123,40 @@ func (c *ControllerSeller) handleContractClosed(ctx context.Context, event *impl
 }
 
 func (c *ControllerSeller) handleCipherTextUpdated(ctx context.Context, event *implementation.ImplementationCipherTextUpdated) error {
+	currentDest := c.GetDest()
+
+	data, err := c.store.GetContract(ctx, c.GetID())
+	if err != nil {
+		return err
+	}
+	terms, err := data.Decrypt(c.privKey)
+	if err != nil {
+		return err
+	}
+
+	//TODO: drop protocol before comparison
+	newDest := terms.Dest.String()
+
+	if currentDest == newDest {
+		return nil
+	}
+
+	c.ContractWatcherSeller.StopFulfilling()
+	c.SetData(terms)
+	c.ContractWatcherSeller.StartFulfilling(ctx)
 	return nil
 }
 
 func (c *ControllerSeller) handlePurchaseInfoUpdated(ctx context.Context, event *implementation.ImplementationPurchaseInfoUpdated) error {
+	data, err := c.store.GetContract(ctx, c.GetID())
+	if err != nil {
+		return err
+	}
+	terms, err := data.Decrypt(c.privKey)
+	if err != nil {
+		return err
+	}
+
+	c.SetData(terms)
 	return nil
 }

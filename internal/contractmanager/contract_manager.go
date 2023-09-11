@@ -110,24 +110,8 @@ func (cm *ContractManager) handleContractPurchased(ctx context.Context, event *c
 }
 
 func (cm *ContractManager) handleContractDeleteUpdated(ctx context.Context, event *clonefactory.ClonefactoryContractDeleteUpdated) error {
-	c, ok := cm.contracts.Load(event.Address.Hex())
-	if !ok {
-		if !event.IsDeleted {
-			terms, err := cm.store.GetContract(ctx, event.Address.Hex())
-			if err != nil {
-				return err
-			}
-			if cm.isOurContract(terms) {
-				cm.AddContract(terms)
-			}
-		}
-	}
-	if ok {
-		cm.log.Info("contract", c)
-		if event.IsDeleted {
-			// c.StopWatching()
-		}
-	}
+	// TODO: handle contract delete / undelete
+	// as of now all contracts are tracked regardless of delete status
 	return nil
 }
 
