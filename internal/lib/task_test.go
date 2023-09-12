@@ -14,7 +14,7 @@ func TestTaskReturnsNoError(t *testing.T) {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(1 * time.Second):
+		case <-time.After(100 * time.Millisecond):
 			return nil
 		}
 	}
@@ -31,7 +31,7 @@ func TestTaskReturnsError(t *testing.T) {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(1 * time.Second):
+		case <-time.After(100 * time.Millisecond):
 			return err
 		}
 	}
@@ -67,30 +67,31 @@ func TestTaskStopNoError(t *testing.T) {
 }
 
 func TestTaskRestart(t *testing.T) {
+	sleepDuration := 50 * time.Millisecond
 	testFunc := func(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(1 * time.Second):
+		case <-time.After(2 * sleepDuration):
 			return nil
 		}
 	}
 
 	task := NewTaskFunc(testFunc)
 	task.Start(context.Background())
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(sleepDuration)
 	task.Stop()
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(sleepDuration)
 
 	task.Start(context.Background())
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(sleepDuration)
 	task.Stop()
 
 	select {
 	case <-task.Done():
 		require.Fail(t, "task should not be done")
-	case <-time.After(500 * time.Millisecond):
+	case <-time.After(sleepDuration):
 	}
 
 	require.NoError(t, task.Err())
@@ -155,6 +156,7 @@ func TestGlobalDone(t *testing.T) {
 }
 
 func TestWaitDoneBeforeStart(t *testing.T) {
+	sleepDuration := 50 * time.Millisecond
 	testFunc := func(ctx context.Context) error {
 		<-ctx.Done()
 		return ctx.Err()
@@ -164,15 +166,15 @@ func TestWaitDoneBeforeStart(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(sleepDuration)
 		task.Start(ctx)
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(sleepDuration)
 		<-task.Stop()
 
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(sleepDuration)
 
 		task.Start(ctx)
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(sleepDuration)
 
 		cancel()
 	}()
@@ -180,7 +182,7 @@ func TestWaitDoneBeforeStart(t *testing.T) {
 	select {
 	case <-task.Done():
 		require.ErrorIs(t, context.Canceled, task.Err())
-	case <-time.After(3000 * time.Millisecond):
+	case <-time.After(30 * sleepDuration):
 		require.Fail(t, "task should be cancelled")
 	}
 }

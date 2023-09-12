@@ -42,16 +42,24 @@ func RunTestProxy() (p *Proxy, s *StratumConnection, d *StratumConnection, cance
 	runErrorCh := make(chan error)
 
 	go func() {
-		err := proxy.Run(ctx)
-		sourceClient.Close()
-		destClient.Close()
+		defer sourceClient.Close()
+		defer destClient.Close()
+		defer close(runErrorCh)
+
+		err := proxy.Connect(ctx)
+		if err != nil {
+			log.Errorf("proxy exited with error %v", err)
+			runErrorCh <- err
+			return
+		}
+
+		err = proxy.Run(ctx)
 		if !errors.Is(err, context.Canceled) {
 			log.Errorf("proxy exited with error %v", err)
 		} else {
 			log.Info("proxy exited")
 		}
 		runErrorCh <- err
-		close(runErrorCh)
 	}()
 
 	return proxy,

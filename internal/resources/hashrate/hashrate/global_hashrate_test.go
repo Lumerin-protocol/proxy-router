@@ -58,6 +58,6 @@ func TestGlobalHashrate(t *testing.T) {
 	expected := HSToGHS(JobSubmittedToHS(workPerSecond))
 	actual, _ := hr.GetHashRateGHS(workerName, "mean")
 
-	fmt.Printf("exp %d act %d\n", expected, actual)
+	fmt.Printf("exp %d act %.0f\n", expected, actual)
 	assert.InEpsilon(t, expected, actual, 0.01, "should be accurate")
 }

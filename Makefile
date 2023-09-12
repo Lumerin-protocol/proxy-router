@@ -18,3 +18,9 @@ lint:
 	govulncheck ./...
 	gokart scan .
 	gosec ./...
+
+test:
+	go test -v -p 1 $$(go list ./... | grep -v /test)
+
+test-integration:
+	go test -v ./test/...

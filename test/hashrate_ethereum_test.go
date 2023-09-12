@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/repositories/contracts"
 )
 
 const (
@@ -30,7 +31,7 @@ func TestGetContracts(t *testing.T) {
 	ctx := context.Background()
 	client, err := ethclient.Dial(ETH_NODE_ADDR)
 	require.NoError(t, err)
-	ethGateway := NewHashrateEthereum(common.HexToAddress(CLONEFACTORY_ADDR), client, &lib.LoggerMock{})
+	ethGateway := contracts.NewHashrateEthereum(common.HexToAddress(CLONEFACTORY_ADDR), client, &lib.LoggerMock{})
 
 	ids, err := ethGateway.GetContractsIDs(ctx)
 	require.NoError(t, err)
@@ -39,7 +40,7 @@ func TestGetContracts(t *testing.T) {
 
 func TestGetContract(t *testing.T) {
 	ctx := context.Background()
-	ethGateway := makeEthGateway(t, ctx)
+	ethGateway := makeEthGateway(t, makeEthClient(t))
 
 	contract, err := ethGateway.GetContract(ctx, CONTRACT_ID)
 	require.NoError(t, err)
@@ -60,7 +61,7 @@ func TestPurchaseContract(t *testing.T) {
 
 func TestCloseContract(t *testing.T) {
 	ctx := context.Background()
-	ethGateway := makeEthGateway(t, ctx)
+	ethGateway := makeEthGateway(t, makeEthClient(t))
 
 	err := ethGateway.CloseContract(ctx, CONTRACT_ID, 0, PRIVATE_KEY_2)
 	require.NoError(t, err)
@@ -68,7 +69,8 @@ func TestCloseContract(t *testing.T) {
 
 func TestWatchClonefactoryContractPurchased(t *testing.T) {
 	ctx := context.Background()
-	ethGateway := makeEthGateway(t, ctx)
+	ethClient := makeEthClient(t)
+	ethGateway := makeEthGateway(t, ethClient)
 
 	sub, err := ethGateway.CreateCloneFactorySubscription(ctx, common.HexToAddress(CLONEFACTORY_ADDR))
 	require.NoError(t, err)
@@ -77,7 +79,7 @@ func TestWatchClonefactoryContractPurchased(t *testing.T) {
 	errCh := make(chan error)
 
 	go func() {
-		errCh <- PurchaseContract(ctx, ethGateway.client, CONTRACT_ID, PRIVATE_KEY_2)
+		errCh <- PurchaseContract(ctx, ethClient, CONTRACT_ID, PRIVATE_KEY_2)
 	}()
 
 	select {
@@ -94,7 +96,7 @@ func TestWatchClonefactoryContractPurchased(t *testing.T) {
 
 func TestImplementationContractClosed(t *testing.T) {
 	ctx := context.Background()
-	ethGateway := makeEthGateway(t, ctx)
+	ethGateway := makeEthGateway(t, makeEthClient(t))
 
 	sub, err := ethGateway.CreateImplementationSubscription(ctx, common.HexToAddress(CONTRACT_ID))
 	require.NoError(t, err)
@@ -117,13 +119,13 @@ func TestImplementationContractClosed(t *testing.T) {
 	}
 }
 
-func transferLMR(t *testing.T, client EthereumClient, fromPrivateKey string, toAddr common.Address, lmrAmount *big.Int) {
+func transferLMR(t *testing.T, client contracts.EthereumClient, fromPrivateKey string, toAddr common.Address, lmrAmount *big.Int) {
 	ctx := context.Background()
 
 	chainID, err := client.ChainID(ctx)
 	require.NoError(t, err)
 
-	ethGateway := NewHashrateEthereum(common.HexToAddress(CLONEFACTORY_ADDR), client, &lib.LoggerMock{})
+	ethGateway := contracts.NewHashrateEthereum(common.HexToAddress(CLONEFACTORY_ADDR), client, &lib.LoggerMock{})
 	ethGateway.SetLegacyTx(true)
 
 	lumerin, err := lumerintoken.NewLumerintoken(common.HexToAddress(LUMERIN_ADDR), client)
@@ -140,10 +142,14 @@ func transferLMR(t *testing.T, client EthereumClient, fromPrivateKey string, toA
 	require.NoError(t, err)
 }
 
-func makeEthGateway(t *testing.T, ctx context.Context) *HashrateEthereum {
+func makeEthClient(t *testing.T) *ethclient.Client {
 	client, err := ethclient.Dial(ETH_NODE_ADDR)
 	require.NoError(t, err)
-	ethGateway := NewHashrateEthereum(common.HexToAddress(CLONEFACTORY_ADDR), client, &lib.LoggerMock{})
+	return client
+}
+
+func makeEthGateway(t *testing.T, client *ethclient.Client) *contracts.HashrateEthereum {
+	ethGateway := contracts.NewHashrateEthereum(common.HexToAddress(CLONEFACTORY_ADDR), client, &lib.LoggerMock{})
 	ethGateway.SetLegacyTx(true)
 	return ethGateway
 }
@@ -157,7 +163,7 @@ func privateKeyToTransactOpts(ctx context.Context, privKey string, chainID *big.
 	return bind.NewKeyedTransactorWithChainID(privateKey, chainID)
 }
 
-func PurchaseContract(ctx context.Context, client EthereumClient, contractID string, privKey string) error {
+func PurchaseContract(ctx context.Context, client contracts.EthereumClient, contractID string, privKey string) error {
 	lumerin, err := lumerintoken.NewLumerintoken(common.HexToAddress(LUMERIN_ADDR), client)
 	if err != nil {
 		return err

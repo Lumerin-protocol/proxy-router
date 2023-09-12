@@ -71,7 +71,6 @@ func NewProxy(ID string, source *ConnSource, destFactory DestConnFactory, hashra
 		hashrate:       hashrateFactory(),
 		globalHashrate: globalHashrate,
 		onSubmit:       nil,
-		// globalHashrate:          hashrate.NewHashrate(),
 	}
 
 	return proxy
