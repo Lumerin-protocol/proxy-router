@@ -46,6 +46,7 @@ func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractman
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 
+	r.GET("/healthcheck", handl.HealthCheck)
 	r.GET("/miners", handl.GetMiners)
 	r.GET("/contracts", handl.GetContracts)
 	r.GET("/workers", handl.GetWorkers)
@@ -56,6 +57,10 @@ func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractman
 	r.SetTrustedProxies(nil)
 
 	return r
+}
+
+func (h *HTTPHandler) HealthCheck(ctx *gin.Context) {
+	ctx.JSON(200, gin.H{"status": "healthy"})
 }
 
 func (h *HTTPHandler) ChangeDest(ctx *gin.Context) {
