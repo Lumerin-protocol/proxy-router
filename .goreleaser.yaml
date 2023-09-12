@@ -22,12 +22,11 @@ builds:
 
 archives:
   - format: binary
-    name_template: "{{ .ProjectName }}_{{ .Tag }}_{{ .Os }}_{{ .Arch }}"
-    replacements:
-      darwin: Darwin
-      linux: Linux
-      windows: Windows
-      amd64: x86_64
+    name_template: >-
+      {{ .ProjectName }}_{{ .Tag }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
 
 checksum:
   name_template: "checksums.txt"
@@ -85,7 +84,7 @@ release:
   # in case there is an indicator for this in the tag e.g. v1.0.0-rc1
   # If set to true, will mark the release as not ready for production.
   # Default is false.
-  prerelease: auto
+  prerelease: false
 
   # What to do with the release notes in case there the release already exists.
   #
