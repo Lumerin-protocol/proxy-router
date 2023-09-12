@@ -7,7 +7,7 @@ import (
 type LinuxConfigurator struct {
 }
 
-func NewLinuxConfigurator() *LinuxConfigurator {
+func NewOSConfigurator() *LinuxConfigurator {
 	return &LinuxConfigurator{}
 }
 

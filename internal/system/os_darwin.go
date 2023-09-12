@@ -8,7 +8,7 @@ import (
 type DarwinConfigurator struct {
 }
 
-func NewDarwinConfigurator() *DarwinConfigurator {
+func NewOSConfigurator() *DarwinConfigurator {
 	return &DarwinConfigurator{}
 }
 

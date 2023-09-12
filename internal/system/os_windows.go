@@ -3,7 +3,7 @@ package system
 type WindowsConfigurator struct {
 }
 
-func NewWindowsConfigurator() *WindowsConfigurator {
+func NewOSConfigurator() *WindowsConfigurator {
 	return &WindowsConfigurator{}
 }
 
