@@ -54,7 +54,10 @@ func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractman
 	r.POST("/change-dest", handl.ChangeDest)
 	r.POST("/contracts", handl.CreateContract)
 
-	r.SetTrustedProxies(nil)
+	err := r.SetTrustedProxies(nil)
+	if err != nil {
+		panic(err)
+	}
 
 	return r
 }
@@ -87,23 +90,23 @@ func (h *HTTPHandler) ChangeDest(ctx *gin.Context) {
 func (h *HTTPHandler) CreateContract(ctx *gin.Context) {
 	dest, err := url.Parse(ctx.Query("dest"))
 	if err != nil {
-		ctx.AbortWithError(http.StatusBadRequest, err)
+		_ = ctx.AbortWithError(http.StatusBadRequest, err)
 		return
 	}
 	hrGHS, err := strconv.ParseInt(ctx.Query("hrGHS"), 10, 0)
 	if err != nil {
-		ctx.AbortWithError(http.StatusBadRequest, err)
+		_ = ctx.AbortWithError(http.StatusBadRequest, err)
 		return
 	}
 	duration, err := time.ParseDuration(ctx.Query("duration"))
 	if err != nil {
-		ctx.AbortWithError(http.StatusBadRequest, err)
+		_ = ctx.AbortWithError(http.StatusBadRequest, err)
 		return
 	}
 	now := time.Now()
 	destEnc, err := lib.EncryptString(dest.String(), h.pubKey)
 	if err != nil {
-		ctx.AbortWithError(http.StatusInternalServerError, err)
+		_ = ctx.AbortWithError(http.StatusInternalServerError, err)
 		return
 	}
 	h.contractManager.AddContract(&hashrate.EncryptedTerms{

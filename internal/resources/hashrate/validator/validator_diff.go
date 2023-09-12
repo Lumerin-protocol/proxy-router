@@ -27,12 +27,12 @@ func ValidateDiff(en1 string, en2_size uint, job_diff uint64, version_mask strin
 	merkle_branches := []string{}
 
 	/* extract job params */
-	json.Unmarshal(job.Params[1], &prev_hash)
-	json.Unmarshal(job.Params[2], &gen1)
-	json.Unmarshal(job.Params[3], &gen2)
-	json.Unmarshal(job.Params[4], &merkle_branches)
-	json.Unmarshal(job.Params[5], &version)
-	json.Unmarshal(job.Params[6], &nbits)
+	_ = json.Unmarshal(job.Params[1], &prev_hash)
+	_ = json.Unmarshal(job.Params[2], &gen1)
+	_ = json.Unmarshal(job.Params[3], &gen2)
+	_ = json.Unmarshal(job.Params[4], &merkle_branches)
+	_ = json.Unmarshal(job.Params[5], &version)
+	_ = json.Unmarshal(job.Params[6], &nbits)
 
 	/* extract submit params */
 	en2 = submit.Params[2]
@@ -53,9 +53,9 @@ func ValidateDiff(en1 string, en2_size uint, job_diff uint64, version_mask strin
 		sv := binary.LittleEndian.Uint32(decode_swap(sver))
 		vm := binary.LittleEndian.Uint32(decode_swap(version_mask))
 		nv := ((jv & ^vm) | (sv & vm))
-		binary.Write(header, binary.LittleEndian, nv)
+		_ = binary.Write(header, binary.LittleEndian, nv)
 	} else {
-		header.Write(decode_swap(version))
+		_, _ = header.Write(decode_swap(version))
 	}
 	header.Write(decode_swap_words(prev_hash))
 	header.Write(merkle_root[:])

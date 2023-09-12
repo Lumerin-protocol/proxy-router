@@ -24,9 +24,9 @@ func getNow() time.Time {
 	return nowTime
 }
 
-func sleepNow(time time.Duration) {
-	nowTime = nowTime.Add(time)
-}
+// func sleepNow(time time.Duration) {
+// 	nowTime = nowTime.Add(time)
+// }
 
 // Ema is an EMA (Exponential Moving Average) counter.
 type Ema struct {

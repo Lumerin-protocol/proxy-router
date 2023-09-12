@@ -193,7 +193,7 @@ func (p *Scheduler) HashrateGHS() float64 {
 	if !ok {
 		panic("hashrate counter not found")
 	}
-	return float64(hr)
+	return hr
 }
 
 func (p *Scheduler) GetStatus() MinerStatus {

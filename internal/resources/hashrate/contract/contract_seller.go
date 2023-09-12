@@ -164,7 +164,7 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 		case <-time.After(time.Until(*p.GetEndTime())):
 			expectedJob := hr.GHSToJobSubmitted(p.GetHashrateGHS()) * p.GetDuration().Seconds()
 			actualJob := p.actualHRGHS.GetTotalWork()
-			undeliveredJob := expectedJob - float64(actualJob)
+			undeliveredJob := expectedJob - actualJob
 			undeliveredFraction := undeliveredJob / expectedJob
 
 			for _, minerID := range p.fullMiners {

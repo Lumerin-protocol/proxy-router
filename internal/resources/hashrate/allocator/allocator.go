@@ -137,7 +137,7 @@ func (p *Allocator) GetPartialMiners(contractCycleDuration time.Duration) []Mine
 		}
 		if item.IsAcceptingTasks(contractCycleDuration) {
 			job := item.GetTotalTaskJob() * HashratePredictionAdjustment
-			fraction := float64(hashrate.JobSubmittedToGHS(job)) / (item.HashrateGHS() * HashratePredictionAdjustment)
+			fraction := hashrate.JobSubmittedToGHS(job) / (item.HashrateGHS() * HashratePredictionAdjustment)
 
 			partialMiners = append(partialMiners, MinerItemJobScheduled{
 				ID:       item.GetID(),

@@ -41,7 +41,7 @@ func (h *Hashrate) GetHashrateAvgGHSCustom(ID string) (hrGHS float64, ok bool) {
 func (h *Hashrate) GetHashrateAvgGHSAll() map[string]float64 {
 	m := make(map[string]float64, len(h.custom))
 	for key, item := range h.custom {
-		m[key] = float64(h.averageSubmitDiffToGHS(item.ValuePer(time.Second)))
+		m[key] = h.averageSubmitDiffToGHS(item.ValuePer(time.Second))
 	}
 	return m
 }

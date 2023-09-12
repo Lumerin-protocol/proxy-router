@@ -102,9 +102,9 @@ func TestConnTimeoutWrite(t *testing.T) {
 
 	go func() {
 		// try to read first message
-		serverConn.Read(ctx)
+		_, _ = serverConn.Read(ctx)
 		// try to read second message, will fail due to timeout
-		serverConn.Read(ctx)
+		_, _ = serverConn.Read(ctx)
 	}()
 
 	// write first message ok
@@ -137,8 +137,8 @@ func TestConnTimeoutRead(t *testing.T) {
 	serverConn := CreateConnection(server, "", timeoutLong, timeoutLong, lib.NewTestLogger().Named("server"))
 
 	go func() {
-		serverConn.Write(ctx, sm.NewMiningAuthorize(0, "0", "0"))
-		serverConn.Write(ctx, sm.NewMiningAuthorize(0, "0", "0"))
+		_ = serverConn.Write(ctx, sm.NewMiningAuthorize(0, "0", "0"))
+		_ = serverConn.Write(ctx, sm.NewMiningAuthorize(0, "0", "0"))
 	}()
 
 	// read first message ok

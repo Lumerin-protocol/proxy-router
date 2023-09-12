@@ -66,13 +66,13 @@ func (cfg *Config) SetDefaults() {
 	// Hashrate
 
 	if cfg.Hashrate.CycleDuration == 0 {
-		cfg.Hashrate.CycleDuration = time.Duration(5 * time.Minute)
+		cfg.Hashrate.CycleDuration = 5 * time.Minute
 	}
 	if cfg.Hashrate.ValidationStartTimeout == 0 {
-		cfg.Hashrate.ValidationStartTimeout = time.Duration(10 * time.Minute)
+		cfg.Hashrate.ValidationStartTimeout = 10 * time.Minute
 	}
 	if cfg.Hashrate.ShareTimeout == 0 {
-		cfg.Hashrate.ShareTimeout = time.Duration(5 * time.Minute)
+		cfg.Hashrate.ShareTimeout = 5 * time.Minute
 	}
 	if cfg.Hashrate.ErrorThreshold == 0 {
 		cfg.Hashrate.ErrorThreshold = 0.05
@@ -87,11 +87,11 @@ func (cfg *Config) SetDefaults() {
 	// Miner
 
 	if cfg.Miner.VettingDuration == 0 {
-		cfg.Miner.VettingDuration = time.Duration(5 * time.Minute)
+		cfg.Miner.VettingDuration = 5 * time.Minute
 	}
 
 	if cfg.Miner.ShareTimeout == 0 {
-		cfg.Miner.ShareTimeout = time.Duration(2 * time.Minute)
+		cfg.Miner.ShareTimeout = 2 * time.Minute
 	}
 
 	// Log
