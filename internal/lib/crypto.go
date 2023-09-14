@@ -5,31 +5,34 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"log"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 )
 
+var (
+	ErrInvalidPrivateKey = fmt.Errorf("invalid private key")
+)
+
 func DecryptString(str string, privateKey string) (string, error) {
 	pkECDSA, err := crypto.HexToECDSA(privateKey)
 	if err != nil {
-		return "", err
+		return "", WrapError(ErrInvalidPrivateKey, err)
 	}
 
 	pkECIES := ecies.ImportECDSA(pkECDSA)
-	destUrlBytes, err := hex.DecodeString(str)
+	strDecodedBytes, err := hex.DecodeString(str)
 	if err != nil {
 		return "", err
 	}
 
-	decryptedDestUrlBytes, err := pkECIES.Decrypt(destUrlBytes, nil, nil)
+	strDecryptedBytes, err := pkECIES.Decrypt(strDecodedBytes, nil, nil)
 	if err != nil {
 		return "", err
 	}
 
-	return string(decryptedDestUrlBytes), nil
+	return string(strDecryptedBytes), nil
 }
 
 func EncryptString(str string, publicKeyHex string) (string, error) {
@@ -50,7 +53,7 @@ func EncryptString(str string, publicKeyHex string) (string, error) {
 	// Encrypt using ECIES
 	ciphertext, err := ecies.Encrypt(rand.Reader, pk, urlBytes, nil, nil)
 	if err != nil {
-		log.Fatalf("Error encrypting: %v", err)
+		return "", err
 	}
 
 	return hex.EncodeToString(ciphertext), nil
@@ -69,10 +72,14 @@ func PrivKeyToAddr(privateKey *ecdsa.PrivateKey) (common.Address, error) {
 func PrivKeyStringToAddr(privateKey string) (common.Address, error) {
 	privKey, err := crypto.HexToECDSA(privateKey)
 	if err != nil {
-		return common.Address{}, err
+		return common.Address{}, WrapError(ErrInvalidPrivateKey, err)
 	}
 
-	return PrivKeyToAddr(privKey)
+	addr, err := PrivKeyToAddr(privKey)
+	if err != nil {
+		return common.Address{}, WrapError(ErrInvalidPrivateKey, err)
+	}
+	return addr, nil
 }
 
 func MustPrivKeyToAddr(privateKey *ecdsa.PrivateKey) common.Address {
