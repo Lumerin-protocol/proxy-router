@@ -2,6 +2,7 @@ variables: # keep this list alphabetically sorted
   CI_AWS_TASK: "proxy-router"
   ENVIRONMENT: "production"
   NODE_DEF: "prt"
+  WEB_ADDRESS: "0.0.0.0:8080"
 
 stages:
   - test

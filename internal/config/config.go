@@ -144,9 +144,9 @@ func (cfg *Config) SetDefaults() {
 		cfg.Proxy.Address = "0.0.0.0:3333"
 	}
 	if cfg.Web.Address == "" {
-		cfg.Web.Address = "0.0.0.0:8081"
+		cfg.Web.Address = "0.0.0.0:8080"
 	}
 	if cfg.Web.PublicUrl == "" {
-		cfg.Web.PublicUrl = "http://localhost:8081"
+		cfg.Web.PublicUrl = "http://localhost:8080"
 	}
 }
