@@ -209,22 +209,6 @@ func (p *ContractWatcherBuyer) GetDest() string {
 	return ""
 }
 
-func (p *ContractWatcherBuyer) GetDuration() time.Duration {
-	return p.terms.Duration
-}
-
-func (p *ContractWatcherBuyer) GetEndTime() *time.Time {
-	if p.terms.StartsAt == nil {
-		return nil
-	}
-	endTime := p.terms.StartsAt.Add(p.terms.Duration)
-	return &endTime
-}
-
-func (p *ContractWatcherBuyer) GetFulfillmentStartedAt() *time.Time {
-	return p.fulfillmentStartedAt
-}
-
 func (p *ContractWatcherBuyer) GetID() string {
 	return p.terms.ContractID
 }
@@ -245,8 +229,40 @@ func (p *ContractWatcherBuyer) GetStartedAt() *time.Time {
 	return p.terms.StartsAt
 }
 
+func (p *ContractWatcherBuyer) GetElapsed() *time.Duration {
+	if p.terms.StartsAt == nil {
+		return nil
+	}
+	res := time.Since(*p.terms.StartsAt)
+	return &res
+}
+
+func (p *ContractWatcherBuyer) GetDuration() time.Duration {
+	return p.terms.Duration
+}
+
+func (p *ContractWatcherBuyer) GetEndTime() *time.Time {
+	if p.terms.StartsAt == nil {
+		return nil
+	}
+	endTime := p.terms.StartsAt.Add(p.terms.Duration)
+	return &endTime
+}
+
+func (p *ContractWatcherBuyer) GetFulfillmentStartedAt() *time.Time {
+	return p.fulfillmentStartedAt
+}
+
 func (p *ContractWatcherBuyer) GetState() resources.ContractState {
 	return p.state
+}
+
+func (p *ContractWatcherBuyer) GetBlockchainState() hashrateContract.BlockchainState {
+	return p.terms.State
+}
+
+func (p *ContractWatcherBuyer) GetValidationStage() ValidationStage {
+	return p.validationStage
 }
 
 func (p *ContractWatcherBuyer) GetResourceEstimates() map[string]float64 {

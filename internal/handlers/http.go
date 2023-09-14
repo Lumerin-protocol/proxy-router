@@ -26,21 +26,23 @@ type Proxy interface {
 type ContractFactory func(contractData *hashrate.Terms) (resources.Contract, error)
 
 type HTTPHandler struct {
-	globalHashrate  *hr.GlobalHashrate
-	allocator       *allocator.Allocator
-	contractManager *contractmanager.ContractManager
-	publicUrl       *url.URL
-	pubKey          string
-	log             interfaces.ILogger
+	globalHashrate         *hr.GlobalHashrate
+	allocator              *allocator.Allocator
+	contractManager        *contractmanager.ContractManager
+	hashrateCounterDefault string
+	publicUrl              *url.URL
+	pubKey                 string
+	log                    interfaces.ILogger
 }
 
-func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractmanager.ContractManager, globalHashrate *hr.GlobalHashrate, publicUrl *url.URL, log interfaces.ILogger) *gin.Engine {
+func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractmanager.ContractManager, globalHashrate *hr.GlobalHashrate, publicUrl *url.URL, hashrateCounter string, log interfaces.ILogger) *gin.Engine {
 	handl := &HTTPHandler{
-		allocator:       allocator,
-		contractManager: contractManager,
-		globalHashrate:  globalHashrate,
-		publicUrl:       publicUrl,
-		log:             log,
+		allocator:              allocator,
+		contractManager:        contractManager,
+		globalHashrate:         globalHashrate,
+		publicUrl:              publicUrl,
+		hashrateCounterDefault: hashrateCounter,
+		log:                    log,
 	}
 
 	gin.SetMode(gin.ReleaseMode)
@@ -109,7 +111,7 @@ func (h *HTTPHandler) CreateContract(ctx *gin.Context) {
 		_ = ctx.AbortWithError(http.StatusInternalServerError, err)
 		return
 	}
-	h.contractManager.AddContract(&hashrate.EncryptedTerms{
+	h.contractManager.AddContract(context.Background(), &hashrate.EncryptedTerms{
 		Base: hashrate.Base{
 			ContractID: lib.GetRandomAddr().String(),
 			Seller:     "",
@@ -127,7 +129,7 @@ func (h *HTTPHandler) CreateContract(ctx *gin.Context) {
 func (c *HTTPHandler) GetContracts(ctx *gin.Context) {
 	data := []Contract{}
 	c.contractManager.GetContracts().Range(func(item resources.Contract) bool {
-		contract := MapContract(item, c.publicUrl)
+		contract := c.mapContract(item)
 		// 		contract.Miners = miners
 		data = append(data, *contract)
 		return true
@@ -144,39 +146,37 @@ func (c *HTTPHandler) GetMiners(ctx *gin.Context) {
 	Miners := []Miner{}
 
 	var (
-		TotalHashrateGHS int
-		UsedHashrateGHS  int
+		TotalHashrateGHS float64
+		UsedHashrateGHS  float64
 
 		TotalMiners   int
 		BusyMiners    int
 		FreeMiners    int
 		VettingMiners int
-		FaultyMiners  int
 	)
 
 	c.allocator.GetMiners().Range(func(m *allocator.Scheduler) bool {
 		// _, usedHR := mapDestItems(m.GetCurrentDestSplit(), m.GetHashRateGHS())
 		// UsedHashrateGHS += usedHR
 
-		// hashrate := m.GetHashRate()
-		// TotalHashrateGHS += hashrate.GetHashrate5minAvgGHS()
-		// TotalMiners += 1
+		hrGHS, ok := m.GetHashrate().GetHashrateAvgGHSCustom(c.hashrateCounterDefault)
+		if !ok {
+			c.log.DPanicf("hashrate counter not found, %s", c.hashrateCounterDefault)
+		}
+		TotalHashrateGHS += hrGHS
 
-		// switch m.GetStatus() {
-		// case miner.MinerStatusFree:
-		// 	FreeMiners += 1
-		// case miner.MinerStatusVetting:
-		// 	VettingMiners += 1
-		// case miner.MinerStatusBusy:
-		// 	BusyMiners += 1
-		// }
+		TotalMiners += 1
 
-		// if m.IsFaulty() {
-		// 	FaultyMiners += 1
-		// }
+		switch m.GetStatus() {
+		case allocator.MinerStatusFree:
+			FreeMiners += 1
+		case allocator.MinerStatusVetting:
+			VettingMiners += 1
+		case allocator.MinerStatusBusy:
+			BusyMiners += 1
+		}
 
 		miner := c.MapMiner(m)
-		// miner.ActivePoolConnections = mapPoolConnection(m)
 		Miners = append(Miners, *miner)
 
 		return true
@@ -191,7 +191,6 @@ func (c *HTTPHandler) GetMiners(ctx *gin.Context) {
 		BusyMiners:    BusyMiners,
 		FreeMiners:    FreeMiners,
 		VettingMiners: VettingMiners,
-		FaultyMiners:  FaultyMiners,
 
 		TotalHashrateGHS:     TotalHashrateGHS,
 		AvailableHashrateGHS: TotalHashrateGHS - UsedHashrateGHS,
@@ -220,9 +219,8 @@ func (c *HTTPHandler) MapMiner(m *allocator.Scheduler) *Miner {
 		ConnectedAt:           m.GetConnectedAt().Format(time.RFC3339),
 		Stats:                 m.GetStats(),
 		Uptime:                formatDuration(m.GetUptime()),
-		ActivePoolConnections: mapPoolConnection(m),
-		// Destinations:         destItems,
-		// IsFaulty:             m.IsFaulty(),
+		ActivePoolConnections: m.GetDestConns(),
+		Destinations:          m.GetDestinations(),
 	}
 }
 
@@ -245,33 +243,25 @@ func (c *HTTPHandler) GetWorkers(ctx *gin.Context) {
 	ctx.JSON(200, workers)
 }
 
-func MapContract(item resources.Contract, publicUrl *url.URL) *Contract {
+func (p *HTTPHandler) mapContract(item resources.Contract) *Contract {
 	return &Contract{
 		Resource: Resource{
-			Self: publicUrl.JoinPath(fmt.Sprintf("/contracts/%s", item.GetID())).String(),
+			Self: p.publicUrl.JoinPath(fmt.Sprintf("/contracts/%s", item.GetID())).String(),
 		},
-		ID:         item.GetID(),
-		BuyerAddr:  item.GetBuyer(),
-		SellerAddr: item.GetSeller(),
-		// ResourceEstimatesTarget: item.GetResourceEstimates(),
-		// ResourceEstimatesActual: item.GetResourceEstimatesActual(),
-		DurationSeconds:   int(item.GetDuration().Seconds()),
-		StartTimestamp:    TimePtrToStringPtr(item.GetStartedAt()),
-		EndTimestamp:      TimePtrToStringPtr(item.GetEndTime()),
-		ApplicationStatus: MapContractState(item.GetState()),
-		BlockchainStatus:  "not implemented",
-		Dest:              item.GetDest(),
+		ID:                      item.GetID(),
+		BuyerAddr:               item.GetBuyer(),
+		SellerAddr:              item.GetSeller(),
+		ResourceEstimatesTarget: item.GetResourceEstimates(),
+		ResourceEstimatesActual: item.GetResourceEstimatesActual(),
+		Duration:                formatDuration(item.GetDuration()),
+		StartTimestamp:          TimePtrToStringPtr(item.GetStartedAt()),
+		EndTimestamp:            TimePtrToStringPtr(item.GetEndTime()),
+		Elapsed:                 DurationPtrToStringPtr(item.GetElapsed()),
+		ApplicationStatus:       item.GetState().String(),
+		BlockchainStatus:        item.GetBlockchainState().String(),
+		Dest:                    item.GetDest(),
+		Miners:                  p.allocator.GetMinersFulfillingContract(item.GetID()),
 	}
-}
-
-func MapContractState(state resources.ContractState) string {
-	switch state {
-	case resources.ContractStatePending:
-		return "pending"
-	case resources.ContractStateRunning:
-		return "running"
-	}
-	return "unknown"
 }
 
 // TimePtrToStringPtr converts nullable time to nullable string
@@ -283,31 +273,12 @@ func TimePtrToStringPtr(t *time.Time) *string {
 	return nil
 }
 
-// func mapDestItems(dest *miner.DestSplit, hrGHS int) (*[]DestItem, int) {
-// 	destItems := []DestItem{}
-// 	UsedHashrateGHS := 0
-
-// 	if dest == nil {
-// 		return nil, 0
-// 	}
-
-// 	for _, item := range dest.Iter() {
-// 		HashrateGHS := int(item.Fraction * float64(hrGHS))
-
-// 		destItems = append(destItems, DestItem{
-// 			ContractID:  item.ID,
-// 			URI:         item.Dest.String(),
-// 			Fraction:    item.Fraction,
-// 			HashrateGHS: HashrateGHS,
-// 		})
-
-// 		UsedHashrateGHS += HashrateGHS
-// 	}
-// 	return &destItems, UsedHashrateGHS
-// }
-
-func mapPoolConnection(m *allocator.Scheduler) *map[string]string {
-	return m.GetDestConns()
+func DurationPtrToStringPtr(t *time.Duration) *string {
+	if t != nil {
+		a := formatDuration(*t)
+		return &a
+	}
+	return nil
 }
 
 func mapHRToInt(m *allocator.Scheduler) map[string]int {

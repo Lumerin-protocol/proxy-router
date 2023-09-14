@@ -20,6 +20,17 @@ const (
 	BlockchainStateRunning   BlockchainState = 1
 )
 
+func (b BlockchainState) String() string {
+	switch b {
+	case BlockchainStateAvailable:
+		return "available"
+	case BlockchainStateRunning:
+		return "running"
+	default:
+		return "unknown"
+	}
+}
+
 type Base struct {
 	ContractID string
 	Seller     string

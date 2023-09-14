@@ -141,7 +141,7 @@ func start() error {
 	tcpServer := transport.NewTCPServer(cfg.Proxy.Address, connLog)
 	tcpHandler := handlers.NewTCPHandler(
 		log, connLog, proxyLog, schedulerLog,
-		cfg.Miner.ShareTimeout,
+		cfg.Miner.ShareTimeout, cfg.Miner.VettingDuration,
 		destUrl,
 		destConnFactory, hashrateFactory,
 		globalHashrate, HashrateCounterDefault,
@@ -189,7 +189,7 @@ func start() error {
 
 	cm := contractmanager.NewContractManager(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), ownerAddr, hrContractFactory.CreateContract, store, log)
 
-	handl := handlers.NewHTTPHandler(alloc, cm, globalHashrate, publicUrl, log)
+	handl := handlers.NewHTTPHandler(alloc, cm, globalHashrate, publicUrl, HashrateCounterDefault, log)
 	httpServer := transport.NewServer(cfg.Web.Address, handl, log)
 
 	g, ctx := errgroup.WithContext(ctx)

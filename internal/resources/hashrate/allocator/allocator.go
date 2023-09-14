@@ -50,7 +50,7 @@ func (p *Allocator) Run(ctx context.Context) error {
 	return nil
 }
 
-func (p *Allocator) AllocateFullMinersForHR(hrGHS float64, dest *url.URL, duration time.Duration, onSubmit func(diff float64, ID string)) (minerIDs []string, deltaGHS float64) {
+func (p *Allocator) AllocateFullMinersForHR(ID string, hrGHS float64, dest *url.URL, duration time.Duration, onSubmit func(diff float64, ID string)) (minerIDs []string, deltaGHS float64) {
 	miners := p.GetFreeMiners()
 
 	for _, miner := range miners {
@@ -59,7 +59,7 @@ func (p *Allocator) AllocateFullMinersForHR(hrGHS float64, dest *url.URL, durati
 			minerIDs = append(minerIDs, miner.ID)
 			proxy, ok := p.proxies.Load(miner.ID)
 			if ok {
-				proxy.AddTask(dest, hashrate.GHSToJobSubmitted(adjustedMinerGHS)*duration.Seconds(), onSubmit)
+				proxy.AddTask(ID, dest, hashrate.GHSToJobSubmitted(adjustedMinerGHS)*duration.Seconds(), onSubmit)
 				p.log.Infof("miner %s allocated for %f GHS", miner.ID, adjustedMinerGHS)
 			}
 			hrGHS -= adjustedMinerGHS
@@ -74,7 +74,7 @@ func (p *Allocator) AllocateFullMinersForHR(hrGHS float64, dest *url.URL, durati
 	// })
 }
 
-func (p *Allocator) AllocatePartialForHR(hrGHS float64, dest *url.URL, cycleDuration time.Duration, onSubmit func(diff float64, ID string)) (string, bool) {
+func (p *Allocator) AllocatePartialForHR(ID string, hrGHS float64, dest *url.URL, cycleDuration time.Duration, onSubmit func(diff float64, ID string)) (string, bool) {
 	partialMiners := p.GetPartialMiners(cycleDuration)
 	// minerIDs := []string{}
 	jobForCycle := hashrate.GHSToJobSubmitted(hrGHS) * cycleDuration.Seconds()
@@ -85,7 +85,7 @@ func (p *Allocator) AllocatePartialForHR(hrGHS float64, dest *url.URL, cycleDura
 		if remainingJob >= jobForCycle {
 			m, ok := p.proxies.Load(miner.ID)
 			if ok {
-				m.AddTask(dest, jobForCycle, onSubmit)
+				m.AddTask(ID, dest, jobForCycle, onSubmit)
 				return miner.ID, true
 			}
 		}
@@ -98,7 +98,7 @@ func (p *Allocator) AllocatePartialForHR(hrGHS float64, dest *url.URL, cycleDura
 		if remainingJob >= jobForCycle {
 			m, ok := p.proxies.Load(miner.ID)
 			if ok {
-				m.AddTask(dest, jobForCycle, onSubmit)
+				m.AddTask(ID, dest, jobForCycle, onSubmit)
 				return miner.ID, true
 			}
 		}
@@ -157,4 +157,22 @@ func (p *Allocator) GetPartialMiners(contractCycleDuration time.Duration) []Mine
 
 func (p *Allocator) GetMiners() *lib.Collection[*Scheduler] {
 	return p.proxies
+}
+
+func (p *Allocator) GetMinersFulfillingContract(contractID string) []*DestItem {
+	dests := []*DestItem{}
+	p.GetMiners().Range(func(item *Scheduler) bool {
+		if item.IsVetting() {
+			return true
+		}
+		tasks := item.GetTasksByID(contractID)
+		for _, task := range tasks {
+			dests = append(dests, &DestItem{
+				Dest: task.Dest.String(),
+				Job:  task.RemainingJobToSubmit,
+			})
+		}
+		return true
+	})
+	return dests
 }
