@@ -2,7 +2,6 @@ package contracts
 
 import (
 	"context"
-	"time"
 
 	"github.com/Lumerin-protocol/contracts-go/clonefactory"
 	"github.com/Lumerin-protocol/contracts-go/implementation"
@@ -44,7 +43,7 @@ func clonefactoryEventFactory(name string) interface{} {
 }
 
 // WatchContractEvents watches for all events from the contract and converts them to the concrete type, using mapper
-func WatchContractEvents(ctx context.Context, client EthereumClient, contractAddr common.Address, mapper EventMapper, maxReconnects int, reconnectDelay time.Duration, log interfaces.ILogger) (*lib.Subscription, error) {
+func WatchContractEvents(ctx context.Context, client EthereumClient, contractAddr common.Address, mapper EventMapper, maxReconnects int, log interfaces.ILogger) (*lib.Subscription, error) {
 	sink := make(chan interface{})
 
 	return lib.NewSubscription(func(quit <-chan struct{}) error {
@@ -58,7 +57,6 @@ func WatchContractEvents(ctx context.Context, client EthereumClient, contractAdd
 
 		var lastErr error
 
-	RETRY_LOOP:
 		for attempts := 0; attempts < maxReconnects; attempts++ {
 			sub, err := client.SubscribeFilterLogs(ctx, query, in)
 			if err != nil {
@@ -66,7 +64,7 @@ func WatchContractEvents(ctx context.Context, client EthereumClient, contractAdd
 				continue
 			}
 			if attempts > 0 {
-				log.Warnf("subscription reconnected")
+				log.Warnf("subscription reconnected due to error: %s", lastErr)
 			}
 			attempts = 0
 
@@ -100,16 +98,6 @@ func WatchContractEvents(ctx context.Context, client EthereumClient, contractAdd
 				case <-ctx.Done():
 					return ctx.Err()
 				}
-			}
-			log.Warnf("subscription error: %s", lastErr)
-
-			select {
-			case <-quit:
-				return nil
-			case <-time.After(reconnectDelay):
-				continue RETRY_LOOP
-			case <-ctx.Done():
-				return ctx.Err()
 			}
 		}
 

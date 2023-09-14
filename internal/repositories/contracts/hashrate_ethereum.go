@@ -19,8 +19,7 @@ import (
 )
 
 const (
-	SUBSCRIPTION_MAX_RECONNECTS  = 50               // max consequent reconnects
-	SUBSCRIPTION_RECONNECT_DELAY = 10 * time.Second // delay between reconnects
+	SUBSCRIPTION_MAX_RECONNECTS = 50 // max consequent reconnects
 )
 
 type HashrateEthereum struct {
@@ -187,11 +186,11 @@ func (g *HashrateEthereum) CloseContract(ctx context.Context, contractID string,
 }
 
 func (s *HashrateEthereum) CreateCloneFactorySubscription(ctx context.Context, clonefactoryAddr common.Address) (*lib.Subscription, error) {
-	return WatchContractEvents(ctx, s.client, clonefactoryAddr, CreateEventMapper(clonefactoryEventFactory, s.cfABI), SUBSCRIPTION_MAX_RECONNECTS, SUBSCRIPTION_RECONNECT_DELAY, s.log)
+	return WatchContractEvents(ctx, s.client, clonefactoryAddr, CreateEventMapper(clonefactoryEventFactory, s.cfABI), SUBSCRIPTION_MAX_RECONNECTS, s.log)
 }
 
 func (s *HashrateEthereum) CreateImplementationSubscription(ctx context.Context, contractAddr common.Address) (*lib.Subscription, error) {
-	return WatchContractEvents(ctx, s.client, contractAddr, CreateEventMapper(implementationEventFactory, s.implABI), SUBSCRIPTION_MAX_RECONNECTS, SUBSCRIPTION_RECONNECT_DELAY, s.log)
+	return WatchContractEvents(ctx, s.client, contractAddr, CreateEventMapper(implementationEventFactory, s.implABI), SUBSCRIPTION_MAX_RECONNECTS, s.log)
 }
 
 func (g *HashrateEthereum) getTransactOpts(ctx context.Context, privKey string) (*bind.TransactOpts, error) {
