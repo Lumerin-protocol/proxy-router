@@ -287,7 +287,7 @@ func (p *Proxy) GetConnectedAt() time.Time {
 }
 
 func (p *Proxy) GetSourceWorkerName() string {
-	return p.source.GetWorkerName()
+	return p.source.GetUserName()
 }
 
 func (p *Proxy) GetStats() interface{} {

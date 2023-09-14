@@ -110,7 +110,7 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 		// miner hashrate
 		p.proxy.hashrate.OnSubmit(dest.GetDiff())
 		// workername hashrate
-		p.proxy.globalHashrate.OnSubmit(p.proxy.source.GetWorkerName(), dest.GetDiff())
+		p.proxy.globalHashrate.OnSubmit(p.proxy.source.GetUserName(), dest.GetDiff())
 
 		hr, _ := p.proxy.hashrate.GetHashrateAvgGHSCustom("mean")
 		p.log.Debugf("new submit, diff: %0.f, hrGHS %.0f", diff, hr)
