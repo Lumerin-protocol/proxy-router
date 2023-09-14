@@ -213,12 +213,17 @@ func (p *HandlerFirstConnect) onMiningAuthorize(ctx context.Context, msgTyped *m
 		return lib.WrapError(ErrHandshakeSource, err)
 	}
 
-	_, workerName, _ := lib.SplitUsername(msgTyped.GetUserName())
-	lib.SetWorkerName(p.proxy.destURL, workerName)
+	_, workerName, ok := lib.SplitUsername(msgTyped.GetUserName())
+	// if incoming miner was named "accountName.workerName" then we preserve worker name in destination
+	if ok {
+		lib.SetWorkerName(p.proxy.destURL, workerName)
+	}
+	// otherwise we use the same username as in source
+	// this is the case for the incoming contracts,
+	// where the miner userName is contractID
+
 	userName := p.proxy.destURL.User.Username()
-
 	p.proxy.dest.SetUserName(userName)
-
 	pwd, ok := p.proxy.destURL.User.Password()
 	if !ok {
 		pwd = ""

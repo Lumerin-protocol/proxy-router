@@ -49,9 +49,10 @@ func (p *HandlerChangeDest) connectNewDest(ctx context.Context, newDestURL *url.
 
 	p.log.Debugf("dest autoread started")
 
+	user := newDestURL.User.Username()
+	pwd, _ := newDestURL.User.Password()
+
 	handshakeTask := lib.NewTaskFunc(func(ctx context.Context) error {
-		user := newDestURL.User.Username()
-		pwd, _ := newDestURL.User.Password()
 		return p.destHandshake(ctx, newDest, user, pwd)
 	})
 
