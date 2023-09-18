@@ -159,30 +159,17 @@ func (g *HashrateEthereum) CloseContract(ctx context.Context, contractID string,
 		return err
 	}
 
-	watchOpts := &bind.WatchOpts{
-		Context: ctx,
-	}
-	sink := make(chan *implementation.ImplementationContractClosed)
-	sub, err := instance.WatchContractClosed(watchOpts, sink, []common.Address{})
+	tx, err := instance.SetContractCloseOut(transactOpts, big.NewInt(int64(closeoutType)))
 	if err != nil {
 		return err
 	}
-	defer sub.Unsubscribe()
 
-	_, err = instance.SetContractCloseOut(transactOpts, big.NewInt(int64(closeoutType)))
+	_, err = bind.WaitMined(ctx, g.client, tx)
 	if err != nil {
-		g.log.Errorf("cannot close contract %s: %s", contractID, err)
 		return err
 	}
 
-	select {
-	case <-sink:
-		return nil
-	case err := <-sub.Err():
-		return err
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	return nil
 }
 
 func (s *HashrateEthereum) CreateCloneFactorySubscription(ctx context.Context, clonefactoryAddr common.Address) (*lib.Subscription, error) {
@@ -228,7 +215,6 @@ func (g *HashrateEthereum) getTransactOpts(ctx context.Context, privKey string) 
 		return nil, err
 	}
 
-	transactOpts.GasLimit = uint64(1_000_000)
 	transactOpts.Value = big.NewInt(0)
 	transactOpts.Nonce = nonce
 	transactOpts.Context = ctx

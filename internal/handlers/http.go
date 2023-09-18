@@ -248,11 +248,13 @@ func (p *HTTPHandler) mapContract(item resources.Contract) *Contract {
 		Resource: Resource{
 			Self: p.publicUrl.JoinPath(fmt.Sprintf("/contracts/%s", item.GetID())).String(),
 		},
+		Role:                    item.GetRole().String(),
+		Stage:                   item.GetValidationStage().String(),
 		ID:                      item.GetID(),
 		BuyerAddr:               item.GetBuyer(),
 		SellerAddr:              item.GetSeller(),
-		ResourceEstimatesTarget: item.GetResourceEstimates(),
-		ResourceEstimatesActual: item.GetResourceEstimatesActual(),
+		ResourceEstimatesTarget: roundResourceEstimates(item.GetResourceEstimates()),
+		ResourceEstimatesActual: roundResourceEstimates(item.GetResourceEstimatesActual()),
 		Duration:                formatDuration(item.GetDuration()),
 		StartTimestamp:          TimePtrToStringPtr(item.GetStartedAt()),
 		EndTimestamp:            TimePtrToStringPtr(item.GetEndTime()),
@@ -292,4 +294,12 @@ func mapHRToInt(m *allocator.Scheduler) map[string]int {
 
 func formatDuration(dur time.Duration) string {
 	return dur.Round(time.Second).String()
+}
+
+func roundResourceEstimates(estimates map[string]float64) map[string]int {
+	res := make(map[string]int, len(estimates))
+	for k, v := range estimates {
+		res[k] = int(v)
+	}
+	return res
 }

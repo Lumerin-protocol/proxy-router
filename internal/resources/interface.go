@@ -16,6 +16,7 @@ type Contract interface {
 	GetRole() ContractRole                        // the role in the contract (buyer or seller)
 	GetState() ContractState                      // the state of the contract (pending or running)
 	GetBlockchainState() hashrate.BlockchainState // the state of the contract in blockchain (pending or running)
+	GetValidationStage() hashrate.ValidationStage // the stage of the contract validation (only buyer)
 	GetID() string                                // ID is the unique identifier of the contract, for smart contract data source this is the smart contract address
 	GetBuyer() string                             // ID of the buyer (address of the buyer for smart contract data source)
 	GetSeller() string                            // ID of the seller (address of the seller for smart contract data source)
@@ -56,5 +57,16 @@ const (
 	ContractRoleBuyer  ContractRole = "buyer"
 	ContractRoleSeller ContractRole = "seller"
 )
+
+func (c ContractRole) String() string {
+	switch c {
+	case ContractRoleBuyer:
+		return "buyer"
+	case ContractRoleSeller:
+		return "seller"
+	default:
+		return "unknown"
+	}
+}
 
 type ResourceType string

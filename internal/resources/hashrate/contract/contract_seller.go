@@ -57,6 +57,7 @@ func (p *ContractWatcherSeller) StartFulfilling(ctx context.Context) {
 
 func (p *ContractWatcherSeller) StopFulfilling() {
 	<-p.tsk.Stop()
+	p.allocator.CancelTasks(p.GetID())
 	p.state = resources.ContractStatePending
 	p.log.Infof("contract stopped fulfilling")
 }
@@ -202,10 +203,6 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 	}
 }
 
-func (p *ContractWatcherSeller) GetRole() resources.ContractRole {
-	return resources.ContractRoleSeller
-}
-
 // getAdjustedDest returns the destination url with the username set to the contractID
 // this is required for the buyer to distinguish incoming hashrate between different contracts
 func (p *ContractWatcherSeller) getAdjustedDest() *url.URL {
@@ -215,6 +212,23 @@ func (p *ContractWatcherSeller) getAdjustedDest() *url.URL {
 	dest := *p.terms.Dest
 	lib.SetUserName(&dest, p.terms.ContractID)
 	return &dest
+}
+
+// ShouldBeRunning checks blockchain state and expiration time and returns true if the contract should be running
+func (p *ContractWatcherSeller) ShouldBeRunning() bool {
+	endTime := p.GetEndTime()
+	if endTime == nil {
+		return false
+	}
+	return p.GetBlockchainState() == hashrate.BlockchainStateRunning && p.GetEndTime().After(time.Now())
+}
+
+//
+// Public getters
+//
+
+func (p *ContractWatcherSeller) GetRole() resources.ContractRole {
+	return resources.ContractRoleSeller
 }
 
 func (p *ContractWatcherSeller) GetDest() string {
@@ -276,15 +290,6 @@ func (p *ContractWatcherSeller) GetBlockchainState() hashrate.BlockchainState {
 	return p.terms.State
 }
 
-// ShouldBeRunning checks blockchain state and expiration time and returns true if the contract should be running
-func (p *ContractWatcherSeller) ShouldBeRunning() bool {
-	endTime := p.GetEndTime()
-	if endTime == nil {
-		return false
-	}
-	return p.GetBlockchainState() == hashrate.BlockchainStateRunning && p.GetEndTime().After(time.Now())
-}
-
 func (p *ContractWatcherSeller) GetResourceType() string {
 	return ResourceTypeHashrate
 }
@@ -299,6 +304,6 @@ func (p *ContractWatcherSeller) GetResourceEstimatesActual() map[string]float64 
 	return p.actualHRGHS.GetHashrateAvgGHSAll()
 }
 
-func (p *ContractWatcherSeller) GetValidationStage() ValidationStage {
-	return ValidationStageNotValidating // only for buyer
+func (p *ContractWatcherSeller) GetValidationStage() hashrateContract.ValidationStage {
+	return hashrateContract.ValidationStageNotApplicable // only for buyer
 }

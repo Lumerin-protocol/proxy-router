@@ -34,11 +34,13 @@ type Miner struct {
 type Contract struct {
 	Resource
 
+	Role                    string
+	Stage                   string
 	ID                      string
 	BuyerAddr               string
 	SellerAddr              string
-	ResourceEstimatesTarget map[string]float64
-	ResourceEstimatesActual map[string]float64
+	ResourceEstimatesTarget map[string]int
+	ResourceEstimatesActual map[string]int
 
 	StartTimestamp    *string
 	EndTimestamp      *string
