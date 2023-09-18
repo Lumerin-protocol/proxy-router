@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
+	"strings"
 
+	"github.com/ethereum/go-ethereum/common"
 	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
@@ -213,12 +216,23 @@ func (p *HandlerFirstConnect) onMiningAuthorize(ctx context.Context, msgTyped *m
 		return lib.WrapError(ErrHandshakeSource, err)
 	}
 
-	_, workerName, _ := lib.SplitUsername(msgTyped.GetUserName())
-	lib.SetWorkerName(p.proxy.destURL, workerName)
+	if shouldPropagateWorkerName(p.proxy.notPropagateWorkerName, msgTyped.GetUserName(), p.proxy.destURL) {
+		_, workerName, hasWorkerName := lib.SplitUsername(msgTyped.GetUserName())
+		// if incoming miner was named "accountName.workerName" then we preserve worker name in destination
+		if hasWorkerName {
+			lib.SetWorkerName(p.proxy.destURL, workerName)
+		}
+	}
+
+	destWorkerName := getDestUserName(p.proxy.notPropagateWorkerName, msgTyped.GetUserName(), p.proxy.destURL)
+	p.proxy.dest.SetUserName(destWorkerName)
+
+	// otherwise we use the same username as in source
+	// this is the case for the incoming contracts,
+	// where the miner userName is contractID
+
 	userName := p.proxy.destURL.User.Username()
-
 	p.proxy.dest.SetUserName(userName)
-
 	pwd, ok := p.proxy.destURL.User.Password()
 	if !ok {
 		pwd = ""
@@ -246,4 +260,51 @@ func (p *HandlerFirstConnect) onMiningAuthorize(ctx context.Context, msgTyped *m
 	})
 
 	return nil
+}
+
+func getDestUserName(notPreserveWorkerName bool, incomingUserName string, destURL *url.URL) string {
+	if shouldPropagateWorkerName(notPreserveWorkerName, incomingUserName, destURL) {
+		_, workerName, hasWorkerName := lib.SplitUsername(incomingUserName)
+		// if incoming miner was named "accountName.workerName" then we preserve worker name in destination
+		if hasWorkerName {
+			accountName, _, _ := lib.SplitUsername(destURL.User.Username())
+			return lib.JoinUsername(accountName, workerName)
+		}
+	}
+	return destURL.User.Username()
+}
+
+// shouldPropagateWorkerName checks if the dest worker name should be set equal to the source
+// Allows to track performance of each worker in the destination pool separately
+// we have to exclude workerName propagation for contracts and for lightning address destination
+// cause they may contain a period symbol that can be treated as a worker name separator
+func shouldPropagateWorkerName(notPreserveWorkerName bool, incomingUserName string, destURL *url.URL) bool {
+	if notPreserveWorkerName {
+		return false
+	}
+	if hasLightningAddress(destURL) {
+		return false
+	}
+	if hasPPLPHost(destURL) { // extra check for lightning pools
+		return false
+	}
+	if isContractAddress(incomingUserName) {
+		return false
+	}
+	return true
+}
+
+// hasLightningAddress checks if the username has lightning address (email-like, check for @ symbol)
+func hasLightningAddress(url *url.URL) bool {
+	return strings.Contains(url.User.Username(), "@")
+}
+
+// hasPPLPHost checks if the host name contains pplp, extra check for lightning payouts
+func hasPPLPHost(url *url.URL) bool {
+	return strings.Contains(strings.ToLower(url.Host), "pplp")
+}
+
+// isContractAddress checks if the username is a valid contract address, meaning it's an incoming traffic for contract
+func isContractAddress(username string) bool {
+	return common.IsHexAddress(username)
 }

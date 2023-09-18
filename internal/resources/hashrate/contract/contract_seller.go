@@ -3,6 +3,7 @@ package contract
 import (
 	"context"
 	"errors"
+	"net/url"
 	"sync/atomic"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 )
 
 type ContractWatcherSeller struct {
-	data *hashrateContract.Terms
+	terms *hashrateContract.Terms
 
 	state                 resources.ContractState
 	fullMiners            []string
@@ -34,7 +35,7 @@ type ContractWatcherSeller struct {
 
 func NewContractWatcherSeller(data *hashrateContract.Terms, cycleDuration time.Duration, hashrateFactory func() *hr.Hashrate, allocator *allocator.Allocator, log interfaces.ILogger) *ContractWatcherSeller {
 	p := &ContractWatcherSeller{
-		data:                  data,
+		terms:                 data,
 		state:                 resources.ContractStatePending,
 		allocator:             allocator,
 		fullMiners:            []string{},
@@ -56,6 +57,7 @@ func (p *ContractWatcherSeller) StartFulfilling(ctx context.Context) {
 
 func (p *ContractWatcherSeller) StopFulfilling() {
 	<-p.tsk.Stop()
+	p.allocator.CancelTasks(p.GetID())
 	p.state = resources.ContractStatePending
 	p.log.Infof("contract stopped fulfilling")
 }
@@ -72,7 +74,7 @@ func (p *ContractWatcherSeller) Err() error {
 }
 
 func (p *ContractWatcherSeller) SetData(data *hashrateContract.Terms) {
-	p.data = data
+	p.terms = data
 }
 
 // Run is the main loop of the contract. It is responsible for allocating miners for the contract.
@@ -94,7 +96,7 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 			partialDeliveryTargetGHS, thisCyclePartialAllocation,
 		)
 		if partialDeliveryTargetGHS > 0 {
-			fullMiners, newRemainderGHS := p.allocator.AllocateFullMinersForHR(partialDeliveryTargetGHS, p.data.Dest, p.GetDuration(), onSubmit)
+			fullMiners, newRemainderGHS := p.allocator.AllocateFullMinersForHR(p.terms.GetID(), partialDeliveryTargetGHS, p.getAdjustedDest(), p.GetDuration(), onSubmit)
 			if len(fullMiners) > 0 {
 				partialDeliveryTargetGHS = newRemainderGHS
 				p.log.Infof("fully allocated %d miners, new partialDeliveryTargetGHS = %.0f", len(fullMiners), partialDeliveryTargetGHS)
@@ -104,7 +106,7 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 			}
 
 			thisCyclePartialAllocation = partialDeliveryTargetGHS
-			minerID, ok := p.allocator.AllocatePartialForHR(partialDeliveryTargetGHS, p.data.Dest, p.contractCycleDuration, onSubmit)
+			minerID, ok := p.allocator.AllocatePartialForHR(p.GetID(), partialDeliveryTargetGHS, p.getAdjustedDest(), p.contractCycleDuration, onSubmit)
 			if ok {
 				p.log.Debugf("remainderGHS: %.0f, was allocated by partial miners %v", partialDeliveryTargetGHS, minerID)
 			} else {
@@ -201,59 +203,15 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 	}
 }
 
-func (p *ContractWatcherSeller) GetRole() resources.ContractRole {
-	return resources.ContractRoleSeller
-}
-
-func (p *ContractWatcherSeller) GetDest() string {
-	if p.data.Dest == nil {
-		return ""
-	}
-	return p.data.Dest.String()
-}
-
-func (p *ContractWatcherSeller) GetDuration() time.Duration {
-	return p.data.Duration
-}
-
-func (p *ContractWatcherSeller) GetEndTime() *time.Time {
-	if p.data.StartsAt == nil {
+// getAdjustedDest returns the destination url with the username set to the contractID
+// this is required for the buyer to distinguish incoming hashrate between different contracts
+func (p *ContractWatcherSeller) getAdjustedDest() *url.URL {
+	if p.terms.Dest == nil {
 		return nil
 	}
-	endTime := p.data.StartsAt.Add(p.data.Duration)
-	return &endTime
-}
-
-func (p *ContractWatcherSeller) GetFulfillmentStartedAt() *time.Time {
-	return p.fulfillmentStartedAt
-}
-
-func (p *ContractWatcherSeller) GetID() string {
-	return p.data.ContractID
-}
-
-func (p *ContractWatcherSeller) GetHashrateGHS() float64 {
-	return p.data.Hashrate
-}
-
-func (p *ContractWatcherSeller) GetSeller() string {
-	return p.data.Seller
-}
-
-func (p *ContractWatcherSeller) GetBuyer() string {
-	return p.data.Buyer
-}
-
-func (p *ContractWatcherSeller) GetStartedAt() *time.Time {
-	return p.data.StartsAt
-}
-
-func (p *ContractWatcherSeller) GetState() resources.ContractState {
-	return p.state
-}
-
-func (p *ContractWatcherSeller) GetBlockchainState() hashrate.BlockchainState {
-	return p.data.State
+	dest := *p.terms.Dest
+	lib.SetUserName(&dest, p.terms.ContractID)
+	return &dest
 }
 
 // ShouldBeRunning checks blockchain state and expiration time and returns true if the contract should be running
@@ -263,6 +221,73 @@ func (p *ContractWatcherSeller) ShouldBeRunning() bool {
 		return false
 	}
 	return p.GetBlockchainState() == hashrate.BlockchainStateRunning && p.GetEndTime().After(time.Now())
+}
+
+//
+// Public getters
+//
+
+func (p *ContractWatcherSeller) GetRole() resources.ContractRole {
+	return resources.ContractRoleSeller
+}
+
+func (p *ContractWatcherSeller) GetDest() string {
+	if dest := p.getAdjustedDest(); dest != nil {
+		return dest.String()
+	}
+	return ""
+}
+
+func (p *ContractWatcherSeller) GetDuration() time.Duration {
+	return p.terms.Duration
+}
+
+func (p *ContractWatcherSeller) GetStartedAt() *time.Time {
+	return p.terms.StartsAt
+}
+
+func (p *ContractWatcherSeller) GetEndTime() *time.Time {
+	if p.terms.StartsAt == nil {
+		return nil
+	}
+	endTime := p.terms.StartsAt.Add(p.terms.Duration)
+	return &endTime
+}
+
+func (p *ContractWatcherSeller) GetFulfillmentStartedAt() *time.Time {
+	return p.fulfillmentStartedAt
+}
+
+func (p *ContractWatcherSeller) GetElapsed() *time.Duration {
+	if p.terms.StartsAt == nil {
+		return nil
+	}
+	res := time.Since(*p.terms.StartsAt)
+	return &res
+}
+
+func (p *ContractWatcherSeller) GetID() string {
+	return p.terms.ContractID
+}
+
+func (p *ContractWatcherSeller) GetHashrateGHS() float64 {
+	return p.terms.Hashrate
+}
+
+func (p *ContractWatcherSeller) GetSeller() string {
+	return p.terms.Seller
+}
+
+func (p *ContractWatcherSeller) GetBuyer() string {
+	return p.terms.Buyer
+}
+
+func (p *ContractWatcherSeller) GetState() resources.ContractState {
+	return p.state
+}
+
+func (p *ContractWatcherSeller) GetBlockchainState() hashrate.BlockchainState {
+	return p.terms.State
 }
 
 func (p *ContractWatcherSeller) GetResourceType() string {
@@ -276,7 +301,9 @@ func (p *ContractWatcherSeller) GetResourceEstimates() map[string]float64 {
 }
 
 func (p *ContractWatcherSeller) GetResourceEstimatesActual() map[string]float64 {
-	return map[string]float64{
-		ResourceEstimateHashrateGHS: p.GetHashrateGHS(),
-	}
+	return p.actualHRGHS.GetHashrateAvgGHSAll()
+}
+
+func (p *ContractWatcherSeller) GetValidationStage() hashrateContract.ValidationStage {
+	return hashrateContract.ValidationStageNotApplicable // only for buyer
 }

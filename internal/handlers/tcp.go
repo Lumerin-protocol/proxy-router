@@ -17,9 +17,9 @@ import (
 
 func NewTCPHandler(
 	log, connLog, proxyLog, schedulerLog interfaces.ILogger,
-	minerShareTimeout time.Duration,
+	notPropagateWorkerName bool, minerShareTimeout, minerVettingDuration time.Duration,
 	defaultDestUrl *url.URL,
-	destConnFactory proxy.DestConnFactory,
+	destFactory proxy.DestConnFactory,
 	hashrateFactory proxy.HashrateFactory,
 	globalHashrate *hashrate.GlobalHashrate,
 	hashrateCounterDefault string,
@@ -35,8 +35,8 @@ func NewTCPHandler(
 		sourceConn := proxy.NewSourceConn(stratumConn, sourceLog)
 
 		url := *defaultDestUrl // clones url
-		proxy := proxy.NewProxy(ID, sourceConn, destConnFactory, hashrateFactory, globalHashrate, &url, proxyLog)
-		scheduler := allocator.NewScheduler(proxy, hashrateCounterDefault, &url, schedulerLog)
+		proxy := proxy.NewProxy(ID, sourceConn, destFactory, hashrateFactory, globalHashrate, &url, notPropagateWorkerName, proxyLog)
+		scheduler := allocator.NewScheduler(proxy, hashrateCounterDefault, &url, minerVettingDuration, schedulerLog)
 		alloc.GetMiners().Store(scheduler)
 
 		err := scheduler.Run(ctx)

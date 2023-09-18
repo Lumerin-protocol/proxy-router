@@ -2,6 +2,7 @@ package contractmanager
 
 import (
 	"context"
+	"sync"
 
 	"github.com/Lumerin-protocol/contracts-go/clonefactory"
 	"github.com/ethereum/go-ethereum/common"
@@ -16,7 +17,8 @@ type ContractManager struct {
 	cfAddr    common.Address
 	ownerAddr common.Address
 
-	contracts *lib.Collection[resources.Contract]
+	contracts   *lib.Collection[resources.Contract]
+	contractsWG sync.WaitGroup
 
 	contractFactory ContractFactory
 	store           *contracts.HashrateEthereum
@@ -32,11 +34,16 @@ func NewContractManager(clonefactoryAddr, ownerAddr common.Address, contractFact
 		contracts:       lib.NewCollection[resources.Contract](),
 		contractFactory: contractFactory,
 		store:           store,
+		contractsWG:     sync.WaitGroup{},
 		log:             log,
 	}
 }
 
 func (cm *ContractManager) Run(ctx context.Context) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	defer cm.contractsWG.Wait()
+
 	contractIDs, err := cm.store.GetContractsIDs(ctx)
 	if err != nil {
 		return err
@@ -48,7 +55,7 @@ func (cm *ContractManager) Run(ctx context.Context) error {
 			return err
 		}
 		if cm.isOurContract(terms) {
-			cm.AddContract(terms)
+			cm.AddContract(ctx, terms)
 		}
 	}
 
@@ -93,7 +100,7 @@ func (cm *ContractManager) handleContractCreated(ctx context.Context, event *clo
 		return err
 	}
 	if cm.isOurContract(terms) {
-		cm.AddContract(terms)
+		cm.AddContract(ctx, terms)
 	}
 	return nil
 }
@@ -104,7 +111,7 @@ func (cm *ContractManager) handleContractPurchased(ctx context.Context, event *c
 		return err
 	}
 	if terms.GetBuyer() == cm.ownerAddr.String() {
-		cm.AddContract(terms)
+		cm.AddContract(ctx, terms)
 	}
 	return nil
 }
@@ -115,7 +122,7 @@ func (cm *ContractManager) handleContractDeleteUpdated(ctx context.Context, even
 	return nil
 }
 
-func (cm *ContractManager) AddContract(data *hashrate.EncryptedTerms) {
+func (cm *ContractManager) AddContract(ctx context.Context, data *hashrate.EncryptedTerms) {
 	_, ok := cm.contracts.Load(data.GetID())
 	if ok {
 		cm.log.Error("contract already exists in store")
@@ -130,11 +137,15 @@ func (cm *ContractManager) AddContract(data *hashrate.EncryptedTerms) {
 
 	cm.contracts.Store(cntr)
 
+	cm.contractsWG.Add(1)
 	go func() {
-		err := cntr.Run(context.TODO())
+		defer cm.contractsWG.Done()
+
+		err := cntr.Run(ctx)
 		if err != nil {
-			cm.log.Errorf("contract ended, error %s", err)
+			cm.log.Warn(err)
 		}
+		cm.contracts.Delete(cntr.GetID())
 	}()
 }
 

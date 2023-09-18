@@ -12,11 +12,8 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy"
 )
 
-const (
-	MINER_VETTING_PERIOD = 3 * time.Minute
-)
-
 type Task struct {
+	ID                   string
 	Dest                 *url.URL
 	RemainingJobToSubmit float64
 	OnSubmit             func(diff float64, ID string)
@@ -24,23 +21,30 @@ type Task struct {
 
 // Scheduler is a proxy wrapper that can schedule one-time tasks to different destinations
 type Scheduler struct {
-	proxy             StratumProxyInterface
-	hashrateCounterID string
-	primaryDest       *url.URL
-	tasks             lib.Stack[Task]
-	totalTaskJob      float64
-	newTaskSignal     chan struct{}
-	resetTasksSignal  chan struct{}
-	log               interfaces.ILogger
+	// config
+	minerVettingDuration time.Duration
+	hashrateCounterID    string
+	primaryDest          *url.URL
+
+	// state
+	totalTaskJob     float64
+	newTaskSignal    chan struct{}
+	resetTasksSignal chan struct{}
+	tasks            lib.Stack[Task]
+
+	// deps
+	proxy StratumProxyInterface
+	log   interfaces.ILogger
 }
 
-func NewScheduler(proxy StratumProxyInterface, hashrateCounterID string, defaultDest *url.URL, log interfaces.ILogger) *Scheduler {
+func NewScheduler(proxy StratumProxyInterface, hashrateCounterID string, defaultDest *url.URL, minerVettingDuration time.Duration, log interfaces.ILogger) *Scheduler {
 	return &Scheduler{
-		proxy:             proxy,
-		primaryDest:       defaultDest,
-		hashrateCounterID: hashrateCounterID,
-		log:               log,
-		newTaskSignal:     make(chan struct{}, 1),
+		primaryDest:          defaultDest,
+		hashrateCounterID:    hashrateCounterID,
+		minerVettingDuration: minerVettingDuration,
+		newTaskSignal:        make(chan struct{}, 1),
+		proxy:                proxy,
+		log:                  log,
 	}
 }
 
@@ -138,9 +142,10 @@ func (p *Scheduler) Run(ctx context.Context) error {
 	}
 }
 
-func (p *Scheduler) AddTask(dest *url.URL, jobSubmitted float64, onSubmit func(diff float64, ID string)) {
+func (p *Scheduler) AddTask(ID string, dest *url.URL, jobSubmitted float64, onSubmit func(diff float64, ID string)) {
 	shouldSignal := p.tasks.Size() == 0
 	p.tasks.Push(Task{
+		ID:                   ID,
 		Dest:                 dest,
 		RemainingJobToSubmit: jobSubmitted,
 		OnSubmit:             onSubmit,
@@ -161,6 +166,16 @@ func (p *Scheduler) GetTaskCount() int {
 	return p.tasks.Size()
 }
 
+func (p *Scheduler) GetTasksByID(ID string) []Task {
+	var tasks []Task
+	for _, tsk := range p.tasks {
+		if tsk.ID == ID {
+			tasks = append(tasks, tsk)
+		}
+	}
+	return tasks
+}
+
 func (p *Scheduler) GetTotalTaskJob() float64 {
 	return p.totalTaskJob
 }
@@ -177,10 +192,6 @@ func (p *Scheduler) IsAcceptingTasks(duration time.Duration) bool {
 	}
 	maxJob := h.GHSToJobSubmitted(p.HashrateGHS()) * duration.Seconds()
 	return p.tasks.Size() > 0 && totalJob < maxJob
-}
-
-func (p *Scheduler) AddHashrate(dest *url.URL, hrGHS float64, onSubmit func(diff float64, ID string)) {
-	p.AddTask(dest, h.GHSToJobSubmitted(hrGHS), onSubmit)
 }
 
 func (p *Scheduler) SetPrimaryDest(dest *url.URL) {
@@ -229,7 +240,7 @@ func (p *Scheduler) GetStats() interface{} {
 }
 
 func (p *Scheduler) IsVetting() bool {
-	return p.GetUptime() < MINER_VETTING_PERIOD
+	return p.GetUptime() < p.minerVettingDuration
 }
 
 func (p *Scheduler) GetUptime() time.Duration {
@@ -242,4 +253,22 @@ func (p *Scheduler) GetDestConns() *map[string]string {
 
 func (p *Scheduler) GetHashrate() proxy.Hashrate {
 	return p.proxy.GetHashrate()
+}
+
+func (p *Scheduler) GetDestinations() []*DestItem {
+	dests := make([]*DestItem, p.tasks.Size())
+
+	for i, t := range p.tasks {
+		dests[i] = &DestItem{
+			Dest: t.Dest.String(),
+			Job:  t.RemainingJobToSubmit,
+		}
+	}
+
+	return dests
+}
+
+type DestItem struct {
+	Dest string
+	Job  float64
 }

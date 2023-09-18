@@ -2,6 +2,7 @@ package contract
 
 import (
 	"context"
+	"errors"
 
 	"github.com/Lumerin-protocol/contracts-go/implementation"
 	"github.com/ethereum/go-ethereum/common"
@@ -49,6 +50,13 @@ func (c *ControllerBuyer) Run(ctx context.Context) error {
 		case <-c.ContractWatcherBuyer.Done():
 			err := c.ContractWatcherBuyer.Err()
 			if err != nil {
+
+				// contract closed, no need to close it again
+				if errors.Is(err, ErrContractClosed) {
+					c.log.Warnf("buyer contract ended due to closeout")
+					return nil
+				}
+
 				// underdelivery, buyer closes the contract
 				c.log.Warnf("buyer contract ended with error: %s", err)
 				err = c.store.CloseContract(ctx, c.GetID(), contracts.CloseoutTypeCancel, c.privKey)
@@ -84,15 +92,10 @@ func (c *ControllerBuyer) handleContractPurchased(ctx context.Context, event *im
 }
 
 func (c *ControllerBuyer) handleContractClosed(ctx context.Context, event *implementation.ImplementationContractClosed) error {
-	if c.GetState() == resources.ContractStatePending {
+	if c.GetState() == resources.ContractStateRunning {
 		c.StopFulfilling()
 	}
 
-	data, err := c.store.GetContract(ctx, c.GetID())
-	if err != nil {
-		return err
-	}
-	c.SetData(data)
 	return nil
 }
 

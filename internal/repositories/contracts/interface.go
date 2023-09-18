@@ -21,6 +21,7 @@ type DataAccess interface {
 
 type EthereumClient interface {
 	bind.ContractBackend
+	bind.DeployBackend
 	ChainID(ctx context.Context) (*big.Int, error)
 	BalanceAt(ctx context.Context, addr common.Address, blockNumber *big.Int) (*big.Int, error)
 }

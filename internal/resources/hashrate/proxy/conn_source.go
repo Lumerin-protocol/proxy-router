@@ -13,7 +13,7 @@ import (
 // that adds miner specific state variables
 type ConnSource struct {
 	// state
-	workerName string
+	userName string
 
 	extraNonce     string // last relevant extraNonce (from subscribe or set_extranonce)
 	extraNonceSize int
@@ -85,15 +85,14 @@ func (c *ConnSource) SetNegotiatedVersionRollingMask(mask string) {
 	c.versionRollingMask = mask
 }
 
-func (c *ConnSource) SetUserName(workerName string) {
-	c.workerName = workerName
-
-	c.log = c.log.Named(workerName)
+func (c *ConnSource) SetUserName(userName string) {
+	c.userName = userName
+	c.log = c.log.Named(userName)
 	c.conn.log = c.log
 }
 
-func (c *ConnSource) GetWorkerName() string {
-	return c.workerName
+func (c *ConnSource) GetUserName() string {
+	return c.userName
 }
 
 func (c *ConnSource) GetConnectedAt() time.Time {
