@@ -25,8 +25,9 @@ type Config struct {
 		WalletPrivateKey    string `env:"WALLET_PRIVATE_KEY"    flag:"wallet-private-key" validate:"required_without=Mnemonic|required_if=Disable false"`
 	}
 	Miner struct {
-		VettingDuration time.Duration `env:"MINER_VETTING_DURATION" flag:"miner-vetting-duration" validate:"duration"`
-		ShareTimeout    time.Duration `env:"MINER_SHARE_TIMEOUT"    flag:"miner-share-timeout"    validate:"duration"`
+		NotPropagateWorkerName bool          `env:"MINER_NOT_PROPAGATE_WORKER_NAME" flag:"miner-not-propagate-worker-name"  validate:""           desc:"not preserve worker name from the source in the destination pool. Preserving works only if the source miner worker name is defined as 'accountName.workerName'. Does not apply for contracts"`
+		ShareTimeout           time.Duration `env:"MINER_SHARE_TIMEOUT"             flag:"miner-share-timeout"                 validate:"duration"`
+		VettingDuration        time.Duration `env:"MINER_VETTING_DURATION"          flag:"miner-vetting-duration"              validate:"duration"`
 	}
 	Log struct {
 		LogToFile       bool   `env:"LOG_TO_FILE"          flag:"log-to-file"`

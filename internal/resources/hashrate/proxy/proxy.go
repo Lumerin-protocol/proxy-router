@@ -31,8 +31,9 @@ var (
 
 type Proxy struct {
 	// config
-	ID      string
-	destURL *url.URL // destination URL, TODO: remove, use dest.ID() instead
+	ID                     string
+	destURL                *url.URL // destination URL, TODO: remove, use dest.ID() instead
+	notPropagateWorkerName bool
 
 	// destWorkerName string
 	// submitErrLimit int
@@ -42,29 +43,30 @@ type Proxy struct {
 	destToSourceStartSignal chan struct{}      // signal to start reading from destination
 	hashrate                *hashrate.Hashrate // hashrate of the source validated by the proxy
 	pipe                    *Pipe
-	cancelRun               context.CancelFunc // cancels Run() task
-	setDestLock             sync.Mutex         // mutex to protect SetDest() from concurrent calls
-	unansweredMsg           sync.WaitGroup     // number of unanswered messages from the source
+	cancelRun               context.CancelFunc         // cancels Run() task
+	setDestLock             sync.Mutex                 // mutex to protect SetDest() from concurrent calls
+	unansweredMsg           sync.WaitGroup             // number of unanswered messages from the source
+	onSubmit                HashrateCounterFunc        // callback to update contract hashrate
+	onSubmitMutex           sync.RWMutex               // mutex to protect onSubmit
+	destMap                 *lib.Collection[*ConnDest] // map of all available destinations (pools) currently connected to the single source (miner)
 
 	// deps
-	source        *ConnSource                // initiator of the communication, miner
-	dest          *ConnDest                  // receiver of the communication, pool
-	destMap       *lib.Collection[*ConnDest] // map of all available destinations (pools) currently connected to the single source (miner)
-	onSubmit      HashrateCounterFunc        // callback to update contract hashrate
-	onSubmitMutex sync.RWMutex               // mutex to protect onSubmit
-
+	source         *ConnSource           // initiator of the communication, miner
+	dest           *ConnDest             // receiver of the communication, pool
 	globalHashrate GlobalHashrateCounter // callback to update global hashrate per worker
 	destFactory    DestConnFactory       // factory to create new destination connections
 	log            gi.ILogger
 }
 
 // TODO: pass connection factory for destURL
-func NewProxy(ID string, source *ConnSource, destFactory DestConnFactory, hashrateFactory HashrateFactory, globalHashrate GlobalHashrateCounter, destURL *url.URL, log gi.ILogger) *Proxy {
+func NewProxy(ID string, source *ConnSource, destFactory DestConnFactory, hashrateFactory HashrateFactory, globalHashrate GlobalHashrateCounter, destURL *url.URL, notPropagateWorkerName bool, log gi.ILogger) *Proxy {
 	proxy := &Proxy{
-		ID:          ID,
+		ID:                     ID,
+		destURL:                destURL,
+		notPropagateWorkerName: notPropagateWorkerName,
+
 		source:      source,
 		destMap:     lib.NewCollection[*ConnDest](),
-		destURL:     destURL,
 		destFactory: destFactory,
 		log:         log,
 
