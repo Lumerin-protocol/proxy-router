@@ -101,7 +101,7 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 			p.log.Warnf("duplicate share, jobID %s, msg id: %d", msgTyped.GetJobId(), msgTyped.GetID())
 			res = m.NewMiningResultDuplicatedShare(msgTyped.GetID())
 		} else if errors.Is(err, validator.ErrLowDifficulty) {
-			p.log.Warnf("low difficulty jobID %s, msg id: %d, diff %.f", msgTyped.GetJobId(), msgTyped.GetID(), diff)
+			p.log.Warnf("low difficulty share jobID %s, msg id: %d, diff %.f", msgTyped.GetJobId(), msgTyped.GetID(), diff)
 			res = m.NewMiningResultLowDifficulty(msgTyped.GetID())
 		}
 	} else {
@@ -113,7 +113,7 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 		p.proxy.globalHashrate.OnSubmit(p.proxy.source.GetUserName(), dest.GetDiff())
 
 		hr, _ := p.proxy.hashrate.GetHashrateAvgGHSCustom("mean")
-		p.log.Debugf("new submit, diff: %0.f, hrGHS %.0f", diff, hr)
+		p.log.Debugf("new share, diff: %0.f, hrGHS %.0f", diff, hr)
 
 		// contract hashrate
 		p.proxy.onSubmitMutex.RLock()
@@ -152,9 +152,9 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 			if weAccepted {
 				p.proxy.source.GetStats().WeAcceptedTheyRejected++
 				dest.GetStats().WeAcceptedTheyRejected++
-				p.log.Warnf("we accepted submit, they rejected with err %s", res.(*m.MiningResult).GetError())
+				p.log.Warnf("we accepted share, they rejected with err %s", res.(*m.MiningResult).GetError())
 			} else {
-				p.log.Warnf("we rejected submit, and they rejected with err %s", res.(*m.MiningResult).GetError())
+				p.log.Warnf("we rejected share, and they rejected with err %s", res.(*m.MiningResult).GetError())
 			}
 		} else {
 			if weAccepted {
@@ -162,7 +162,7 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 			} else {
 				dest.GetStats().WeRejectedTheyAccepted++
 				p.proxy.source.GetStats().WeRejectedTheyAccepted++
-				p.log.Warnf("we rejected submit, but dest accepted, diff: %.f", diff)
+				p.log.Warnf("we rejected share, but dest accepted, diff: %.f", diff)
 			}
 		}
 	}(res)

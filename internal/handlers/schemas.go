@@ -3,9 +3,9 @@ package handlers
 import "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
 
 type MinersResponse struct {
-	TotalHashrateGHS     float64
-	UsedHashrateGHS      float64
-	AvailableHashrateGHS float64
+	TotalHashrateGHS     int
+	UsedHashrateGHS      int
+	AvailableHashrateGHS int
 
 	TotalMiners   int
 	BusyMiners    int

@@ -111,7 +111,7 @@ func (p *Proxy) Run(ctx context.Context) error {
 	if err != nil {
 		// destination error
 		if errors.Is(err, ErrDest) {
-			if errors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
 				p.log.Warnf("destination closed the connection, dest %s", p.dest.GetID())
 			} else {
 				p.log.Errorf("destination error, source %s dest %s: %s", p.source.GetID(), p.dest.GetID(), err)
@@ -124,7 +124,7 @@ func (p *Proxy) Run(ctx context.Context) error {
 
 		// source error
 		if errors.Is(err, ErrSource) {
-			if errors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
 				p.log.Warnf("source closed the connection, source %s", p.source.GetID())
 			} else {
 				p.log.Errorf("source connection error, source %s: %s", p.source.GetID(), err)
@@ -200,7 +200,6 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 		}
 
 		p.destMap.Delete(destUrl)
-		p.log.Warnf("removed old connection from the map %s", dest.destUrl)
 	})
 	if err != nil {
 		return err

@@ -42,3 +42,21 @@ func (s *Stack[T]) Size() int {
 func (s *Stack[T]) Clear() {
 	*s = *new(Stack[T])
 }
+
+func (s *Stack[T]) Remove(f func(T) bool) {
+	var newStack Stack[T]
+	for _, v := range *s {
+		if !f(v) {
+			newStack.Push(v)
+		}
+	}
+	*s = newStack
+}
+
+func (s *Stack[T]) Range(f func(T) bool) {
+	for _, v := range *s {
+		if !f(v) {
+			break
+		}
+	}
+}

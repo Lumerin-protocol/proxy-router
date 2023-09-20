@@ -25,6 +25,10 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+var (
+	ErrConnectToEthNode = fmt.Errorf("cannot connect to ethereum node")
+)
+
 func main() {
 	err := start()
 	if err != nil {
@@ -151,7 +155,7 @@ func start() error {
 
 	ethClient, err := ethclient.DialContext(ctx, cfg.Blockchain.EthNodeAddress)
 	if err != nil {
-		return err
+		return lib.WrapError(ErrConnectToEthNode, err)
 	}
 
 	publicUrl, err := url.Parse(cfg.Web.PublicUrl)
@@ -185,7 +189,7 @@ func start() error {
 		return err
 	}
 
-	log.Infof("owner address: %s", ownerAddr.String())
+	log.Infof("wallet address: %s", ownerAddr.String())
 
 	cm := contractmanager.NewContractManager(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), ownerAddr, hrContractFactory.CreateContract, store, log)
 

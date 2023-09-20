@@ -180,22 +180,7 @@ func (p *Allocator) GetMinersFulfillingContract(contractID string) []*DestItem {
 // CancelTasks cancels all tasks for a specified contractID
 func (p *Allocator) CancelTasks(contractID string) {
 	p.GetMiners().Range(func(item *Scheduler) bool {
-
-		if item.GetTaskCount() == 1 {
-			tsk, ok := item.tasks.Peek()
-			if ok && tsk.ID == contractID {
-				// it is only condition that can identify that this is the fully allocated miner
-				// or it could be partially allocated miner with only one task
-				// so we can stop both
-				item.ResetTasks()
-				return true
-			}
-		}
-
-		// if there are multiple tasks, then stop only with ID == contractID
-		// just wait for them to finish
-		// TODO: cancel right away, slice tasks and replace using mutex
-
+		item.RemoveTasksByID(contractID)
 		return true
 	})
 }
