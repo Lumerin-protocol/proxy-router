@@ -16,11 +16,7 @@ func NewConfigurator(osConfigurator osConfigurator, log interfaces.ILogger) *Sys
 }
 
 func CreateConfigurator(log interfaces.ILogger) (*SystemConfigurator, error) {
-	osConfigurator, err := OSConfiguratorFactory()
-	if err != nil {
-		return nil, err
-	}
-	return NewConfigurator(osConfigurator, log), nil
+	return NewConfigurator(NewOSConfigurator(), log), nil
 }
 
 func (c *SystemConfigurator) ApplyConfig(cfg *Config) error {
