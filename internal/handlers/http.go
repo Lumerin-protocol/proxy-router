@@ -192,9 +192,9 @@ func (c *HTTPHandler) GetMiners(ctx *gin.Context) {
 		FreeMiners:    FreeMiners,
 		VettingMiners: VettingMiners,
 
-		TotalHashrateGHS:     TotalHashrateGHS,
-		AvailableHashrateGHS: TotalHashrateGHS - UsedHashrateGHS,
-		UsedHashrateGHS:      UsedHashrateGHS,
+		TotalHashrateGHS:     int(TotalHashrateGHS),
+		AvailableHashrateGHS: int(TotalHashrateGHS - UsedHashrateGHS),
+		UsedHashrateGHS:      int(UsedHashrateGHS),
 
 		Miners: Miners,
 	}
