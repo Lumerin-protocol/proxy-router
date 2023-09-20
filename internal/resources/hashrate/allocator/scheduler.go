@@ -17,6 +17,7 @@ type Task struct {
 	Dest                 *url.URL
 	RemainingJobToSubmit float64
 	OnSubmit             func(diff float64, ID string)
+	cancelCh             chan struct{}
 }
 
 // Scheduler is a proxy wrapper that can schedule one-time tasks to different destinations
@@ -80,18 +81,24 @@ func (p *Scheduler) Run(ctx context.Context) error {
 			if !ok {
 				break
 			}
-			p.totalTaskJob -= task.RemainingJobToSubmit
+			select {
+			case <-task.cancelCh:
+				p.log.Debugf("task cancelled %s", task.ID)
+				p.tasks.Pop()
+				continue
+			default:
+			}
+
 			jobDone := make(chan struct{})
 			jobDoneOnce := sync.Once{}
-
-			p.log.Debugf("start doing task %s, for job %.0f", task.Dest.String(), task.RemainingJobToSubmit)
-
+			p.log.Debugf("start doing task for job ID %s, for job %.0f", task.ID, task.RemainingJobToSubmit)
+			p.totalTaskJob -= task.RemainingJobToSubmit
 			err := p.proxy.SetDest(ctx, task.Dest, func(diff float64) {
 				task.RemainingJobToSubmit -= diff
 				task.OnSubmit(diff, p.proxy.GetID())
 				if task.RemainingJobToSubmit <= 0 {
 					jobDoneOnce.Do(func() {
-						p.log.Debugf("finished doing task %s, for job %.0f", task.Dest.String(), task.RemainingJobToSubmit)
+						p.log.Debugf("finished doing task for job %s", task.ID)
 						close(jobDone)
 					})
 				}
@@ -108,6 +115,10 @@ func (p *Scheduler) Run(ctx context.Context) error {
 				return proxyTask.Err()
 			case <-p.resetTasksSignal:
 				close(jobDone)
+				p.log.Debugf("tasks resetted")
+			case <-task.cancelCh:
+				close(jobDone)
+				p.log.Debugf("task cancelled %s", task.ID)
 			case <-jobDone:
 			}
 
@@ -149,12 +160,23 @@ func (p *Scheduler) AddTask(ID string, dest *url.URL, jobSubmitted float64, onSu
 		Dest:                 dest,
 		RemainingJobToSubmit: jobSubmitted,
 		OnSubmit:             onSubmit,
+		cancelCh:             make(chan struct{}),
 	})
 	p.totalTaskJob += jobSubmitted
 	if shouldSignal {
 		p.newTaskSignal <- struct{}{}
 	}
 	p.log.Debugf("added new task, dest: %s, for jobSubmitted: %.0f, totalTaskJob: %.0f", dest, jobSubmitted, p.totalTaskJob)
+}
+
+// TODO: ensure it is concurrency safe
+func (p *Scheduler) RemoveTasksByID(ID string) {
+	p.tasks.Range(func(task Task) bool {
+		if task.ID == ID {
+			close(task.cancelCh)
+		}
+		return true
+	})
 }
 
 func (p *Scheduler) ResetTasks() {
