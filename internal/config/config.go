@@ -30,8 +30,10 @@ type Config struct {
 		VettingDuration        time.Duration `env:"MINER_VETTING_DURATION"          flag:"miner-vetting-duration"              validate:"duration"`
 	}
 	Log struct {
-		LogToFile       bool   `env:"LOG_TO_FILE"          flag:"log-to-file"`
 		Color           bool   `env:"LOG_COLOR"            flag:"log-color"`
+		FolderPath      string `env:"LOG_FOLDER_PATH"      flag:"log-folder-path"      validate:"omitempty,dirpath"    desc:"enables file logging and sets the folder path"`
+		IsProd          bool   `env:"LOG_IS_PROD"          flag:"log-is-prod"          validate:""                     desc:"affects the format of the log output"`
+		JSON            bool   `env:"LOG_JSON"             flag:"log-json"`
 		LevelApp        string `env:"LOG_LEVEL_APP"        flag:"log-level-app"        validate:"oneof=debug info warn error dpanic panic fatal"`
 		LevelConnection string `env:"LOG_LEVEL_CONNECTION" flag:"log-level-connection" validate:"oneof=debug info warn error dpanic panic fatal"`
 		LevelProxy      string `env:"LOG_LEVEL_PROXY"      flag:"log-level-proxy"      validate:"oneof=debug info warn error dpanic panic fatal"`
@@ -70,10 +72,10 @@ func (cfg *Config) SetDefaults() {
 		cfg.Hashrate.CycleDuration = 5 * time.Minute
 	}
 	if cfg.Hashrate.ValidationStartTimeout == 0 {
-		cfg.Hashrate.ValidationStartTimeout = 10 * time.Minute
+		cfg.Hashrate.ValidationStartTimeout = 15 * time.Minute
 	}
 	if cfg.Hashrate.ShareTimeout == 0 {
-		cfg.Hashrate.ShareTimeout = 5 * time.Minute
+		cfg.Hashrate.ShareTimeout = 7 * time.Minute
 	}
 	if cfg.Hashrate.ErrorThreshold == 0 {
 		cfg.Hashrate.ErrorThreshold = 0.05

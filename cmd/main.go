@@ -50,22 +50,22 @@ func start() error {
 		return err
 	}
 
-	log, err := lib.NewLogger(false, cfg.Log.LevelApp, cfg.Log.LogToFile, cfg.Log.Color)
+	log, err := lib.NewLogger(cfg.Log.LevelApp, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, cfg.Log.FolderPath)
 	if err != nil {
 		return err
 	}
 
-	schedulerLog, err := lib.NewLogger(false, cfg.Log.LevelScheduler, cfg.Log.LogToFile, cfg.Log.Color)
+	schedulerLog, err := lib.NewLogger(cfg.Log.LevelScheduler, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, cfg.Log.FolderPath)
 	if err != nil {
 		return err
 	}
 
-	proxyLog, err := lib.NewLogger(false, cfg.Log.LevelProxy, cfg.Log.LogToFile, cfg.Log.Color)
+	proxyLog, err := lib.NewLogger(cfg.Log.LevelProxy, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, cfg.Log.FolderPath)
 	if err != nil {
 		return err
 	}
 
-	connLog, err := lib.NewLogger(false, cfg.Log.LevelConnection, cfg.Log.LogToFile, cfg.Log.Color)
+	connLog, err := lib.NewLogger(cfg.Log.LevelConnection, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, cfg.Log.FolderPath)
 	if err != nil {
 		return err
 	}

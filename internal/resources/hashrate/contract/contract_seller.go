@@ -83,20 +83,28 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 	partialDeliveryTargetGHS := p.GetHashrateGHS()
 	thisCycleJobSubmitted := atomic.Uint64{}
 	globalUnderdeliveryGHS := 0.0 // global contract underdelivery
-
-	onSubmit := func(diff float64, minerID string) {
-		// p.log.Debugf("contract submit %s, %.0f, total work %d", minerID, diff, thisCycleJobSubmitted.Load())
-		p.actualHRGHS.OnSubmit(diff)
-		thisCycleJobSubmitted.Add(uint64(diff))
-		// TODO: catch overdelivery here and cancel tasks
-	}
+	jobSubmittedFullMiners := atomic.Uint64{}
+	jobSubmittedPartialMiners := atomic.Uint64{}
 
 	for {
+		jobSubmittedFullMiners.Store(0)
+		jobSubmittedPartialMiners.Store(0)
+
 		p.log.Debugf("new contract cycle:  partialDeliveryTargetGHS=%.0f",
 			partialDeliveryTargetGHS,
 		)
 		if partialDeliveryTargetGHS > 0 {
-			fullMiners, newRemainderGHS := p.allocator.AllocateFullMinersForHR(p.GetID(), partialDeliveryTargetGHS, p.getAdjustedDest(), p.GetDuration(), onSubmit)
+			fullMiners, newRemainderGHS := p.allocator.AllocateFullMinersForHR(
+				p.GetID(),
+				partialDeliveryTargetGHS,
+				p.getAdjustedDest(),
+				p.GetDuration(),
+				func(diff float64, ID string) {
+					jobSubmittedFullMiners.Add(uint64(diff))
+					p.actualHRGHS.OnSubmit(diff)
+					thisCycleJobSubmitted.Add(uint64(diff))
+				},
+			)
 			if len(fullMiners) > 0 {
 				partialDeliveryTargetGHS = newRemainderGHS
 				p.log.Infof("fully allocated %d miners, new partialDeliveryTargetGHS = %.0f", len(fullMiners), partialDeliveryTargetGHS)
@@ -105,7 +113,17 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 				p.log.Debugf("no full miners were allocated for this contract")
 			}
 
-			minerID, ok := p.allocator.AllocatePartialForHR(p.GetID(), partialDeliveryTargetGHS, p.getAdjustedDest(), p.contractCycleDuration, onSubmit)
+			minerID, ok := p.allocator.AllocatePartialForHR(
+				p.GetID(),
+				partialDeliveryTargetGHS,
+				p.getAdjustedDest(),
+				p.contractCycleDuration,
+				func(diff float64, ID string) {
+					jobSubmittedPartialMiners.Add(uint64(diff))
+					p.actualHRGHS.OnSubmit(diff)
+					thisCycleJobSubmitted.Add(uint64(diff))
+				},
+			)
 			if ok {
 				p.log.Debugf("remainderGHS: %.0f, was allocated by partial miners %v", partialDeliveryTargetGHS, minerID)
 			} else {
@@ -172,20 +190,29 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 		case <-time.After(p.contractCycleDuration):
 		}
 
-		thisCycleActualGHS := hr.JobSubmittedToGHS(float64(thisCycleJobSubmitted.Load()) / p.contractCycleDuration.Seconds())
+		thisCycleActualGHS := p.jobToGHS(thisCycleJobSubmitted.Load())
 		thisCycleUnderDeliveryGHS := p.GetHashrateGHS() - thisCycleActualGHS
 		globalUnderdeliveryGHS += thisCycleUnderDeliveryGHS
 
 		// plan for the next cycle is to compensate for the under delivery of the contract
-		partialDeliveryTargetGHS = partialDeliveryTargetGHS + globalUnderdeliveryGHS
+		// partialDeliveryTargetGHS = partialDeliveryTargetGHS + globalUnderdeliveryGHS
+		partialDeliveryTargetGHS = p.GetHashrateGHS() - p.GetFullMinersHR() + globalUnderdeliveryGHS
 
 		thisCycleJobSubmitted.Store(0)
 
-		p.log.Infof(
-			"contract cycle ended, thisCycleActualGHS = %.0f, thisCycleUnderDeliveryGHS=%.0f, globalUnderdelivery=%.0f, partialDeliveryTargetGHS=%.0f",
-			thisCycleActualGHS, thisCycleUnderDeliveryGHS, globalUnderdeliveryGHS, partialDeliveryTargetGHS,
+		p.log.Info("contract cycle ended",
+			" thisCycleActualGHS=", int(thisCycleActualGHS),
+			" thisCycleUnderDeliveryGHS=", int(thisCycleUnderDeliveryGHS),
+			" globalUnderdeliveryGHS=", int(globalUnderdeliveryGHS),
+			" partialDeliveryTargetGHS=", int(partialDeliveryTargetGHS),
+			" jobSubmittedFullMiners=", int(p.jobToGHS(jobSubmittedFullMiners.Load())),
+			" jobSubmittedPartialMiners=", int(p.jobToGHS(jobSubmittedPartialMiners.Load())),
 		)
 	}
+}
+
+func (p *ContractWatcherSeller) jobToGHS(value uint64) float64 {
+	return hr.JobSubmittedToGHS(float64(value) / p.contractCycleDuration.Seconds())
 }
 
 func (p *ContractWatcherSeller) getAllocatedMinersSorted() []*allocator.MinerItem {
@@ -207,6 +234,18 @@ func (p *ContractWatcherSeller) getAllocatedMinersSorted() []*allocator.MinerIte
 	})
 
 	return items
+}
+
+func (p *ContractWatcherSeller) GetFullMinersHR() float64 {
+	var total float64
+	for _, minerID := range p.fullMiners {
+		miner, ok := p.allocator.GetMiners().Load(minerID)
+		if !ok {
+			continue
+		}
+		total += miner.HashrateGHS()
+	}
+	return total
 }
 
 // getAdjustedDest returns the destination url with the username set to the contractID
