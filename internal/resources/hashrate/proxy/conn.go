@@ -246,14 +246,14 @@ func (c *StratumConnection) runTimeoutTimers() {
 			for {
 				select {
 				case <-readTimer.C:
-					c.log.Infof("connection read timeout", c.id)
+					c.log.Info("connection read timeout")
 					if !writeTimer.Stop() {
 						<-writeTimer.C
 					}
 					c.Close()
 					return
 				case <-writeTimer.C:
-					c.log.Infof("connection write timeout", c.id)
+					c.log.Info("connection write timeout")
 					if !readTimer.Stop() {
 						<-readTimer.C
 					}
