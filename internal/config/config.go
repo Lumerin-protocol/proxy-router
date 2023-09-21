@@ -72,10 +72,10 @@ func (cfg *Config) SetDefaults() {
 		cfg.Hashrate.CycleDuration = 5 * time.Minute
 	}
 	if cfg.Hashrate.ValidationStartTimeout == 0 {
-		cfg.Hashrate.ValidationStartTimeout = 10 * time.Minute
+		cfg.Hashrate.ValidationStartTimeout = 15 * time.Minute
 	}
 	if cfg.Hashrate.ShareTimeout == 0 {
-		cfg.Hashrate.ShareTimeout = 5 * time.Minute
+		cfg.Hashrate.ShareTimeout = 7 * time.Minute
 	}
 	if cfg.Hashrate.ErrorThreshold == 0 {
 		cfg.Hashrate.ErrorThreshold = 0.05
