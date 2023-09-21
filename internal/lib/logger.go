@@ -13,6 +13,105 @@ import (
 
 const timeLayout = "2006-01-02T15:04:05"
 
+func NewLogger(level string, color, isProd bool, isJSON bool, filepath string) (*Logger, error) {
+	log, err := newLogger(level, color, isProd, isJSON, filepath)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &Logger{SugaredLogger: log.Sugar()}, nil
+}
+
+// NewTestLogger logs only to stdout
+func NewTestLogger() *Logger {
+	log, _ := newLogger("debug", false, false, false, "")
+	return &Logger{SugaredLogger: log.Sugar()}
+}
+
+func newLogger(levelStr string, color bool, isProd bool, isJSON bool, filepath string) (*zap.Logger, error) {
+	level, err := zapcore.ParseLevel(levelStr)
+	if err != nil {
+		return nil, err
+	}
+
+	var core zapcore.Core
+	if filepath != "" {
+		fileCore, err := newFileCore(level, isProd, isJSON, filepath)
+		if err != nil {
+			return nil, err
+		}
+		consoleCore := newConsoleCore(level, color, isProd, isJSON)
+		core = zapcore.NewTee(fileCore, consoleCore)
+	} else {
+		core = newConsoleCore(zapcore.DebugLevel, color, isProd, isJSON)
+	}
+
+	opts := []zap.Option{
+		zap.AddStacktrace(zap.ErrorLevel),
+	}
+	if !isProd {
+		opts = append(opts, zap.Development())
+	}
+
+	return zap.New(core, opts...), nil
+}
+
+func newConsoleCore(level zapcore.Level, color bool, isProd bool, isJSON bool) zapcore.Core {
+	encoderCfg := newEncoderCfg(isProd, color, isJSON)
+
+	var encoder zapcore.Encoder
+	if isJSON {
+		encoder = zapcore.NewJSONEncoder(encoderCfg)
+	} else {
+		encoder = zapcore.NewConsoleEncoder(encoderCfg)
+	}
+	return zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), level)
+}
+
+func newEncoderCfg(isProd bool, color bool, isJSON bool) zapcore.EncoderConfig {
+	var encoderCfg zapcore.EncoderConfig
+	if isProd {
+		encoderCfg = zap.NewProductionEncoderConfig()
+	} else {
+		encoderCfg = zap.NewDevelopmentEncoderConfig()
+		encoderCfg.EncodeTime = zapcore.TimeEncoderOfLayout(timeLayout)
+	}
+
+	if color && !isJSON {
+		encoderCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	}
+	return encoderCfg
+}
+
+func newFileCore(level zapcore.Level, isProd bool, isJSON bool, path string) (zapcore.Core, error) {
+	encoderCfg := newEncoderCfg(isProd, false, isJSON)
+	if !isJSON {
+		encoderCfg.EncodeTime = zapcore.TimeEncoderOfLayout(timeLayout)
+	}
+
+	var encoder zapcore.Encoder
+	if isJSON {
+		encoder = zapcore.NewJSONEncoder(encoderCfg)
+	} else {
+		encoder = zapcore.NewConsoleEncoder(encoderCfg)
+	}
+
+	newpath := filepath.Join(".", path)
+	err := os.MkdirAll(newpath, os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+	fpath := filepath.Join(newpath, fmt.Sprintf("%s.log", time.Now().Format(timeLayout)))
+	fmt.Println("Logging to ", fpath)
+	file, err := os.OpenFile(fpath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+	if err != nil {
+		return nil, err
+	}
+
+	return zapcore.NewCore(encoder, zapcore.AddSync(file), level), nil
+}
+
 type Logger struct {
 	*zap.SugaredLogger
 }
@@ -23,114 +122,4 @@ func (l *Logger) Named(name string) interfaces.ILogger {
 
 func (l *Logger) With(args ...interface{}) interfaces.ILogger {
 	return &Logger{l.SugaredLogger.With(args...)}
-}
-
-func NewLogger(isProduction bool, level string, logToFile bool, color bool) (*Logger, error) {
-	var (
-		log *zap.Logger
-		err error
-	)
-
-	if isProduction {
-		log, err = newProductionLogger(level)
-	} else {
-		log, err = NewDevelopmentLogger(level, logToFile, color, false)
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	return &Logger{SugaredLogger: log.Sugar()}, nil
-}
-
-// NewTestLogger logs only to stdout
-func NewTestLogger() *Logger {
-	log, _ := NewDevelopmentLogger("debug", false, false, false)
-	return &Logger{SugaredLogger: log.Sugar()}
-}
-
-func NewDevelopmentLogger(levelStr string, logToFile bool, color bool, addCaller bool) (*zap.Logger, error) {
-	consoleEncoderCfg := zap.NewDevelopmentEncoderConfig()
-	consoleEncoderCfg.EncodeTime = zapcore.TimeEncoderOfLayout(timeLayout)
-	if color {
-		consoleEncoderCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	}
-	consoleEncoder := zapcore.NewConsoleEncoder(consoleEncoderCfg)
-
-	var core zapcore.Core
-	level, err := zapcore.ParseLevel(levelStr)
-	if err != nil {
-		return nil, err
-	}
-
-	if logToFile {
-		fileEncoderCfg := zap.NewDevelopmentEncoderConfig()
-		fileEncoderCfg.EncodeTime = zapcore.TimeEncoderOfLayout(timeLayout)
-		fileEncoder := zapcore.NewConsoleEncoder(fileEncoderCfg)
-
-		newpath := filepath.Join(".", "logs")
-		err := os.MkdirAll(newpath, os.ModePerm)
-		if err != nil {
-			return nil, err
-		}
-		file, err := os.OpenFile("./logs/logfile.log", os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
-		if err != nil {
-			return nil, err
-		}
-
-		core = zapcore.NewTee(
-			zapcore.NewCore(fileEncoder, zapcore.AddSync(file), zapcore.DebugLevel),
-			zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), level),
-		)
-	} else {
-		core = zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), level)
-	}
-
-	opts := []zap.Option{
-		zap.Development(),
-		zap.AddStacktrace(zap.ErrorLevel),
-	}
-	if addCaller {
-		opts = append(opts, zap.AddCaller())
-	}
-
-	return zap.New(core, opts...), nil
-}
-
-func newProductionLogger(levelStr string) (*zap.Logger, error) {
-	cfg := zap.NewProductionConfig()
-	level, err := zapcore.ParseLevel(levelStr)
-	if err != nil {
-		return nil, err
-	}
-	cfg.Level = zap.NewAtomicLevelAt(level)
-	l, err := cfg.Build()
-	if err != nil {
-		return nil, err
-	}
-	return l, nil
-}
-
-func NewFileLogger(name string) (*zap.SugaredLogger, error) {
-	fileEncoderCfg := zap.NewDevelopmentEncoderConfig()
-	fileEncoderCfg.LevelKey = zapcore.OmitKey
-	fileEncoderCfg.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339)
-	fileEncoder := zapcore.NewConsoleEncoder(fileEncoderCfg)
-
-	path := filepath.Join(".", "logs", "protocol")
-	err := os.MkdirAll(path, os.ModePerm)
-	if err != nil {
-		return nil, err
-	}
-
-	filename := SanitizeFilename(fmt.Sprintf("%s-%s", time.Now().Format(timeLayout), name))
-	pathName := fmt.Sprintf("%s/%s.log", path, filename)
-
-	file, err := os.OpenFile(pathName, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
-	if err != nil {
-		return nil, err
-	}
-
-	core := zapcore.NewCore(fileEncoder, zapcore.AddSync(file), zap.DebugLevel)
-	return zap.New(core).Sugar(), nil
 }
