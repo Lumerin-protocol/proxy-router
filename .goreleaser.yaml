@@ -47,7 +47,7 @@ release:
   # Default is extracted from the origin remote URL or empty if its private hosted.
   github:
     owner: Lumerin-protocol
-    name: hash-router
+    name: proxy-router
 
   # If set to true, will not auto-publish the release.
   # Available only for GitHub and Gitea.
