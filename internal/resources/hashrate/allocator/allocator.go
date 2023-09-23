@@ -54,15 +54,15 @@ func (p *Allocator) AllocateFullMinersForHR(ID string, hrGHS float64, dest *url.
 	miners := p.GetFreeMiners()
 
 	for _, miner := range miners {
-		adjustedMinerGHS := miner.HrGHS
-		if adjustedMinerGHS <= hrGHS {
+		minerGHS := miner.HrGHS
+		if minerGHS <= hrGHS && minerGHS > 0 {
 			minerIDs = append(minerIDs, miner.ID)
 			proxy, ok := p.proxies.Load(miner.ID)
 			if ok {
-				proxy.AddTask(ID, dest, hashrate.GHSToJobSubmitted(adjustedMinerGHS)*duration.Seconds(), onSubmit)
-				p.log.Infof("miner %s allocated for %f GHS", miner.ID, adjustedMinerGHS)
+				proxy.AddTask(ID, dest, hashrate.GHSToJobSubmitted(minerGHS)*duration.Seconds(), onSubmit)
+				p.log.Infof("miner %s allocated for %f GHS", miner.ID, minerGHS)
 			}
-			hrGHS -= adjustedMinerGHS
+			hrGHS -= minerGHS
 		}
 	}
 
@@ -76,7 +76,6 @@ func (p *Allocator) AllocateFullMinersForHR(ID string, hrGHS float64, dest *url.
 
 func (p *Allocator) AllocatePartialForHR(ID string, hrGHS float64, dest *url.URL, cycleDuration time.Duration, onSubmit func(diff float64, ID string)) (string, bool) {
 	partialMiners := p.GetPartialMiners(cycleDuration)
-	// minerIDs := []string{}
 	jobForCycle := hashrate.GHSToJobSubmitted(hrGHS) * cycleDuration.Seconds()
 
 	// search in partially allocated miners
