@@ -44,7 +44,7 @@ func newLogger(levelStr string, color bool, isProd bool, isJSON bool, filepath s
 		consoleCore := newConsoleCore(level, color, isProd, isJSON)
 		core = zapcore.NewTee(fileCore, consoleCore)
 	} else {
-		core = newConsoleCore(zapcore.DebugLevel, color, isProd, isJSON)
+		core = newConsoleCore(level, color, isProd, isJSON)
 	}
 
 	opts := []zap.Option{
