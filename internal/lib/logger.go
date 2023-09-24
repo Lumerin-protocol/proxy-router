@@ -37,7 +37,7 @@ func newLogger(levelStr string, color bool, isProd bool, isJSON bool, filepath s
 
 	var core zapcore.Core
 	if filepath != "" {
-		fileCore, err := newFileCore(level, isProd, isJSON, filepath)
+		fileCore, err := newFileCore(zapcore.DebugLevel, isProd, isJSON, filepath)
 		if err != nil {
 			return nil, err
 		}
@@ -103,7 +103,6 @@ func newFileCore(level zapcore.Level, isProd bool, isJSON bool, path string) (za
 		return nil, err
 	}
 	fpath := filepath.Join(newpath, fmt.Sprintf("%s.log", time.Now().Format(timeLayout)))
-	fmt.Println("Logging to ", fpath)
 	file, err := os.OpenFile(fpath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 	if err != nil {
 		return nil, err

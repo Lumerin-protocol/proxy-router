@@ -69,6 +69,7 @@ func (v *Validator) ValidateAndAddShare(msg *sm.MiningSubmit) (float64, error) {
 	if !ok {
 		err := lib.WrapError(ErrLowDifficulty, fmt.Errorf("expected %.2f actual %d", job.diff, diff))
 		v.log.Warnf(err.Error())
+		v.log.Warnf("xn=%s, xnsize=%d, diff=%d, vrmsk=%s", job.extraNonce1, uint(job.extraNonce2Size), uint64(job.diff), v.versionRollingMask)
 		return diffFloat, err
 	}
 

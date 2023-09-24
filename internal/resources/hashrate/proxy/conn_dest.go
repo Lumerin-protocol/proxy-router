@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
@@ -21,17 +22,20 @@ type ConnDest struct {
 	// config
 	userName string
 	destUrl  *url.URL
+	destLock sync.RWMutex
 
 	// state
-	diff           float64
+	diff           atomic.Uint64
 	hr             gi.Hashrate
 	resultHandlers sync.Map // map[string]func(*stratumv1_message.MiningResult)
 
 	extraNonce1     string
 	extraNonce2Size int
+	extraNonceLock  sync.RWMutex
 
 	versionRolling     bool
 	versionRollingMask string
+	versionRollingLock sync.RWMutex
 
 	stats     *DestStats
 	validator *validator.Validator
@@ -139,25 +143,32 @@ func (c *ConnDest) Write(ctx context.Context, msg i.MiningMessageGeneric) error 
 }
 
 func (c *ConnDest) GetExtraNonce() (extraNonce string, extraNonceSize int) {
+	c.extraNonceLock.RLock()
+	defer c.extraNonceLock.RUnlock()
 	return c.extraNonce1, c.extraNonce2Size
 }
 
 func (c *ConnDest) SetExtraNonce(extraNonce string, extraNonceSize int) {
+	c.extraNonceLock.Lock()
+	defer c.extraNonceLock.Unlock()
 	c.extraNonce1, c.extraNonce2Size = extraNonce, extraNonceSize
 }
 
 func (c *ConnDest) GetVersionRolling() (versionRolling bool, versionRollingMask string) {
+	c.versionRollingLock.RLock()
+	defer c.versionRollingLock.RUnlock()
 	return c.versionRolling, c.versionRollingMask
 }
 
 func (c *ConnDest) SetVersionRolling(versionRolling bool, versionRollingMask string) {
+	c.versionRollingLock.Lock()
+	defer c.versionRollingLock.Unlock()
 	c.versionRolling, c.versionRollingMask = versionRolling, versionRollingMask
 	c.validator.SetVersionRollingMask(versionRollingMask)
 }
 
-// TODO: guard with mutex
 func (c *ConnDest) GetDiff() float64 {
-	return c.diff
+	return float64(c.diff.Load())
 }
 
 func (c *ConnDest) GetHR() gi.Hashrate {
@@ -165,10 +176,15 @@ func (c *ConnDest) GetHR() gi.Hashrate {
 }
 
 func (c *ConnDest) GetUserName() string {
+	c.destLock.RLock()
+	defer c.destLock.RUnlock()
 	return c.userName
 }
 
 func (c *ConnDest) SetUserName(userName string) {
+	c.destLock.Lock()
+	defer c.destLock.Unlock()
+
 	c.userName = userName
 
 	newURL := *c.destUrl
@@ -183,16 +199,17 @@ func (c *ConnDest) readInterceptor(msg i.MiningMessageGeneric) (resMsg i.MiningM
 	switch typed := msg.(type) {
 	case *sm.MiningNotify:
 		// TODO: set expiration time for all of the jobs if clean jobs flag is set to true
-		c.validator.AddNewJob(typed, c.diff, c.extraNonce1, c.extraNonce2Size)
+		xn, xnsize := c.GetExtraNonce()
+		c.validator.AddNewJob(typed, float64(c.diff.Load()), xn, xnsize)
 		c.firstJobOnce.Do(func() {
 			close(c.firstJobSignal)
 		})
 	case *sm.MiningSetDifficulty:
-		c.diff = typed.GetDifficulty()
+		c.diff.Store(uint64(typed.GetDifficulty()))
 	case *sm.MiningSetExtranonce:
-		c.extraNonce1, c.extraNonce2Size = typed.GetExtranonce()
+		c.SetExtraNonce(typed.GetExtranonce())
 	case *sm.MiningSetVersionMask:
-		c.versionRolling, c.versionRollingMask = true, typed.GetVersionMask()
+		c.SetVersionRolling(true, typed.GetVersionMask())
 
 	// TODO: handle multiversion
 	case *sm.MiningResult:
@@ -227,7 +244,7 @@ func (s *ConnDest) onceResult(ctx context.Context, msgID int, handler ResultHand
 		<-ctx.Done()
 		s.resultHandlers.Delete(msgID)
 		if !didRun {
-			errCh <- fmt.Errorf("dest response timeout (%s)", RESPONSE_TIMEOUT)
+			errCh <- fmt.Errorf("dest response timeout (%s) msgID(%d)", RESPONSE_TIMEOUT, msgID)
 		}
 	}()
 
@@ -261,7 +278,7 @@ func (s *ConnDest) WriteAwaitRes(ctx context.Context, msg i.MiningMessageWithID)
 		<-ctx.Done()
 		s.resultHandlers.Delete(msgID)
 		if !didRun {
-			errCh <- fmt.Errorf("dest response timeout (%s)", RESPONSE_TIMEOUT)
+			errCh <- fmt.Errorf("dest response timeout (%s) msgID(%d)", RESPONSE_TIMEOUT, msgID)
 			// TODO: verify if there is no write to closed chan
 			close(resCh)
 			close(errCh)
