@@ -41,7 +41,7 @@ func NewTCPHandler(
 
 		err := scheduler.Run(ctx)
 		if err != nil {
-			log.Warnf("proxy disconnected: %s", err)
+			log.Warnf("proxy disconnected: %s %s", err, ID)
 		}
 
 		alloc.GetMiners().Delete(ID)

@@ -142,7 +142,6 @@ test:
 
 .deploy_buyer: &deploy_buyer
   - POOL_ADDRESS=$BUYER_POOL_ADDRESS
-  - WALLET_ADDRESS=$BUYER_WALLET_ADDRESS
   - WALLET_PRIVATE_KEY=$BUYER_PRIVATEKEY
   - NODE_DEF="buy"
   - CI_AWS_TASK="proxy-buyer"

@@ -16,7 +16,7 @@ import (
 
 const (
 	CONNECTION_TIMEOUT = 10 * time.Minute
-	RESPONSE_TIMEOUT   = 10 * time.Second
+	RESPONSE_TIMEOUT   = 30 * time.Second
 )
 
 var (
@@ -175,6 +175,8 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 		if err != nil {
 			return err
 		}
+
+		p.unansweredMsg.Wait()
 		newDest = dest
 	}
 
@@ -291,8 +293,8 @@ func (p *Proxy) GetSourceWorkerName() string {
 	return p.source.GetUserName()
 }
 
-func (p *Proxy) GetStats() interface{} {
-	return p.source.GetStats()
+func (p *Proxy) GetStats() map[string]int {
+	return p.source.GetStats().GetStatsMap()
 }
 
 func (p *Proxy) GetDestConns() *map[string]string {
