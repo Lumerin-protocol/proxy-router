@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
@@ -21,8 +22,8 @@ const (
 	DIAL_TIMEOUT  = 10 * time.Second
 	WRITE_TIMEOUT = 10 * time.Second
 
-	READ_CLOSE_TIMEOUT  = 5 * time.Minute
-	WRITE_CLOSE_TIMEOUT = 5 * time.Minute
+	READ_CLOSE_TIMEOUT  = 10 * time.Minute
+	WRITE_CLOSE_TIMEOUT = 10 * time.Minute
 )
 
 type StratumConnection struct {
@@ -46,8 +47,8 @@ type StratumConnection struct {
 	closedCh      chan struct{}
 	closeOnce     sync.Once
 
-	idleReadAt  time.Time
-	idleWriteAt time.Time
+	idleReadAtNano  atomic.Int64 // unixNano time when connection is going to close due to idle read (no read operation for READ_CLOSE_TIMEOUT)
+	idleWriteAtNano atomic.Int64 // unixNano time when connection is going to close due to idle write (no write operation for WRITE_CLOSE_TIMEOUT)
 
 	// deps
 	conn net.Conn
@@ -230,10 +231,13 @@ func (c *StratumConnection) GetConnectedAt() time.Time {
 }
 
 func (c *StratumConnection) GetIdleCloseAt() time.Time {
-	if c.idleReadAt.After(c.idleWriteAt) {
-		return c.idleReadAt
+	idleReadAt := time.Unix(0, c.idleReadAtNano.Load())
+	idleWriteAt := time.Unix(0, c.idleWriteAtNano.Load())
+
+	if idleReadAt.After(idleWriteAt) {
+		return idleReadAt
 	}
-	return c.idleWriteAt
+	return idleWriteAt
 }
 
 // runTimeoutTimers runs timers to close inactive connections. If no read or write operation
@@ -264,13 +268,13 @@ func (c *StratumConnection) runTimeoutTimers() {
 						<-readTimer.C
 					}
 					readTimer.Reset(c.connReadTimeout)
-					c.idleReadAt = time.Now().Add(c.connReadTimeout)
+					c.idleReadAtNano.Store(time.Now().Add(c.connReadTimeout).UnixNano())
 				case <-c.writeHappened:
 					if !writeTimer.Stop() {
 						<-writeTimer.C
 					}
 					writeTimer.Reset(c.connWriteTimeout)
-					c.idleWriteAt = time.Now().Add(c.connWriteTimeout)
+					c.idleWriteAtNano.Store(time.Now().Add(c.connWriteTimeout).UnixNano())
 				case <-c.closedCh:
 					if !readTimer.Stop() {
 						<-readTimer.C

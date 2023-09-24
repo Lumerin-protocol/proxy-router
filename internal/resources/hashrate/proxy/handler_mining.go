@@ -95,7 +95,7 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 	}
 
 	if !weAccepted {
-		p.proxy.source.GetStats().WeRejectedShares++
+		p.proxy.source.GetStats().IncWeRejectedShares()
 
 		if errors.Is(err, validator.ErrDuplicateShare) {
 			p.log.Warnf("duplicate share, jobID %s, msg id: %d", msgTyped.GetJobId(), msgTyped.GetID())
@@ -105,7 +105,7 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 			res = m.NewMiningResultLowDifficulty(msgTyped.GetID())
 		}
 	} else {
-		p.proxy.source.GetStats().WeAcceptedShares++
+		p.proxy.source.GetStats().IncWeAcceptedShares()
 
 		// miner hashrate
 		p.proxy.hashrate.OnSubmit(dest.GetDiff())
@@ -150,18 +150,18 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 
 		if res.(*m.MiningResult).IsError() {
 			if weAccepted {
-				p.proxy.source.GetStats().WeAcceptedTheyRejected++
-				dest.GetStats().WeAcceptedTheyRejected++
+				p.proxy.source.GetStats().IncWeAcceptedTheyRejected()
+				dest.GetStats().IncWeAcceptedTheyAccepted()
 				p.log.Warnf("we accepted share, they rejected with err %s", res.(*m.MiningResult).GetError())
 			} else {
 				p.log.Warnf("we rejected share, and they rejected with err %s", res.(*m.MiningResult).GetError())
 			}
 		} else {
 			if weAccepted {
-				dest.GetStats().WeAcceptedTheyAccepted++
+				dest.GetStats().IncWeAcceptedTheyAccepted()
 			} else {
-				dest.GetStats().WeRejectedTheyAccepted++
-				p.proxy.source.GetStats().WeRejectedTheyAccepted++
+				dest.GetStats().IncWeRejectedTheyAccepted()
+				p.proxy.source.GetStats().IncWeRejectedTheyAccepted()
 				p.log.Warnf("we rejected share, but dest accepted, diff: %.f", diff)
 			}
 		}

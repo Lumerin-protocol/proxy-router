@@ -204,8 +204,8 @@ func (p *ContractWatcherBuyer) isReceivingAcceptableHashrate() bool {
 	hrError := lib.RelativeError(targetHashrateGHS, actualHashrate)
 
 	hrMsg := fmt.Sprintf(
-		"worker %s, target GHS %.0f, actual GHS %.0f, error %.0f%%, threshold(%.0f%%)",
-		p.getWorkerName(), targetHashrateGHS, actualHashrate, hrError*100, p.hrErrorThreshold*100,
+		"elapsed %s worker %s, target GHS %.0f, actual GHS %.0f, error %.0f%%, threshold(%.0f%%)",
+		p.GetElapsed().Round(time.Second), p.getWorkerName(), targetHashrateGHS, actualHashrate, hrError*100, p.hrErrorThreshold*100,
 	)
 
 	if hrError < p.hrErrorThreshold {

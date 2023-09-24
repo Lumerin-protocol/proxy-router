@@ -92,7 +92,7 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener net.Listener) e
 		go func() {
 			defer wg.Done()
 
-			p.log.Infof("incoming connection accepted")
+			p.log.Infof("incoming connection accepted: %s", conn.RemoteAddr().String())
 			p.handler(ctx, conn)
 
 			err = conn.Close()

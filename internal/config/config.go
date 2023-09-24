@@ -90,11 +90,11 @@ func (cfg *Config) SetDefaults() {
 	// Miner
 
 	if cfg.Miner.VettingDuration == 0 {
-		cfg.Miner.VettingDuration = 5 * time.Minute
+		cfg.Miner.VettingDuration = 0 * time.Minute
 	}
 
 	if cfg.Miner.ShareTimeout == 0 {
-		cfg.Miner.ShareTimeout = 2 * time.Minute
+		cfg.Miner.ShareTimeout = 3 * time.Minute
 	}
 
 	// Log
