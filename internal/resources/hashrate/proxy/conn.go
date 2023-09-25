@@ -240,6 +240,11 @@ func (c *StratumConnection) GetIdleCloseAt() time.Time {
 	return idleWriteAt
 }
 
+func (c *StratumConnection) ResetIdleCloseTimers() {
+	c.readHappened <- struct{}{}
+	c.writeHappened <- struct{}{}
+}
+
 // runTimeoutTimers runs timers to close inactive connections. If no read or write operation
 // is performed for the specified duration defined separately for read and write, connection will close
 func (c *StratumConnection) runTimeoutTimers() {

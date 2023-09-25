@@ -311,3 +311,7 @@ func (c *ConnDest) GetFirstJobSignal() <-chan struct{} {
 func (c *ConnDest) GetIdleCloseAt() time.Time {
 	return c.conn.GetIdleCloseAt()
 }
+
+func (c *ConnDest) ResetIdleCloseTimers() {
+	c.conn.ResetIdleCloseTimers()
+}
