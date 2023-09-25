@@ -14,10 +14,11 @@ type Config struct {
 	}
 	Environment string `env:"ENVIRONMENT" flag:"environment"`
 	Hashrate    struct {
-		CycleDuration          time.Duration `env:"HASHRATE_CYCLE_DURATION"           flag:"hashrate-cycle-duration"           validate:"duration" desc:"duration of the hashrate cycle, after which the hashrate is evaluated, applies to both seller and buyer"`
-		ValidationStartTimeout time.Duration `env:"HASHRATE_VALIDATION_START_TIMEOUT" flag:"hashrate-validation-start-timeout" validate:"duration" desc:"time when validation kicks in, applies for buyer"`
-		ShareTimeout           time.Duration `env:"HASHRATE_SHARE_TIMEOUT"            flag:"hashrate-share-timeout"            validate:"duration" desc:"time to wait for the share to arrive, otherwise close contract, applies for buyer"`
-		ErrorThreshold         float64       `env:"HASHRATE_ERROR_THRESHOLD"          flag:"hashrate-error-threshold"                              desc:"hashrate relative error threshold for the contract to be considered fulfilling accurately, applies for buyer"`
+		CycleDuration          time.Duration `env:"HASHRATE_CYCLE_DURATION"           flag:"hashrate-cycle-duration"           validate:"omitempty,duration" desc:"duration of the hashrate cycle, after which the hashrate is evaluated, applies to both seller and buyer"`
+		ValidationStartTimeout time.Duration `env:"HASHRATE_VALIDATION_START_TIMEOUT" flag:"hashrate-validation-start-timeout" validate:"omitempty,duration" desc:"time when validation kicks in, applies for buyer"`
+		ShareTimeout           time.Duration `env:"HASHRATE_SHARE_TIMEOUT"            flag:"hashrate-share-timeout"            validate:"omitempty,duration" desc:"time to wait for the share to arrive, otherwise close contract, applies for buyer"`
+		ErrorThreshold         float64       `env:"HASHRATE_ERROR_THRESHOLD"          flag:"hashrate-error-threshold"                                        desc:"hashrate relative error threshold for the contract to be considered fulfilling accurately, applies for buyer"`
+		ErrorTimeout           time.Duration `env:"HASHRATE_ERROR_TIMEOUT"            flag:"hashrate-error-timeout"            validate:"omitempty,duration" desc:"time to wait for for the hashrate to fall within acceptable limits, otherwise close contract, applies for buyer"`
 	}
 	Marketplace struct {
 		CloneFactoryAddress string `env:"CLONE_FACTORY_ADDRESS" flag:"contract-address"   validate:"required_if=Disable false,omitempty,eth_addr"`
@@ -26,18 +27,18 @@ type Config struct {
 	}
 	Miner struct {
 		NotPropagateWorkerName bool          `env:"MINER_NOT_PROPAGATE_WORKER_NAME" flag:"miner-not-propagate-worker-name"     validate:""           desc:"not preserve worker name from the source in the destination pool. Preserving works only if the source miner worker name is defined as 'accountName.workerName'. Does not apply for contracts"`
-		ShareTimeout           time.Duration `env:"MINER_SHARE_TIMEOUT"             flag:"miner-share-timeout"                 validate:"duration"`
-		VettingDuration        time.Duration `env:"MINER_VETTING_DURATION"          flag:"miner-vetting-duration"              validate:"duration"`
+		ShareTimeout           time.Duration `env:"MINER_SHARE_TIMEOUT"             flag:"miner-share-timeout"                 validate:"omitempty,duration"`
+		VettingDuration        time.Duration `env:"MINER_VETTING_DURATION"          flag:"miner-vetting-duration"              validate:"omitempty,duration"`
 	}
 	Log struct {
 		Color           bool   `env:"LOG_COLOR"            flag:"log-color"`
 		FolderPath      string `env:"LOG_FOLDER_PATH"      flag:"log-folder-path"      validate:"omitempty,dirpath"    desc:"enables file logging and sets the folder path"`
 		IsProd          bool   `env:"LOG_IS_PROD"          flag:"log-is-prod"          validate:""                     desc:"affects the format of the log output"`
 		JSON            bool   `env:"LOG_JSON"             flag:"log-json"`
-		LevelApp        string `env:"LOG_LEVEL_APP"        flag:"log-level-app"        validate:"oneof=debug info warn error dpanic panic fatal"`
-		LevelConnection string `env:"LOG_LEVEL_CONNECTION" flag:"log-level-connection" validate:"oneof=debug info warn error dpanic panic fatal"`
-		LevelProxy      string `env:"LOG_LEVEL_PROXY"      flag:"log-level-proxy"      validate:"oneof=debug info warn error dpanic panic fatal"`
-		LevelScheduler  string `env:"LOG_LEVEL_SCHEDULER"  flag:"log-level-scheduler"  validate:"oneof=debug info warn error dpanic panic fatal"`
+		LevelApp        string `env:"LOG_LEVEL_APP"        flag:"log-level-app"        validate:"omitempty,oneof=debug info warn error dpanic panic fatal"`
+		LevelConnection string `env:"LOG_LEVEL_CONNECTION" flag:"log-level-connection" validate:"omitempty,oneof=debug info warn error dpanic panic fatal"`
+		LevelProxy      string `env:"LOG_LEVEL_PROXY"      flag:"log-level-proxy"      validate:"omitempty,oneof=debug info warn error dpanic panic fatal"`
+		LevelScheduler  string `env:"LOG_LEVEL_SCHEDULER"  flag:"log-level-scheduler"  validate:"omitempty,oneof=debug info warn error dpanic panic fatal"`
 	}
 	Pool struct {
 		Address string `env:"POOL_ADDRESS" flag:"pool-address" validate:"required,uri"`
@@ -75,10 +76,13 @@ func (cfg *Config) SetDefaults() {
 		cfg.Hashrate.ValidationStartTimeout = 15 * time.Minute
 	}
 	if cfg.Hashrate.ShareTimeout == 0 {
-		cfg.Hashrate.ShareTimeout = 7 * time.Minute
+		cfg.Hashrate.ShareTimeout = 10 * time.Minute
 	}
 	if cfg.Hashrate.ErrorThreshold == 0 {
 		cfg.Hashrate.ErrorThreshold = 0.05
+	}
+	if cfg.Hashrate.ErrorTimeout == 0 {
+		cfg.Hashrate.ErrorTimeout = cfg.Hashrate.CycleDuration*3 + 30*time.Second
 	}
 
 	// Marketplace

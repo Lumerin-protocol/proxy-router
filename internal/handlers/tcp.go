@@ -29,7 +29,7 @@ func NewTCPHandler(
 		ID := conn.RemoteAddr().String()
 		sourceLog := connLog.Named("[SRC] " + ID)
 
-		stratumConn := proxy.CreateConnection(conn, ID, minerShareTimeout, 5*time.Minute, sourceLog)
+		stratumConn := proxy.CreateConnection(conn, ID, minerShareTimeout, 10*time.Minute, sourceLog)
 		defer stratumConn.Close()
 
 		sourceConn := proxy.NewSourceConn(stratumConn, sourceLog)

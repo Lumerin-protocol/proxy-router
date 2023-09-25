@@ -168,6 +168,7 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 			p.log.Errorf("error stopping autoread for cached dest %s: %s", newDestURL.String(), err)
 			return err
 		}
+		cachedDest.ResetIdleCloseTimers()
 		newDest = cachedDest
 	} else {
 		p.log.Debugf("connecting to new dest %s", newDestURL.String())

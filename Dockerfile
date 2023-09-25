@@ -1,7 +1,9 @@
 FROM golang:1.19.3-alpine as builder
 WORKDIR /app 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o bin/hashrouter cmd/main.go && \
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+  -ldflags="-s -w -X 'gitlab.com/TitanInd/proxy/proxy-router-v3/internal/config.BuildVersion=$(grep '^VERSION=' .version | cut -d '=' -f 2-)'" \
+  -o bin/hashrouter cmd/main.go && \
   cp /bin/sh /app/sh && chmod +x /app/sh
 
 FROM scratch
@@ -33,6 +35,9 @@ ENV HASHRATE_SHARE_TIMEOUT=$HASHRATE_SHARE_TIMEOUT
 
 ARG HASHRATE_ERROR_THRESHOLD
 ENV HASHRATE_ERROR_THRESHOLD=$HASHRATE_ERROR_THRESHOLD
+
+ARG HASHRATE_ERROR_TIMEOUT
+ENV HASHRATE_ERROR_TIMEOUT=$HASHRATE_ERROR_TIMEOUT
 
 ARG CLONE_FACTORY_ADDRESS
 ENV CLONE_FACTORY_ADDRESS=$CLONE_FACTORY_ADDRESS
