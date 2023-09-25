@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/config"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/contractmanager"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
@@ -65,7 +66,10 @@ func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractman
 }
 
 func (h *HTTPHandler) HealthCheck(ctx *gin.Context) {
-	ctx.JSON(200, gin.H{"status": "healthy"})
+	ctx.JSON(200, gin.H{
+		"status":  "healthy",
+		"version": config.BuildVersion,
+	})
 }
 
 func (h *HTTPHandler) ChangeDest(ctx *gin.Context) {
