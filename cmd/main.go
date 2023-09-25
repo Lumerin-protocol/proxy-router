@@ -179,6 +179,7 @@ func start() error {
 		cfg.Hashrate.ValidationStartTimeout,
 		cfg.Hashrate.ShareTimeout,
 		cfg.Hashrate.ErrorThreshold,
+		cfg.Hashrate.ErrorTimeout,
 	)
 	if err != nil {
 		return err

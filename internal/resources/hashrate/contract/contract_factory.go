@@ -21,6 +21,7 @@ type ContractFactory struct {
 	validationStartTimeout time.Duration
 	shareTimeout           time.Duration
 	hrErrorThreshold       float64
+	hashrateErrorInterval  time.Duration
 
 	// state
 	address common.Address // derived from private key
@@ -45,6 +46,7 @@ func NewContractFactory(
 	validationStartTimeout time.Duration,
 	shareTimeout time.Duration,
 	hrErrorThreshold float64,
+	hashrateErrorInterval time.Duration,
 ) (*ContractFactory, error) {
 	address, err := lib.PrivKeyStringToAddr(privateKey)
 	if err != nil {
@@ -65,6 +67,7 @@ func NewContractFactory(
 		validationStartTimeout: validationStartTimeout,
 		shareTimeout:           shareTimeout,
 		hrErrorThreshold:       hrErrorThreshold,
+		hashrateErrorInterval: hashrateErrorInterval,
 	}, nil
 }
 
@@ -89,6 +92,7 @@ func (c *ContractFactory) CreateContract(contractData *hashrateContract.Encrypte
 			c.validationStartTimeout,
 			c.shareTimeout,
 			c.hrErrorThreshold,
+			c.hashrateErrorInterval,
 		)
 		return NewControllerBuyer(watcher, c.store, c.privateKey), nil
 	}
