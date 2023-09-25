@@ -8,6 +8,7 @@ import (
 
 	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
+	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
 	m "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
 )
 
@@ -117,25 +118,32 @@ func (p *HandlerChangeDest) destHandshake(ctx context.Context, newDest *ConnDest
 
 	// 2. MINING.SUBSCRIBE
 	msgID++
-	res, err := newDest.WriteAwaitRes(ctx, m.NewMiningSubscribe(msgID, "stratum-proxy", "1.0.0"))
+	gotResultCh := make(chan struct{})
+	newDest.onceResult(ctx, msgID, func(a *m.MiningResult) (msg i.MiningMessageWithID, err error) {
+		subRes, err := m.ToMiningSubscribeResult(a)
+		if err != nil {
+			return nil, err
+		}
+		if subRes.IsError() {
+			return nil, fmt.Errorf("pool returned error: %s", subRes.GetError())
+		}
+
+		newDest.SetExtraNonce(subRes.GetExtranonce())
+		p.log.Debugf("subscribe result received")
+		close(gotResultCh)
+		return nil, nil
+	})
+
+	err := newDest.Write(ctx, m.NewMiningSubscribe(msgID, "stratum-proxy", "1.0.0"))
 	if err != nil {
 		return lib.WrapError(ErrConnectDest, err)
 	}
-	subRes, err := m.ToMiningSubscribeResult(res.(*m.MiningResult))
-	if err != nil {
-		return err
-	}
-	if subRes.IsError() {
-		return fmt.Errorf("pool returned error: %s", subRes.GetError())
-	}
-
-	newDest.SetExtraNonce(subRes.GetExtranonce())
-	p.log.Debugf("subscribe result received")
+	<-gotResultCh
 
 	// 3. MINING.AUTHORIZE
 	msgID++
 
-	res, err = newDest.WriteAwaitRes(ctx, m.NewMiningAuthorize(msgID, user, pwd))
+	res, err := newDest.WriteAwaitRes(ctx, m.NewMiningAuthorize(msgID, user, pwd))
 	if err != nil {
 		return lib.WrapError(ErrConnectDest, err)
 	}

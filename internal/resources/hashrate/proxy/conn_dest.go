@@ -152,6 +152,7 @@ func (c *ConnDest) SetExtraNonce(extraNonce string, extraNonceSize int) {
 	c.extraNonceLock.Lock()
 	defer c.extraNonceLock.Unlock()
 	c.extraNonce1, c.extraNonce2Size = extraNonce, extraNonceSize
+	c.log.Info("dest xnonce set to %s", extraNonce)
 }
 
 func (c *ConnDest) GetVersionRolling() (versionRolling bool, versionRollingMask string) {
@@ -200,6 +201,9 @@ func (c *ConnDest) readInterceptor(msg i.MiningMessageGeneric) (resMsg i.MiningM
 	case *sm.MiningNotify:
 		// TODO: set expiration time for all of the jobs if clean jobs flag is set to true
 		xn, xnsize := c.GetExtraNonce()
+		if xn == "" {
+			c.log.Warn("got notify before extranonce was set")
+		}
 		c.validator.AddNewJob(typed, float64(c.diff.Load()), xn, xnsize)
 		c.firstJobOnce.Do(func() {
 			close(c.firstJobSignal)
