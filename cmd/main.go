@@ -77,6 +77,8 @@ func start() error {
 		_ = connLog.Sync()
 	}()
 
+	log.Infof("proxy-router %s", config.BuildVersion)
+
 	if cfg.System.Enable {
 		sysConfig, err := system.CreateConfigurator(log)
 		if err != nil {
