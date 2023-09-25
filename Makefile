@@ -2,8 +2,8 @@ run:
 	go run cmd/main.go
 
 build:
-	go build -ldflags="-s -w" -o bin/hashrouter cmd/main.go 
-
+	./build.sh
+	
 clean:
 	rm -rf bin logs
 
