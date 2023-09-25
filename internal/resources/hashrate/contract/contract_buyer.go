@@ -21,10 +21,12 @@ type ContractWatcherBuyer struct {
 	shareTimeout           time.Duration // time to wait for the share to arrive, otherwise close contract
 	hrErrorThreshold       float64       // hashrate relative error threshold for the contract to be considered fulfilling accurately
 
-	terms                *hashrateContract.EncryptedTerms
-	state                resources.ContractState
-	validationStage      hashrateContract.ValidationStage
-	fulfillmentStartedAt *time.Time
+	terms                       *hashrateContract.EncryptedTerms
+	state                       resources.ContractState
+	validationStage             hashrateContract.ValidationStage
+	fulfillmentStartedAt        *time.Time
+	lastAcceptableHashrateCheck *time.Time
+	hashrateErrorInterval       time.Duration
 
 	tsk    *lib.Task
 	cancel context.CancelFunc
@@ -48,6 +50,8 @@ func NewContractWatcherBuyer(
 	validationStartTimeout time.Duration,
 	shareTimeout time.Duration,
 	hrErrorThreshold float64,
+	hashrateErrorInterval time.Duration,
+
 ) *ContractWatcherBuyer {
 	return &ContractWatcherBuyer{
 		terms:                  terms,
@@ -60,6 +64,7 @@ func NewContractWatcherBuyer(
 		shareTimeout:           shareTimeout,
 		hrErrorThreshold:       hrErrorThreshold,
 		validationStage:        hashrateContract.ValidationStageNotValidating,
+		hashrateErrorInterval:  hashrateErrorInterval,
 	}
 }
 
@@ -202,6 +207,8 @@ func (p *ContractWatcherBuyer) isReceivingAcceptableHashrate() bool {
 	targetHashrateGHS := p.GetHashrateGHS()
 
 	hrError := lib.RelativeError(targetHashrateGHS, actualHashrate)
+	lastAcceptableHashrateCheck := time.Now()
+	p.lastAcceptableHashrateCheck = &lastAcceptableHashrateCheck
 
 	hrMsg := fmt.Sprintf(
 		"elapsed %s worker %s, target GHS %.0f, actual GHS %.0f, error %.0f%%, threshold(%.0f%%)",
@@ -220,7 +227,15 @@ func (p *ContractWatcherBuyer) isReceivingAcceptableHashrate() bool {
 	}
 
 	p.log.Warnf("contract is underdelivering: %s", hrMsg)
-	return false
+	if p.lastAcceptableHashrateCheck != nil && time.Since(*p.lastAcceptableHashrateCheck) > p.hashrateErrorInterval {
+		// only check hashrate accuracy every hashrateErrorInterval
+		p.lastAcceptableHashrateCheck = nil
+
+		p.log.Warnf("contract is underdelivering longer than: %v", hrMsg, p.hashrateErrorInterval)
+		return false
+	}
+
+	return true
 }
 
 func (p *ContractWatcherBuyer) GetRole() resources.ContractRole {
