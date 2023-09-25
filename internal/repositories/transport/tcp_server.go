@@ -97,7 +97,6 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener net.Listener) e
 
 			err = conn.Close()
 			if errors.Is(err, net.ErrClosed) {
-				p.log.Infof("incoming connection already closed")
 				return
 			}
 			if err != nil {

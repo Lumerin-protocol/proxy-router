@@ -81,6 +81,9 @@ func (cfg *Config) SetDefaults() {
 	if cfg.Hashrate.ErrorThreshold == 0 {
 		cfg.Hashrate.ErrorThreshold = 0.05
 	}
+	if cfg.Hashrate.ErrorTimeout == 0 {
+		cfg.Hashrate.ErrorTimeout = cfg.Hashrate.CycleDuration*3 + 30*time.Second
+	}
 
 	// Marketplace
 
