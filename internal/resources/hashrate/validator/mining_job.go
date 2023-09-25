@@ -70,3 +70,13 @@ func SerializeShare(enonce2, ntime, nonce, vmask string) shareBytes {
 
 	return hash
 }
+
+func (m *MiningJob) Copy() *MiningJob {
+	return &MiningJob{
+		notify:          m.notify.Copy(),
+		diff:            m.diff,
+		extraNonce1:     m.extraNonce1,
+		extraNonce2Size: m.extraNonce2Size,
+		shares:          m.shares,
+	}
+}
