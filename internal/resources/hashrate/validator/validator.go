@@ -81,5 +81,5 @@ func (v *Validator) GetLatestJob() (*MiningJob, bool) {
 	if !ok {
 		return nil, false
 	}
-	return job, true
+	return job.Copy(), true
 }

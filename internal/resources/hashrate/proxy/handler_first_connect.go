@@ -122,11 +122,6 @@ func (p *HandlerFirstConnect) onMiningConfigure(ctx context.Context, msgTyped *m
 	p.handshakePipe.SetStream2(destConn)
 	p.handshakePipe.StartStream2()
 
-	err = p.proxy.dest.Write(ctx, msgTyped)
-	if err != nil {
-		return lib.WrapError(ErrHandshakeDest, err)
-	}
-
 	p.proxy.dest.onceResult(ctx, msgTyped.GetID(), func(res *sm.MiningResult) (msg i.MiningMessageWithID, err error) {
 		configureResult, err := m.ToMiningConfigureResult(res)
 		if err != nil {
@@ -148,14 +143,17 @@ func (p *HandlerFirstConnect) onMiningConfigure(ctx context.Context, msgTyped *m
 		// and then all submits become incorrect in titan. It may happen because the second message is a little bit
 		// late. So we just skip it for now
 		//
-		// TODO: implement more efficient writing with cancellation support
-
 		// err = p.proxy.source.Write(ctx, m.NewMiningSetVersionMask(configureResult.GetVersionRollingMask()))
 		// if err != nil {
 		// 	return nil, lib.WrapError(ErrHandshakeSource, err)
 		// }
 		return nil, nil
 	})
+
+	err = p.proxy.dest.Write(ctx, msgTyped)
+	if err != nil {
+		return lib.WrapError(ErrHandshakeDest, err)
+	}
 
 	return nil
 }
@@ -172,11 +170,6 @@ func (p *HandlerFirstConnect) onMiningSubscribe(ctx context.Context, msgTyped *m
 		p.proxy.dest = destConn
 		p.handshakePipe.SetStream2(destConn)
 		p.handshakePipe.StartStream2()
-	}
-
-	err := p.proxy.dest.Write(ctx, msgTyped)
-	if err != nil {
-		return lib.WrapError(ErrHandshakeDest, err)
 	}
 
 	p.proxy.dest.onceResult(ctx, msgTyped.GetID(), func(res *sm.MiningResult) (msg i.MiningMessageWithID, err error) {
@@ -196,6 +189,11 @@ func (p *HandlerFirstConnect) onMiningSubscribe(ctx context.Context, msgTyped *m
 		}
 		return nil, nil
 	})
+
+	err := p.proxy.dest.Write(ctx, msgTyped)
+	if err != nil {
+		return lib.WrapError(ErrHandshakeDest, err)
+	}
 
 	return nil
 }
@@ -239,11 +237,6 @@ func (p *HandlerFirstConnect) onMiningAuthorize(ctx context.Context, msgTyped *m
 	}
 	destAuthMsg := m.NewMiningAuthorize(msgID, userName, pwd)
 
-	err = p.proxy.dest.Write(ctx, destAuthMsg)
-	if err != nil {
-		return lib.WrapError(ErrHandshakeDest, err)
-	}
-
 	p.proxy.dest.onceResult(ctx, msgID, func(res *sm.MiningResult) (msg i.MiningMessageWithID, err error) {
 		if res.IsError() {
 			return nil, lib.WrapError(ErrHandshakeDest, fmt.Errorf("cannot authorize in dest pool: %s", res.GetError()))
@@ -258,6 +251,11 @@ func (p *HandlerFirstConnect) onMiningAuthorize(ctx context.Context, msgTyped *m
 
 		return nil, nil
 	})
+
+	err = p.proxy.dest.Write(ctx, destAuthMsg)
+	if err != nil {
+		return lib.WrapError(ErrHandshakeDest, err)
+	}
 
 	return nil
 }
