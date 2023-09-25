@@ -18,7 +18,7 @@ type Config struct {
 		ValidationStartTimeout time.Duration `env:"HASHRATE_VALIDATION_START_TIMEOUT" flag:"hashrate-validation-start-timeout" validate:"duration" desc:"time when validation kicks in, applies for buyer"`
 		ShareTimeout           time.Duration `env:"HASHRATE_SHARE_TIMEOUT"            flag:"hashrate-share-timeout"            validate:"duration" desc:"time to wait for the share to arrive, otherwise close contract, applies for buyer"`
 		ErrorThreshold         float64       `env:"HASHRATE_ERROR_THRESHOLD"          flag:"hashrate-error-threshold"                              desc:"hashrate relative error threshold for the contract to be considered fulfilling accurately, applies for buyer"`
-		ErrorTimeout 		   time.Duration `env:"HASHRATE_ERROR_TIMEOUT"            flag:"hashrate-error-timeout"            validate:"duration" desc:"time to wait for for the hashrate to fall within acceptable limits, otherwise close contract, applies for buyer"` 
+		ErrorTimeout           time.Duration `env:"HASHRATE_ERROR_TIMEOUT"            flag:"hashrate-error-timeout"            validate:"duration" desc:"time to wait for for the hashrate to fall within acceptable limits, otherwise close contract, applies for buyer"`
 	}
 	Marketplace struct {
 		CloneFactoryAddress string `env:"CLONE_FACTORY_ADDRESS" flag:"contract-address"   validate:"required_if=Disable false,omitempty,eth_addr"`

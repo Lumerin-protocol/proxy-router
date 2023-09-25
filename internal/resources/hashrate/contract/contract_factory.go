@@ -67,7 +67,7 @@ func NewContractFactory(
 		validationStartTimeout: validationStartTimeout,
 		shareTimeout:           shareTimeout,
 		hrErrorThreshold:       hrErrorThreshold,
-		hashrateErrorInterval: hashrateErrorInterval,
+		hashrateErrorInterval:  hashrateErrorInterval,
 	}, nil
 }
 
