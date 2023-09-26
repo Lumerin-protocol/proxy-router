@@ -188,7 +188,7 @@ func (p *ContractWatcherBuyer) checkIncomingHashrate(ctx context.Context) error 
 			return fmt.Errorf(errMsg)
 		}
 		// we don't need to continue to validate the share time as long as hashrate is consistent over time.
-		// the seller algorithm is directly dependent on having time to make up for gaps in hashrate fullfillment over the course 
+		// the seller algorithm is directly dependent on having time to make up for gaps in hashrate fullfillment over the course
 		// of 1 hour.
 
 		// if time.Since(lastShareTime) > p.shareTimeout {
