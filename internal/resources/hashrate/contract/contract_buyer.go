@@ -181,15 +181,19 @@ func (p *ContractWatcherBuyer) checkIncomingHashrate(ctx context.Context) error 
 		}
 		return nil
 	case hashrateContract.ValidationStageValidating:
-		lastShareTime, ok := p.globalHashrate.GetLastSubmitTime(p.getWorkerName())
+		_, ok := p.globalHashrate.GetLastSubmitTime(p.getWorkerName())
 		if !ok {
 			errMsg := "on ValidationStateValidating there should be at least one share"
 			p.log.DPanic(errMsg)
 			return fmt.Errorf(errMsg)
 		}
-		if time.Since(lastShareTime) > p.shareTimeout {
-			return fmt.Errorf("no share submitted within shareTimeout (%s)", p.shareTimeout)
-		}
+		// we don't need to continue to validate the share time as long as hashrate is consistent over time.
+		// the seller algorithm is directly dependent on having time to make up for gaps in hashrate fullfillment over the course 
+		// of 1 hour.
+
+		// if time.Since(lastShareTime) > p.shareTimeout {
+		// 	return fmt.Errorf("no share submitted within shareTimeout (%s)", p.shareTimeout)
+		// }
 		if !isHashrateOK {
 			return fmt.Errorf("contract is not delivering accurate hashrate")
 		}
