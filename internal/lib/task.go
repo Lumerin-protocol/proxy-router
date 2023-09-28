@@ -3,6 +3,7 @@ package lib
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync/atomic"
 )
 
@@ -56,12 +57,14 @@ func (s *Task) Start(ctx context.Context) {
 
 		// returned due to calling Stop()
 		if ctx.Err() == nil && subCtx.Err() != nil && isContextErr {
+			// fmt.Printf("Task %s returned due to calling Stop().", s.name)
 			close(s.stopCh.Load().(chan struct{}))
 			return
 		}
 
 		// returned due to cancelling context from outside
 		if ctx.Err() != nil || !isContextErr {
+			fmt.Printf("Task %s returned due to cancelling context from outside.", s.name)
 			s.err.Store(&err)
 			close(s.doneCh.Load().(chan struct{}))
 			close(s.stopCh.Load().(chan struct{}))
