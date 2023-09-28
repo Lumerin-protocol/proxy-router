@@ -34,8 +34,8 @@ func NewPipe(source, dest i.StratumReadWriter, sourceInterceptor, destIntercepto
 		log:               log,
 	}
 
-	sourceToDestTask := lib.NewTaskFunc(pipe.sourceToDest)
-	destToSourceTask := lib.NewTaskFunc(pipe.destToSource)
+	sourceToDestTask := lib.NewTaskFunc(pipe.sourceToDest, fmt.Sprintf("pipe source to dest")) 
+	destToSourceTask := lib.NewTaskFunc(pipe.destToSource, fmt.Sprintf("pipe dest to source"))
 
 	pipe.sourceToDestTask = sourceToDestTask
 	pipe.destToSourceTask = destToSourceTask
