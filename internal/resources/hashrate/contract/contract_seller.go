@@ -66,6 +66,10 @@ func (p *ContractWatcherSeller) Done() <-chan struct{} {
 	return p.tsk.Done()
 }
 
+func (p *ContractWatcherSeller) Reset() {
+	p.tsk = lib.NewTaskFunc(p.Run)
+}
+
 func (p *ContractWatcherSeller) Err() error {
 	if errors.Is(p.tsk.Err(), context.Canceled) {
 		return ErrContractClosed
