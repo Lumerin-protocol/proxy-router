@@ -69,15 +69,20 @@ func NewContractWatcherBuyer(
 }
 
 func (p *ContractWatcherBuyer) StartFulfilling(ctx context.Context) {
+	if p.state == resources.ContractStateRunning {
+		p.log.Infof("buyer contract already fulfilling")
+		return
+	}
 	p.log.Infof("buyer contract started fulfilling")
 	ctx, cancel := context.WithCancel(ctx)
 	p.cancel = cancel
-
 	p.doneCh = make(chan struct{})
 
 	go func() {
+		p.state = resources.ContractStateRunning
 		p.err = p.Run(ctx)
 		close(p.doneCh)
+		p.state = resources.ContractStatePending
 	}()
 }
 
