@@ -162,7 +162,7 @@ bedrock-02-DEV-seller:
     - if: $CI_COMMIT_BRANCH == "dev"
       when: always
     - if: $CI_COMMIT_BRANCH != "dev"
-      when: manual
+      when: never
     - if: $CI_MERGE_REQUEST_ID
       when: never
   tags:
@@ -177,27 +177,27 @@ bedrock-02-DEV-seller:
     - *deploy_seller
     - echo "$TGT_ENV seller updated"
 
-bedrock-02-DEV-buyer:
-  stage: deploy
-  environment: dev
-  rules:
-    - if: $CI_COMMIT_BRANCH == "dev"
-      when: always
-    - if: $CI_COMMIT_BRANCH != "dev"
-      when: manual
-    - if: $CI_MERGE_REQUEST_ID
-      when: never
-  tags:
-    - devops
-    - bedrock
-    - shell
-    - titanio-dev
-  variables:
-    TGT_ACCOUNT: $CI_AWS_ACCOUNT_DEV
-    TGT_ENV: dev
-  script:
-    - *deploy_buyer
-    - echo "$TGT_ENV buyer updated"
+# bedrock-02-DEV-buyer:
+#   stage: deploy
+#   environment: dev
+#   rules:
+#     - if: $CI_COMMIT_BRANCH == "dev"
+#       when: always
+#     - if: $CI_COMMIT_BRANCH != "dev"
+#       when: manual
+#     - if: $CI_MERGE_REQUEST_ID
+#       when: never
+#   tags:
+#     - devops
+#     - bedrock
+#     - shell
+#     - titanio-dev
+#   variables:
+#     TGT_ACCOUNT: $CI_AWS_ACCOUNT_DEV
+#     TGT_ENV: dev
+#   script:
+#     - *deploy_buyer
+#     - echo "$TGT_ENV buyer updated"
 
 bedrock-03-STG-seller:
   stage: deploy
@@ -206,11 +206,9 @@ bedrock-03-STG-seller:
     - if: $CI_COMMIT_BRANCH == "stg"
       when: always
     - if: $CI_COMMIT_BRANCH != "stg"
-      when: manual
+      when: never
     - if: $CI_MERGE_REQUEST_ID
       when: never
-  # only:
-  #   - stg
   tags:
     - devops
     - bedrock
@@ -223,40 +221,40 @@ bedrock-03-STG-seller:
     - *deploy_seller
     - echo "$TGT_ENV seller updated"
 
-bedrock-03-STG-buyer:
-  stage: deploy
-  environment: stg
-  rules:
-    - if: $CI_COMMIT_BRANCH == "stg"
-      when: always
-    - if: $CI_COMMIT_BRANCH != "stg"
-      when: manual
-    - if: $CI_MERGE_REQUEST_ID
-      when: never
-  # only:
-  #   - stg
-  tags:
-    - devops
-    - bedrock
-    - shell
-    - titanio-stg
-  variables:
-    TGT_ACCOUNT: $CI_AWS_ACCOUNT_STG
-    TGT_ENV: stg
-  script:
-    - *deploy_buyer
-    - echo "$TGT_ENV buyer updated"
+# bedrock-03-STG-buyer:
+#   stage: deploy
+#   environment: stg
+#   rules:
+#     - if: $CI_COMMIT_BRANCH == "stg"
+#       when: always
+#     - if: $CI_COMMIT_BRANCH != "stg"
+#       when: manual
+#     - if: $CI_MERGE_REQUEST_ID
+#       when: never
+#   # only:
+#   #   - stg
+#   tags:
+#     - devops
+#     - bedrock
+#     - shell
+#     - titanio-stg
+#   variables:
+#     TGT_ACCOUNT: $CI_AWS_ACCOUNT_STG
+#     TGT_ENV: stg
+#   script:
+#     - *deploy_buyer
+#     - echo "$TGT_ENV buyer updated"
 
 bedrock-04-PRD-seller:
   stage: deploy
   environment: lmn
   rules:
-    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_BRANCH == "main"
       when: manual
+    - if: $CI_COMMIT_BRANCH != "main"
+      when: never
     - if: $CI_MERGE_REQUEST_ID
       when: never
-  # only:
-  #   - main
   tags:
     - devops
     - bedrock
@@ -270,28 +268,28 @@ bedrock-04-PRD-seller:
     - *deploy_seller
     - echo "$TGT_ENV seller updated"
 
-bedrock-04-PRD-buyer:
-  stage: deploy
-  environment: lmn
-  rules:
-    - if: $CI_COMMIT_BRANCH
-      when: manual
-    - if: $CI_MERGE_REQUEST_ID
-      when: never
-  # only:
-  #   - main
-  tags:
-    - devops
-    - bedrock
-    - shell
-    - titanio-lmn
-  variables:
-    TGT_ACCOUNT: $CI_AWS_ACCOUNT_LMN
-    TGT_ENV: lmn
-    PROXY_LOG_STRATUM: "false"
-  script:
-    - *deploy_buyer
-    - echo "$TGT_ENV buyer updated"
+# bedrock-04-PRD-buyer:
+#   stage: deploy
+#   environment: lmn
+#   rules:
+#     - if: $CI_COMMIT_BRANCH
+#       when: manual
+#     - if: $CI_MERGE_REQUEST_ID
+#       when: never
+#   # only:
+#   #   - main
+#   tags:
+#     - devops
+#     - bedrock
+#     - shell
+#     - titanio-lmn
+#   variables:
+#     TGT_ACCOUNT: $CI_AWS_ACCOUNT_LMN
+#     TGT_ENV: lmn
+#     PROXY_LOG_STRATUM: "false"
+#   script:
+#     - *deploy_buyer
+#     - echo "$TGT_ENV buyer updated"
 
 .default-release: &default-release
   inherit:

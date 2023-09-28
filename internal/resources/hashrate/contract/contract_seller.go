@@ -43,22 +43,29 @@ func NewContractWatcherSeller(data *hashrateContract.Terms, cycleDuration time.D
 		actualHRGHS:           hashrateFactory(),
 		log:                   log,
 	}
-	p.tsk = lib.NewTaskFunc(p.Run)
+	p.tsk = lib.NewTaskFunc(func(ctx context.Context) error {
+		p.state = resources.ContractStateRunning
+		err := p.Run(ctx)
+		p.state = resources.ContractStatePending
+		return err
+	})
 	return p
 }
 
 func (p *ContractWatcherSeller) StartFulfilling(ctx context.Context) {
+	if p.state == resources.ContractStateRunning {
+		p.log.Warnf("contract already started fulfilling")
+		return
+	}
 	p.log.Infof("contract started fulfilling")
 	startedAt := time.Now()
 	p.fulfillmentStartedAt = &startedAt
-	p.state = resources.ContractStateRunning
 	p.tsk.Start(ctx)
 }
 
 func (p *ContractWatcherSeller) StopFulfilling() {
 	<-p.tsk.Stop()
 	p.allocator.CancelTasks(p.GetID())
-	p.state = resources.ContractStatePending
 	p.log.Infof("contract stopped fulfilling")
 }
 
