@@ -50,10 +50,11 @@ func (c *ControllerSeller) Run(ctx context.Context) error {
 			return err
 		case <-c.ContractWatcherSeller.Done():
 			err := c.ContractWatcherSeller.Err()
+			c.ContractWatcherSeller.Reset()
 			if err != nil {
 				// fulfillment error, buyer will close on underdelivery
 				c.log.Warnf("seller contract ended with error: %s", err)
-				return nil
+				continue
 			}
 
 			// no error, seller closes the contract after expiration
@@ -61,11 +62,9 @@ func (c *ControllerSeller) Run(ctx context.Context) error {
 			err = c.store.CloseContract(ctx, c.GetID(), contracts.CloseoutTypeWithoutClaim, c.privKey)
 			if err != nil {
 				c.log.Errorf("error closing contract: %s", err)
-				return nil
+			} else {
+				c.log.Warnf("seller contract closed")
 			}
-
-			c.log.Warnf("seller contract closed")
-			return nil
 		}
 	}
 }
