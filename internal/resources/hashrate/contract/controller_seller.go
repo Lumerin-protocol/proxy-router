@@ -50,6 +50,7 @@ func (c *ControllerSeller) Run(ctx context.Context) error {
 			return err
 		case <-c.ContractWatcherSeller.Done():
 			err := c.ContractWatcherSeller.Err()
+			c.ContractWatcherSeller.Reset()
 			if err != nil {
 				// fulfillment error, buyer will close on underdelivery
 				c.log.Warnf("seller contract ended with error: %s", err)
