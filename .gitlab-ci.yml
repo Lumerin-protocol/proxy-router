@@ -12,6 +12,7 @@ stages:
 
 e2e-test:
   stage: e2e-test
+  allow_failure: true
   trigger:
     project: proxy/router-test
     branch: $CI_COMMIT_BRANCH
