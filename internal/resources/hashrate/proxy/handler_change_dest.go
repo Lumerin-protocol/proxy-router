@@ -55,7 +55,7 @@ func (p *HandlerChangeDest) connectNewDest(ctx context.Context, newDestURL *url.
 
 	handshakeTask := lib.NewTaskFunc(func(ctx context.Context) error {
 		return p.destHandshake(ctx, newDest, user, pwd)
-	})
+	}, fmt.Sprintf("dest handshake - new dest: %s; old dest: %v, user: %v, new dest id: %v, old dest id: %v", newDest.destUrl, user, p.proxy.destURL, newDest.GetID(), p.proxy.dest.GetID()))
 
 	handshakeTask.Start(ctx)
 

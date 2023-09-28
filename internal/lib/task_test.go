@@ -19,7 +19,7 @@ func TestTaskReturnsNoError(t *testing.T) {
 		}
 	}
 
-	task := NewTaskFunc(testFunc)
+	task := NewTaskFunc(testFunc, "")
 	task.Start(context.Background())
 	<-task.Done()
 	require.NoError(t, task.Err())
@@ -36,7 +36,7 @@ func TestTaskReturnsError(t *testing.T) {
 		}
 	}
 
-	task := NewTaskFunc(testFunc)
+	task := NewTaskFunc(testFunc, "")
 	task.Start(context.Background())
 	<-task.Done()
 	require.ErrorIs(t, err, task.Err())
@@ -52,7 +52,7 @@ func TestTaskStopNoError(t *testing.T) {
 		}
 	}
 
-	task := NewTaskFunc(testFunc)
+	task := NewTaskFunc(testFunc, "")
 	task.Start(context.Background())
 	time.Sleep(500 * time.Millisecond)
 
@@ -77,7 +77,7 @@ func TestTaskRestart(t *testing.T) {
 		}
 	}
 
-	task := NewTaskFunc(testFunc)
+	task := NewTaskFunc(testFunc, "")
 	task.Start(context.Background())
 	time.Sleep(sleepDuration)
 	task.Stop()
@@ -107,7 +107,7 @@ func TestTaskContextCancel(t *testing.T) {
 		}
 	}
 
-	task := NewTaskFunc(testFunc)
+	task := NewTaskFunc(testFunc, "")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	task.Start(ctx)
@@ -131,7 +131,7 @@ func TestGlobalDone(t *testing.T) {
 		return ctx.Err()
 	}
 
-	task := NewTaskFunc(testFunc)
+	task := NewTaskFunc(testFunc, "")
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {
@@ -162,7 +162,7 @@ func TestWaitDoneBeforeStart(t *testing.T) {
 		return ctx.Err()
 	}
 
-	task := NewTaskFunc(testFunc)
+	task := NewTaskFunc(testFunc, "")
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {

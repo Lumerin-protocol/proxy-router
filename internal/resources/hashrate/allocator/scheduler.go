@@ -2,6 +2,7 @@ package allocator
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"sync"
 	"time"
@@ -59,7 +60,7 @@ func (p *Scheduler) Run(ctx context.Context) error {
 		return err // handshake error
 	}
 
-	proxyTask := lib.NewTaskFunc(p.proxy.Run)
+	proxyTask := lib.NewTaskFunc(p.proxy.Run, fmt.Sprintf("scheduler - minerVettingDuration: %v, hashrateCounterID: %v, primaryDest: %v, totalTaskJob: %v", p.minerVettingDuration, p.hashrateCounterID, p.primaryDest,	p.totalTaskJob))
 	proxyTask.Start(ctx)
 
 	select {

@@ -15,6 +15,7 @@ type Task struct {
 	doneCh    atomic.Value          // chan struct{}
 	cancel    atomic.Value          // context.CancelFunc
 	err       atomic.Pointer[error] // error
+	name string
 }
 
 type Runnable interface {
@@ -31,9 +32,10 @@ func NewTask(runnable Runnable) *Task {
 }
 
 // NewTaskFunc creates a new task from a function that runs in a separate goroutine that can be started and stopped
-func NewTaskFunc(f func(ctx context.Context) error) *Task {
+func NewTaskFunc(f func(ctx context.Context) error, name string) *Task {
 	t := &Task{
 		runFunc: f,
+		name: name,
 	}
 	t.doneCh.Store(make(chan struct{}))
 	return t

@@ -3,6 +3,7 @@ package contract
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"sync/atomic"
 	"time"
@@ -43,7 +44,7 @@ func NewContractWatcherSeller(data *hashrateContract.Terms, cycleDuration time.D
 		actualHRGHS:           hashrateFactory(),
 		log:                   log,
 	}
-	p.tsk = lib.NewTaskFunc(p.Run)
+	p.tsk = lib.NewTaskFunc(p.Run, fmt.Sprintf("seller contract watcher - contract id: %v", p.GetID()))
 	return p
 }
 
