@@ -162,11 +162,9 @@ bedrock-02-DEV-seller:
     - if: $CI_COMMIT_BRANCH == "dev"
       when: always
     - if: $CI_COMMIT_BRANCH != "dev"
-      when: manual
+      when: never
     - if: $CI_MERGE_REQUEST_ID
       when: never
-  only:
-    - dev
   tags:
     - devops
     - bedrock
@@ -208,11 +206,9 @@ bedrock-03-STG-seller:
     - if: $CI_COMMIT_BRANCH == "stg"
       when: always
     - if: $CI_COMMIT_BRANCH != "stg"
-      when: manual
+      when: never
     - if: $CI_MERGE_REQUEST_ID
       when: never
-  only:
-    - stg
   tags:
     - devops
     - bedrock
@@ -253,12 +249,12 @@ bedrock-04-PRD-seller:
   stage: deploy
   environment: lmn
   rules:
-    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_BRANCH == "main"
       when: manual
+    - if: $CI_COMMIT_BRANCH != "main"
+      when: never
     - if: $CI_MERGE_REQUEST_ID
       when: never
-  only:
-    - main
   tags:
     - devops
     - bedrock
