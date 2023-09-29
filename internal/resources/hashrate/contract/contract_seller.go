@@ -177,6 +177,13 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(time.Until(*p.GetEndTime())):
+			p.log.Debugf("contract finished - now unix time: %v; local now unix time: %v", time.Now().Unix(), time.Now().Local().Unix())
+			
+			p.log.Debugf("contract finished - contract start time: %v", p.terms.StartsAt.Unix())
+			p.log.Debugf("contract finished - contract duration: %v", p.terms.Duration.Seconds())
+			p.log.Debugf("contract finished - contract end time: %v", p.GetEndTime().Unix())
+
+
 			expectedJob := hr.GHSToJobSubmitted(p.GetHashrateGHS()) * p.GetDuration().Seconds()
 			actualJob := p.actualHRGHS.GetTotalWork()
 			undeliveredJob := expectedJob - actualJob
