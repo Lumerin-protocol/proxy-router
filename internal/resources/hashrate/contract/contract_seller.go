@@ -101,8 +101,8 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 		jobSubmittedFullMiners.Store(0)
 		jobSubmittedPartialMiners.Store(0)
 
-		p.log.Debugf("new contract cycle:  partialDeliveryTargetGHS=%.0f",
-			partialDeliveryTargetGHS,
+		p.log.Debugf("new contract cycle:  partialDeliveryTargetGHS=%.0f elapsed %s",
+			partialDeliveryTargetGHS, p.GetElapsed(),
 		)
 		if partialDeliveryTargetGHS > 0 {
 			fullMiners, newRemainderGHS := p.allocator.AllocateFullMinersForHR(
