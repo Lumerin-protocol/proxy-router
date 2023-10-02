@@ -2,6 +2,7 @@ package contract
 
 import (
 	"context"
+	"time"
 
 	"github.com/Lumerin-protocol/contracts-go/implementation"
 	"github.com/ethereum/go-ethereum/common"
@@ -58,7 +59,13 @@ func (c *ControllerSeller) Run(ctx context.Context) error {
 			}
 
 			// no error, seller closes the contract after expiration
-			c.log.Warnf("seller contract ended without error")
+			c.log.Infof("seller contract ended without error")
+
+			waitBeforeClose := 10 * time.Second
+			c.log.Infof("sleeping %s", waitBeforeClose)
+			time.Sleep(waitBeforeClose)
+
+			c.log.Infof("closing contract id %s, startsAt %s, duration %s, elapsed %s", c.GetID(), c.GetStartedAt(), c.GetDuration(), c.GetElapsed())
 			err = c.store.CloseContract(ctx, c.GetID(), contracts.CloseoutTypeWithoutClaim, c.privKey)
 			if err != nil {
 				c.log.Errorf("error closing contract: %s", err)
