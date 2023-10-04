@@ -8,6 +8,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/repositories/contracts"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources"
+
+	hashrateContract "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
 )
 
 type ControllerSeller struct {
@@ -67,6 +69,7 @@ func (c *ControllerSeller) Run(ctx context.Context) error {
 
 			c.log.Infof("closing contract id %s, startsAt %s, duration %s, elapsed %s", c.GetID(), c.GetStartedAt(), c.GetDuration(), c.GetElapsed())
 			err = c.store.CloseContract(ctx, c.GetID(), contracts.CloseoutTypeWithoutClaim, c.privKey)
+
 			if err != nil {
 				c.log.Errorf("error closing contract: %s", err)
 			} else {
@@ -96,18 +99,44 @@ func (c *ControllerSeller) handleContractPurchased(ctx context.Context, event *i
 		return nil
 	}
 
-	encryptedTerms, err := c.store.GetContract(ctx, c.GetID())
+	err := c.LoadTermsFromBlockchain(ctx)
+
 	if err != nil {
 		return err
 	}
-	terms, err := encryptedTerms.Decrypt(c.privKey)
-	if err != nil {
-		return err
-	}
-	c.SetData(terms)
 
 	c.StartFulfilling(ctx)
+
 	return nil
+}
+
+func (c *ControllerSeller) LoadTermsFromBlockchain(ctx context.Context) error {
+
+	terms, err := c.GetTermsFromBlockchain(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	c.SetData(terms)
+
+	return nil
+}
+
+func (c *ControllerSeller) GetTermsFromBlockchain(ctx context.Context) (*hashrateContract.Terms, error) {
+	encryptedTerms, err := c.store.GetContract(ctx, c.GetID())
+
+	if err != nil {
+		return nil, err
+	}
+
+	terms, err := encryptedTerms.Decrypt(c.privKey)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return terms, nil
 }
 
 func (c *ControllerSeller) handleContractClosed(ctx context.Context, event *implementation.ImplementationContractClosed) error {
@@ -116,26 +145,20 @@ func (c *ControllerSeller) handleContractClosed(ctx context.Context, event *impl
 		c.StopFulfilling()
 	}
 
-	data, err := c.store.GetContract(ctx, c.GetID())
+	err := c.LoadTermsFromBlockchain(ctx)
+
 	if err != nil {
 		return err
 	}
-	terms, err := data.Decrypt(c.privKey)
-	if err != nil {
-		return err
-	}
-	c.SetData(terms)
+
 	return nil
 }
 
 func (c *ControllerSeller) handleCipherTextUpdated(ctx context.Context, event *implementation.ImplementationCipherTextUpdated) error {
 	currentDest := c.GetDest()
 
-	data, err := c.store.GetContract(ctx, c.GetID())
-	if err != nil {
-		return err
-	}
-	terms, err := data.Decrypt(c.privKey)
+	terms, err := c.GetTermsFromBlockchain(ctx)
+
 	if err != nil {
 		return err
 	}
@@ -154,15 +177,11 @@ func (c *ControllerSeller) handleCipherTextUpdated(ctx context.Context, event *i
 }
 
 func (c *ControllerSeller) handlePurchaseInfoUpdated(ctx context.Context, event *implementation.ImplementationPurchaseInfoUpdated) error {
-	data, err := c.store.GetContract(ctx, c.GetID())
-	if err != nil {
-		return err
-	}
-	terms, err := data.Decrypt(c.privKey)
+	err := c.LoadTermsFromBlockchain(ctx)
+
 	if err != nil {
 		return err
 	}
 
-	c.SetData(terms)
 	return nil
 }
