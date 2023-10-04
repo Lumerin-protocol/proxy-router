@@ -145,7 +145,11 @@ func (c *ControllerSeller) handleContractClosed(ctx context.Context, event *impl
 		c.StopFulfilling()
 	}
 
-	c.LoadTermsFromBlockchain(ctx)
+	err := c.LoadTermsFromBlockchain(ctx)
+
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
