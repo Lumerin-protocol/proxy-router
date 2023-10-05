@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/config"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/contractmanager"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/handlers"
@@ -155,7 +154,7 @@ func start() error {
 	)
 	tcpServer.SetConnectionHandler(tcpHandler)
 
-	ethClient, err := ethclient.DialContext(ctx, cfg.Blockchain.EthNodeAddress)
+	ethClient, err := contracts.DialContext(ctx, cfg.Blockchain.EthNodeAddress)
 	if err != nil {
 		return lib.WrapError(ErrConnectToEthNode, err)
 	}
@@ -165,8 +164,14 @@ func start() error {
 		return err
 	}
 
-	store := contracts.NewHashrateEthereum(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), ethClient, log)
-
+	store := contracts.HashrateEthereumFactory(
+		common.HexToAddress(cfg.Marketplace.CloneFactoryAddress),
+		ethClient,
+		cfg.Blockchain.ForcePolling,
+		cfg.Blockchain.MaxReconnects,
+		cfg.Blockchain.PollingInterval,
+		log,
+	)
 	store.SetLegacyTx(cfg.Blockchain.EthLegacyTx)
 
 	hrContractFactory, err := contract.NewContractFactory(

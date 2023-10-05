@@ -12,12 +12,16 @@ install:
 	go install golang.org/x/vuln/cmd/govulncheck@latest
 	go install github.com/praetorian-inc/gokart@latest
 	go install github.com/securego/gosec/v2/cmd/gosec@latest
+	brew install mockery
 	
 lint:
 	golangci-lint run
 	govulncheck ./...
 	gokart scan .
 	gosec ./...
+
+generate:
+	mockery 
 
 test:
 	go test -v -p 1 $$(go list ./... | grep -v /test)
