@@ -151,21 +151,25 @@ func (g *HashrateEthereum) CloseContract(ctx context.Context, contractID string,
 
 	instance, err := implementation.NewImplementation(common.HexToAddress(contractID), g.client)
 	if err != nil {
+		g.log.Error(err)
 		return err
 	}
 
 	transactOpts, err := g.getTransactOpts(ctx, privKey)
 	if err != nil {
+		g.log.Error(err)
 		return err
 	}
 
 	tx, err := instance.SetContractCloseOut(transactOpts, big.NewInt(int64(closeoutType)))
 	if err != nil {
+		g.log.Error(err)
 		return err
 	}
 
 	_, err = bind.WaitMined(ctx, g.client, tx)
 	if err != nil {
+		g.log.Error(err)
 		return err
 	}
 
