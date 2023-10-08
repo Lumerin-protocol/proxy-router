@@ -43,27 +43,38 @@ func NewContractWatcherSeller(data *hashrateContract.Terms, cycleDuration time.D
 		actualHRGHS:           hashrateFactory(),
 		log:                   log,
 	}
-	p.tsk = lib.NewTaskFunc(p.Run)
+	p.tsk = lib.NewTaskFunc(func(ctx context.Context) error {
+		p.state = resources.ContractStateRunning
+		err := p.Run(ctx)
+		p.state = resources.ContractStatePending
+		return err
+	})
 	return p
 }
 
 func (p *ContractWatcherSeller) StartFulfilling(ctx context.Context) {
+	if p.state == resources.ContractStateRunning {
+		p.log.Warnf("contract already started fulfilling")
+		return
+	}
 	p.log.Infof("contract started fulfilling")
 	startedAt := time.Now()
 	p.fulfillmentStartedAt = &startedAt
-	p.state = resources.ContractStateRunning
 	p.tsk.Start(ctx)
 }
 
 func (p *ContractWatcherSeller) StopFulfilling() {
 	<-p.tsk.Stop()
 	p.allocator.CancelTasks(p.GetID())
-	p.state = resources.ContractStatePending
 	p.log.Infof("contract stopped fulfilling")
 }
 
 func (p *ContractWatcherSeller) Done() <-chan struct{} {
 	return p.tsk.Done()
+}
+
+func (p *ContractWatcherSeller) Reset() {
+	p.tsk = lib.NewTaskFunc(p.Run)
 }
 
 func (p *ContractWatcherSeller) Err() error {
@@ -90,8 +101,8 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 		jobSubmittedFullMiners.Store(0)
 		jobSubmittedPartialMiners.Store(0)
 
-		p.log.Debugf("new contract cycle:  partialDeliveryTargetGHS=%.0f",
-			partialDeliveryTargetGHS,
+		p.log.Debugf("new contract cycle:  partialDeliveryTargetGHS=%.0f elapsed %s",
+			partialDeliveryTargetGHS, p.GetElapsed(),
 		)
 		if partialDeliveryTargetGHS > 0 {
 			fullMiners, newRemainderGHS := p.allocator.AllocateFullMinersForHR(
@@ -166,6 +177,12 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(time.Until(*p.GetEndTime())):
+			p.log.Debugf("contract finished - now unix time: %v; local now unix time: %v", time.Now().Unix(), time.Now().Local().Unix())
+
+			p.log.Debugf("contract finished - contract start time: %v", p.terms.StartsAt.Unix())
+			p.log.Debugf("contract finished - contract duration: %v", p.terms.Duration.Seconds())
+			p.log.Debugf("contract finished - contract end time: %v", p.GetEndTime().Unix())
+
 			expectedJob := hr.GHSToJobSubmitted(p.GetHashrateGHS()) * p.GetDuration().Seconds()
 			actualJob := p.actualHRGHS.GetTotalWork()
 			undeliveredJob := expectedJob - actualJob
