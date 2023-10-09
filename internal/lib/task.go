@@ -50,6 +50,7 @@ func (s *Task) Start(ctx context.Context) {
 
 	go func() {
 		err := s.runFunc(subCtx)
+		s.isRunning.Store(false)
 		isContextErr := errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 
 		// returned due to calling Stop()
@@ -75,16 +76,23 @@ func (s *Task) Start(ctx context.Context) {
 }
 
 func (s *Task) Stop() <-chan struct{} {
-	if !s.isRunning.CompareAndSwap(true, false) {
-		closedChan := make(chan struct{})
-		close(closedChan)
-		return closedChan
-	}
 	c := s.cancel.Load()
-	if c != nil {
-		c.(context.CancelFunc)()
+	if c == nil {
+		closedCh := make(chan struct{})
+		close(closedCh)
+		return closedCh
 	}
-	return s.stopCh.Load().(chan struct{})
+
+	c.(context.CancelFunc)()
+
+	st := s.stopCh.Load()
+	if st == nil {
+		closedCh := make(chan struct{})
+		close(closedCh)
+		return closedCh
+	}
+
+	return st.(chan struct{})
 }
 
 // Done returns a channel that's closed when task exited or cancelled from outside using context

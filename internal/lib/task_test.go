@@ -186,3 +186,16 @@ func TestWaitDoneBeforeStart(t *testing.T) {
 		require.Fail(t, "task should be cancelled")
 	}
 }
+
+func TestStartStop(t *testing.T) {
+	testFunc := func(ctx context.Context) error {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+
+	task := NewTaskFunc(testFunc)
+	for i := 0; i < 1000; i++ {
+		task.Start(context.Background())
+		<-task.Stop()
+	}
+}
