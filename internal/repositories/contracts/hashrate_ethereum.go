@@ -244,7 +244,7 @@ func (s *HashrateEthereum) getNonce(ctx context.Context, from common.Address) (*
 		nonce.SetUint64(blockchainNonce)
 	}
 
-	s.nonce = nonce.Uint64() + 1
+	s.nonce = nonce.Uint64() //+ 1
 
 	return nonce, nil
 }
