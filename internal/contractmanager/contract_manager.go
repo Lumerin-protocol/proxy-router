@@ -145,7 +145,8 @@ func (cm *ContractManager) AddContract(ctx context.Context, data *hashrate.Encry
 		if err != nil {
 			cm.log.Warn(err)
 		}
-		// cm.contracts.Delete(cntr.GetID())
+		
+		cm.contracts.Delete(cntr.GetID())
 	}()
 }
 
