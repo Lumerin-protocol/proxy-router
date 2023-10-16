@@ -11,6 +11,7 @@ type Task struct {
 	runFunc func(ctx context.Context) error
 
 	isRunning atomic.Bool           // bool
+	isDone    atomic.Bool           // bool
 	stopCh    atomic.Value          // chan struct{}
 	doneCh    atomic.Value          // chan struct{}
 	cancel    atomic.Value          // context.CancelFunc
@@ -43,11 +44,13 @@ func (s *Task) Start(ctx context.Context) {
 	if !s.isRunning.CompareAndSwap(false, true) {
 		return
 	}
+	if s.isDone.Load() {
+		return
+	}
 	subCtx, cancel := context.WithCancel(ctx)
 
 	s.cancel.Store(cancel)
 	s.stopCh.Store(make(chan struct{}))
-	s.doneCh.Store(make(chan struct{}))
 	s.err.Store(nil)
 
 	go func() {
@@ -63,6 +66,7 @@ func (s *Task) Start(ctx context.Context) {
 
 		// returned due to cancelling context from outside
 		if ctx.Err() != nil || !isContextErr {
+			s.isDone.Store(true)
 			s.err.Store(&err)
 			close(s.doneCh.Load().(chan struct{}))
 			close(s.stopCh.Load().(chan struct{}))
@@ -70,6 +74,7 @@ func (s *Task) Start(ctx context.Context) {
 		}
 
 		// returned due to interal error
+		s.isDone.Store(true)
 		s.err.Store(&err)
 		close(s.doneCh.Load().(chan struct{}))
 		close(s.stopCh.Load().(chan struct{}))
