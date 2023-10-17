@@ -199,3 +199,19 @@ func TestStartStop(t *testing.T) {
 		<-task.Stop()
 	}
 }
+
+func TestNoPanic(t *testing.T) {
+	testFunc := func(ctx context.Context) error {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+
+	task := NewTaskFunc(testFunc)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	for i := 0; i < 10000; i++ {
+		go task.Start(ctx)
+		go task.Stop()
+		go cancel()
+	}
+}
