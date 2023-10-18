@@ -100,9 +100,12 @@ func (c *ControllerSeller) handleContractPurchased(ctx context.Context, event *i
 	}
 
 	err := c.LoadTermsFromBlockchain(ctx)
-
 	if err != nil {
 		return err
+	}
+
+	if c.GetBlockchainState() != hashrateContract.BlockchainStateRunning {
+		return nil
 	}
 
 	c.StartFulfilling(ctx)
@@ -111,7 +114,6 @@ func (c *ControllerSeller) handleContractPurchased(ctx context.Context, event *i
 }
 
 func (c *ControllerSeller) LoadTermsFromBlockchain(ctx context.Context) error {
-
 	terms, err := c.GetTermsFromBlockchain(ctx)
 
 	if err != nil {
@@ -178,7 +180,6 @@ func (c *ControllerSeller) handleCipherTextUpdated(ctx context.Context, event *i
 
 func (c *ControllerSeller) handlePurchaseInfoUpdated(ctx context.Context, event *implementation.ImplementationPurchaseInfoUpdated) error {
 	err := c.LoadTermsFromBlockchain(ctx)
-
 	if err != nil {
 		return err
 	}
