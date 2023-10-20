@@ -176,7 +176,7 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(time.Until(*p.GetEndTime())):
+		case <-time.After(p.getEndsAfter()):
 			p.log.Debugf("contract finished - now unix time: %v; local now unix time: %v", time.Now().Unix(), time.Now().Local().Unix())
 
 			p.log.Debugf("contract finished - contract start time: %v", p.terms.StartsAt.Unix())
@@ -226,6 +226,15 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 			" jobSubmittedPartialMiners=", int(p.jobToGHS(jobSubmittedPartialMiners.Load())),
 		)
 	}
+}
+
+func (p *ContractWatcherSeller) getEndsAfter() time.Duration {
+	endsAfter := time.Duration(0)
+	endTime := p.GetEndTime()
+	if endTime != nil {
+		endsAfter = endTime.Sub(time.Now())
+	}
+	return endsAfter
 }
 
 func (p *ContractWatcherSeller) jobToGHS(value uint64) float64 {
