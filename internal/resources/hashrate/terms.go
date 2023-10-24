@@ -35,7 +35,7 @@ type Base struct {
 	ContractID string
 	Seller     string
 	Buyer      string
-	StartsAt   *time.Time
+	StartsAt   time.Time
 	Duration   time.Duration
 	Hashrate   float64
 	State      BlockchainState
@@ -53,7 +53,7 @@ func (b *Base) GetBuyer() string {
 	return b.Buyer
 }
 
-func (b *Base) GetStartsAt() *time.Time {
+func (b *Base) GetStartsAt() time.Time {
 	return b.StartsAt
 }
 
