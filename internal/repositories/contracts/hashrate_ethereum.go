@@ -100,8 +100,7 @@ func (g *HashrateEthereum) GetContract(ctx context.Context, contractID string) (
 	}
 
 	if data.State == 1 { // running
-		startsAt := time.Unix(data.StartingBlockTimestamp.Int64(), 0)
-		terms.StartsAt = &startsAt
+		terms.StartsAt = time.Unix(data.StartingBlockTimestamp.Int64(), 0)
 		terms.Buyer = data.Buyer.Hex()
 		terms.DestEncrypted = data.EncryptedPoolData
 	}

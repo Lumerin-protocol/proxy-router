@@ -22,11 +22,11 @@ type Contract interface {
 	GetSeller() string                            // ID of the seller (address of the seller for smart contract data source)
 	GetDest() string                              // string representation of the destination of the contract (IP address for hashrate, stream URL for video stream etc)
 
-	GetStartedAt() *time.Time
-	GetFulfillmentStartedAt() *time.Time
-	GetEndTime() *time.Time
+	GetStartedAt() time.Time
+	GetFulfillmentStartedAt() time.Time
+	GetEndTime() time.Time
 	GetDuration() time.Duration
-	GetElapsed() *time.Duration
+	GetElapsed() time.Duration
 
 	GetResourceType() string                  // resource is the name of the resource that the contract is for (hashrate, video stream etc)
 	GetResourceEstimates() map[string]float64 // map of resouce quantitative estimates, for example for hashrate this would be map[string]string{"hashrate GH/S": "1000"}

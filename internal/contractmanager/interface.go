@@ -11,7 +11,7 @@ type TermsCommon interface {
 	GetState() hashrate.BlockchainState
 	GetSeller() string
 	GetBuyer() string
-	GetStartsAt() *time.Time
+	GetStartsAt() time.Time
 	GetDuration() time.Duration
 	GetHashrateGHS() float64
 }
