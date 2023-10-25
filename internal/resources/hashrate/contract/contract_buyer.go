@@ -24,8 +24,8 @@ type ContractWatcherBuyer struct {
 	terms                       *hashrateContract.EncryptedTerms
 	state                       resources.ContractState
 	validationStage             hashrateContract.ValidationStage
-	fulfillmentStartedAt        *time.Time
-	lastAcceptableHashrateCheck *time.Time
+	fulfillmentStartedAt        time.Time
+	lastAcceptableHashrateCheck time.Time
 	hashrateErrorInterval       time.Duration
 
 	tsk    *lib.Task
@@ -110,7 +110,7 @@ func (p *ContractWatcherBuyer) SetData(data *hashrateContract.EncryptedTerms) {
 func (p *ContractWatcherBuyer) Run(ctx context.Context) error {
 	p.state = resources.ContractStateRunning
 	startedAt := time.Now()
-	p.fulfillmentStartedAt = &startedAt
+	p.fulfillmentStartedAt = startedAt
 
 	// instead of resetting write a method that creates separate counters for each worker at given moment of time
 	p.globalHashrate.Reset(p.terms.ContractID)
@@ -118,13 +118,12 @@ func (p *ContractWatcherBuyer) Run(ctx context.Context) error {
 	ticker := time.NewTicker(p.contractCycleDuration)
 	defer ticker.Stop()
 
-	endTime := p.GetEndTime()
-	if endTime == nil {
-		// if contract endtime is nil, it means it is ended
+	tillEndTime := time.Until(p.GetEndTime())
+	if tillEndTime <= 0 {
 		return nil
 	}
 
-	endTimer := time.NewTimer(time.Until(*endTime))
+	endTimer := time.NewTimer(tillEndTime)
 
 	for {
 		err := p.checkIncomingHashrate(ctx)
@@ -132,13 +131,11 @@ func (p *ContractWatcherBuyer) Run(ctx context.Context) error {
 			return err
 		}
 
-		endTime := p.GetEndTime()
-		if endTime == nil {
-			// if contract endtime is nil, it means it is ended
+		tillEndTime := time.Until(p.GetEndTime())
+		if tillEndTime <= 0 {
 			return nil
 		}
-
-		endTimer.Reset(time.Until(*endTime))
+		endTimer.Reset(tillEndTime)
 
 		select {
 		case <-ctx.Done():
@@ -179,7 +176,7 @@ func (p *ContractWatcherBuyer) checkIncomingHashrate(ctx context.Context) error 
 	case hashrateContract.ValidationStageNotValidating:
 		lastShareTime, ok := p.globalHashrate.GetLastSubmitTime(p.getWorkerName())
 		if !ok {
-			lastShareTime = *p.fulfillmentStartedAt
+			lastShareTime = p.fulfillmentStartedAt
 		}
 		if time.Since(lastShareTime) > p.shareTimeout {
 			return fmt.Errorf("no share submitted within shareTimeout (%s)", p.shareTimeout)
@@ -217,7 +214,7 @@ func (p *ContractWatcherBuyer) isReceivingAcceptableHashrate() bool {
 
 	hrError := lib.RelativeError(targetHashrateGHS, actualHashrate)
 	lastAcceptableHashrateCheck := time.Now()
-	p.lastAcceptableHashrateCheck = &lastAcceptableHashrateCheck
+	p.lastAcceptableHashrateCheck = lastAcceptableHashrateCheck
 
 	hrMsg := fmt.Sprintf(
 		"elapsed %s worker %s, target GHS %.0f, actual GHS %.0f, error %.0f%%, threshold(%.0f%%)",
@@ -236,9 +233,9 @@ func (p *ContractWatcherBuyer) isReceivingAcceptableHashrate() bool {
 	}
 
 	p.log.Warnf("contract is underdelivering: %s", hrMsg)
-	if p.lastAcceptableHashrateCheck != nil && time.Since(*p.lastAcceptableHashrateCheck) > p.hashrateErrorInterval {
+	if !p.lastAcceptableHashrateCheck.IsZero() && time.Since(p.lastAcceptableHashrateCheck) > p.hashrateErrorInterval {
 		// only check hashrate accuracy every hashrateErrorInterval
-		p.lastAcceptableHashrateCheck = nil
+		p.lastAcceptableHashrateCheck = time.Time{}
 
 		p.log.Warnf("contract is underdelivering longer than: %v", hrMsg, p.hashrateErrorInterval)
 		return false
@@ -271,31 +268,29 @@ func (p *ContractWatcherBuyer) GetBuyer() string {
 	return p.terms.Buyer
 }
 
-func (p *ContractWatcherBuyer) GetStartedAt() *time.Time {
+func (p *ContractWatcherBuyer) GetStartedAt() time.Time {
 	return p.terms.StartsAt
 }
 
-func (p *ContractWatcherBuyer) GetElapsed() *time.Duration {
-	if p.terms.StartsAt == nil {
-		return nil
+func (p *ContractWatcherBuyer) GetElapsed() time.Duration {
+	if p.terms.StartsAt.IsZero() {
+		return 0
 	}
-	res := time.Since(*p.terms.StartsAt)
-	return &res
+	return time.Since(p.terms.StartsAt)
 }
 
 func (p *ContractWatcherBuyer) GetDuration() time.Duration {
 	return p.terms.Duration
 }
 
-func (p *ContractWatcherBuyer) GetEndTime() *time.Time {
-	if p.terms.StartsAt == nil {
-		return nil
+func (p *ContractWatcherBuyer) GetEndTime() time.Time {
+	if p.terms.StartsAt.IsZero() {
+		return time.Time{}
 	}
-	endTime := p.terms.StartsAt.Add(p.terms.Duration)
-	return &endTime
+	return p.terms.StartsAt.Add(p.terms.Duration)
 }
 
-func (p *ContractWatcherBuyer) GetFulfillmentStartedAt() *time.Time {
+func (p *ContractWatcherBuyer) GetFulfillmentStartedAt() time.Time {
 	return p.fulfillmentStartedAt
 }
 
@@ -327,15 +322,11 @@ func (p *ContractWatcherBuyer) GetResourceType() string {
 }
 
 func (p *ContractWatcherBuyer) isValidationStartTimeout() bool {
-	return time.Since(*p.fulfillmentStartedAt) > p.validationStartTimeout
+	return time.Since(p.fulfillmentStartedAt) > p.validationStartTimeout
 }
 
 func (p *ContractWatcherBuyer) isContractExpired() bool {
-	endTime := p.GetEndTime()
-	if endTime == nil {
-		return false
-	}
-	return time.Now().After(*endTime)
+	return time.Now().After(p.GetEndTime())
 }
 
 func (p *ContractWatcherBuyer) getWorkerName() string {

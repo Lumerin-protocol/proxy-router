@@ -23,7 +23,7 @@ type ContractWatcherSeller struct {
 	state                 resources.ContractState
 	fullMiners            []string
 	actualHRGHS           *hr.Hashrate
-	fulfillmentStartedAt  *time.Time
+	fulfillmentStartedAt  time.Time
 	contractCycleDuration time.Duration
 
 	tsk *lib.Task
@@ -58,8 +58,7 @@ func (p *ContractWatcherSeller) StartFulfilling(ctx context.Context) {
 		return
 	}
 	p.log.Infof("contract started fulfilling")
-	startedAt := time.Now()
-	p.fulfillmentStartedAt = &startedAt
+	p.fulfillmentStartedAt = time.Now()
 	p.tsk.Start(ctx)
 }
 
@@ -229,12 +228,11 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 }
 
 func (p *ContractWatcherSeller) getEndsAfter() time.Duration {
-	endsAfter := time.Duration(0)
 	endTime := p.GetEndTime()
-	if endTime != nil {
-		endsAfter = endTime.Sub(time.Now())
+	if endTime.IsZero() {
+		return 0
 	}
-	return endsAfter
+	return endTime.Sub(time.Now())
 }
 
 func (p *ContractWatcherSeller) jobToGHS(value uint64) float64 {
@@ -288,7 +286,7 @@ func (p *ContractWatcherSeller) getAdjustedDest() *url.URL {
 // ShouldBeRunning checks blockchain state and expiration time and returns true if the contract should be running
 func (p *ContractWatcherSeller) ShouldBeRunning() bool {
 	endTime := p.GetEndTime()
-	if endTime == nil {
+	if endTime.IsZero() {
 		return false
 	}
 	return p.GetBlockchainState() == hashrate.BlockchainStateRunning && p.GetEndTime().After(time.Now())
@@ -313,28 +311,27 @@ func (p *ContractWatcherSeller) GetDuration() time.Duration {
 	return p.terms.Duration
 }
 
-func (p *ContractWatcherSeller) GetStartedAt() *time.Time {
+func (p *ContractWatcherSeller) GetStartedAt() time.Time {
 	return p.terms.StartsAt
 }
 
-func (p *ContractWatcherSeller) GetEndTime() *time.Time {
-	if p.terms.StartsAt == nil {
-		return nil
+func (p *ContractWatcherSeller) GetEndTime() time.Time {
+	if p.terms.StartsAt.IsZero() {
+		return time.Time{}
 	}
 	endTime := p.terms.StartsAt.Add(p.terms.Duration)
-	return &endTime
+	return endTime
 }
 
-func (p *ContractWatcherSeller) GetFulfillmentStartedAt() *time.Time {
+func (p *ContractWatcherSeller) GetFulfillmentStartedAt() time.Time {
 	return p.fulfillmentStartedAt
 }
 
-func (p *ContractWatcherSeller) GetElapsed() *time.Duration {
-	if p.terms.StartsAt == nil {
-		return nil
+func (p *ContractWatcherSeller) GetElapsed() time.Duration {
+	if p.terms.StartsAt.IsZero() {
+		return 0
 	}
-	res := time.Since(*p.terms.StartsAt)
-	return &res
+	return time.Since(p.terms.StartsAt)
 }
 
 func (p *ContractWatcherSeller) GetID() string {

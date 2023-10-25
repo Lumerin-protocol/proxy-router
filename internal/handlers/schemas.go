@@ -42,10 +42,10 @@ type Contract struct {
 	ResourceEstimatesTarget map[string]int
 	ResourceEstimatesActual map[string]int
 
-	StartTimestamp    *string
-	EndTimestamp      *string
+	StartTimestamp    string
+	EndTimestamp      string
 	Duration          string
-	Elapsed           *string
+	Elapsed           string
 	ApplicationStatus string
 	BlockchainStatus  string
 	Dest              string

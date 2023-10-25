@@ -120,7 +120,7 @@ func (h *HTTPHandler) CreateContract(ctx *gin.Context) {
 			ContractID: lib.GetRandomAddr().String(),
 			Seller:     "",
 			Buyer:      "",
-			StartsAt:   &now,
+			StartsAt:   now,
 			Duration:   duration,
 			Hashrate:   float64(hrGHS) * 1e9,
 		},
@@ -260,9 +260,9 @@ func (p *HTTPHandler) mapContract(item resources.Contract) *Contract {
 		ResourceEstimatesTarget: roundResourceEstimates(item.GetResourceEstimates()),
 		ResourceEstimatesActual: roundResourceEstimates(item.GetResourceEstimatesActual()),
 		Duration:                formatDuration(item.GetDuration()),
-		StartTimestamp:          TimePtrToStringPtr(item.GetStartedAt()),
-		EndTimestamp:            TimePtrToStringPtr(item.GetEndTime()),
-		Elapsed:                 DurationPtrToStringPtr(item.GetElapsed()),
+		StartTimestamp:          formatTime(item.GetStartedAt()),
+		EndTimestamp:            formatTime(item.GetEndTime()),
+		Elapsed:                 formatDuration(item.GetElapsed()),
 		ApplicationStatus:       item.GetState().String(),
 		BlockchainStatus:        item.GetBlockchainState().String(),
 		Dest:                    item.GetDest(),
@@ -273,10 +273,14 @@ func (p *HTTPHandler) mapContract(item resources.Contract) *Contract {
 // TimePtrToStringPtr converts nullable time to nullable string
 func TimePtrToStringPtr(t *time.Time) *string {
 	if t != nil {
-		a := t.Format(time.RFC3339)
+		a := formatTime(*t)
 		return &a
 	}
 	return nil
+}
+
+func formatTime(t time.Time) string {
+	return t.Format(time.RFC3339)
 }
 
 func DurationPtrToStringPtr(t *time.Duration) *string {
