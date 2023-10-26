@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -16,6 +18,7 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
+	hrcontract "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/contract"
 	hr "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 	"golang.org/x/exp/slices"
 )
@@ -52,6 +55,7 @@ func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractman
 	r.GET("/healthcheck", handl.HealthCheck)
 	r.GET("/miners", handl.GetMiners)
 	r.GET("/contracts", handl.GetContracts)
+	r.GET("/contracts/:ID/logs", handl.GetDeliveryLogs)
 	r.GET("/workers", handl.GetWorkers)
 
 	r.POST("/change-dest", handl.ChangeDest)
@@ -144,6 +148,80 @@ func (c *HTTPHandler) GetContracts(ctx *gin.Context) {
 	})
 
 	ctx.JSON(200, data)
+}
+
+func (c *HTTPHandler) GetDeliveryLogs(ctx *gin.Context) {
+	contractID := ctx.Param("ID")
+	if contractID == "" {
+		ctx.JSON(400, gin.H{"error": "contract id is required"})
+		return
+	}
+	contract, ok := c.contractManager.GetContracts().Load(contractID)
+	if !ok {
+		ctx.JSON(404, gin.H{"error": "contract not found"})
+		return
+	}
+
+	sellerContract, ok := contract.(*hrcontract.ControllerSeller)
+	if !ok {
+		ctx.JSON(400, gin.H{"error": "contract is not seller contract"})
+		return
+	}
+	logs, err := sellerContract.GetDeliveryLogs()
+	if err != nil {
+		ctx.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	err = writeCSV(ctx.Writer, logs)
+	if err != nil {
+		c.log.Errorf("failed to write logs: %s", err)
+		_ = ctx.Error(err)
+		ctx.Abort()
+	}
+	return
+}
+
+func writeCSV(w io.Writer, logs []hrcontract.DeliveryLogEntry) error {
+	wr := csv.NewWriter(w)
+	err := wr.Write([]string{
+		"TimestampUnix",
+		"ActualGHS",
+		"FullMinersGHS",
+		"FullMinersNumber",
+		"PartialMinersGHS",
+		"PartialMinersNumber",
+		"SharesSubmitted",
+		"UnderDeliveryGHS",
+		"GlobalHashrateGHS",
+		"GlobalUnderDeliveryGHS",
+		"GlobalError",
+		"NextCyclePartialDeliveryTargetGHS",
+	})
+	if err != nil {
+		return err
+	}
+	for _, entry := range logs {
+		err := wr.Write([]string{
+			formatTime(entry.Timestamp),
+			fmt.Sprint(entry.ActualGHS),
+			fmt.Sprint(entry.FullMinersGHS),
+			fmt.Sprint(entry.FullMinersNumber),
+			fmt.Sprint(entry.PartialMinersGHS),
+			fmt.Sprint(entry.PartialMinersNumber),
+			fmt.Sprint(entry.SharesSubmitted),
+			fmt.Sprint(entry.UnderDeliveryGHS),
+			fmt.Sprint(entry.GlobalHashrateGHS),
+			fmt.Sprint(entry.GlobalUnderDeliveryGHS),
+			fmt.Sprintf("%.2f", entry.GlobalError),
+			fmt.Sprint(entry.NextCyclePartialDeliveryTargetGHS),
+		})
+		if err != nil {
+			return err
+		}
+	}
+	wr.Flush()
+	return nil
 }
 
 func (c *HTTPHandler) GetMiners(ctx *gin.Context) {
