@@ -152,7 +152,6 @@ func (c *ConnDest) SetExtraNonce(extraNonce string, extraNonceSize int) {
 	c.extraNonceLock.Lock()
 	defer c.extraNonceLock.Unlock()
 	c.extraNonce1, c.extraNonce2Size = extraNonce, extraNonceSize
-	c.log.Info("dest xnonce set to %s", extraNonce)
 }
 
 func (c *ConnDest) GetVersionRolling() (versionRolling bool, versionRollingMask string) {
