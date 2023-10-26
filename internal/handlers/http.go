@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/csv"
 	"fmt"
 	"io"
 	"net/http"
@@ -173,7 +172,7 @@ func (c *HTTPHandler) GetDeliveryLogs(ctx *gin.Context) {
 		return
 	}
 
-	err = writeCSV(ctx.Writer, logs)
+	err = writeHTML(ctx.Writer, logs)
 	if err != nil {
 		c.log.Errorf("failed to write logs: %s", err)
 		_ = ctx.Error(err)
@@ -182,9 +181,8 @@ func (c *HTTPHandler) GetDeliveryLogs(ctx *gin.Context) {
 	return
 }
 
-func writeCSV(w io.Writer, logs []hrcontract.DeliveryLogEntry) error {
-	wr := csv.NewWriter(w)
-	err := wr.Write([]string{
+func writeHTML(w io.Writer, logs []hrcontract.DeliveryLogEntry) error {
+	header := []string{
 		"TimestampUnix",
 		"ActualGHS",
 		"FullMinersGHS",
@@ -197,12 +195,40 @@ func writeCSV(w io.Writer, logs []hrcontract.DeliveryLogEntry) error {
 		"GlobalUnderDeliveryGHS",
 		"GlobalError",
 		"NextCyclePartialDeliveryTargetGHS",
-	})
-	if err != nil {
-		return err
 	}
+
+	// header
+	_, _ = w.Write([]byte(`
+		<html>
+			<style>
+				table {
+					font-family: monospace;
+					border-collapse: collapse;
+					font-size: 12px;
+					border: 1px solid #333;
+				}
+				th, td {
+					padding: 3px;
+					border: 1px solid #333;
+				}
+			</style>
+			<body>
+				<table>`))
+
+	// table header
+	_, _ = w.Write([]byte("<tr>"))
+	for _, h := range header {
+		err := writeTableRow("th", w, h)
+		if err != nil {
+			return err
+		}
+	}
+	_, _ = w.Write([]byte("</tr>"))
+
+	// table body
 	for _, entry := range logs {
-		err := wr.Write([]string{
+		_, _ = w.Write([]byte("<tr>"))
+		err := writeTableRow("td", w,
 			formatTime(entry.Timestamp),
 			fmt.Sprint(entry.ActualGHS),
 			fmt.Sprint(entry.FullMinersGHS),
@@ -215,12 +241,29 @@ func writeCSV(w io.Writer, logs []hrcontract.DeliveryLogEntry) error {
 			fmt.Sprint(entry.GlobalUnderDeliveryGHS),
 			fmt.Sprintf("%.2f", entry.GlobalError),
 			fmt.Sprint(entry.NextCyclePartialDeliveryTargetGHS),
-		})
+		)
+		if err != nil {
+			return err
+		}
+		_, _ = w.Write([]byte("</tr>"))
+	}
+
+	// footer
+	_, _ = w.Write([]byte(`
+				</table>
+			</body>
+		</html>`))
+
+	return nil
+}
+
+func writeTableRow(tag string, w io.Writer, values ...string) error {
+	for _, value := range values {
+		_, err := w.Write([]byte(fmt.Sprintf("<%s>%s</%s>", tag, value, tag)))
 		if err != nil {
 			return err
 		}
 	}
-	wr.Flush()
 	return nil
 }
 
