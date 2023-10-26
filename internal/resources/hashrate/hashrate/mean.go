@@ -21,6 +21,12 @@ func NewMean() *Mean {
 	}
 }
 
+func (h *Mean) Reset() {
+	h.totalWork.Store(0)
+	h.firstSubmitTime.Store(0)
+	h.lastSubmitTime.Store(0)
+}
+
 func (h *Mean) Add(diff float64) {
 	h.totalWork.Add(uint64(diff))
 

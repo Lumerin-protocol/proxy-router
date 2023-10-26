@@ -91,4 +91,12 @@ func (c *Ema) valueAfter(elapsed time.Duration) float64 {
 	return c.lastValue * w
 }
 
+func (c *Ema) Reset() {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	c.lastValue = 0
+	c.lastTime = time.Time{}
+}
+
 var _ Counter = new(Ema)

@@ -19,6 +19,12 @@ func NewHashrate(counters map[string]Counter) *Hashrate {
 	}
 }
 
+func (h *Hashrate) Reset() {
+	for _, item := range h.custom {
+		item.Reset()
+	}
+}
+
 func (h *Hashrate) OnSubmit(diff float64) {
 	for _, item := range h.custom {
 		item.Add(diff)
