@@ -162,9 +162,10 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 				if ok {
 					miner.RemoveTasksByID(p.GetID())
 					p.log.Debugf("miner %s tasks removed", miner.GetID())
-					newFullMiners := make([]string, len(p.fullMiners)-1)
+					fullMiners := p.getFullMiners()
+					newFullMiners := make([]string, len(fullMiners)-1)
 					i := 0
-					for _, minerID := range p.fullMiners {
+					for _, minerID := range fullMiners {
 						if minerID == minerToRemove {
 							continue
 						}
@@ -197,7 +198,7 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 			undeliveredJob := expectedJob - actualJob
 			undeliveredFraction := undeliveredJob / expectedJob
 
-			for _, minerID := range p.fullMiners {
+			for _, minerID := range p.getFullMiners() {
 				miner, ok := p.allocator.GetMiners().Load(minerID)
 				if !ok {
 					continue
@@ -229,9 +230,9 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 		p.deliveryLogs.AddEntry(DeliveryLogEntry{
 			Timestamp:                         time.Now(),
 			ActualGHS:                         int(thisCycleActualGHS),
-			FullMinersGHS:                     int(p.GetFullMinersHR()),
-			FullMinersNumber:                  len(p.fullMiners),
-			PartialMinersGHS:                  int(partialDeliveryTargetGHS),
+			FullMinersGHS:                     int(p.jobToGHS(jobSubmittedFullMiners.Load())),
+			FullMinersNumber:                  len(p.getFullMiners()),
+			PartialMinersGHS:                  int(p.jobToGHS(jobSubmittedPartialMiners.Load())),
 			PartialMinersNumber:               partialMinersNum,
 			SharesSubmitted:                   int(sharesSubmitted.Load()),
 			UnderDeliveryGHS:                  int(thisCycleUnderDeliveryGHS),
@@ -255,6 +256,21 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 			" partialMinersNumber=", partialMinersNum,
 		)
 	}
+}
+
+func (p *ContractWatcherSeller) getFullMiners() []string {
+	newFullMiners := make([]string, 0, len(p.fullMiners))
+	for _, minerID := range p.fullMiners {
+		_, ok := p.allocator.GetMiners().Load(minerID)
+		if !ok {
+			continue
+		}
+		newFullMiners = append(newFullMiners, minerID)
+	}
+	if len(newFullMiners) != len(p.fullMiners) {
+		p.fullMiners = newFullMiners
+	}
+	return p.fullMiners
 }
 
 func (p *ContractWatcherSeller) getEndsAfter() time.Duration {
