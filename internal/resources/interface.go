@@ -31,6 +31,7 @@ type Contract interface {
 	GetResourceType() string                  // resource is the name of the resource that the contract is for (hashrate, video stream etc)
 	GetResourceEstimates() map[string]float64 // map of resouce quantitative estimates, for example for hashrate this would be map[string]string{"hashrate GH/S": "1000"}
 	GetResourceEstimatesActual() map[string]float64
+	GetContractHistory() []*hashrate.ContractFullfilment // history of the contract fulfillment
 }
 
 type ContractState string

@@ -326,6 +326,10 @@ func (p *ContractWatcherBuyer) GetResourceType() string {
 	return ResourceTypeHashrate
 }
 
+func (p *ContractWatcherBuyer) GetContractHistory() []*hashrateContract.ContractFullfilment {
+	return []*hashrateContract.ContractFullfilment{}
+}
+
 func (p *ContractWatcherBuyer) isValidationStartTimeout() bool {
 	return time.Since(*p.fulfillmentStartedAt) > p.validationStartTimeout
 }

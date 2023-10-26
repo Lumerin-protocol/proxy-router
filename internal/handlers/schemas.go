@@ -1,6 +1,9 @@
 package handlers
 
-import "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
+import (
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
+)
 
 type MinersResponse struct {
 	TotalHashrateGHS     int
@@ -50,6 +53,7 @@ type Contract struct {
 	BlockchainStatus  string
 	Dest              string
 	Miners            []*allocator.DestItem
+	History           []*hashrate.ContractFullfilment
 }
 
 type Resource struct {

@@ -52,6 +52,7 @@ func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractman
 	r.GET("/healthcheck", handl.HealthCheck)
 	r.GET("/miners", handl.GetMiners)
 	r.GET("/contracts", handl.GetContracts)
+	r.GET("/contracts/:id", handl.GetContract)
 	r.GET("/workers", handl.GetWorkers)
 
 	r.POST("/change-dest", handl.ChangeDest)
@@ -141,6 +142,22 @@ func (c *HTTPHandler) GetContracts(ctx *gin.Context) {
 
 	slices.SortStableFunc(data, func(a Contract, b Contract) bool {
 		return a.ID < b.ID
+	})
+
+	ctx.JSON(200, data)
+}
+
+func (c *HTTPHandler) GetContract(ctx *gin.Context) {
+	data := &Contract{}
+	c.contractManager.GetContracts().Range(func(item resources.Contract) bool {
+		
+		if item.GetID() != ctx.Param("id") {
+			return true
+		}
+
+		data = c.mapContract(item)
+		
+		return false
 	})
 
 	ctx.JSON(200, data)
@@ -267,6 +284,7 @@ func (p *HTTPHandler) mapContract(item resources.Contract) *Contract {
 		BlockchainStatus:        item.GetBlockchainState().String(),
 		Dest:                    item.GetDest(),
 		Miners:                  p.allocator.GetMinersFulfillingContract(item.GetID()),
+		History:                 item.GetContractHistory(),
 	}
 }
 

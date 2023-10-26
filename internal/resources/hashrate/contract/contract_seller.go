@@ -10,7 +10,6 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
 	hashrateContract "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
 	hr "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
@@ -25,6 +24,7 @@ type ContractWatcherSeller struct {
 	actualHRGHS           *hr.Hashrate
 	fulfillmentStartedAt  *time.Time
 	contractCycleDuration time.Duration
+	fullfilmentHistory 	  []*hashrateContract.ContractFullfilment
 
 	tsk *lib.Task
 
@@ -42,6 +42,7 @@ func NewContractWatcherSeller(data *hashrateContract.Terms, cycleDuration time.D
 		contractCycleDuration: cycleDuration,
 		actualHRGHS:           hashrateFactory(),
 		log:                   log,
+		fullfilmentHistory: []*hashrateContract.ContractFullfilment{},
 	}
 	p.tsk = lib.NewTaskFunc(func(ctx context.Context) error {
 		p.state = resources.ContractStateRunning
@@ -203,6 +204,9 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 
 			p.log.Infof("contract ended, undelivered work %d, undelivered fraction %.2f",
 				int(undeliveredJob), undeliveredFraction)
+
+			p.AddFullfilmentHistory(undeliveredJob, undeliveredFraction, actualJob, expectedJob, p.terms)
+			
 			return nil
 		case <-time.After(p.contractCycleDuration):
 		}
@@ -226,6 +230,21 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 			" jobSubmittedPartialMiners=", int(p.jobToGHS(jobSubmittedPartialMiners.Load())),
 		)
 	}
+}
+
+func (p *ContractWatcherSeller) AddFullfilmentHistory(undeliveredJob float64, undeliveredFraction float64, actualJob float64, expectedJob float64, terms *hashrateContract.Terms) {
+	p.fullfilmentHistory = append(p.fullfilmentHistory, hashrateContract.NewContractFullfillment(
+		p.GetID(),
+		undeliveredJob,
+		undeliveredFraction,
+		actualJob,
+		expectedJob,
+		*terms,
+	))
+}
+
+func (p *ContractWatcherSeller) GetContractHistory() []*hashrateContract.ContractFullfilment {
+	return p.fullfilmentHistory
 }
 
 func (p *ContractWatcherSeller) jobToGHS(value uint64) float64 {
@@ -282,7 +301,7 @@ func (p *ContractWatcherSeller) ShouldBeRunning() bool {
 	if endTime == nil {
 		return false
 	}
-	return p.GetBlockchainState() == hashrate.BlockchainStateRunning && p.GetEndTime().After(time.Now())
+	return p.GetBlockchainState() == hashrateContract.BlockchainStateRunning && p.GetEndTime().After(time.Now())
 }
 
 //
@@ -348,7 +367,7 @@ func (p *ContractWatcherSeller) GetState() resources.ContractState {
 	return p.state
 }
 
-func (p *ContractWatcherSeller) GetBlockchainState() hashrate.BlockchainState {
+func (p *ContractWatcherSeller) GetBlockchainState() hashrateContract.BlockchainState {
 	return p.terms.State
 }
 
