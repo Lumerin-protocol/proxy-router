@@ -102,6 +102,10 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 	p.fullMiners = p.fullMiners[:0]
 
 	for {
+		if p.GetEndTime().Before(time.Now()) {
+			return nil
+		}
+
 		partialMinersNum = 0
 		jobSubmittedFullMiners.Store(0)
 		jobSubmittedPartialMiners.Store(0)
@@ -228,7 +232,7 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 
 		thisCycleJobSubmitted.Store(0)
 
-		p.deliveryLogs.AddEntry(DeliveryLogEntry{
+		logEntry := DeliveryLogEntry{
 			Timestamp:                         time.Now(),
 			ActualGHS:                         int(thisCycleActualGHS),
 			FullMinersGHS:                     int(p.jobToGHS(jobSubmittedFullMiners.Load())),
@@ -241,21 +245,10 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 			GlobalUnderDeliveryGHS:            int(globalUnderdeliveryGHS),
 			GlobalError:                       1 - p.actualHRGHS.GetHashrateAvgGHSAll()["mean"]/p.GetHashrateGHS(),
 			NextCyclePartialDeliveryTargetGHS: int(partialDeliveryTargetGHS),
-		})
+		}
+		p.deliveryLogs.AddEntry(logEntry)
 
-		p.log.Info("contract cycle ended",
-			" thisCycleActualGHS=", int(thisCycleActualGHS),
-			" thisCycleUnderDeliveryGHS=", int(thisCycleUnderDeliveryGHS),
-			" globalUnderdeliveryGHS=", int(globalUnderdeliveryGHS),
-			" partialDeliveryTargetGHS=", int(partialDeliveryTargetGHS),
-			" jobSubmittedFullMiners=", int(p.jobToGHS(jobSubmittedFullMiners.Load())),
-			" jobSubmittedPartialMiners=", int(p.jobToGHS(jobSubmittedPartialMiners.Load())),
-			" sharesSubmitted=", sharesSubmitted.Load(),
-			" globalHashrateGHS=", int(p.actualHRGHS.GetHashrateAvgGHSAll()["mean"]),
-			" globalError=", 1-p.actualHRGHS.GetHashrateAvgGHSAll()["mean"]/p.GetHashrateGHS(),
-			" fullMinersNumber=", len(p.fullMiners),
-			" partialMinersNumber=", partialMinersNum,
-		)
+		p.log.Info("contract cycle ended", logEntry)
 	}
 }
 
@@ -332,11 +325,7 @@ func (p *ContractWatcherSeller) getAdjustedDest() *url.URL {
 
 // ShouldBeRunning checks blockchain state and expiration time and returns true if the contract should be running
 func (p *ContractWatcherSeller) ShouldBeRunning() bool {
-	endTime := p.GetEndTime()
-	if endTime.IsZero() {
-		return false
-	}
-	return p.GetBlockchainState() == hashrate.BlockchainStateRunning && p.GetEndTime().After(time.Now())
+	return p.GetBlockchainState() == hashrate.BlockchainStateRunning
 }
 
 //
