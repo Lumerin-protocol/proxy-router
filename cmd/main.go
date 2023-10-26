@@ -147,7 +147,7 @@ func start() error {
 	tcpServer := transport.NewTCPServer(cfg.Proxy.Address, connLog)
 	tcpHandler := handlers.NewTCPHandler(
 		log, connLog, proxyLog, schedulerLog,
-		cfg.Miner.NotPropagateWorkerName, cfg.Miner.ShareTimeout, cfg.Miner.VettingDuration,
+		cfg.Miner.NotPropagateWorkerName, cfg.Miner.ShareTimeout, cfg.Miner.VettingShares,
 		destUrl,
 		destFactory, hashrateFactory,
 		globalHashrate, HashrateCounterDefault,

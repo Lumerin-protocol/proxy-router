@@ -104,6 +104,7 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 
 	for {
 		if p.GetEndTime().Before(time.Now()) {
+			p.log.Debug("contract ended!!!!!!")
 			return nil
 		}
 

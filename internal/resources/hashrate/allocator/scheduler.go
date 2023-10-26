@@ -23,9 +23,9 @@ type Task struct {
 // Scheduler is a proxy wrapper that can schedule one-time tasks to different destinations
 type Scheduler struct {
 	// config
-	minerVettingDuration time.Duration
-	hashrateCounterID    string
-	primaryDest          *url.URL
+	minerVettingShares int
+	hashrateCounterID  string
+	primaryDest        *url.URL
 
 	// state
 	totalTaskJob     float64
@@ -38,14 +38,14 @@ type Scheduler struct {
 	log   interfaces.ILogger
 }
 
-func NewScheduler(proxy StratumProxyInterface, hashrateCounterID string, defaultDest *url.URL, minerVettingDuration time.Duration, log interfaces.ILogger) *Scheduler {
+func NewScheduler(proxy StratumProxyInterface, hashrateCounterID string, defaultDest *url.URL, minerVettingShares int, log interfaces.ILogger) *Scheduler {
 	return &Scheduler{
-		primaryDest:          defaultDest,
-		hashrateCounterID:    hashrateCounterID,
-		minerVettingDuration: minerVettingDuration,
-		newTaskSignal:        make(chan struct{}, 1),
-		proxy:                proxy,
-		log:                  log,
+		primaryDest:        defaultDest,
+		hashrateCounterID:  hashrateCounterID,
+		minerVettingShares: minerVettingShares,
+		newTaskSignal:      make(chan struct{}, 1),
+		proxy:              proxy,
+		log:                log,
 	}
 }
 
@@ -222,6 +222,13 @@ func (p *Scheduler) SetPrimaryDest(dest *url.URL) {
 }
 
 func (p *Scheduler) HashrateGHS() float64 {
+	if time.Since(p.proxy.GetMinerConnectedAt()) < 10*time.Minute {
+		hr, ok := p.proxy.GetHashrate().GetHashrateAvgGHSCustom("mean")
+		if !ok {
+			panic("hashrate counter not found")
+		}
+		return hr
+	}
 	hr, ok := p.proxy.GetHashrate().GetHashrateAvgGHSCustom(p.hashrateCounterID)
 	if !ok {
 		panic("hashrate counter not found")
@@ -262,7 +269,7 @@ func (p *Scheduler) GetStats() interface{} {
 }
 
 func (p *Scheduler) IsVetting() bool {
-	return p.GetUptime() < p.minerVettingDuration
+	return p.GetHashrate().GetTotalShares() < p.minerVettingShares
 }
 
 func (p *Scheduler) GetUptime() time.Duration {

@@ -56,13 +56,13 @@ func (p *Allocator) AllocateFullMinersForHR(ID string, hrGHS float64, dest *url.
 	for _, miner := range miners {
 		minerGHS := miner.HrGHS
 		if minerGHS <= hrGHS && minerGHS > 0 {
-			minerIDs = append(minerIDs, miner.ID)
 			proxy, ok := p.proxies.Load(miner.ID)
 			if ok {
 				proxy.AddTask(ID, dest, hashrate.GHSToJobSubmitted(minerGHS)*duration.Seconds(), onSubmit)
+				minerIDs = append(minerIDs, miner.ID)
+				hrGHS -= minerGHS
 				p.log.Infof("miner %s allocated for %f GHS", miner.ID, minerGHS)
 			}
-			hrGHS -= minerGHS
 		}
 	}
 

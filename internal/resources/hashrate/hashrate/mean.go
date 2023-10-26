@@ -9,6 +9,7 @@ type Mean struct {
 	totalWork       *atomic.Uint64
 	firstSubmitTime *atomic.Int64 // stores first submit time in unix seconds
 	lastSubmitTime  *atomic.Int64 // stores last submit time in unix seconds
+	totalShares     *atomic.Uint32
 }
 
 // NewMean creates a new Mean hashrate counter, which adds all submitted work and divides it by the total duration
@@ -18,6 +19,7 @@ func NewMean() *Mean {
 		totalWork:       &atomic.Uint64{},
 		firstSubmitTime: &atomic.Int64{},
 		lastSubmitTime:  &atomic.Int64{},
+		totalShares:     &atomic.Uint32{},
 	}
 }
 
@@ -29,6 +31,7 @@ func (h *Mean) Reset() {
 
 func (h *Mean) Add(diff float64) {
 	h.totalWork.Add(uint64(diff))
+	h.totalShares.Add(1)
 
 	now := time.Now()
 	h.maybeSetFirstSubmitTime(now)
@@ -53,6 +56,10 @@ func (h *Mean) GetLastSubmitTime() time.Time {
 
 func (h *Mean) GetTotalWork() uint64 {
 	return h.totalWork.Load()
+}
+
+func (h *Mean) GetTotalShares() uint32 {
+	return h.totalShares.Load()
 }
 
 func (h *Mean) GetTotalDuration() time.Duration {

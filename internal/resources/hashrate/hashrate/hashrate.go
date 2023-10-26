@@ -64,6 +64,10 @@ func (h *Hashrate) GetLastSubmitTime() time.Time {
 	return h.custom[MeanCounterKey].(*Mean).GetLastSubmitTime()
 }
 
+func (h *Hashrate) GetTotalShares() int {
+	return int(h.custom[MeanCounterKey].(*Mean).GetTotalShares())
+}
+
 func JobSubmittedToHS(jobSubmitted float64) float64 {
 	return jobSubmitted * math.Pow(2, 32)
 }
