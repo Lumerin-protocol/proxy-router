@@ -99,6 +99,7 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 	jobSubmittedPartialMiners := atomic.Uint64{}
 	sharesSubmitted := atomic.Uint64{}
 	partialMinersNum := 0
+	p.fullMiners = p.fullMiners[:0]
 
 	for {
 		partialMinersNum = 0
@@ -223,7 +224,7 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 
 		// plan for the next cycle is to compensate for the under delivery of the contract
 		// partialDeliveryTargetGHS = partialDeliveryTargetGHS + globalUnderdeliveryGHS
-		partialDeliveryTargetGHS = p.GetHashrateGHS() - p.GetFullMinersHR() + globalUnderdeliveryGHS
+		partialDeliveryTargetGHS = p.GetHashrateGHS() - p.getFullMinersHR() + globalUnderdeliveryGHS
 
 		thisCycleJobSubmitted.Store(0)
 
@@ -306,7 +307,7 @@ func (p *ContractWatcherSeller) getAllocatedMinersSorted() []*allocator.MinerIte
 	return items
 }
 
-func (p *ContractWatcherSeller) GetFullMinersHR() float64 {
+func (p *ContractWatcherSeller) getFullMinersHR() float64 {
 	var total float64
 	for _, minerID := range p.fullMiners {
 		miner, ok := p.allocator.GetMiners().Load(minerID)
