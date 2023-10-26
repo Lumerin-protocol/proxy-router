@@ -23,6 +23,10 @@ func NewMean() *Mean {
 	}
 }
 
+func (h *Mean) Start() {
+	h.maybeSetFirstSubmitTime(time.Now())
+}
+
 func (h *Mean) Reset() {
 	h.totalWork.Store(0)
 	h.firstSubmitTime.Store(0)

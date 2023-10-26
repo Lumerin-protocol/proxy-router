@@ -41,6 +41,10 @@ func NewEma(halfLife time.Duration) *Ema {
 	return &Ema{halfLife: halfLife}
 }
 
+func (c *Ema) Start() {
+	// noop
+}
+
 // Value returns the current value of the counter.
 func (c *Ema) Value() float64 {
 	c.mutex.RLock()

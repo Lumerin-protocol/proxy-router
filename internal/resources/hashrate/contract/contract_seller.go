@@ -93,6 +93,7 @@ func (p *ContractWatcherSeller) SetData(data *hashrateContract.Terms) {
 // Returns nil if the contract ended successfully, ErrClosed if the contract was closed before it ended.
 func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 	p.actualHRGHS.Reset()
+	p.actualHRGHS.Start()
 	partialDeliveryTargetGHS := p.GetHashrateGHS()
 	thisCycleJobSubmitted := atomic.Uint64{}
 	globalUnderdeliveryGHS := 0.0 // global contract underdelivery
