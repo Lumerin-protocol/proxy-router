@@ -2,8 +2,8 @@ package contracts
 
 import (
 	"context"
+	"fmt"
 	"math/big"
-	"sync"
 	"time"
 
 	"github.com/Lumerin-protocol/contracts-go/clonefactory"
@@ -28,7 +28,7 @@ type HashrateEthereum struct {
 
 	// state
 	nonce   uint64
-	mutex   sync.Mutex
+	mutex   lib.Mutex
 	cfABI   *abi.ABI
 	implABI *abi.ABI
 
@@ -56,6 +56,7 @@ func NewHashrateEthereum(clonefactoryAddr common.Address, client EthereumClient,
 		client:       client,
 		cfABI:        cfABI,
 		implABI:      implABI,
+		mutex:        lib.NewMutex(),
 		log:          log,
 	}
 }
@@ -95,13 +96,13 @@ func (g *HashrateEthereum) GetContract(ctx context.Context, contractID string) (
 			Seller:     data.Seller.Hex(),
 			Duration:   time.Duration(data.Length.Int64()) * time.Second,
 			Hashrate:   float64(hr.HSToGHS(float64(data.Speed.Int64()))),
+			Price:      data.Price,
 			State:      hashrate.BlockchainState(data.State),
 		},
 	}
 
 	if data.State == 1 { // running
-		startsAt := time.Unix(data.StartingBlockTimestamp.Int64(), 0)
-		terms.StartsAt = &startsAt
+		terms.StartsAt = time.Unix(data.StartingBlockTimestamp.Int64(), 0)
 		terms.Buyer = data.Buyer.Hex()
 		terms.DestEncrypted = data.EncryptedPoolData
 	}
@@ -146,9 +147,29 @@ func (g *HashrateEthereum) PurchaseContract(ctx context.Context, contractID stri
 }
 
 func (g *HashrateEthereum) CloseContract(ctx context.Context, contractID string, closeoutType CloseoutType, privKey string) error {
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	timeout := 2 * time.Minute
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	l := lib.NewMutex()
+
+	err := l.LockCtx(ctx)
+	if err != nil {
+		err = lib.WrapError(err, fmt.Errorf("close contract lock error %s", timeout))
+		g.log.Error(err)
+		return err
+	}
+	defer l.Unlock()
+
+	err = g.closeContract(ctx, contractID, closeoutType, privKey)
+	if err != nil {
+		return lib.WrapError(fmt.Errorf("close contract error"), err)
+	}
+
+	return err
+}
+
+func (g *HashrateEthereum) closeContract(ctx context.Context, contractID string, closeoutType CloseoutType, privKey string) error {
 	instance, err := implementation.NewImplementation(common.HexToAddress(contractID), g.client)
 	if err != nil {
 		g.log.Error(err)
@@ -163,9 +184,9 @@ func (g *HashrateEthereum) CloseContract(ctx context.Context, contractID string,
 
 	tx, err := instance.SetContractCloseOut(transactOpts, big.NewInt(int64(closeoutType)))
 	if err != nil {
-		g.log.Error(err)
 		return err
 	}
+	g.log.Debugf("closed contract id %s, closeoutType %d nonce %d", contractID, closeoutType, tx.Nonce())
 
 	_, err = bind.WaitMined(ctx, g.client, tx)
 	if err != nil {
@@ -209,42 +230,8 @@ func (g *HashrateEthereum) getTransactOpts(ctx context.Context, privKey string) 
 		transactOpts.GasPrice = gasPrice
 	}
 
-	fromAddr, err := lib.PrivKeyToAddr(privateKey)
-	if err != nil {
-		return nil, err
-	}
-
-	nonce, err := g.getNonce(ctx, fromAddr)
-	if err != nil {
-		return nil, err
-	}
-
 	transactOpts.Value = big.NewInt(0)
-	transactOpts.Nonce = nonce
 	transactOpts.Context = ctx
 
 	return transactOpts, nil
-}
-
-func (s *HashrateEthereum) getNonce(ctx context.Context, from common.Address) (*big.Int, error) {
-	// TODO: consider assuming that local cached nonce is correct and
-	// only retrieve pending nonce from blockchain in case of unlikely error
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	nonce := &big.Int{}
-	blockchainNonce, err := s.client.PendingNonceAt(ctx, from)
-	if err != nil {
-		return nonce, err
-	}
-
-	if s.nonce > blockchainNonce {
-		nonce.SetUint64(s.nonce)
-	} else {
-		nonce.SetUint64(blockchainNonce)
-	}
-
-	s.nonce = nonce.Uint64() //+ 1
-
-	return nonce, nil
 }

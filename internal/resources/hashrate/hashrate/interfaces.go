@@ -5,9 +5,11 @@ import (
 )
 
 type Counter interface {
-	Add(v float64)
-	Value() float64
-	ValuePer(t time.Duration) float64
+	Start()                           // sets the start time
+	Add(v float64)                    // adds a measurment performed now to the counter
+	Value() float64                   // returns the current value
+	ValuePer(t time.Duration) float64 // returns the current value normalized to the given duration
+	Reset()                           // resets counter
 }
 
 type HashrateFactory = func() *Hashrate

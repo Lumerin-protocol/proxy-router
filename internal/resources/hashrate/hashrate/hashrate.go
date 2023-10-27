@@ -19,6 +19,18 @@ func NewHashrate(counters map[string]Counter) *Hashrate {
 	}
 }
 
+func (h *Hashrate) Start() {
+	for _, item := range h.custom {
+		item.Start()
+	}
+}
+
+func (h *Hashrate) Reset() {
+	for _, item := range h.custom {
+		item.Reset()
+	}
+}
+
 func (h *Hashrate) OnSubmit(diff float64) {
 	for _, item := range h.custom {
 		item.Add(diff)
@@ -56,6 +68,10 @@ func (h *Hashrate) GetTotalDuration() time.Duration {
 
 func (h *Hashrate) GetLastSubmitTime() time.Time {
 	return h.custom[MeanCounterKey].(*Mean).GetLastSubmitTime()
+}
+
+func (h *Hashrate) GetTotalShares() int {
+	return int(h.custom[MeanCounterKey].(*Mean).GetTotalShares())
 }
 
 func JobSubmittedToHS(jobSubmitted float64) float64 {
