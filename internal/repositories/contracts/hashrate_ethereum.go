@@ -231,27 +231,8 @@ func (g *HashrateEthereum) getTransactOpts(ctx context.Context, privKey string) 
 		transactOpts.GasPrice = gasPrice
 	}
 
-	fromAddr, err := lib.PrivKeyToAddr(privateKey)
-	if err != nil {
-		return nil, err
-	}
-
-	nonce, err := g.getNonce(ctx, fromAddr)
-	if err != nil {
-		return nil, err
-	}
-
 	transactOpts.Value = big.NewInt(0)
-	transactOpts.Nonce = nonce
 	transactOpts.Context = ctx
 
 	return transactOpts, nil
-}
-
-func (s *HashrateEthereum) getNonce(ctx context.Context, from common.Address) (*big.Int, error) {
-	// TODO: consider assuming that local cached nonce is correct and
-	// only retrieve pending nonce from blockchain in case of unlikely error
-
-	blockchainNonce, err := s.client.PendingNonceAt(ctx, from)
-	return big.NewInt(int64(blockchainNonce)), err
 }
