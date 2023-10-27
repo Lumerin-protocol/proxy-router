@@ -2,8 +2,8 @@ package contracts
 
 import (
 	"context"
+	"fmt"
 	"math/big"
-	"sync"
 	"time"
 
 	"github.com/Lumerin-protocol/contracts-go/clonefactory"
@@ -28,7 +28,7 @@ type HashrateEthereum struct {
 
 	// state
 	nonce   uint64
-	mutex   sync.Mutex
+	mutex   lib.Mutex
 	cfABI   *abi.ABI
 	implABI *abi.ABI
 
@@ -56,6 +56,7 @@ func NewHashrateEthereum(clonefactoryAddr common.Address, client EthereumClient,
 		client:       client,
 		cfABI:        cfABI,
 		implABI:      implABI,
+		mutex:        lib.NewMutex(),
 		log:          log,
 	}
 }
@@ -145,9 +146,31 @@ func (g *HashrateEthereum) PurchaseContract(ctx context.Context, contractID stri
 }
 
 func (g *HashrateEthereum) CloseContract(ctx context.Context, contractID string, closeoutType CloseoutType, privKey string) error {
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	timeout := 2 * time.Minute
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	l := lib.NewMutex()
+
+	err := l.LockCtx(ctx)
+	if err != nil {
+		err = lib.WrapError(err, fmt.Errorf("close contract lock error %s", timeout))
+		g.log.Error(err)
+		return err
+	}
+	defer l.Unlock()
+
+	err = g.closeContract(ctx, contractID, closeoutType, privKey)
+	if err != nil {
+		err = fmt.Errorf("close contract error %s", err)
+		g.log.Error(err)
+		return err
+	}
+
+	return err
+}
+
+func (g *HashrateEthereum) closeContract(ctx context.Context, contractID string, closeoutType CloseoutType, privKey string) error {
 	instance, err := implementation.NewImplementation(common.HexToAddress(contractID), g.client)
 	if err != nil {
 		g.log.Error(err)
@@ -228,22 +251,7 @@ func (g *HashrateEthereum) getTransactOpts(ctx context.Context, privKey string) 
 func (s *HashrateEthereum) getNonce(ctx context.Context, from common.Address) (*big.Int, error) {
 	// TODO: consider assuming that local cached nonce is correct and
 	// only retrieve pending nonce from blockchain in case of unlikely error
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
 
-	nonce := &big.Int{}
 	blockchainNonce, err := s.client.PendingNonceAt(ctx, from)
-	if err != nil {
-		return nonce, err
-	}
-
-	if s.nonce > blockchainNonce {
-		nonce.SetUint64(s.nonce)
-	} else {
-		nonce.SetUint64(blockchainNonce)
-	}
-
-	s.nonce = nonce.Uint64() //+ 1
-
-	return nonce, nil
+	return big.NewInt(int64(blockchainNonce)), err
 }
