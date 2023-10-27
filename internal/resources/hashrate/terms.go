@@ -2,6 +2,7 @@ package hashrate
 
 import (
 	"fmt"
+	"math/big"
 	"net/url"
 	"time"
 
@@ -38,6 +39,7 @@ type Base struct {
 	StartsAt   time.Time
 	Duration   time.Duration
 	Hashrate   float64
+	Price      *big.Int
 	State      BlockchainState
 }
 
@@ -63,6 +65,10 @@ func (b *Base) GetDuration() time.Duration {
 
 func (b *Base) GetHashrateGHS() float64 {
 	return b.Hashrate
+}
+
+func (b *Base) GetPrice() *big.Int {
+	return new(big.Int).Set(b.Price) // copy
 }
 
 func (b *Base) GetState() BlockchainState {
@@ -136,6 +142,7 @@ func (t *EncryptedTerms) Decrypt(privateKey string) (*Terms, error) {
 			Duration:   t.Duration,
 			Hashrate:   t.Hashrate,
 			State:      t.State,
+			Price:      t.Price,
 		},
 		Dest: destUrl,
 	}, nil

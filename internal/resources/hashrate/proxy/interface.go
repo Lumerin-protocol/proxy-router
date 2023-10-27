@@ -26,6 +26,7 @@ type Hashrate interface {
 	GetTotalWork() float64
 	GetTotalDuration() time.Duration
 	GetLastSubmitTime() time.Time
+	GetTotalShares() int
 }
 
 type DestConnFactory = func(ctx context.Context, url *url.URL, logID string) (*ConnDest, error)

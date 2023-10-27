@@ -3,6 +3,7 @@ package contract
 import (
 	"context"
 	"errors"
+	"math/big"
 	"net/url"
 	"sync/atomic"
 	"time"
@@ -20,6 +21,7 @@ import (
 type ContractWatcherSeller struct {
 	terms *hashrateContract.Terms
 
+	deliveryLogs          *DeliveryLog
 	state                 resources.ContractState
 	fullMiners            []string
 	actualHRGHS           *hr.Hashrate
@@ -41,6 +43,7 @@ func NewContractWatcherSeller(data *hashrateContract.Terms, cycleDuration time.D
 		fullMiners:            []string{},
 		contractCycleDuration: cycleDuration,
 		actualHRGHS:           hashrateFactory(),
+		deliveryLogs:          NewDeliveryLog(),
 		log:                   log,
 	}
 	p.tsk = lib.NewTaskFunc(func(ctx context.Context) error {
@@ -90,19 +93,27 @@ func (p *ContractWatcherSeller) SetData(data *hashrateContract.Terms) {
 // Run is the main loop of the contract. It is responsible for allocating miners for the contract.
 // Returns nil if the contract ended successfully, ErrClosed if the contract was closed before it ended.
 func (p *ContractWatcherSeller) Run(ctx context.Context) error {
+	p.actualHRGHS.Reset()
+	p.actualHRGHS.Start()
 	partialDeliveryTargetGHS := p.GetHashrateGHS()
 	thisCycleJobSubmitted := atomic.Uint64{}
 	globalUnderdeliveryGHS := 0.0 // global contract underdelivery
 	jobSubmittedFullMiners := atomic.Uint64{}
 	jobSubmittedPartialMiners := atomic.Uint64{}
+	sharesSubmitted := atomic.Uint64{}
+	partialMinersNum := 0
+	p.fullMiners = p.fullMiners[:0]
 
 	for {
+		if p.GetEndTime().Before(time.Now()) {
+			p.log.Debug("contract ended!!!!!!")
+			return nil
+		}
+
+		partialMinersNum = 0
 		jobSubmittedFullMiners.Store(0)
 		jobSubmittedPartialMiners.Store(0)
 
-		p.log.Debugf("new contract cycle:  partialDeliveryTargetGHS=%.0f elapsed %s",
-			partialDeliveryTargetGHS, p.GetElapsed(),
-		)
 		if partialDeliveryTargetGHS > 0 {
 			fullMiners, newRemainderGHS := p.allocator.AllocateFullMinersForHR(
 				p.GetID(),
@@ -113,6 +124,7 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 					jobSubmittedFullMiners.Add(uint64(diff))
 					p.actualHRGHS.OnSubmit(diff)
 					thisCycleJobSubmitted.Add(uint64(diff))
+					sharesSubmitted.Add(1)
 				},
 			)
 			if len(fullMiners) > 0 {
@@ -132,11 +144,15 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 					jobSubmittedPartialMiners.Add(uint64(diff))
 					p.actualHRGHS.OnSubmit(diff)
 					thisCycleJobSubmitted.Add(uint64(diff))
+					sharesSubmitted.Add(1)
 				},
 			)
+
 			if ok {
+				partialMinersNum = 1
 				p.log.Debugf("remainderGHS: %.0f, was allocated by partial miners %v", partialDeliveryTargetGHS, minerID)
 			} else {
+				partialMinersNum = 0
 				p.log.Warnf("remainderGHS: %.0f, was not allocated by partial miners", partialDeliveryTargetGHS)
 			}
 		}
@@ -152,9 +168,10 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 				if ok {
 					miner.RemoveTasksByID(p.GetID())
 					p.log.Debugf("miner %s tasks removed", miner.GetID())
-					newFullMiners := make([]string, len(p.fullMiners)-1)
+					fullMiners := p.getFullMiners()
+					newFullMiners := make([]string, len(fullMiners)-1)
 					i := 0
-					for _, minerID := range p.fullMiners {
+					for _, minerID := range fullMiners {
 						if minerID == minerToRemove {
 							continue
 						}
@@ -176,18 +193,12 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(p.getEndsAfter()):
-			p.log.Debugf("contract finished - now unix time: %v; local now unix time: %v", time.Now().Unix(), time.Now().Local().Unix())
-
-			p.log.Debugf("contract finished - contract start time: %v", p.terms.StartsAt.Unix())
-			p.log.Debugf("contract finished - contract duration: %v", p.terms.Duration.Seconds())
-			p.log.Debugf("contract finished - contract end time: %v", p.GetEndTime().Unix())
-
 			expectedJob := hr.GHSToJobSubmitted(p.GetHashrateGHS()) * p.GetDuration().Seconds()
 			actualJob := p.actualHRGHS.GetTotalWork()
 			undeliveredJob := expectedJob - actualJob
 			undeliveredFraction := undeliveredJob / expectedJob
 
-			for _, minerID := range p.fullMiners {
+			for _, minerID := range p.getFullMiners() {
 				miner, ok := p.allocator.GetMiners().Load(minerID)
 				if !ok {
 					continue
@@ -212,19 +223,43 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 
 		// plan for the next cycle is to compensate for the under delivery of the contract
 		// partialDeliveryTargetGHS = partialDeliveryTargetGHS + globalUnderdeliveryGHS
-		partialDeliveryTargetGHS = p.GetHashrateGHS() - p.GetFullMinersHR() + globalUnderdeliveryGHS
+		partialDeliveryTargetGHS = p.GetHashrateGHS() - p.getFullMinersHR() + globalUnderdeliveryGHS
 
 		thisCycleJobSubmitted.Store(0)
 
-		p.log.Info("contract cycle ended",
-			" thisCycleActualGHS=", int(thisCycleActualGHS),
-			" thisCycleUnderDeliveryGHS=", int(thisCycleUnderDeliveryGHS),
-			" globalUnderdeliveryGHS=", int(globalUnderdeliveryGHS),
-			" partialDeliveryTargetGHS=", int(partialDeliveryTargetGHS),
-			" jobSubmittedFullMiners=", int(p.jobToGHS(jobSubmittedFullMiners.Load())),
-			" jobSubmittedPartialMiners=", int(p.jobToGHS(jobSubmittedPartialMiners.Load())),
-		)
+		logEntry := DeliveryLogEntry{
+			Timestamp:                         time.Now(),
+			ActualGHS:                         int(thisCycleActualGHS),
+			FullMinersGHS:                     int(p.jobToGHS(jobSubmittedFullMiners.Load())),
+			FullMinersNumber:                  len(p.getFullMiners()),
+			PartialMinersGHS:                  int(p.jobToGHS(jobSubmittedPartialMiners.Load())),
+			PartialMinersNumber:               partialMinersNum,
+			SharesSubmitted:                   int(sharesSubmitted.Load()),
+			UnderDeliveryGHS:                  int(thisCycleUnderDeliveryGHS),
+			GlobalHashrateGHS:                 int(p.actualHRGHS.GetHashrateAvgGHSAll()["mean"]),
+			GlobalUnderDeliveryGHS:            int(globalUnderdeliveryGHS),
+			GlobalError:                       1 - p.actualHRGHS.GetHashrateAvgGHSAll()["mean"]/p.GetHashrateGHS(),
+			NextCyclePartialDeliveryTargetGHS: int(partialDeliveryTargetGHS),
+		}
+		p.deliveryLogs.AddEntry(logEntry)
+
+		p.log.Info("contract cycle ended", logEntry)
 	}
+}
+
+func (p *ContractWatcherSeller) getFullMiners() []string {
+	newFullMiners := make([]string, 0, len(p.fullMiners))
+	for _, minerID := range p.fullMiners {
+		_, ok := p.allocator.GetMiners().Load(minerID)
+		if !ok {
+			continue
+		}
+		newFullMiners = append(newFullMiners, minerID)
+	}
+	if len(newFullMiners) != len(p.fullMiners) {
+		p.fullMiners = newFullMiners
+	}
+	return p.fullMiners
 }
 
 func (p *ContractWatcherSeller) getEndsAfter() time.Duration {
@@ -260,7 +295,7 @@ func (p *ContractWatcherSeller) getAllocatedMinersSorted() []*allocator.MinerIte
 	return items
 }
 
-func (p *ContractWatcherSeller) GetFullMinersHR() float64 {
+func (p *ContractWatcherSeller) getFullMinersHR() float64 {
 	var total float64
 	for _, minerID := range p.fullMiners {
 		miner, ok := p.allocator.GetMiners().Load(minerID)
@@ -285,11 +320,7 @@ func (p *ContractWatcherSeller) getAdjustedDest() *url.URL {
 
 // ShouldBeRunning checks blockchain state and expiration time and returns true if the contract should be running
 func (p *ContractWatcherSeller) ShouldBeRunning() bool {
-	endTime := p.GetEndTime()
-	if endTime.IsZero() {
-		return false
-	}
-	return p.GetBlockchainState() == hashrate.BlockchainStateRunning && p.GetEndTime().After(time.Now())
+	return p.GetBlockchainState() == hashrate.BlockchainStateRunning
 }
 
 //
@@ -374,4 +405,12 @@ func (p *ContractWatcherSeller) GetResourceEstimatesActual() map[string]float64 
 
 func (p *ContractWatcherSeller) GetValidationStage() hashrateContract.ValidationStage {
 	return hashrateContract.ValidationStageNotApplicable // only for buyer
+}
+
+func (p *ContractWatcherSeller) GetDeliveryLogs() ([]DeliveryLogEntry, error) {
+	return p.deliveryLogs.GetEntries()
+}
+
+func (p *ContractWatcherSeller) GetPrice() *big.Int {
+	return p.terms.GetPrice()
 }
