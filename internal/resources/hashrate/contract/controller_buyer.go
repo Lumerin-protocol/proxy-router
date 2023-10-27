@@ -3,12 +3,14 @@ package contract
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/Lumerin-protocol/contracts-go/implementation"
 	"github.com/ethereum/go-ethereum/common"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/repositories/contracts"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
 )
 
 type ControllerBuyer struct {
@@ -50,9 +52,8 @@ func (c *ControllerBuyer) Run(ctx context.Context) error {
 		case <-c.ContractWatcherBuyer.Done():
 			err := c.ContractWatcherBuyer.Err()
 			if err != nil {
-
 				// contract closed, no need to close it again
-				if errors.Is(err, ErrContractClosed) {
+				if errors.Is(err, ErrContractClosed) || c.ContractWatcherBuyer.GetBlockchainState() == hashrate.BlockchainStateAvailable {
 					c.log.Warnf("buyer contract ended due to closeout")
 					return nil
 				}
@@ -62,13 +63,18 @@ func (c *ControllerBuyer) Run(ctx context.Context) error {
 				err = c.store.CloseContract(ctx, c.GetID(), contracts.CloseoutTypeCancel, c.privKey)
 				if err != nil {
 					c.log.Errorf("error closing contract: %s", err)
+					c.log.Info("sleeping for 10 seconds")
+					time.Sleep(10 * time.Second)
+					continue
 				}
+
 				c.log.Warnf("buyer contract closed, with type cancel")
 				return nil
+			} else {
+				// delivery ok, seller will close the contract
+				c.log.Infof("buyer contract ended without an error")
+				return nil
 			}
-			// delivery ok, seller will close the contract
-			c.log.Infof("buyer contract ended without an error")
-			return nil
 		}
 	}
 }
@@ -92,6 +98,7 @@ func (c *ControllerBuyer) handleContractPurchased(ctx context.Context, event *im
 }
 
 func (c *ControllerBuyer) handleContractClosed(ctx context.Context, event *implementation.ImplementationContractClosed) error {
+	c.terms.State = hashrate.BlockchainStateAvailable
 	if c.GetState() == resources.ContractStateRunning {
 		c.StopFulfilling()
 	}
