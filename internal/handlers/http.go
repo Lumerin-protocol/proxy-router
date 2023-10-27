@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -126,6 +127,7 @@ func (h *HTTPHandler) CreateContract(ctx *gin.Context) {
 			StartsAt:   now,
 			Duration:   duration,
 			Hashrate:   float64(hrGHS) * 1e9,
+			Price:      big.NewInt(0),
 		},
 		DestEncrypted: destEnc,
 	})
@@ -380,6 +382,7 @@ func (p *HTTPHandler) mapContract(item resources.Contract) *Contract {
 		SellerAddr:              item.GetSeller(),
 		ResourceEstimatesTarget: roundResourceEstimates(item.GetResourceEstimates()),
 		ResourceEstimatesActual: roundResourceEstimates(item.GetResourceEstimatesActual()),
+		PriceLMR:                LMRWithDecimalsToLMR(item.GetPrice()),
 		Duration:                formatDuration(item.GetDuration()),
 		StartTimestamp:          formatTime(item.GetStartedAt()),
 		EndTimestamp:            formatTime(item.GetEndTime()),
@@ -431,4 +434,10 @@ func roundResourceEstimates(estimates map[string]float64) map[string]int {
 		res[k] = int(v)
 	}
 	return res
+}
+
+// LMRWithDecimalsToLMR converts LMR with decimals to LMR without decimals
+func LMRWithDecimalsToLMR(LMRWithDecimals *big.Int) float64 {
+	v, _ := lib.NewRat(LMRWithDecimals, big.NewInt(1e8)).Float64()
+	return v
 }

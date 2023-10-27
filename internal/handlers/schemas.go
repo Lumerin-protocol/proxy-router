@@ -45,6 +45,7 @@ type Contract struct {
 	StartTimestamp    string
 	EndTimestamp      string
 	Duration          string
+	PriceLMR          float64
 	Elapsed           string
 	ApplicationStatus string
 	BlockchainStatus  string

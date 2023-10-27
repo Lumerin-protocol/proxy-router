@@ -1,6 +1,8 @@
 package lib
 
 import (
+	"math/big"
+
 	"golang.org/x/exp/constraints"
 )
 
@@ -22,4 +24,11 @@ func Abs[T Number](a T) T {
 		return -a
 	}
 	return a
+}
+
+// NewRat returns a new Rat set to the quotient big.Int numerator/denominator
+func NewRat(numerator, denominator *big.Int) *big.Rat {
+	aFloat := new(big.Rat).SetInt(numerator)
+	bFloat := new(big.Rat).SetInt(denominator)
+	return new(big.Rat).Quo(aFloat, bFloat)
 }

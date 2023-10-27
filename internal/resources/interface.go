@@ -2,6 +2,7 @@ package resources
 
 import (
 	"context"
+	"math/big"
 	"time"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
@@ -21,6 +22,7 @@ type Contract interface {
 	GetBuyer() string                             // ID of the buyer (address of the buyer for smart contract data source)
 	GetSeller() string                            // ID of the seller (address of the seller for smart contract data source)
 	GetDest() string                              // string representation of the destination of the contract (IP address for hashrate, stream URL for video stream etc)
+	GetPrice() *big.Int
 
 	GetStartedAt() time.Time
 	GetFulfillmentStartedAt() time.Time

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 	"time"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
@@ -319,6 +320,10 @@ func (p *ContractWatcherBuyer) GetResourceEstimatesActual() map[string]float64 {
 
 func (p *ContractWatcherBuyer) GetResourceType() string {
 	return ResourceTypeHashrate
+}
+
+func (p *ContractWatcherBuyer) GetPrice() *big.Int {
+	return p.terms.GetPrice()
 }
 
 func (p *ContractWatcherBuyer) isValidationStartTimeout() bool {

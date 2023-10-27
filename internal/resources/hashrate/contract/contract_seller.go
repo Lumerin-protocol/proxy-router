@@ -3,6 +3,7 @@ package contract
 import (
 	"context"
 	"errors"
+	"math/big"
 	"net/url"
 	"sync/atomic"
 	"time"
@@ -408,4 +409,8 @@ func (p *ContractWatcherSeller) GetValidationStage() hashrateContract.Validation
 
 func (p *ContractWatcherSeller) GetDeliveryLogs() ([]DeliveryLogEntry, error) {
 	return p.deliveryLogs.GetEntries()
+}
+
+func (p *ContractWatcherSeller) GetPrice() *big.Int {
+	return p.terms.GetPrice()
 }
