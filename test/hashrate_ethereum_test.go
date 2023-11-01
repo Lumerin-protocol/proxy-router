@@ -226,7 +226,7 @@ func PurchaseContract(ctx context.Context, client contracts.EthereumClient, cont
 	}
 	defer sub.Unsubscribe()
 
-	_, err = cloneFactory.SetPurchaseRentalContract(transactOpts, common.HexToAddress(contractID), "")
+	_, err = cloneFactory.SetPurchaseRentalContract(transactOpts, common.HexToAddress(contractID), "", 0)
 	if err != nil {
 		return err
 	}
