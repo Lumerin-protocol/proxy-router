@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/repositories/transport"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
@@ -34,9 +35,9 @@ func NewTCPHandler(
 
 		sourceConn := proxy.NewSourceConn(stratumConn, sourceLog)
 
-		url := *defaultDestUrl // clones url
-		proxy := proxy.NewProxy(ID, sourceConn, destFactory, hashrateFactory, globalHashrate, &url, notPropagateWorkerName, proxyLog)
-		scheduler := allocator.NewScheduler(proxy, hashrateCounterDefault, &url, minerVettingShares, schedulerLog)
+		url := lib.CopyURL(defaultDestUrl) // clones url
+		proxy := proxy.NewProxy(ID, sourceConn, destFactory, hashrateFactory, globalHashrate, url, notPropagateWorkerName, proxyLog)
+		scheduler := allocator.NewScheduler(proxy, hashrateCounterDefault, url, minerVettingShares, schedulerLog)
 		alloc.GetMiners().Store(scheduler)
 
 		err := scheduler.Run(ctx)

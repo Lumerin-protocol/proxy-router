@@ -313,9 +313,9 @@ func (p *ContractWatcherSeller) getAdjustedDest() *url.URL {
 	if p.Terms.Dest() == nil {
 		return nil
 	}
-	dest := *p.Terms.Dest()
-	lib.SetUserName(&dest, p.Terms.ID())
-	return &dest
+	dest := lib.CopyURL(p.Terms.Dest())
+	lib.SetUserName(dest, p.Terms.ID())
+	return dest
 }
 
 // ShouldBeRunning checks blockchain state and expiration time and returns true if the contract should be running
