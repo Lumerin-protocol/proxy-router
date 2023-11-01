@@ -43,7 +43,7 @@ test:
     - apk add --no-cache git make musl-dev gcc
     - go version
     - go mod download
-    - go test -v -p 1 $(go list ./... | grep -v /test) # skips the test folder for now
+    - make test-unit
 
 .ecr_login_script: &ecr_login_script |
   echo "**************************"

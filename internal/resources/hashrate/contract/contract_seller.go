@@ -3,7 +3,6 @@ package contract
 import (
 	"context"
 	"errors"
-	"math/big"
 	"net/url"
 	"sync/atomic"
 	"time"
@@ -19,25 +18,26 @@ import (
 )
 
 type ContractWatcherSeller struct {
-	terms *hashrateContract.Terms
-
-	deliveryLogs          *DeliveryLog
-	state                 resources.ContractState
-	fullMiners            []string
-	actualHRGHS           *hr.Hashrate
-	fulfillmentStartedAt  time.Time
+	// config
 	contractCycleDuration time.Duration
 
-	tsk *lib.Task
+	// state
+	state                resources.ContractState
+	fullMiners           []string
+	actualHRGHS          *hr.Hashrate
+	fulfillmentStartedAt time.Time
+	deliveryLogs         *DeliveryLog
+	tsk                  *lib.Task
 
-	//deps
+	// deps
+	*hashrate.Terms
 	allocator *allocator.Allocator
 	log       interfaces.ILogger
 }
 
-func NewContractWatcherSeller(data *hashrateContract.Terms, cycleDuration time.Duration, hashrateFactory func() *hr.Hashrate, allocator *allocator.Allocator, log interfaces.ILogger) *ContractWatcherSeller {
+func NewContractWatcherSeller(terms *hashrateContract.Terms, cycleDuration time.Duration, hashrateFactory func() *hr.Hashrate, allocator *allocator.Allocator, log interfaces.ILogger) *ContractWatcherSeller {
 	p := &ContractWatcherSeller{
-		terms:                 data,
+		Terms:                 terms,
 		state:                 resources.ContractStatePending,
 		allocator:             allocator,
 		fullMiners:            []string{},
@@ -67,7 +67,7 @@ func (p *ContractWatcherSeller) StartFulfilling(ctx context.Context) {
 
 func (p *ContractWatcherSeller) StopFulfilling() {
 	<-p.tsk.Stop()
-	p.allocator.CancelTasks(p.GetID())
+	p.allocator.CancelTasks(p.ID())
 	p.log.Infof("contract stopped fulfilling")
 }
 
@@ -86,8 +86,8 @@ func (p *ContractWatcherSeller) Err() error {
 	return p.tsk.Err()
 }
 
-func (p *ContractWatcherSeller) SetData(data *hashrateContract.Terms) {
-	p.terms = data
+func (p *ContractWatcherSeller) SetData(terms *hashrateContract.Terms) {
+	p.Terms = terms
 }
 
 // Run is the main loop of the contract. It is responsible for allocating miners for the contract.
@@ -95,7 +95,7 @@ func (p *ContractWatcherSeller) SetData(data *hashrateContract.Terms) {
 func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 	p.actualHRGHS.Reset()
 	p.actualHRGHS.Start()
-	partialDeliveryTargetGHS := p.GetHashrateGHS()
+	partialDeliveryTargetGHS := p.HashrateGHS()
 	thisCycleJobSubmitted := atomic.Uint64{}
 	globalUnderdeliveryGHS := 0.0 // global contract underdelivery
 	jobSubmittedFullMiners := atomic.Uint64{}
@@ -105,7 +105,7 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 	p.fullMiners = p.fullMiners[:0]
 
 	for {
-		if p.GetEndTime().Before(time.Now()) {
+		if p.EndTime().Before(time.Now()) {
 			p.log.Debug("contract ended!!!!!!")
 			return nil
 		}
@@ -116,10 +116,10 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 
 		if partialDeliveryTargetGHS > 0 {
 			fullMiners, newRemainderGHS := p.allocator.AllocateFullMinersForHR(
-				p.GetID(),
+				p.ID(),
 				partialDeliveryTargetGHS,
 				p.getAdjustedDest(),
-				p.GetDuration(),
+				p.Duration(),
 				func(diff float64, ID string) {
 					jobSubmittedFullMiners.Add(uint64(diff))
 					p.actualHRGHS.OnSubmit(diff)
@@ -136,7 +136,7 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 			}
 
 			minerID, ok := p.allocator.AllocatePartialForHR(
-				p.GetID(),
+				p.ID(),
 				partialDeliveryTargetGHS,
 				p.getAdjustedDest(),
 				p.contractCycleDuration,
@@ -166,8 +166,8 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 				minerToRemove := items[0].ID
 				miner, ok := p.allocator.GetMiners().Load(minerToRemove)
 				if ok {
-					miner.RemoveTasksByID(p.GetID())
-					p.log.Debugf("miner %s tasks removed", miner.GetID())
+					miner.RemoveTasksByID(p.ID())
+					p.log.Debugf("miner %s tasks removed", miner.ID())
 					fullMiners := p.getFullMiners()
 					newFullMiners := make([]string, len(fullMiners)-1)
 					i := 0
@@ -193,7 +193,7 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(p.getEndsAfter()):
-			expectedJob := hr.GHSToJobSubmitted(p.GetHashrateGHS()) * p.GetDuration().Seconds()
+			expectedJob := hr.GHSToJobSubmitted(p.HashrateGHS()) * p.Duration().Seconds()
 			actualJob := p.actualHRGHS.GetTotalWork()
 			undeliveredJob := expectedJob - actualJob
 			undeliveredFraction := undeliveredJob / expectedJob
@@ -203,8 +203,8 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 				if !ok {
 					continue
 				}
-				miner.RemoveTasksByID(p.GetID())
-				p.log.Debugf("miner %s tasks removed", miner.GetID())
+				miner.RemoveTasksByID(p.ID())
+				p.log.Debugf("miner %s tasks removed", miner.ID())
 			}
 			p.fullMiners = p.fullMiners[:0]
 
@@ -218,12 +218,12 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 		}
 
 		thisCycleActualGHS := p.jobToGHS(thisCycleJobSubmitted.Load())
-		thisCycleUnderDeliveryGHS := p.GetHashrateGHS() - thisCycleActualGHS
+		thisCycleUnderDeliveryGHS := p.HashrateGHS() - thisCycleActualGHS
 		globalUnderdeliveryGHS += thisCycleUnderDeliveryGHS
 
 		// plan for the next cycle is to compensate for the under delivery of the contract
 		// partialDeliveryTargetGHS = partialDeliveryTargetGHS + globalUnderdeliveryGHS
-		partialDeliveryTargetGHS = p.GetHashrateGHS() - p.getFullMinersHR() + globalUnderdeliveryGHS
+		partialDeliveryTargetGHS = p.HashrateGHS() - p.getFullMinersHR() + globalUnderdeliveryGHS
 
 		thisCycleJobSubmitted.Store(0)
 
@@ -238,7 +238,7 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 			UnderDeliveryGHS:                  int(thisCycleUnderDeliveryGHS),
 			GlobalHashrateGHS:                 int(p.actualHRGHS.GetHashrateAvgGHSAll()["mean"]),
 			GlobalUnderDeliveryGHS:            int(globalUnderdeliveryGHS),
-			GlobalError:                       1 - p.actualHRGHS.GetHashrateAvgGHSAll()["mean"]/p.GetHashrateGHS(),
+			GlobalError:                       1 - p.actualHRGHS.GetHashrateAvgGHSAll()["mean"]/p.HashrateGHS(),
 			NextCyclePartialDeliveryTargetGHS: int(partialDeliveryTargetGHS),
 		}
 		p.deliveryLogs.AddEntry(logEntry)
@@ -263,7 +263,7 @@ func (p *ContractWatcherSeller) getFullMiners() []string {
 }
 
 func (p *ContractWatcherSeller) getEndsAfter() time.Duration {
-	endTime := p.GetEndTime()
+	endTime := p.EndTime()
 	if endTime.IsZero() {
 		return 0
 	}
@@ -283,7 +283,7 @@ func (p *ContractWatcherSeller) getAllocatedMinersSorted() []*allocator.MinerIte
 			continue
 		}
 		items = append(items, &allocator.MinerItem{
-			ID:    miner.GetID(),
+			ID:    miner.ID(),
 			HrGHS: miner.HashrateGHS(),
 		})
 	}
@@ -310,100 +310,53 @@ func (p *ContractWatcherSeller) getFullMinersHR() float64 {
 // getAdjustedDest returns the destination url with the username set to the contractID
 // this is required for the buyer to distinguish incoming hashrate between different contracts
 func (p *ContractWatcherSeller) getAdjustedDest() *url.URL {
-	if p.terms.Dest == nil {
+	if p.Terms.Dest() == nil {
 		return nil
 	}
-	dest := *p.terms.Dest
-	lib.SetUserName(&dest, p.terms.ContractID)
-	return &dest
+	dest := lib.CopyURL(p.Terms.Dest())
+	lib.SetUserName(dest, p.Terms.ID())
+	return dest
 }
 
 // ShouldBeRunning checks blockchain state and expiration time and returns true if the contract should be running
 func (p *ContractWatcherSeller) ShouldBeRunning() bool {
-	return p.GetBlockchainState() == hashrate.BlockchainStateRunning
+	return p.Terms.BlockchainState() == hashrate.BlockchainStateRunning
 }
 
 //
 // Public getters
 //
 
-func (p *ContractWatcherSeller) GetRole() resources.ContractRole {
+func (p *ContractWatcherSeller) Role() resources.ContractRole {
 	return resources.ContractRoleSeller
 }
 
-func (p *ContractWatcherSeller) GetDest() string {
+func (p *ContractWatcherSeller) Dest() string {
 	if dest := p.getAdjustedDest(); dest != nil {
 		return dest.String()
 	}
 	return ""
 }
 
-func (p *ContractWatcherSeller) GetDuration() time.Duration {
-	return p.terms.Duration
-}
-
-func (p *ContractWatcherSeller) GetStartedAt() time.Time {
-	return p.terms.StartsAt
-}
-
-func (p *ContractWatcherSeller) GetEndTime() time.Time {
-	if p.terms.StartsAt.IsZero() {
-		return time.Time{}
-	}
-	endTime := p.terms.StartsAt.Add(p.terms.Duration)
-	return endTime
-}
-
-func (p *ContractWatcherSeller) GetFulfillmentStartedAt() time.Time {
+func (p *ContractWatcherSeller) FulfillmentStartTime() time.Time {
 	return p.fulfillmentStartedAt
 }
 
-func (p *ContractWatcherSeller) GetElapsed() time.Duration {
-	if p.terms.StartsAt.IsZero() {
-		return 0
-	}
-	return time.Since(p.terms.StartsAt)
-}
-
-func (p *ContractWatcherSeller) GetID() string {
-	return p.terms.ContractID
-}
-
-func (p *ContractWatcherSeller) GetHashrateGHS() float64 {
-	return p.terms.Hashrate
-}
-
-func (p *ContractWatcherSeller) GetSeller() string {
-	return p.terms.Seller
-}
-
-func (p *ContractWatcherSeller) GetBuyer() string {
-	return p.terms.Buyer
-}
-
-func (p *ContractWatcherSeller) GetState() resources.ContractState {
-	return p.state
-}
-
-func (p *ContractWatcherSeller) GetBlockchainState() hashrate.BlockchainState {
-	return p.terms.State
-}
-
-func (p *ContractWatcherSeller) GetResourceType() string {
+func (p *ContractWatcherSeller) ResourceType() string {
 	return ResourceTypeHashrate
 }
 
-func (p *ContractWatcherSeller) GetResourceEstimates() map[string]float64 {
+func (p *ContractWatcherSeller) ResourceEstimates() map[string]float64 {
 	return map[string]float64{
-		ResourceEstimateHashrateGHS: p.GetHashrateGHS(),
+		ResourceEstimateHashrateGHS: p.Terms.HashrateGHS(),
 	}
 }
 
-func (p *ContractWatcherSeller) GetResourceEstimatesActual() map[string]float64 {
+func (p *ContractWatcherSeller) ResourceEstimatesActual() map[string]float64 {
 	return p.actualHRGHS.GetHashrateAvgGHSAll()
 }
 
-func (p *ContractWatcherSeller) GetValidationStage() hashrateContract.ValidationStage {
+func (p *ContractWatcherSeller) ValidationStage() hashrateContract.ValidationStage {
 	return hashrateContract.ValidationStageNotApplicable // only for buyer
 }
 
@@ -411,6 +364,6 @@ func (p *ContractWatcherSeller) GetDeliveryLogs() ([]DeliveryLogEntry, error) {
 	return p.deliveryLogs.GetEntries()
 }
 
-func (p *ContractWatcherSeller) GetPrice() *big.Int {
-	return p.terms.GetPrice()
+func (p *ContractWatcherSeller) State() resources.ContractState {
+	return p.state
 }

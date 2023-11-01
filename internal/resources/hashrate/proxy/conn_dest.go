@@ -118,7 +118,7 @@ func (c *ConnDest) AutoRead(ctx context.Context) error {
 	}
 }
 
-func (c *ConnDest) GetID() string {
+func (c *ConnDest) ID() string {
 	return c.conn.GetID()
 }
 
@@ -187,10 +187,10 @@ func (c *ConnDest) SetUserName(userName string) {
 
 	c.userName = userName
 
-	newURL := *c.destUrl
-	lib.SetUserName(&newURL, userName)
+	newURL := lib.CopyURL(c.destUrl)
+	lib.SetUserName(newURL, userName)
 
-	c.destUrl = &newURL
+	c.destUrl = newURL
 	c.conn.id = c.destUrl.String()
 	c.conn.address = c.destUrl.String()
 }
