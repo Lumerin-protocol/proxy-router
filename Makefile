@@ -19,7 +19,7 @@ lint:
 	gokart scan .
 	gosec ./...
 
-test:
+test-unit:
 	go test -v -p 1 $$(go list ./... | grep -v /test)
 
 test-integration:
