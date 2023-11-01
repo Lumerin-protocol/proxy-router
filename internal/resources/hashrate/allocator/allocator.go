@@ -114,7 +114,7 @@ func (p *Allocator) GetFreeMiners() []MinerItem {
 		}
 		if item.IsFree() {
 			freeMiners = append(freeMiners, MinerItem{
-				ID:    item.GetID(),
+				ID:    item.ID(),
 				HrGHS: item.HashrateGHS() * HashratePredictionAdjustment,
 			})
 		}
@@ -139,7 +139,7 @@ func (p *Allocator) GetPartialMiners(contractCycleDuration time.Duration) []Mine
 			fraction := hashrate.JobSubmittedToGHS(job) / (item.HashrateGHS() * HashratePredictionAdjustment)
 
 			partialMiners = append(partialMiners, MinerItemJobScheduled{
-				ID:       item.GetID(),
+				ID:       item.ID(),
 				Job:      job,
 				Fraction: fraction,
 			})

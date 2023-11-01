@@ -19,7 +19,7 @@ func NewGlobalHashrate(hrFactory HashrateFactory) *GlobalHashrate {
 }
 
 func (t *GlobalHashrate) OnSubmit(workerName string, diff float64) {
-	actual, _ := t.data.LoadOrStore(&WorkerHashrateModel{ID: workerName, hr: t.hrFactory()})
+	actual, _ := t.data.LoadOrStore(&WorkerHashrateModel{id: workerName, hr: t.hrFactory()})
 	actual.OnSubmit(diff)
 }
 
@@ -58,7 +58,7 @@ func (t *GlobalHashrate) GetTotalWork(workerName string) (work float64, ok bool)
 func (t *GlobalHashrate) GetAll() map[string]time.Time {
 	data := make(map[string]time.Time)
 	t.data.Range(func(item *WorkerHashrateModel) bool {
-		data[item.ID] = item.hr.GetLastSubmitTime()
+		data[item.ID()] = item.hr.GetLastSubmitTime()
 		return true
 	})
 	return data
@@ -75,12 +75,12 @@ func (t *GlobalHashrate) Reset(workerName string) {
 }
 
 type WorkerHashrateModel struct {
-	ID string
+	id string
 	hr *Hashrate
 }
 
-func (m *WorkerHashrateModel) GetID() string {
-	return m.ID
+func (m *WorkerHashrateModel) ID() string {
+	return m.id
 }
 
 func (m *WorkerHashrateModel) OnSubmit(diff float64) {

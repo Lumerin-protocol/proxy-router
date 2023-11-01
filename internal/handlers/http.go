@@ -119,18 +119,22 @@ func (h *HTTPHandler) CreateContract(ctx *gin.Context) {
 		_ = ctx.AbortWithError(http.StatusInternalServerError, err)
 		return
 	}
-	h.contractManager.AddContract(context.Background(), &hashrate.EncryptedTerms{
-		Base: hashrate.Base{
-			ContractID: lib.GetRandomAddr().String(),
-			Seller:     "",
-			Buyer:      "",
-			StartsAt:   now,
-			Duration:   duration,
-			Hashrate:   float64(hrGHS) * 1e9,
-			Price:      big.NewInt(0),
-		},
-		DestEncrypted: destEnc,
-	})
+	terms := hashrate.NewTerms(
+		lib.GetRandomAddr().String(),
+		lib.GetRandomAddr().String(),
+		lib.GetRandomAddr().String(),
+		now,
+		duration,
+		float64(hrGHS)*1e9,
+		big.NewInt(0),
+		hashrate.BlockchainStateRunning,
+		false,
+		big.NewInt(0),
+		false,
+		0,
+		destEnc,
+	)
+	h.contractManager.AddContract(context.Background(), terms)
 
 	ctx.JSON(200, gin.H{"status": "ok"})
 }
@@ -335,9 +339,9 @@ func (c *HTTPHandler) MapMiner(m *allocator.Scheduler) *Miner {
 
 	return &Miner{
 		Resource: Resource{
-			Self: c.publicUrl.JoinPath(fmt.Sprintf("/miners/%s", m.GetID())).String(),
+			Self: c.publicUrl.JoinPath(fmt.Sprintf("/miners/%s", m.ID())).String(),
 		},
-		ID:                    m.GetID(),
+		ID:                    m.ID(),
 		WorkerName:            m.GetWorkerName(),
 		Status:                m.GetStatus().String(),
 		CurrentDifficulty:     int(m.GetCurrentDifficulty()),
@@ -356,7 +360,7 @@ func (c *HTTPHandler) GetWorkers(ctx *gin.Context) {
 
 	c.globalHashrate.Range(func(item *hr.WorkerHashrateModel) bool {
 		worker := &Worker{
-			WorkerName: item.ID,
+			WorkerName: item.ID(),
 			Hashrate:   item.GetHashrateAvgGHSAll(),
 		}
 		workers = append(workers, worker)
@@ -373,24 +377,30 @@ func (c *HTTPHandler) GetWorkers(ctx *gin.Context) {
 func (p *HTTPHandler) mapContract(item resources.Contract) *Contract {
 	return &Contract{
 		Resource: Resource{
-			Self: p.publicUrl.JoinPath(fmt.Sprintf("/contracts/%s", item.GetID())).String(),
+			Self: p.publicUrl.JoinPath(fmt.Sprintf("/contracts/%s", item.ID())).String(),
 		},
-		Role:                    item.GetRole().String(),
-		Stage:                   item.GetValidationStage().String(),
-		ID:                      item.GetID(),
-		BuyerAddr:               item.GetBuyer(),
-		SellerAddr:              item.GetSeller(),
-		ResourceEstimatesTarget: roundResourceEstimates(item.GetResourceEstimates()),
-		ResourceEstimatesActual: roundResourceEstimates(item.GetResourceEstimatesActual()),
-		PriceLMR:                LMRWithDecimalsToLMR(item.GetPrice()),
-		Duration:                formatDuration(item.GetDuration()),
-		StartTimestamp:          formatTime(item.GetStartedAt()),
-		EndTimestamp:            formatTime(item.GetEndTime()),
-		Elapsed:                 formatDuration(item.GetElapsed()),
-		ApplicationStatus:       item.GetState().String(),
-		BlockchainStatus:        item.GetBlockchainState().String(),
-		Dest:                    item.GetDest(),
-		Miners:                  p.allocator.GetMinersFulfillingContract(item.GetID()),
+		Role:                    item.Role().String(),
+		Stage:                   item.ValidationStage().String(),
+		ID:                      item.ID(),
+		BuyerAddr:               item.Buyer(),
+		SellerAddr:              item.Seller(),
+		ResourceEstimatesTarget: roundResourceEstimates(item.ResourceEstimates()),
+		ResourceEstimatesActual: roundResourceEstimates(item.ResourceEstimatesActual()),
+		PriceLMR:                LMRWithDecimalsToLMR(item.Price()),
+		Duration:                formatDuration(item.Duration()),
+
+		IsDeleted:      item.IsDeleted(),
+		BalanceLMR:     LMRWithDecimalsToLMR(item.Balance()),
+		HasFutureTerms: item.HasFutureTerms(),
+		Version:        item.Version(),
+
+		StartTimestamp:    formatTime(item.StartTime()),
+		EndTimestamp:      formatTime(item.EndTime()),
+		Elapsed:           formatDuration(item.Elapsed()),
+		ApplicationStatus: item.State().String(),
+		BlockchainStatus:  item.BlockchainState().String(),
+		Dest:              item.Dest(),
+		Miners:            p.allocator.GetMinersFulfillingContract(item.ID()),
 	}
 }
 

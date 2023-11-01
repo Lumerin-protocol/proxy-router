@@ -110,7 +110,7 @@ func (cm *ContractManager) handleContractPurchased(ctx context.Context, event *c
 	if err != nil {
 		return err
 	}
-	if terms.GetBuyer() == cm.ownerAddr.String() {
+	if terms.Buyer() == cm.ownerAddr.String() {
 		cm.AddContract(ctx, terms)
 	}
 	return nil
@@ -123,7 +123,7 @@ func (cm *ContractManager) handleContractDeleteUpdated(ctx context.Context, even
 }
 
 func (cm *ContractManager) AddContract(ctx context.Context, data *hashrate.EncryptedTerms) {
-	_, ok := cm.contracts.Load(data.GetID())
+	_, ok := cm.contracts.Load(data.ID())
 	if ok {
 		cm.log.Error("contract already exists in store")
 		return
@@ -146,7 +146,7 @@ func (cm *ContractManager) AddContract(ctx context.Context, data *hashrate.Encry
 			cm.log.Warn(err)
 		}
 
-		cm.contracts.Delete(cntr.GetID())
+		cm.contracts.Delete(cntr.ID())
 	}()
 }
 
@@ -155,5 +155,5 @@ func (cm *ContractManager) GetContracts() *lib.Collection[resources.Contract] {
 }
 
 func (cm *ContractManager) isOurContract(terms TermsCommon) bool {
-	return terms.GetSeller() == cm.ownerAddr.String() || terms.GetBuyer() == cm.ownerAddr.String()
+	return terms.Seller() == cm.ownerAddr.String() || terms.Buyer() == cm.ownerAddr.String()
 }

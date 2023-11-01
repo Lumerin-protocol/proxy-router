@@ -72,21 +72,21 @@ func NewContractFactory(
 }
 
 func (c *ContractFactory) CreateContract(contractData *hashrateContract.EncryptedTerms) (resources.Contract, error) {
-	if contractData.Seller == c.address.String() {
+	if contractData.Seller() == c.address.String() {
 		terms, err := contractData.Decrypt(c.privateKey)
 		if err != nil {
 			return nil, err
 		}
-		watcher := NewContractWatcherSeller(terms, c.cycleDuration, c.hashrateFactory, c.allocator, c.log.Named(lib.AddrShort(contractData.ContractID)))
+		watcher := NewContractWatcherSeller(terms, c.cycleDuration, c.hashrateFactory, c.allocator, c.log.Named(lib.AddrShort(contractData.ID())))
 		return NewControllerSeller(watcher, c.store, c.privateKey), nil
 	}
-	if contractData.Buyer == c.address.String() {
+	if contractData.Buyer() == c.address.String() {
 		watcher := NewContractWatcherBuyer(
 			contractData,
 			c.hashrateFactory,
 			c.allocator,
 			c.globalHashrate,
-			c.log.Named(lib.AddrShort(contractData.ContractID)),
+			c.log.Named(lib.AddrShort(contractData.ID())),
 
 			c.cycleDuration,
 			c.validationStartTimeout,

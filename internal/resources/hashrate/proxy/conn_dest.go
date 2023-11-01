@@ -118,7 +118,7 @@ func (c *ConnDest) AutoRead(ctx context.Context) error {
 	}
 }
 
-func (c *ConnDest) GetID() string {
+func (c *ConnDest) ID() string {
 	return c.conn.GetID()
 }
 

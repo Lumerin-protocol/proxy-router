@@ -90,27 +90,38 @@ func (g *HashrateEthereum) GetContract(ctx context.Context, contractID string) (
 		return nil, err
 	}
 
-	terms := &hashrate.EncryptedTerms{
-		Base: hashrate.Base{
-			ContractID: contractID,
-			Seller:     data.Seller.Hex(),
-			Duration:   time.Duration(data.Length.Int64()) * time.Second,
-			Hashrate:   float64(hr.HSToGHS(float64(data.Speed.Int64()))),
-			Price:      data.Price,
-			State:      hashrate.BlockchainState(data.State),
-		},
-	}
+	var (
+		startsAt      time.Time
+		buyer         string
+		destEncrypted string
+	)
 
 	if data.State == 1 { // running
-		terms.StartsAt = time.Unix(data.StartingBlockTimestamp.Int64(), 0)
-		terms.Buyer = data.Buyer.Hex()
-		terms.DestEncrypted = data.EncryptedPoolData
+		startsAt = time.Unix(data.StartingBlockTimestamp.Int64(), 0)
+		buyer = data.Buyer.Hex()
+		destEncrypted = data.EncryptedPoolData
 	}
+
+	terms := hashrate.NewTerms(
+		contractID,
+		data.Seller.Hex(),
+		buyer,
+		startsAt,
+		time.Duration(data.Length.Int64())*time.Second,
+		float64(hr.HSToGHS(float64(data.Speed.Int64()))),
+		data.Price,
+		hashrate.BlockchainState(data.State),
+		data.IsDeleted,
+		data.Balance,
+		data.HasFutureTerms,
+		data.Version,
+		destEncrypted,
+	)
 
 	return terms, nil
 }
 
-func (g *HashrateEthereum) PurchaseContract(ctx context.Context, contractID string, privKey string) error {
+func (g *HashrateEthereum) PurchaseContract(ctx context.Context, contractID string, privKey string, version int) error {
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
 
@@ -119,7 +130,7 @@ func (g *HashrateEthereum) PurchaseContract(ctx context.Context, contractID stri
 		return err
 	}
 
-	_, err = g.cloneFactory.SetPurchaseRentalContract(opts, common.HexToAddress(contractID), "")
+	_, err = g.cloneFactory.SetPurchaseRentalContract(opts, common.HexToAddress(contractID), "", uint32(version))
 	if err != nil {
 		g.log.Error(err)
 		return err
