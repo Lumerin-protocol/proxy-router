@@ -29,12 +29,12 @@ func NewControllerBuyer(contract *ContractWatcherBuyer, store *contracts.Hashrat
 }
 
 func (c *ControllerBuyer) Run(ctx context.Context) error {
-	sub, err := c.store.CreateImplementationSubscription(ctx, common.HexToAddress(c.GetID()))
+	sub, err := c.store.CreateImplementationSubscription(ctx, common.HexToAddress(c.ID()))
 	if err != nil {
 		return err
 	}
 	defer sub.Unsubscribe()
-	c.log.Infof("started watching contract as buyer, address %s", c.GetID())
+	c.log.Infof("started watching contract as buyer, address %s", c.ID())
 
 	c.ContractWatcherBuyer.StartFulfilling(ctx)
 
@@ -53,14 +53,14 @@ func (c *ControllerBuyer) Run(ctx context.Context) error {
 			err := c.ContractWatcherBuyer.Err()
 			if err != nil {
 				// contract closed, no need to close it again
-				if errors.Is(err, ErrContractClosed) || c.ContractWatcherBuyer.GetBlockchainState() == hashrate.BlockchainStateAvailable {
+				if errors.Is(err, ErrContractClosed) || c.ContractWatcherBuyer.BlockchainState() == hashrate.BlockchainStateAvailable {
 					c.log.Warnf("buyer contract ended due to closeout")
 					return nil
 				}
 
 				// underdelivery, buyer closes the contract
 				c.log.Warnf("buyer contract ended with error: %s", err)
-				err = c.store.CloseContract(ctx, c.GetID(), contracts.CloseoutTypeCancel, c.privKey)
+				err = c.store.CloseContract(ctx, c.ID(), contracts.CloseoutTypeCancel, c.privKey)
 				if err != nil {
 					c.log.Errorf("error closing contract: %s", err)
 					c.log.Info("sleeping for 10 seconds")
@@ -98,8 +98,8 @@ func (c *ControllerBuyer) handleContractPurchased(ctx context.Context, event *im
 }
 
 func (c *ControllerBuyer) handleContractClosed(ctx context.Context, event *implementation.ImplementationContractClosed) error {
-	c.terms.State = hashrate.BlockchainStateAvailable
-	if c.GetState() == resources.ContractStateRunning {
+	c.EncryptedTerms.SetState(hashrate.BlockchainStateAvailable)
+	if c.State() == resources.ContractStateRunning {
 		c.StopFulfilling()
 	}
 

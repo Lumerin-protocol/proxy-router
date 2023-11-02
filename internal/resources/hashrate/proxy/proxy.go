@@ -112,9 +112,9 @@ func (p *Proxy) Run(ctx context.Context) error {
 		// destination error
 		if errors.Is(err, ErrDest) {
 			if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
-				p.log.Warnf("destination closed the connection, dest %s", p.dest.GetID())
+				p.log.Warnf("destination closed the connection, dest %s", p.dest.ID())
 			} else {
-				p.log.Errorf("destination error, source %s dest %s: %s", p.source.GetID(), p.dest.GetID(), err)
+				p.log.Errorf("destination error, source %s dest %s: %s", p.source.GetID(), p.dest.ID(), err)
 			}
 
 			return err
@@ -239,7 +239,7 @@ func (p *Proxy) closeConnections() {
 
 	p.destMap.Range(func(dest *ConnDest) bool {
 		dest.conn.Close()
-		p.destMap.Delete(dest.GetID())
+		p.destMap.Delete(dest.ID())
 		return true
 	})
 }
@@ -301,7 +301,7 @@ func (p *Proxy) GetStats() map[string]int {
 func (p *Proxy) GetDestConns() *map[string]string {
 	var destConns = make(map[string]string)
 	p.destMap.Range(func(dest *ConnDest) bool {
-		destConns[dest.GetID()] = dest.GetIdleCloseAt().Format(time.RFC3339)
+		destConns[dest.ID()] = dest.GetIdleCloseAt().Sub(time.Now()).Round(time.Second).String()
 		return true
 	})
 	return &destConns

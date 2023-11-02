@@ -28,13 +28,13 @@ func NewControllerSeller(contract *ContractWatcherSeller, store *contracts.Hashr
 }
 
 func (c *ControllerSeller) Run(ctx context.Context) error {
-	sub, err := c.store.CreateImplementationSubscription(ctx, common.HexToAddress(c.GetID()))
+	sub, err := c.store.CreateImplementationSubscription(ctx, common.HexToAddress(c.ID()))
 	if err != nil {
 		return err
 	}
 	defer sub.Unsubscribe()
 
-	c.log.Infof("started watching contract as seller, address %s", c.GetID())
+	c.log.Infof("started watching contract as seller, address %s", c.ID())
 
 	if c.ShouldBeRunning() {
 		c.StartFulfilling(ctx)
@@ -66,8 +66,8 @@ func (c *ControllerSeller) Run(ctx context.Context) error {
 			c.log.Infof("sleeping %s", waitBeforeClose)
 			time.Sleep(waitBeforeClose)
 
-			c.log.Infof("closing contract id %s, startsAt %s, duration %s, elapsed %s", c.GetID(), c.GetStartedAt(), c.GetDuration(), c.GetElapsed())
-			err = c.store.CloseContract(ctx, c.GetID(), contracts.CloseoutTypeWithoutClaim, c.privKey)
+			c.log.Infof("closing contract id %s, startsAt %s, duration %s, elapsed %s", c.ID(), c.StartTime(), c.Duration(), c.Elapsed())
+			err = c.store.CloseContract(ctx, c.ID(), contracts.CloseoutTypeWithoutClaim, c.privKey)
 			if err != nil {
 				c.log.Errorf("error closing contract: %s", err)
 			} else {
@@ -93,8 +93,8 @@ func (c *ControllerSeller) controller(ctx context.Context, event interface{}) er
 }
 
 func (c *ControllerSeller) handleContractPurchased(ctx context.Context, event *implementation.ImplementationContractPurchased) error {
-	c.log.Debugf("got purchased event for contract %s", c.GetID())
-	if c.GetState() == resources.ContractStateRunning {
+	c.log.Debugf("got purchased event for contract %s", c.ID())
+	if c.State() == resources.ContractStateRunning {
 		return nil
 	}
 
@@ -103,7 +103,7 @@ func (c *ControllerSeller) handleContractPurchased(ctx context.Context, event *i
 		return err
 	}
 
-	if c.GetBlockchainState() != hashrateContract.BlockchainStateRunning {
+	if c.BlockchainState() != hashrateContract.BlockchainStateRunning {
 		return nil
 	}
 
@@ -112,39 +112,9 @@ func (c *ControllerSeller) handleContractPurchased(ctx context.Context, event *i
 	return nil
 }
 
-func (c *ControllerSeller) LoadTermsFromBlockchain(ctx context.Context) error {
-	terms, err := c.GetTermsFromBlockchain(ctx)
-
-	if err != nil {
-		return err
-	}
-
-	c.SetData(terms)
-
-	return nil
-}
-
-func (c *ControllerSeller) GetTermsFromBlockchain(ctx context.Context) (*hashrateContract.Terms, error) {
-	encryptedTerms, err := c.store.GetContract(ctx, c.GetID())
-
-	if err != nil {
-		return nil, err
-	}
-
-	terms, err := encryptedTerms.Decrypt(c.privKey)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return terms, nil
-}
-
 func (c *ControllerSeller) handleContractClosed(ctx context.Context, event *implementation.ImplementationContractClosed) error {
 	c.log.Warnf("got closed event for contract")
-	if c.GetState() == resources.ContractStateRunning {
-		c.StopFulfilling()
-	}
+	c.StopFulfilling()
 
 	err := c.LoadTermsFromBlockchain(ctx)
 
@@ -156,7 +126,7 @@ func (c *ControllerSeller) handleContractClosed(ctx context.Context, event *impl
 }
 
 func (c *ControllerSeller) handleCipherTextUpdated(ctx context.Context, event *implementation.ImplementationCipherTextUpdated) error {
-	currentDest := c.GetDest()
+	currentDest := c.Dest()
 
 	terms, err := c.GetTermsFromBlockchain(ctx)
 
@@ -165,7 +135,7 @@ func (c *ControllerSeller) handleCipherTextUpdated(ctx context.Context, event *i
 	}
 
 	//TODO: drop protocol before comparison
-	newDest := terms.Dest.String()
+	newDest := terms.Dest().String()
 
 	if currentDest == newDest {
 		return nil
@@ -184,4 +154,32 @@ func (c *ControllerSeller) handlePurchaseInfoUpdated(ctx context.Context, event 
 	}
 
 	return nil
+}
+
+func (c *ControllerSeller) LoadTermsFromBlockchain(ctx context.Context) error {
+	terms, err := c.GetTermsFromBlockchain(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	c.SetData(terms)
+
+	return nil
+}
+
+func (c *ControllerSeller) GetTermsFromBlockchain(ctx context.Context) (*hashrateContract.Terms, error) {
+	encryptedTerms, err := c.store.GetContract(ctx, c.ID())
+
+	if err != nil {
+		return nil, err
+	}
+
+	terms, err := encryptedTerms.Decrypt(c.privKey)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return terms, nil
 }

@@ -28,7 +28,7 @@ type Config struct {
 	Miner struct {
 		NotPropagateWorkerName bool          `env:"MINER_NOT_PROPAGATE_WORKER_NAME" flag:"miner-not-propagate-worker-name"     validate:""           desc:"not preserve worker name from the source in the destination pool. Preserving works only if the source miner worker name is defined as 'accountName.workerName'. Does not apply for contracts"`
 		ShareTimeout           time.Duration `env:"MINER_SHARE_TIMEOUT"             flag:"miner-share-timeout"                 validate:"omitempty,duration"`
-		VettingShares          int           `env:"MINER_VETTING_SHARES"          flag:"miner-vetting-shares"              validate:"omitempty,number"`
+		VettingShares          int           `env:"MINER_VETTING_SHARES"            flag:"miner-vetting-shares"                validate:"omitempty,number"`
 	}
 	Log struct {
 		Color           bool   `env:"LOG_COLOR"            flag:"log-color"`
@@ -94,7 +94,7 @@ func (cfg *Config) SetDefaults() {
 	// Miner
 
 	if cfg.Miner.VettingShares == 0 {
-		cfg.Miner.VettingShares = 20
+		cfg.Miner.VettingShares = 2
 	}
 
 	if cfg.Miner.ShareTimeout == 0 {

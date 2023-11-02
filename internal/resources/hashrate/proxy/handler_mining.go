@@ -82,7 +82,7 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 
 		d := p.proxy.GetDestByJobID(msgTyped.GetJobId())
 		if d != nil {
-			p.log.Warnf("job %s found in different dest %s", msgTyped.GetJobId(), d.GetID())
+			p.log.Warnf("job %s found in different dest %s", msgTyped.GetJobId(), d.ID())
 			diff, err = d.ValidateAndAddShare(msgTyped)
 			weAccepted = err == nil
 			if weAccepted {
@@ -131,7 +131,7 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 
 		err = p.proxy.source.Write(ctx, res1)
 		if err != nil {
-			p.log.Error("cannot write response to miner: ", err)
+			p.log.Errorf("cannot write response (%s) to miner: %s", res1.ID, err)
 			p.proxy.cancelRun()
 			return
 		}

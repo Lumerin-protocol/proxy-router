@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 	"time"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
@@ -22,7 +21,7 @@ type ContractWatcherBuyer struct {
 	shareTimeout           time.Duration // time to wait for the share to arrive, otherwise close contract
 	hrErrorThreshold       float64       // hashrate relative error threshold for the contract to be considered fulfilling accurately
 
-	terms                       *hashrateContract.EncryptedTerms
+	*hashrateContract.EncryptedTerms
 	state                       resources.ContractState
 	validationStage             hashrateContract.ValidationStage
 	fulfillmentStartedAt        time.Time
@@ -55,7 +54,7 @@ func NewContractWatcherBuyer(
 
 ) *ContractWatcherBuyer {
 	return &ContractWatcherBuyer{
-		terms:                  terms,
+		EncryptedTerms:         terms,
 		state:                  resources.ContractStatePending,
 		allocator:              allocator,
 		globalHashrate:         globalHashrate,
@@ -104,8 +103,8 @@ func (p *ContractWatcherBuyer) Err() error {
 	return p.err
 }
 
-func (p *ContractWatcherBuyer) SetData(data *hashrateContract.EncryptedTerms) {
-	p.terms = data
+func (p *ContractWatcherBuyer) SetData(terms *hashrateContract.EncryptedTerms) {
+	p.EncryptedTerms = terms
 }
 
 func (p *ContractWatcherBuyer) Run(ctx context.Context) error {
@@ -114,12 +113,12 @@ func (p *ContractWatcherBuyer) Run(ctx context.Context) error {
 	p.fulfillmentStartedAt = startedAt
 
 	// instead of resetting write a method that creates separate counters for each worker at given moment of time
-	p.globalHashrate.Reset(p.terms.ContractID)
+	p.globalHashrate.Reset(p.ID())
 
 	ticker := time.NewTicker(p.contractCycleDuration)
 	defer ticker.Stop()
 
-	tillEndTime := time.Until(p.GetEndTime())
+	tillEndTime := time.Until(p.EndTime())
 	if tillEndTime <= 0 {
 		return nil
 	}
@@ -132,7 +131,7 @@ func (p *ContractWatcherBuyer) Run(ctx context.Context) error {
 			return err
 		}
 
-		tillEndTime := time.Until(p.GetEndTime())
+		tillEndTime := time.Until(p.EndTime())
 		if tillEndTime <= 0 {
 			return nil
 		}
@@ -184,19 +183,16 @@ func (p *ContractWatcherBuyer) checkIncomingHashrate(ctx context.Context) error 
 		}
 		return nil
 	case hashrateContract.ValidationStageValidating:
-		_, ok := p.globalHashrate.GetLastSubmitTime(p.getWorkerName())
+		lastShareTime, ok := p.globalHashrate.GetLastSubmitTime(p.getWorkerName())
 		if !ok {
 			errMsg := "on ValidationStateValidating there should be at least one share"
 			p.log.DPanic(errMsg)
 			return fmt.Errorf(errMsg)
 		}
-		// we don't need to continue to validate the share time as long as hashrate is consistent over time.
-		// the seller algorithm is directly dependent on having time to make up for gaps in hashrate fullfillment over the course
-		// of 1 hour.
 
-		// if time.Since(lastShareTime) > p.shareTimeout {
-		// 	return fmt.Errorf("no share submitted within shareTimeout (%s)", p.shareTimeout)
-		// }
+		if time.Since(lastShareTime) > p.shareTimeout {
+			return fmt.Errorf("no share submitted within shareTimeout (%s)", p.shareTimeout)
+		}
 		if !isHashrateOK {
 			return fmt.Errorf("contract is not delivering accurate hashrate")
 		}
@@ -211,7 +207,7 @@ func (p *ContractWatcherBuyer) checkIncomingHashrate(ctx context.Context) error 
 func (p *ContractWatcherBuyer) isReceivingAcceptableHashrate() bool {
 	// ignoring ok cause actualHashrate will be zero then
 	actualHashrate, _ := p.globalHashrate.GetHashRateGHS(p.getWorkerName(), "mean")
-	targetHashrateGHS := p.GetHashrateGHS()
+	targetHashrateGHS := p.HashrateGHS()
 
 	hrError := lib.RelativeError(targetHashrateGHS, actualHashrate)
 	lastAcceptableHashrateCheck := time.Now()
@@ -219,7 +215,7 @@ func (p *ContractWatcherBuyer) isReceivingAcceptableHashrate() bool {
 
 	hrMsg := fmt.Sprintf(
 		"elapsed %s worker %s, target GHS %.0f, actual GHS %.0f, error %.0f%%, threshold(%.0f%%)",
-		p.GetElapsed().Round(time.Second), p.getWorkerName(), targetHashrateGHS, actualHashrate, hrError*100, p.hrErrorThreshold*100,
+		p.Elapsed().Round(time.Second), p.getWorkerName(), targetHashrateGHS, actualHashrate, hrError*100, p.hrErrorThreshold*100,
 	)
 
 	if hrError < p.hrErrorThreshold {
@@ -245,95 +241,50 @@ func (p *ContractWatcherBuyer) isReceivingAcceptableHashrate() bool {
 	return true
 }
 
-func (p *ContractWatcherBuyer) GetRole() resources.ContractRole {
-	return resources.ContractRoleBuyer
-}
-
-func (p *ContractWatcherBuyer) GetDest() string {
-	return ""
-}
-
-func (p *ContractWatcherBuyer) GetID() string {
-	return p.terms.ContractID
-}
-
-func (p *ContractWatcherBuyer) GetHashrateGHS() float64 {
-	return p.terms.Hashrate
-}
-
-func (p *ContractWatcherBuyer) GetSeller() string {
-	return p.terms.Seller
-}
-
-func (p *ContractWatcherBuyer) GetBuyer() string {
-	return p.terms.Buyer
-}
-
-func (p *ContractWatcherBuyer) GetStartedAt() time.Time {
-	return p.terms.StartsAt
-}
-
-func (p *ContractWatcherBuyer) GetElapsed() time.Duration {
-	if p.terms.StartsAt.IsZero() {
-		return 0
-	}
-	return time.Since(p.terms.StartsAt)
-}
-
-func (p *ContractWatcherBuyer) GetDuration() time.Duration {
-	return p.terms.Duration
-}
-
-func (p *ContractWatcherBuyer) GetEndTime() time.Time {
-	if p.terms.StartsAt.IsZero() {
-		return time.Time{}
-	}
-	return p.terms.StartsAt.Add(p.terms.Duration)
-}
-
-func (p *ContractWatcherBuyer) GetFulfillmentStartedAt() time.Time {
-	return p.fulfillmentStartedAt
-}
-
-func (p *ContractWatcherBuyer) GetState() resources.ContractState {
-	return p.state
-}
-
-func (p *ContractWatcherBuyer) GetBlockchainState() hashrateContract.BlockchainState {
-	return p.terms.State
-}
-
-func (p *ContractWatcherBuyer) GetValidationStage() hashrateContract.ValidationStage {
-	return p.validationStage
-}
-
-func (p *ContractWatcherBuyer) GetResourceEstimates() map[string]float64 {
-	return map[string]float64{
-		ResourceEstimateHashrateGHS: p.GetHashrateGHS(),
-	}
-}
-
-func (p *ContractWatcherBuyer) GetResourceEstimatesActual() map[string]float64 {
-	res, _ := p.globalHashrate.GetHashRateGHSAll(p.getWorkerName())
-	return res
-}
-
-func (p *ContractWatcherBuyer) GetResourceType() string {
-	return ResourceTypeHashrate
-}
-
-func (p *ContractWatcherBuyer) GetPrice() *big.Int {
-	return p.terms.GetPrice()
-}
-
 func (p *ContractWatcherBuyer) isValidationStartTimeout() bool {
 	return time.Since(p.fulfillmentStartedAt) > p.validationStartTimeout
 }
 
 func (p *ContractWatcherBuyer) isContractExpired() bool {
-	return time.Now().After(p.GetEndTime())
+	return time.Now().After(p.EndTime())
 }
 
 func (p *ContractWatcherBuyer) getWorkerName() string {
-	return p.terms.ContractID
+	return p.ID()
+}
+
+func (p *ContractWatcherBuyer) Role() resources.ContractRole {
+	return resources.ContractRoleBuyer
+}
+
+func (p *ContractWatcherBuyer) FulfillmentStartTime() time.Time {
+	return p.fulfillmentStartedAt
+}
+
+func (p *ContractWatcherBuyer) State() resources.ContractState {
+	return p.state
+}
+
+func (p *ContractWatcherBuyer) ValidationStage() hashrateContract.ValidationStage {
+	return p.validationStage
+}
+
+func (p *ContractWatcherBuyer) ResourceEstimates() map[string]float64 {
+	return map[string]float64{
+		ResourceEstimateHashrateGHS: p.HashrateGHS(),
+	}
+}
+
+func (p *ContractWatcherBuyer) ResourceEstimatesActual() map[string]float64 {
+	res, _ := p.globalHashrate.GetHashRateGHSAll(p.getWorkerName())
+	return res
+}
+
+func (p *ContractWatcherBuyer) ResourceType() string {
+	return ResourceTypeHashrate
+}
+
+func (p *ContractWatcherBuyer) Dest() string {
+	// the destination is localhost for the buyer
+	return ""
 }

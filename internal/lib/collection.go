@@ -5,7 +5,7 @@ import (
 )
 
 type IModel interface {
-	GetID() string
+	ID() string
 }
 
 type Collection[T IModel] struct {
@@ -37,11 +37,11 @@ func (p *Collection[T]) Range(f func(item T) bool) {
 }
 
 func (p *Collection[T]) Store(item T) {
-	p.items.Store(item.GetID(), item)
+	p.items.Store(item.ID(), item)
 }
 
 func (p *Collection[T]) LoadOrStore(item T) (actual T, loaded bool) {
-	act, load := p.items.LoadOrStore(item.GetID(), item)
+	act, load := p.items.LoadOrStore(item.ID(), item)
 	return act.(T), load
 }
 

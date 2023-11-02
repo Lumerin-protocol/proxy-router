@@ -42,6 +42,11 @@ type Contract struct {
 	ResourceEstimatesTarget map[string]int
 	ResourceEstimatesActual map[string]int
 
+	BalanceLMR     float64
+	IsDeleted      bool
+	HasFutureTerms bool
+	Version        uint32
+
 	StartTimestamp    string
 	EndTimestamp      string
 	Duration          string

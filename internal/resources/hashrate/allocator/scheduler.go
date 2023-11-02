@@ -49,7 +49,7 @@ func NewScheduler(proxy StratumProxyInterface, hashrateCounterID string, default
 	}
 }
 
-func (p *Scheduler) GetID() string {
+func (p *Scheduler) ID() string {
 	return p.proxy.GetID()
 }
 
