@@ -107,6 +107,8 @@ func (c *StratumConnection) Read(ctx context.Context) (interfaces.MiningMessageG
 			}
 		case <-doneCh:
 			return
+		case <-c.closedCh:
+			return
 		}
 	}()
 
@@ -176,6 +178,7 @@ func (c *StratumConnection) Write(ctx context.Context, msg interfaces.MiningMess
 	// which unblocks read operation causing it to return os.ErrDeadlineExceeded
 	// TODO: consider implementing it in separate goroutine instead of a goroutine per read
 	go func() {
+		defer cancel()
 		select {
 		case <-ctx.Done():
 			err := c.conn.SetWriteDeadline(time.Now())
@@ -185,7 +188,8 @@ func (c *StratumConnection) Write(ctx context.Context, msg interfaces.MiningMess
 				return
 			}
 		case <-doneCh:
-			cancel()
+			return
+		case <-c.closedCh:
 			return
 		}
 	}()
@@ -214,7 +218,7 @@ func (c *StratumConnection) GetID() string {
 func (c *StratumConnection) Close() error {
 	err := c.conn.Close()
 	if err == nil {
-		c.log.Infof("connection closed %s", c.id)
+		c.log.Debugf("connection closed %s", c.id)
 	} else {
 		c.log.Warnf("connection already closed %s", c.id)
 	}

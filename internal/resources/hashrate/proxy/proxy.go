@@ -133,7 +133,6 @@ func (p *Proxy) Run(ctx context.Context) error {
 		}
 
 		if errors.Is(err, context.Canceled) {
-			p.log.Warnf("proxy stopped %s", p.ID)
 			return err
 		}
 
