@@ -112,39 +112,9 @@ func (c *ControllerSeller) handleContractPurchased(ctx context.Context, event *i
 	return nil
 }
 
-func (c *ControllerSeller) LoadTermsFromBlockchain(ctx context.Context) error {
-	terms, err := c.GetTermsFromBlockchain(ctx)
-
-	if err != nil {
-		return err
-	}
-
-	c.SetData(terms)
-
-	return nil
-}
-
-func (c *ControllerSeller) GetTermsFromBlockchain(ctx context.Context) (*hashrateContract.Terms, error) {
-	encryptedTerms, err := c.store.GetContract(ctx, c.ID())
-
-	if err != nil {
-		return nil, err
-	}
-
-	terms, err := encryptedTerms.Decrypt(c.privKey)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return terms, nil
-}
-
 func (c *ControllerSeller) handleContractClosed(ctx context.Context, event *implementation.ImplementationContractClosed) error {
 	c.log.Warnf("got closed event for contract")
-	if c.State() == resources.ContractStateRunning {
-		c.StopFulfilling()
-	}
+	c.StopFulfilling()
 
 	err := c.LoadTermsFromBlockchain(ctx)
 
@@ -184,4 +154,32 @@ func (c *ControllerSeller) handlePurchaseInfoUpdated(ctx context.Context, event 
 	}
 
 	return nil
+}
+
+func (c *ControllerSeller) LoadTermsFromBlockchain(ctx context.Context) error {
+	terms, err := c.GetTermsFromBlockchain(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	c.SetData(terms)
+
+	return nil
+}
+
+func (c *ControllerSeller) GetTermsFromBlockchain(ctx context.Context) (*hashrateContract.Terms, error) {
+	encryptedTerms, err := c.store.GetContract(ctx, c.ID())
+
+	if err != nil {
+		return nil, err
+	}
+
+	terms, err := encryptedTerms.Decrypt(c.privKey)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return terms, nil
 }

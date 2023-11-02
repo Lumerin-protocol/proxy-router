@@ -208,10 +208,26 @@ func TestNoPanic(t *testing.T) {
 
 	task := NewTaskFunc(testFunc)
 	ctx, cancel := context.WithCancel(context.Background())
-
+	defer cancel()
 	for i := 0; i < 10000; i++ {
 		go task.Start(ctx)
 		go task.Stop()
 		go cancel()
 	}
+}
+
+func TestStopAfterEnd(t *testing.T) {
+	testFunc := func(ctx context.Context) error {
+		time.Sleep(100 * time.Millisecond)
+		fmt.Println("end task")
+		return nil
+	}
+
+	task := NewTaskFunc(testFunc)
+	ctx := context.Background()
+
+	go task.Start(ctx)
+	time.Sleep(50 * time.Millisecond)
+	<-task.Stop()
+	fmt.Println("end")
 }
