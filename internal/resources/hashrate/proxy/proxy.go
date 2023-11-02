@@ -301,7 +301,7 @@ func (p *Proxy) GetStats() map[string]int {
 func (p *Proxy) GetDestConns() *map[string]string {
 	var destConns = make(map[string]string)
 	p.destMap.Range(func(dest *ConnDest) bool {
-		destConns[dest.ID()] = dest.GetIdleCloseAt().Format(time.RFC3339)
+		destConns[dest.ID()] = dest.GetIdleCloseAt().Sub(time.Now()).Round(time.Second).String()
 		return true
 	})
 	return &destConns
