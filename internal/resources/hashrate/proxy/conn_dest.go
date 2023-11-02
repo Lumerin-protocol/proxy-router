@@ -261,28 +261,36 @@ func (s *ConnDest) WriteAwaitRes(ctx context.Context, msg i.MiningMessageWithID)
 	msgID := msg.GetID()
 
 	ctx, cancel := context.WithTimeout(ctx, RESPONSE_TIMEOUT)
-	didRun := false
 
 	s.resultHandlers.Store(msgID, func(a *sm.MiningResult) (msg i.MiningMessageWithID, err error) {
-		didRun = true
 		defer cancel()
 		defer close(errCh)
-		resCh <- a
+		defer close(resCh)
+
+		select {
+		case <-ctx.Done():
+		case resCh <- a:
+		}
+
 		return nil, nil
 	})
 
 	err = s.Write(ctx, msg)
 	if err != nil {
 		s.resultHandlers.Delete(msgID)
+		cancel()
+		close(errCh)
+		close(resCh)
 		return nil, err
 	}
 
+	// cleanup on context cancel or timeout
 	go func() {
 		<-ctx.Done()
 		s.resultHandlers.Delete(msgID)
-		if !didRun {
+		// the handler cancels context on success, so if error is DeadlineExceeded it means timeout
+		if ctx.Err() == context.DeadlineExceeded {
 			errCh <- fmt.Errorf("dest response timeout (%s) msgID(%d)", RESPONSE_TIMEOUT, msgID)
-			// TODO: verify if there is no write to closed chan
 			close(resCh)
 			close(errCh)
 		}
