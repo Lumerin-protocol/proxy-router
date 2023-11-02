@@ -3,6 +3,7 @@ package contract
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"sync/atomic"
 	"time"
@@ -105,6 +106,11 @@ func (p *ContractWatcherSeller) Run(ctx context.Context) error {
 	p.fullMiners = p.fullMiners[:0]
 
 	for {
+		if p.BlockchainState() != hashrate.BlockchainStateRunning {
+			// this is an extra check, should not happen
+			err := fmt.Errorf("contract %s blockchain state is not running", p.ID())
+			return err
+		}
 		if p.EndTime().Before(time.Now()) {
 			p.log.Debug("contract ended!!!!!!")
 			return nil
