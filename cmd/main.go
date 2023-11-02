@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -119,7 +120,12 @@ func start() error {
 		cancel()
 
 		s = <-shutdownChan
-		log.Warnf("Received signal: %s. Forcing exit...", s)
+
+		var b []byte
+		runtime.Stack(b, true)
+		log.Warnf("Received signal: %s. \n Stack trace: \n %s", s, string(b))
+
+		log.Warnf("Forcing exit...")
 		os.Exit(1)
 	}()
 
