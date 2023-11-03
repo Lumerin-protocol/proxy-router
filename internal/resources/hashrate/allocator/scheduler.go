@@ -177,15 +177,14 @@ func (p *Scheduler) AddTask(ID string, dest *url.URL, jobSubmitted float64, onSu
 func (p *Scheduler) RemoveTasksByID(ID string) {
 	p.tasks.Range(func(task Task) bool {
 		if task.ID == ID {
-			close(task.cancelCh)
+			select {
+			case <-task.cancelCh:
+			default:
+				close(task.cancelCh)
+			}
 		}
 		return true
 	})
-}
-
-func (p *Scheduler) ResetTasks() {
-	p.tasks.Clear()
-	close(p.resetTasksSignal)
 }
 
 func (p *Scheduler) GetTaskCount() int {
