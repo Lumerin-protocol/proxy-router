@@ -18,6 +18,10 @@ func NewGlobalHashrate(hrFactory HashrateFactory) *GlobalHashrate {
 	}
 }
 
+func (t *GlobalHashrate) Initialize(workerName string) {
+	t.data.LoadOrStore(&WorkerHashrateModel{id: workerName, hr: t.hrFactory()})
+}
+
 func (t *GlobalHashrate) OnSubmit(workerName string, diff float64) {
 	actual, _ := t.data.LoadOrStore(&WorkerHashrateModel{id: workerName, hr: t.hrFactory()})
 	actual.OnSubmit(diff)
@@ -74,6 +78,18 @@ func (t *GlobalHashrate) Reset(workerName string) {
 	t.data.Delete(workerName)
 }
 
+func (t *GlobalHashrate) GetWorker(workerName string) *WorkerHashrateModel {
+	var worker *WorkerHashrateModel
+	t.Range(func(item *WorkerHashrateModel) bool {
+		if item.id == workerName {
+			worker = item
+			return false
+		}
+		return true
+	})
+	return worker
+}
+
 type WorkerHashrateModel struct {
 	id string
 	hr *Hashrate
@@ -97,4 +113,8 @@ func (m *WorkerHashrateModel) GetHashrateAvgGHSAll() map[string]float64 {
 
 func (m *WorkerHashrateModel) GetLastSubmitTime() time.Time {
 	return m.hr.GetLastSubmitTime()
+}
+
+func (m *WorkerHashrateModel) GetHashrateCounter(counterID string) Counter {
+	return m.hr.custom[counterID]
 }

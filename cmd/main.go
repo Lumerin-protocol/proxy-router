@@ -139,6 +139,7 @@ func start() error {
 				HashrateCounterDefault: hashrate.NewEma(5 * time.Minute),
 				"ema-10m":              hashrate.NewEma(10 * time.Minute),
 				"ema-30m":              hashrate.NewEma(30 * time.Minute),
+				"sma":                  hashrate.NewSma(cfg.Hashrate.CycleDuration * 5),
 			},
 		)
 	}

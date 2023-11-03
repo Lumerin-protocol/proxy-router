@@ -27,6 +27,7 @@ type ContractWatcherBuyer struct {
 	fulfillmentStartedAt        time.Time
 	lastAcceptableHashrateCheck time.Time
 	hashrateErrorInterval       time.Duration
+	hashrateMeasurementsCount   int
 
 	tsk    *lib.Task
 	cancel context.CancelFunc
@@ -54,17 +55,18 @@ func NewContractWatcherBuyer(
 
 ) *ContractWatcherBuyer {
 	return &ContractWatcherBuyer{
-		EncryptedTerms:         terms,
-		state:                  resources.ContractStatePending,
-		allocator:              allocator,
-		globalHashrate:         globalHashrate,
-		log:                    log,
-		contractCycleDuration:  cycleDuration,
-		validationStartTimeout: validationStartTimeout,
-		shareTimeout:           shareTimeout,
-		hrErrorThreshold:       hrErrorThreshold,
-		validationStage:        hashrateContract.ValidationStageNotValidating,
-		hashrateErrorInterval:  hashrateErrorInterval,
+		EncryptedTerms:            terms,
+		state:                     resources.ContractStatePending,
+		allocator:                 allocator,
+		globalHashrate:            globalHashrate,
+		log:                       log,
+		contractCycleDuration:     cycleDuration,
+		validationStartTimeout:    validationStartTimeout,
+		shareTimeout:              shareTimeout,
+		hrErrorThreshold:          hrErrorThreshold,
+		validationStage:           hashrateContract.ValidationStageNotValidating,
+		hashrateErrorInterval:     hashrateErrorInterval,
+		hashrateMeasurementsCount: 5,
 	}
 }
 
@@ -114,6 +116,28 @@ func (p *ContractWatcherBuyer) Run(ctx context.Context) error {
 
 	// instead of resetting write a method that creates separate counters for each worker at given moment of time
 	p.globalHashrate.Reset(p.ID())
+	p.globalHashrate.Initialize(p.ID())
+	worker := p.globalHashrate.GetWorker(p.getWorkerName())
+	if worker == nil {
+		return fmt.Errorf("failed to get worker")
+	}
+	counter := worker.GetHashrateCounter("sma")
+	if counter == nil {
+		return fmt.Errorf("missing sma hashrate counter")
+	}
+	sma, ok := counter.(*hashrate.Sma)
+	if !ok {
+		return fmt.Errorf("failed to get sma")
+	}
+
+	chunks := 30
+	for i := p.hashrateMeasurementsCount - 1; i >= 0; i-- {
+		jobSubmitted := hashrate.GHSToJobSubmitted(p.HashrateGHS()) * p.contractCycleDuration.Seconds()
+		timestamp := startedAt.Add(-time.Duration(i) * p.contractCycleDuration)
+		for j := 0; j < chunks; j += 1 {
+			sma.AddWithTimestamp(jobSubmitted/float64(chunks), timestamp.Add(time.Duration(j)*(p.contractCycleDuration/time.Duration(chunks))))
+		}
+	}
 
 	ticker := time.NewTicker(p.contractCycleDuration)
 	defer ticker.Stop()
@@ -175,7 +199,7 @@ func (p *ContractWatcherBuyer) checkIncomingHashrate(ctx context.Context) error 
 	switch p.validationStage {
 	case hashrateContract.ValidationStageNotValidating:
 		lastShareTime, ok := p.globalHashrate.GetLastSubmitTime(p.getWorkerName())
-		if !ok {
+		if !ok || lastShareTime.IsZero() {
 			lastShareTime = p.fulfillmentStartedAt
 		}
 		if time.Since(lastShareTime) > p.shareTimeout {
@@ -205,8 +229,10 @@ func (p *ContractWatcherBuyer) checkIncomingHashrate(ctx context.Context) error 
 }
 
 func (p *ContractWatcherBuyer) isReceivingAcceptableHashrate() bool {
-	// ignoring ok cause actualHashrate will be zero then
-	actualHashrate, _ := p.globalHashrate.GetHashRateGHS(p.getWorkerName(), "mean")
+	actualHashrate, ok := p.globalHashrate.GetHashRateGHS(p.getWorkerName(), "sma")
+	if !ok {
+		p.log.Warnf("no hashrate submitted yet")
+	}
 	targetHashrateGHS := p.HashrateGHS()
 
 	hrError := lib.RelativeError(targetHashrateGHS, actualHashrate)
