@@ -16,12 +16,14 @@ import (
 
 type ContractFactory struct {
 	// config
-	privateKey             string // private key of the user
-	cycleDuration          time.Duration
-	validationStartTimeout time.Duration
-	shareTimeout           time.Duration
-	hrErrorThreshold       float64
-	hashrateErrorInterval  time.Duration
+	privateKey               string // private key of the user
+	cycleDuration            time.Duration
+	validationStartTimeout   time.Duration
+	shareTimeout             time.Duration
+	hrErrorThreshold         float64
+	hashrateErrorInterval    time.Duration
+	hashrateCounterNameBuyer string
+	validatorGraceDuration   time.Duration
 
 	// state
 	address common.Address // derived from private key
@@ -43,10 +45,11 @@ func NewContractFactory(
 
 	privateKey string,
 	cycleDuration time.Duration,
-	validationStartTimeout time.Duration,
 	shareTimeout time.Duration,
 	hrErrorThreshold float64,
 	hashrateErrorInterval time.Duration,
+	hashrateCounterNameBuyer string,
+	validatorGraceDuration time.Duration,
 ) (*ContractFactory, error) {
 	address, err := lib.PrivKeyStringToAddr(privateKey)
 	if err != nil {
@@ -62,12 +65,13 @@ func NewContractFactory(
 
 		address: address,
 
-		privateKey:             privateKey,
-		cycleDuration:          cycleDuration,
-		validationStartTimeout: validationStartTimeout,
-		shareTimeout:           shareTimeout,
-		hrErrorThreshold:       hrErrorThreshold,
-		hashrateErrorInterval:  hashrateErrorInterval,
+		privateKey:               privateKey,
+		cycleDuration:            cycleDuration,
+		shareTimeout:             shareTimeout,
+		hrErrorThreshold:         hrErrorThreshold,
+		hashrateErrorInterval:    hashrateErrorInterval,
+		hashrateCounterNameBuyer: hashrateCounterNameBuyer,
+		validatorGraceDuration:   validatorGraceDuration,
 	}, nil
 }
 
@@ -89,10 +93,11 @@ func (c *ContractFactory) CreateContract(contractData *hashrateContract.Encrypte
 			c.log.Named(lib.AddrShort(contractData.ID())),
 
 			c.cycleDuration,
-			c.validationStartTimeout,
 			c.shareTimeout,
 			c.hrErrorThreshold,
 			c.hashrateErrorInterval,
+			c.hashrateCounterNameBuyer,
+			c.validatorGraceDuration,
 		)
 		return NewControllerBuyer(watcher, c.store, c.privateKey), nil
 	}

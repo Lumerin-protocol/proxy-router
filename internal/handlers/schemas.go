@@ -7,10 +7,11 @@ type MinersResponse struct {
 	UsedHashrateGHS      int
 	AvailableHashrateGHS int
 
-	TotalMiners   int
-	BusyMiners    int
-	FreeMiners    int
-	VettingMiners int
+	TotalMiners       int
+	VettingMiners     int
+	FreeMiners        int
+	PartialBusyMiners int
+	BusyMiners        int
 
 	Miners []Miner
 }

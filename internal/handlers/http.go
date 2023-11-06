@@ -280,21 +280,27 @@ func (c *HTTPHandler) GetMiners(ctx *gin.Context) {
 		TotalHashrateGHS float64
 		UsedHashrateGHS  float64
 
-		TotalMiners   int
-		BusyMiners    int
-		FreeMiners    int
-		VettingMiners int
+		TotalMiners       int
+		BusyMiners        int
+		PartialBusyMiners int
+		FreeMiners        int
+		VettingMiners     int
 	)
 
 	c.allocator.GetMiners().Range(func(m *allocator.Scheduler) bool {
-		// _, usedHR := mapDestItems(m.GetCurrentDestSplit(), m.GetHashRateGHS())
-		// UsedHashrateGHS += usedHR
-
 		hrGHS, ok := m.GetHashrate().GetHashrateAvgGHSCustom(c.hashrateCounterDefault)
 		if !ok {
 			c.log.DPanicf("hashrate counter not found, %s", c.hashrateCounterDefault)
+		} else {
+			TotalHashrateGHS += hrGHS
 		}
-		TotalHashrateGHS += hrGHS
+
+		hrGHS, ok = m.GetUsedHashrate().GetHashrateAvgGHSCustom(c.hashrateCounterDefault)
+		if !ok {
+			c.log.DPanicf("hashrate counter not found, %s", c.hashrateCounterDefault)
+		} else {
+			UsedHashrateGHS += hrGHS
+		}
 
 		TotalMiners += 1
 
@@ -305,6 +311,8 @@ func (c *HTTPHandler) GetMiners(ctx *gin.Context) {
 			VettingMiners += 1
 		case allocator.MinerStatusBusy:
 			BusyMiners += 1
+		case allocator.MinerStatusPartialBusy:
+			PartialBusyMiners += 1
 		}
 
 		miner := c.MapMiner(m)
@@ -318,10 +326,11 @@ func (c *HTTPHandler) GetMiners(ctx *gin.Context) {
 	})
 
 	res := &MinersResponse{
-		TotalMiners:   TotalMiners,
-		BusyMiners:    BusyMiners,
-		FreeMiners:    FreeMiners,
-		VettingMiners: VettingMiners,
+		TotalMiners:       TotalMiners,
+		VettingMiners:     VettingMiners,
+		FreeMiners:        FreeMiners,
+		PartialBusyMiners: PartialBusyMiners,
+		BusyMiners:        BusyMiners,
 
 		TotalHashrateGHS:     int(TotalHashrateGHS),
 		AvailableHashrateGHS: int(TotalHashrateGHS - UsedHashrateGHS),
@@ -334,9 +343,6 @@ func (c *HTTPHandler) GetMiners(ctx *gin.Context) {
 }
 
 func (c *HTTPHandler) MapMiner(m *allocator.Scheduler) *Miner {
-	// destItems, _ := mapDestItems(m.GetCurrentDestSplit(), m.GetHashRateGHS())
-	// SMA9m, _ := hashrate.GetHashrateAvgGHSCustom(0)
-
 	return &Miner{
 		Resource: Resource{
 			Self: c.publicUrl.JoinPath(fmt.Sprintf("/miners/%s", m.ID())).String(),

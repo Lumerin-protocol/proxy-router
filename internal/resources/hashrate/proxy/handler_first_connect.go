@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/common"
 	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
@@ -15,14 +16,19 @@ import (
 	sm "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
 )
 
-type HandlerFirstConnect struct {
-	proxy *Proxy
+var (
+	ErrNotStratum = errors.New("not a stratum protocol") // means that incoming connection is not a stratum protocol
+)
 
+type HandlerFirstConnect struct {
+	// state
 	handshakePipe       *pipeSync
 	handshakePipeTsk    *lib.Task
 	cancelHandshakePipe context.CancelFunc
-
-	log gi.ILogger
+	isStratum           atomic.Bool
+	// deps
+	proxy *Proxy
+	log   gi.ILogger
 }
 
 func NewHandlerFirstConnect(proxy *Proxy, log gi.ILogger) *HandlerFirstConnect {
@@ -44,10 +50,16 @@ func (p *HandlerFirstConnect) Connect(ctx context.Context) error {
 		return nil
 	}
 
+	if !p.isStratum.Load() {
+		return lib.WrapError(ErrNotStratum, p.handshakePipeTsk.Err())
+	}
+
 	return p.handshakePipeTsk.Err()
 }
 
 func (p *HandlerFirstConnect) handleSource(ctx context.Context, msg i.MiningMessageGeneric) (i.MiningMessageGeneric, error) {
+	p.markAsStratum()
+
 	switch msgTyped := msg.(type) {
 	case *m.MiningConfigure:
 		return nil, p.onMiningConfigure(ctx, msgTyped)
@@ -258,6 +270,10 @@ func (p *HandlerFirstConnect) onMiningAuthorize(ctx context.Context, msgTyped *m
 	}
 
 	return nil
+}
+
+func (p *HandlerFirstConnect) markAsStratum() {
+	p.isStratum.CompareAndSwap(false, true)
 }
 
 func getDestUserName(notPreserveWorkerName bool, incomingUserName string, destURL *url.URL) string {

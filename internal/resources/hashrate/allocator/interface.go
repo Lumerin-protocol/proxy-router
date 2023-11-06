@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"time"
 
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy"
 )
 
@@ -23,3 +24,5 @@ type StratumProxyInterface interface {
 	GetStats() map[string]int
 	GetDestConns() *map[string]string
 }
+
+type HashrateFactory = func() *hashrate.Hashrate

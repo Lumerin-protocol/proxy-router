@@ -8,6 +8,7 @@ import (
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 	h "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy"
 )
@@ -32,18 +33,20 @@ type Scheduler struct {
 	newTaskSignal    chan struct{}
 	resetTasksSignal chan struct{}
 	tasks            lib.Stack[Task]
+	usedHR           *hashrate.Hashrate
 
 	// deps
 	proxy StratumProxyInterface
 	log   interfaces.ILogger
 }
 
-func NewScheduler(proxy StratumProxyInterface, hashrateCounterID string, defaultDest *url.URL, minerVettingShares int, log interfaces.ILogger) *Scheduler {
+func NewScheduler(proxy StratumProxyInterface, hashrateCounterID string, defaultDest *url.URL, minerVettingShares int, hashrateFactory HashrateFactory, log interfaces.ILogger) *Scheduler {
 	return &Scheduler{
 		primaryDest:        defaultDest,
 		hashrateCounterID:  hashrateCounterID,
 		minerVettingShares: minerVettingShares,
 		newTaskSignal:      make(chan struct{}, 1),
+		usedHR:             hashrateFactory(),
 		proxy:              proxy,
 		log:                log,
 	}
@@ -96,6 +99,7 @@ func (p *Scheduler) Run(ctx context.Context) error {
 			err := p.proxy.SetDest(ctx, task.Dest, func(diff float64) {
 				task.RemainingJobToSubmit -= diff
 				task.OnSubmit(diff, p.proxy.GetID())
+				p.usedHR.OnSubmit(diff)
 				if task.RemainingJobToSubmit <= 0 {
 					jobDoneOnce.Do(func() {
 						p.log.Debugf("finished doing task for job %s", task.ID)
@@ -173,15 +177,14 @@ func (p *Scheduler) AddTask(ID string, dest *url.URL, jobSubmitted float64, onSu
 func (p *Scheduler) RemoveTasksByID(ID string) {
 	p.tasks.Range(func(task Task) bool {
 		if task.ID == ID {
-			close(task.cancelCh)
+			select {
+			case <-task.cancelCh:
+			default:
+				close(task.cancelCh)
+			}
 		}
 		return true
 	})
-}
-
-func (p *Scheduler) ResetTasks() {
-	p.tasks.Clear()
-	close(p.resetTasksSignal)
 }
 
 func (p *Scheduler) GetTaskCount() int {
@@ -204,6 +207,10 @@ func (p *Scheduler) GetTotalTaskJob() float64 {
 
 func (p *Scheduler) IsFree() bool {
 	return p.tasks.Size() == 0
+}
+
+func (p *Scheduler) IsPartialBusy() bool {
+	return p.totalTaskJob < hashrate.GHSToJobSubmitted(p.HashrateGHS())
 }
 
 // AcceptsTasks returns true if there are vacant space for tasks for provided interval
@@ -245,6 +252,10 @@ func (p *Scheduler) GetStatus() MinerStatus {
 		return MinerStatusFree
 	}
 
+	if p.IsPartialBusy() {
+		return MinerStatusPartialBusy
+	}
+
 	return MinerStatusBusy
 }
 
@@ -282,6 +293,10 @@ func (p *Scheduler) GetDestConns() *map[string]string {
 
 func (p *Scheduler) GetHashrate() proxy.Hashrate {
 	return p.proxy.GetHashrate()
+}
+
+func (p *Scheduler) GetUsedHashrate() proxy.Hashrate {
+	return p.usedHR
 }
 
 func (p *Scheduler) GetDestinations() []*DestItem {

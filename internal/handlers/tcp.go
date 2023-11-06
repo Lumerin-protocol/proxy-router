@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/url"
 	"time"
@@ -13,8 +14,6 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy"
 )
-
-// cfg.Miner.ShareTimeout
 
 func NewTCPHandler(
 	log, connLog, proxyLog, schedulerLog interfaces.ILogger,
@@ -36,13 +35,21 @@ func NewTCPHandler(
 		sourceConn := proxy.NewSourceConn(stratumConn, sourceLog)
 
 		url := lib.CopyURL(defaultDestUrl) // clones url
-		proxy := proxy.NewProxy(ID, sourceConn, destFactory, hashrateFactory, globalHashrate, url, notPropagateWorkerName, proxyLog)
-		scheduler := allocator.NewScheduler(proxy, hashrateCounterDefault, url, minerVettingShares, schedulerLog)
+		prx := proxy.NewProxy(ID, sourceConn, destFactory, hashrateFactory, globalHashrate, url, notPropagateWorkerName, proxyLog)
+		scheduler := allocator.NewScheduler(prx, hashrateCounterDefault, url, minerVettingShares, hashrateFactory, schedulerLog)
 		alloc.GetMiners().Store(scheduler)
 
 		err := scheduler.Run(ctx)
 		if err != nil {
-			log.Warnf("proxy disconnected: %s %s", err, ID)
+			var logFunc func(template string, args ...interface{})
+			if errors.Is(err, proxy.ErrNotStratum) {
+				logFunc = connLog.Debugf
+			} else if errors.Is(err, context.Canceled) {
+				logFunc = connLog.Infof
+			} else {
+				logFunc = connLog.Errorf
+			}
+			logFunc("proxy disconnected: %s %s", err, ID)
 		}
 
 		alloc.GetMiners().Delete(ID)
