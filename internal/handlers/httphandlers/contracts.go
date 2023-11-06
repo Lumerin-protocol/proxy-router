@@ -76,6 +76,22 @@ func (c *HTTPHandler) GetContracts(ctx *gin.Context) {
 	ctx.JSON(200, data)
 }
 
+func (c *HTTPHandler) GetContract(ctx *gin.Context) {
+	contractID := ctx.Param("ID")
+	if contractID == "" {
+		ctx.JSON(400, gin.H{"error": "contract id is required"})
+		return
+	}
+	contract, ok := c.contractManager.GetContracts().Load(contractID)
+	if !ok {
+		ctx.JSON(404, gin.H{"error": "contract not found"})
+		return
+	}
+
+	contractData := c.mapContract(contract)
+	ctx.JSON(200, contractData)
+}
+
 func (c *HTTPHandler) GetDeliveryLogs(ctx *gin.Context) {
 	contractID := ctx.Param("ID")
 	if contractID == "" {
@@ -113,6 +129,7 @@ func (p *HTTPHandler) mapContract(item resources.Contract) *Contract {
 		Resource: Resource{
 			Self: p.publicUrl.JoinPath(fmt.Sprintf("/contracts/%s", item.ID())).String(),
 		},
+		Logs:                    p.publicUrl.JoinPath(fmt.Sprintf("/contracts/%s/logs", item.ID())).String(),
 		Role:                    item.Role().String(),
 		Stage:                   item.ValidationStage().String(),
 		ID:                      item.ID(),

@@ -46,6 +46,7 @@ func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractman
 	r.GET("/healthcheck", handl.HealthCheck)
 	r.GET("/miners", handl.GetMiners)
 	r.GET("/contracts", handl.GetContracts)
+	r.GET("/contracts/:ID", handl.GetContract)
 	r.GET("/contracts/:ID/logs", handl.GetDeliveryLogs)
 	r.GET("/workers", handl.GetWorkers)
 

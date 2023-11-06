@@ -35,6 +35,7 @@ type Miner struct {
 type Contract struct {
 	Resource
 
+	Logs                    string
 	Role                    string
 	Stage                   string
 	ID                      string
