@@ -131,6 +131,7 @@ func start() error {
 
 	var (
 		HashrateCounterDefault = "ema--5m"
+		HashrateCounterBuyer   = fmt.Sprintf("sma-%s", cfg.Hashrate.ValidationGraceDuration.Round(time.Second).String())
 	)
 
 	hashrateFactory := func() *hashrate.Hashrate {
@@ -139,7 +140,7 @@ func start() error {
 				HashrateCounterDefault: hashrate.NewEma(5 * time.Minute),
 				"ema-10m":              hashrate.NewEma(10 * time.Minute),
 				"ema-30m":              hashrate.NewEma(30 * time.Minute),
-				"sma":                  hashrate.NewSma(cfg.Hashrate.CycleDuration * 5),
+				HashrateCounterBuyer:   hashrate.NewSma(cfg.Hashrate.CycleDuration * 5),
 			},
 		)
 	}
@@ -186,9 +187,10 @@ func start() error {
 		cfg.Marketplace.WalletPrivateKey,
 		cfg.Hashrate.CycleDuration,
 		cfg.Hashrate.ValidationStartTimeout,
-		cfg.Hashrate.ShareTimeout,
 		cfg.Hashrate.ErrorThreshold,
 		cfg.Hashrate.ErrorTimeout,
+		HashrateCounterBuyer,
+		cfg.Hashrate.ValidationGraceDuration,
 	)
 	if err != nil {
 		return err

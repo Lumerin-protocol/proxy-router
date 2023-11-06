@@ -14,11 +14,12 @@ type Config struct {
 	}
 	Environment string `env:"ENVIRONMENT" flag:"environment"`
 	Hashrate    struct {
-		CycleDuration          time.Duration `env:"HASHRATE_CYCLE_DURATION"           flag:"hashrate-cycle-duration"           validate:"omitempty,duration" desc:"duration of the hashrate cycle, after which the hashrate is evaluated, applies to both seller and buyer"`
-		ValidationStartTimeout time.Duration `env:"HASHRATE_VALIDATION_START_TIMEOUT" flag:"hashrate-validation-start-timeout" validate:"omitempty,duration" desc:"time when validation kicks in, applies for buyer"`
-		ShareTimeout           time.Duration `env:"HASHRATE_SHARE_TIMEOUT"            flag:"hashrate-share-timeout"            validate:"omitempty,duration" desc:"time to wait for the share to arrive, otherwise close contract, applies for buyer"`
-		ErrorThreshold         float64       `env:"HASHRATE_ERROR_THRESHOLD"          flag:"hashrate-error-threshold"                                        desc:"hashrate relative error threshold for the contract to be considered fulfilling accurately, applies for buyer"`
-		ErrorTimeout           time.Duration `env:"HASHRATE_ERROR_TIMEOUT"            flag:"hashrate-error-timeout"            validate:"omitempty,duration" desc:"time to wait for for the hashrate to fall within acceptable limits, otherwise close contract, applies for buyer"`
+		CycleDuration           time.Duration `env:"HASHRATE_CYCLE_DURATION"           flag:"hashrate-cycle-duration"           validate:"omitempty,duration" desc:"duration of the hashrate cycle, after which the hashrate is evaluated, applies to both seller and buyer"`
+		ErrorThreshold          float64       `env:"HASHRATE_ERROR_THRESHOLD"          flag:"hashrate-error-threshold"                                        desc:"hashrate relative error threshold for the contract to be considered fulfilling accurately, applies for buyer"`
+		ErrorTimeout            time.Duration `env:"HASHRATE_ERROR_TIMEOUT"            flag:"hashrate-error-timeout"            validate:"omitempty,duration" desc:"time to wait for for the hashrate to fall within acceptable limits, otherwise close contract, applies for buyer"`
+		ShareTimeout            time.Duration `env:"HASHRATE_SHARE_TIMEOUT"            flag:"hashrate-share-timeout"            validate:"omitempty,duration" desc:"time to wait for the share to arrive, otherwise close contract, applies for buyer"`
+		ValidationStartTimeout  time.Duration `env:"HASHRATE_VALIDATION_START_TIMEOUT" flag:"hashrate-validation-start-timeout" validate:"omitempty,duration" desc:"time when validation kicks in, applies for buyer"`
+		ValidationGraceDuration time.Duration `env:"HASHRATE_VALIDATION_GRACE_DURATION" flag:"hashrate-validation-grace-duration" validate:"omitempty,duration" desc:"duration of the grace period during which validation strictness slowly increases to the target values, applies for buyer"`
 	}
 	Marketplace struct {
 		CloneFactoryAddress string `env:"CLONE_FACTORY_ADDRESS" flag:"contract-address"   validate:"required_if=Disable false,omitempty,eth_addr"`
@@ -82,7 +83,10 @@ func (cfg *Config) SetDefaults() {
 		cfg.Hashrate.ErrorThreshold = 0.05
 	}
 	if cfg.Hashrate.ErrorTimeout == 0 {
-		cfg.Hashrate.ErrorTimeout = cfg.Hashrate.CycleDuration*3 + 30*time.Second
+		cfg.Hashrate.ErrorTimeout = 3*cfg.Hashrate.CycleDuration + 30*time.Second
+	}
+	if cfg.Hashrate.ValidationGraceDuration == 0 {
+		cfg.Hashrate.ValidationGraceDuration = 5 * cfg.Hashrate.CycleDuration
 	}
 
 	// Marketplace
