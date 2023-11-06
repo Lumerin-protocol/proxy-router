@@ -207,13 +207,11 @@ func (p *ContractWatcherBuyer) checkIncomingHashrate(ctx context.Context) error 
 	case hashrateContract.ValidationStageValidating:
 		lastShareTime, ok := p.globalHashrate.GetLastSubmitTime(p.getWorkerName())
 		if !ok {
-			errMsg := "on ValidationStateValidating there should be at least one share"
-			p.log.DPanic(errMsg)
-			return fmt.Errorf(errMsg)
+			lastShareTime = p.fulfillmentStartedAt
 		}
 
 		if time.Since(lastShareTime) > p.shareTimeout {
-			return fmt.Errorf("no share submitted within shareTimeout (%s)", p.shareTimeout)
+			return fmt.Errorf("no share submitted within shareTimeout (%s), lastShare at (%s)", p.shareTimeout, lastShareTime.Format(time.RFC3339))
 		}
 		if !isHashrateOK {
 			return fmt.Errorf("contract is not delivering accurate hashrate")
