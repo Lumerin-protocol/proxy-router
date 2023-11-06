@@ -55,7 +55,11 @@ func (h *Mean) ValuePer(t time.Duration) float64 {
 }
 
 func (h *Mean) GetLastSubmitTime() time.Time {
-	return time.Unix(h.lastSubmitTime.Load(), 0)
+	lastSubmitTime := h.lastSubmitTime.Load()
+	if lastSubmitTime == 0 {
+		return time.Time{}
+	}
+	return time.Unix(lastSubmitTime, 0)
 }
 
 func (h *Mean) GetTotalWork() uint64 {
