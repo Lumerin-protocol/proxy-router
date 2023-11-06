@@ -211,6 +211,7 @@ func (p *HandlerFirstConnect) onMiningSubscribe(ctx context.Context, msgTyped *m
 }
 
 func (p *HandlerFirstConnect) onMiningAuthorize(ctx context.Context, msgTyped *m.MiningAuthorize) error {
+	p.proxy.globalHashrate.OnConnect(msgTyped.GetUserName())
 	p.proxy.source.SetUserName(msgTyped.GetUserName())
 	p.log = p.log.Named(msgTyped.GetUserName())
 	p.proxy.log = p.log

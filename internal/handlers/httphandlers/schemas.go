@@ -1,4 +1,4 @@
-package handlers
+package httphandlers
 
 import "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
 
@@ -35,6 +35,7 @@ type Miner struct {
 type Contract struct {
 	Resource
 
+	Logs                    string
 	Role                    string
 	Stage                   string
 	ID                      string
@@ -66,4 +67,5 @@ type Resource struct {
 type Worker struct {
 	WorkerName string
 	Hashrate   map[string]float64
+	Reconnects int
 }
