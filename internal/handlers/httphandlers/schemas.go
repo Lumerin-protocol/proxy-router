@@ -1,4 +1,4 @@
-package handlers
+package httphandlers
 
 import "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
 
@@ -66,4 +66,5 @@ type Resource struct {
 type Worker struct {
 	WorkerName string
 	Hashrate   map[string]float64
+	Reconnects int
 }

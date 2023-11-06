@@ -27,6 +27,11 @@ func (t *GlobalHashrate) OnSubmit(workerName string, diff float64) {
 	actual.OnSubmit(diff)
 }
 
+func (t *GlobalHashrate) OnConnect(workerName string) {
+	actual, _ := t.data.LoadOrStore(&WorkerHashrateModel{id: workerName, hr: t.hrFactory()})
+	actual.OnConnect()
+}
+
 func (t *GlobalHashrate) GetLastSubmitTime(workerName string) (tm time.Time, ok bool) {
 	record, ok := t.data.Load(workerName)
 	if !ok {
@@ -91,8 +96,9 @@ func (t *GlobalHashrate) GetWorker(workerName string) *WorkerHashrateModel {
 }
 
 type WorkerHashrateModel struct {
-	id string
-	hr *Hashrate
+	id         string
+	hr         *Hashrate
+	reconnects int
 }
 
 func (m *WorkerHashrateModel) ID() string {
@@ -101,6 +107,10 @@ func (m *WorkerHashrateModel) ID() string {
 
 func (m *WorkerHashrateModel) OnSubmit(diff float64) {
 	m.hr.OnSubmit(diff)
+}
+
+func (m *WorkerHashrateModel) OnConnect() {
+	m.reconnects++
 }
 
 func (m *WorkerHashrateModel) GetHashRateGHS(counterID string) (float64, bool) {
@@ -117,4 +127,8 @@ func (m *WorkerHashrateModel) GetLastSubmitTime() time.Time {
 
 func (m *WorkerHashrateModel) GetHashrateCounter(counterID string) Counter {
 	return m.hr.custom[counterID]
+}
+
+func (m *WorkerHashrateModel) Reconnects() int {
+	return m.reconnects
 }

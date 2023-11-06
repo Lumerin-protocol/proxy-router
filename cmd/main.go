@@ -14,7 +14,8 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/config"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/contractmanager"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/handlers"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/handlers/httphandlers"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/handlers/tcphandlers"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/repositories/contracts"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/repositories/transport"
@@ -153,7 +154,7 @@ func start() error {
 	alloc := allocator.NewAllocator(lib.NewCollection[*allocator.Scheduler](), log.Named("ALLOCATOR"))
 
 	tcpServer := transport.NewTCPServer(cfg.Proxy.Address, connLog)
-	tcpHandler := handlers.NewTCPHandler(
+	tcpHandler := tcphandlers.NewTCPHandler(
 		log, connLog, proxyLog, schedulerLog,
 		cfg.Miner.NotPropagateWorkerName, cfg.Miner.ShareTimeout, cfg.Miner.VettingShares,
 		destUrl,
@@ -205,7 +206,7 @@ func start() error {
 
 	cm := contractmanager.NewContractManager(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), ownerAddr, hrContractFactory.CreateContract, store, log)
 
-	handl := handlers.NewHTTPHandler(alloc, cm, globalHashrate, publicUrl, HashrateCounterDefault, log)
+	handl := httphandlers.NewHTTPHandler(alloc, cm, globalHashrate, publicUrl, HashrateCounterDefault, log)
 	httpServer := transport.NewServer(cfg.Web.Address, handl, log)
 
 	g, ctx := errgroup.WithContext(ctx)
