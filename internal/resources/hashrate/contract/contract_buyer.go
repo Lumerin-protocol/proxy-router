@@ -176,10 +176,9 @@ func (p *ContractWatcherBuyer) fillBuyerCounterGraceData() error {
 	}
 
 	shareTime := 15 * time.Second
-	graceDuration := 25 * time.Minute
 
-	totalJob := hashrate.GHSToJobSubmitted(p.HashrateGHS()) * graceDuration.Seconds()
-	totalShares := int(graceDuration / shareTime)
+	totalJob := hashrate.GHSToJobSubmitted(p.HashrateGHS()) * p.validatorGraceDuration.Seconds()
+	totalShares := int(p.validatorGraceDuration / shareTime)
 	jobPerShare := totalJob / float64(totalShares)
 	remainder := totalJob - jobPerShare*float64(totalShares)
 	for i := 0; i < totalShares-1; i++ {
