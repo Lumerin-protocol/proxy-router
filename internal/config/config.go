@@ -27,8 +27,8 @@ type Config struct {
 		WalletPrivateKey    string `env:"WALLET_PRIVATE_KEY"    flag:"wallet-private-key" validate:"required_without=Mnemonic|required_if=Disable false"`
 	}
 	Miner struct {
-		NotPropagateWorkerName bool          `env:"MINER_NOT_PROPAGATE_WORKER_NAME" flag:"miner-not-propagate-worker-name"     validate:""           desc:"not preserve worker name from the source in the destination pool. Preserving works only if the source miner worker name is defined as 'accountName.workerName'. Does not apply for contracts"`
-		ShareTimeout           time.Duration `env:"MINER_SHARE_TIMEOUT"             flag:"miner-share-timeout"                 validate:"omitempty,duration"`
+		NotPropagateWorkerName bool          `env:"MINER_NOT_PROPAGATE_WORKER_NAME" flag:"miner-not-propagate-worker-name"     validate:""                      desc:"not preserve worker name from the source in the destination pool. Preserving works only if the source miner worker name is defined as 'accountName.workerName'. Does not apply for contracts"`
+		ShareTimeout           time.Duration `env:"MINER_SHARE_TIMEOUT"             flag:"miner-share-timeout"                 validate:"omitempty,duration"    desc:"closes connection if no share submitted withtin duration. Keep in mind that sometimes it takes longer to submit first share, comparing to other. Too low value will cause miner to reconnect too often"`
 		VettingShares          int           `env:"MINER_VETTING_SHARES"            flag:"miner-vetting-shares"                validate:"omitempty,number"`
 	}
 	Log struct {
@@ -102,7 +102,7 @@ func (cfg *Config) SetDefaults() {
 	}
 
 	if cfg.Miner.ShareTimeout == 0 {
-		cfg.Miner.ShareTimeout = 3 * time.Minute
+		cfg.Miner.ShareTimeout = 5 * time.Minute
 	}
 
 	// Log

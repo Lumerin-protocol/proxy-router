@@ -125,7 +125,7 @@ func (p *Proxy) Run(ctx context.Context) error {
 		// source error
 		if errors.Is(err, ErrSource) {
 			if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
-				p.log.Warnf("source closed the connection, source %s", p.source.GetID())
+				p.log.Warnf("source closed the connection, source %s, err %s", p.source.GetID(), err)
 			} else {
 				p.log.Errorf("source connection error, source %s: %s", p.source.GetID(), err)
 			}
