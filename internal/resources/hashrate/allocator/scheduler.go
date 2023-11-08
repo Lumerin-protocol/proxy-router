@@ -2,6 +2,8 @@ package allocator
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/url"
 	"sync"
 	"time"
@@ -62,20 +64,41 @@ func (p *Scheduler) Run(ctx context.Context) error {
 		return err // handshake error
 	}
 
-	proxyTask := lib.NewTaskFunc(p.proxy.Run)
-	proxyTask.Start(ctx)
+	for {
+		if p.proxy.GetDest().String() != p.primaryDest.String() {
+			err := p.proxy.ConnectDest(ctx, p.primaryDest)
+			if err != nil {
+				err := lib.WrapError(fmt.Errorf("failed to connect to primary dest"), err)
+				p.log.Warnf("%s: %s", err, p.primaryDest)
+				return err
+			}
+		}
+		proxyTask := lib.NewTaskFunc(p.proxy.Run)
+		proxyTask.Start(ctx)
 
-	select {
-	case <-ctx.Done():
-		<-proxyTask.Done()
-		return ctx.Err()
-	case <-proxyTask.Done():
-		return proxyTask.Err()
-	default:
+		select {
+		case <-ctx.Done():
+			<-proxyTask.Done()
+			return ctx.Err()
+		case <-proxyTask.Done():
+			return proxyTask.Err()
+		default:
+		}
+
+		p.primaryDest = p.proxy.GetDest()
+
+		err = p.taskLoop(ctx, proxyTask)
+		if errors.Is(err, proxy.ErrDest) || errors.Is(err, proxy.ErrConnectDest) {
+			p.log.Warnf("dest error: %s", err)
+			p.log.Infof("reconnecting to primary dest %s", p.primaryDest)
+			continue
+		} else {
+			return err
+		}
 	}
+}
 
-	p.primaryDest = p.proxy.GetDest()
-
+func (p *Scheduler) taskLoop(ctx context.Context, proxyTask *lib.Task) error {
 	for {
 		// do tasks
 		for {
@@ -116,6 +139,7 @@ func (p *Scheduler) Run(ctx context.Context) error {
 				<-proxyTask.Done()
 				return ctx.Err()
 			case <-proxyTask.Done():
+				p.tasks.Pop()
 				return proxyTask.Err()
 			case <-p.resetTasksSignal:
 				close(jobDone)
