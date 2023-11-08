@@ -189,7 +189,6 @@ func start() error {
 		cfg.Hashrate.CycleDuration,
 		cfg.Hashrate.ShareTimeout,
 		cfg.Hashrate.ErrorThreshold,
-		cfg.Hashrate.ErrorTimeout,
 		HashrateCounterBuyer,
 		cfg.Hashrate.ValidationGraceDuration,
 	)

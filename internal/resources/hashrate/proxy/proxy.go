@@ -95,52 +95,90 @@ func (p *Proxy) Connect(ctx context.Context) error {
 
 func (p *Proxy) Run(ctx context.Context) error {
 	defer p.closeConnections()
-
 	handler := NewHandlerMining(p, p.log)
-
 	p.pipe = NewPipe(p.source, p.dest, handler.sourceInterceptor, handler.destInterceptor, p.log)
+
+	for {
+		p.pipe.StartSourceToDest(ctx)
+		p.pipe.StartDestToSource(ctx)
+
+		ctx, cancel := context.WithCancel(ctx)
+		p.cancelRun = cancel
+
+		err := p.pipe.Run(ctx)
+		p.unansweredMsg.Wait()
+
+		if err != nil {
+			// destination error
+			if errors.Is(err, ErrDest) {
+				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
+					p.log.Warnf("destination closed the connection, dest %s", p.dest.ID())
+				} else {
+					p.log.Errorf("destination error, source %s dest %s: %s", p.source.GetID(), p.dest.ID(), err)
+				}
+
+				// try to reconnect to the same dest
+				p.destMap.Delete(p.dest.ID())
+				err := p.ConnectDest(ctx, lib.CopyURL(p.destURL))
+				if err != nil {
+					p.log.Errorf("error reconnecting to dest %s: %s", p.dest.ID(), err)
+					return err
+				}
+				continue
+			}
+
+			// source error
+			if errors.Is(err, ErrSource) {
+				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
+					p.log.Warnf("source closed the connection, source %s, err %s", p.source.GetID(), err)
+				} else {
+					p.log.Errorf("source connection error, source %s: %s", p.source.GetID(), err)
+				}
+				return err
+			}
+
+			if errors.Is(err, context.Canceled) {
+				return err
+			}
+
+			p.log.Errorf("error running pipe: %s", err)
+
+			// other errors
+			return err
+		}
+		return nil
+	}
+}
+
+func (p *Proxy) ConnectDest(ctx context.Context, newDestURL *url.URL) error {
+	p.setDestLock.Lock()
+	defer p.setDestLock.Unlock()
+
+	p.log.Debugf("reconnecting to destination %s", newDestURL.String())
+
+	destChanger := NewHandlerChangeDest(p, p.destFactory, p.log)
+
+	newDest, err := destChanger.connectNewDest(ctx, newDestURL)
+	if err != nil {
+		return err
+	}
+
+	err = destChanger.resendRelevantNotifications(ctx, newDest)
+	if err != nil {
+		return err
+	}
+
+	p.dest = newDest
+	p.destURL = newDestURL
+	p.destMap.Store(newDest)
+
+	p.pipe.SetDest(newDest)
+
 	p.pipe.StartSourceToDest(ctx)
 	p.pipe.StartDestToSource(ctx)
 
-	ctx, cancel := context.WithCancel(ctx)
-	p.cancelRun = cancel
+	p.log.Infof("destination reconnected %s", newDestURL.String())
 
-	err := p.pipe.Run(ctx)
-	p.unansweredMsg.Wait()
-
-	if err != nil {
-		// destination error
-		if errors.Is(err, ErrDest) {
-			if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
-				p.log.Warnf("destination closed the connection, dest %s", p.dest.ID())
-			} else {
-				p.log.Errorf("destination error, source %s dest %s: %s", p.source.GetID(), p.dest.ID(), err)
-			}
-
-			return err
-			// TODO: reconnect to the same dest
-			// return p.SetDest(ctx, p.destURL, p.onSubmit)
-		}
-
-		// source error
-		if errors.Is(err, ErrSource) {
-			if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
-				p.log.Warnf("source closed the connection, source %s, err %s", p.source.GetID(), err)
-			} else {
-				p.log.Errorf("source connection error, source %s: %s", p.source.GetID(), err)
-			}
-			return err
-		}
-
-		if errors.Is(err, context.Canceled) {
-			return err
-		}
-
-		p.log.Errorf("error running pipe: %s", err)
-
-		// other errors
-		return err
-	}
 	return nil
 }
 
@@ -234,7 +272,6 @@ func (p *Proxy) closeConnections() {
 	if p.dest != nil {
 		p.dest.conn.Close()
 	}
-	p.destMap.Delete(p.destURL.String())
 
 	p.destMap.Range(func(dest *ConnDest) bool {
 		dest.conn.Close()
