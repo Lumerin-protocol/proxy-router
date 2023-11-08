@@ -187,7 +187,7 @@ func start() error {
 
 		cfg.Marketplace.WalletPrivateKey,
 		cfg.Hashrate.CycleDuration,
-		cfg.Hashrate.ValidationStartTimeout,
+		cfg.Hashrate.ShareTimeout,
 		cfg.Hashrate.ErrorThreshold,
 		cfg.Hashrate.ErrorTimeout,
 		HashrateCounterBuyer,
