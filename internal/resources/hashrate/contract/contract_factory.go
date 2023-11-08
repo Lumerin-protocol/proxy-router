@@ -18,10 +18,8 @@ type ContractFactory struct {
 	// config
 	privateKey               string // private key of the user
 	cycleDuration            time.Duration
-	validationStartTimeout   time.Duration
 	shareTimeout             time.Duration
 	hrErrorThreshold         float64
-	hashrateErrorInterval    time.Duration
 	hashrateCounterNameBuyer string
 	validatorGraceDuration   time.Duration
 
@@ -47,7 +45,6 @@ func NewContractFactory(
 	cycleDuration time.Duration,
 	shareTimeout time.Duration,
 	hrErrorThreshold float64,
-	hashrateErrorInterval time.Duration,
 	hashrateCounterNameBuyer string,
 	validatorGraceDuration time.Duration,
 ) (*ContractFactory, error) {
@@ -69,7 +66,6 @@ func NewContractFactory(
 		cycleDuration:            cycleDuration,
 		shareTimeout:             shareTimeout,
 		hrErrorThreshold:         hrErrorThreshold,
-		hashrateErrorInterval:    hashrateErrorInterval,
 		hashrateCounterNameBuyer: hashrateCounterNameBuyer,
 		validatorGraceDuration:   validatorGraceDuration,
 	}, nil
@@ -95,7 +91,6 @@ func (c *ContractFactory) CreateContract(contractData *hashrateContract.Encrypte
 			c.cycleDuration,
 			c.shareTimeout,
 			c.hrErrorThreshold,
-			c.hashrateErrorInterval,
 			c.hashrateCounterNameBuyer,
 			c.validatorGraceDuration,
 		)

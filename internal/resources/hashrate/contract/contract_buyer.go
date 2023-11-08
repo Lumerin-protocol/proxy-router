@@ -22,12 +22,10 @@ type ContractWatcherBuyer struct {
 	hashrateCounterNameBuyer string
 
 	*hashrateContract.EncryptedTerms
-	state                       resources.ContractState
-	validationStage             hashrateContract.ValidationStage
-	fulfillmentStartedAt        time.Time
-	lastAcceptableHashrateCheck time.Time
-	hashrateErrorInterval       time.Duration
-	validatorGraceDuration      time.Duration
+	state                  resources.ContractState
+	validationStage        hashrateContract.ValidationStage
+	fulfillmentStartedAt   time.Time
+	validatorGraceDuration time.Duration
 
 	tsk    *lib.Task
 	cancel context.CancelFunc
@@ -50,7 +48,6 @@ func NewContractWatcherBuyer(
 	cycleDuration time.Duration,
 	shareTimeout time.Duration,
 	hrErrorThreshold float64,
-	hashrateErrorInterval time.Duration,
 	hashrateCounterNameBuyer string,
 	validatorGraceDuration time.Duration,
 ) *ContractWatcherBuyer {
@@ -64,7 +61,6 @@ func NewContractWatcherBuyer(
 		shareTimeout:             shareTimeout,
 		hrErrorThreshold:         hrErrorThreshold,
 		validationStage:          hashrateContract.ValidationStageValidating,
-		hashrateErrorInterval:    hashrateErrorInterval,
 		hashrateCounterNameBuyer: hashrateCounterNameBuyer,
 		validatorGraceDuration:   validatorGraceDuration,
 	}
@@ -181,7 +177,7 @@ func (p *ContractWatcherBuyer) fillBuyerCounterGraceData() error {
 	totalShares := int(p.validatorGraceDuration / shareTime)
 	jobPerShare := totalJob / float64(totalShares)
 	remainder := totalJob - jobPerShare*float64(totalShares)
-	for i := totalShares - 1; i < 0; i-- {
+	for i := totalShares - 1; i > 0; i-- {
 		sma.AddWithTimestamp(jobPerShare, p.fulfillmentStartedAt.Add(-time.Duration(i)*shareTime))
 	}
 	// add remainder to the last share
@@ -232,8 +228,6 @@ func (p *ContractWatcherBuyer) isReceivingAcceptableHashrate() bool {
 	targetHashrateGHS := p.HashrateGHS()
 
 	hrError := lib.RelativeError(targetHashrateGHS, actualHashrate)
-	lastAcceptableHashrateCheck := time.Now()
-	p.lastAcceptableHashrateCheck = lastAcceptableHashrateCheck
 
 	hrMsg := fmt.Sprintf(
 		"elapsed %s worker %s, target GHS %.0f, actual GHS %.0f, error %.0f%%, threshold(%.0f%%)",
@@ -252,15 +246,7 @@ func (p *ContractWatcherBuyer) isReceivingAcceptableHashrate() bool {
 	}
 
 	p.log.Warnf("contract is underdelivering: %s", hrMsg)
-	if !p.lastAcceptableHashrateCheck.IsZero() && time.Since(p.lastAcceptableHashrateCheck) > p.hashrateErrorInterval {
-		// only check hashrate accuracy every hashrateErrorInterval
-		p.lastAcceptableHashrateCheck = time.Time{}
-
-		p.log.Warnf("contract is underdelivering longer than: %v", hrMsg, p.hashrateErrorInterval)
-		return false
-	}
-
-	return true
+	return false
 }
 
 func (p *ContractWatcherBuyer) isContractExpired() bool {
