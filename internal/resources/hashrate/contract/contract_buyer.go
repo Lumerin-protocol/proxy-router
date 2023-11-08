@@ -181,11 +181,11 @@ func (p *ContractWatcherBuyer) fillBuyerCounterGraceData() error {
 	totalShares := int(p.validatorGraceDuration / shareTime)
 	jobPerShare := totalJob / float64(totalShares)
 	remainder := totalJob - jobPerShare*float64(totalShares)
-	for i := 0; i < totalShares-1; i++ {
+	for i := totalShares - 1; i < 0; i-- {
 		sma.AddWithTimestamp(jobPerShare, p.fulfillmentStartedAt.Add(-time.Duration(i)*shareTime))
 	}
 	// add remainder to the last share
-	sma.AddWithTimestamp(jobPerShare+remainder, p.fulfillmentStartedAt.Add(-time.Duration(totalShares-1)*shareTime))
+	sma.AddWithTimestamp(jobPerShare+remainder, p.fulfillmentStartedAt)
 
 	return nil
 }
