@@ -23,11 +23,10 @@ type Scheduler struct {
 	primaryDest        *url.URL
 
 	// state
-	totalTaskJob     float64
-	newTaskSignal    chan struct{}
-	resetTasksSignal chan struct{}
-	tasks            lib.Stack[Task]
-	usedHR           *hashrate.Hashrate
+	totalTaskJob  float64
+	newTaskSignal chan struct{}
+	tasks         lib.Stack[Task]
+	usedHR        *hashrate.Hashrate
 
 	// deps
 	proxy    StratumProxyInterface
@@ -58,20 +57,6 @@ func (p *Scheduler) Run(ctx context.Context) error {
 		return err // handshake error
 	}
 
-	go func() {
-		select {
-		case <-ctx.Done():
-			return
-		case <-p.proxy.VettingDone():
-		}
-
-		p.log.Infof("miner %s vetting done", p.proxy.GetID())
-		if p.onVetted != nil {
-			p.onVetted(p.proxy.GetID())
-			p.onVetted = nil
-		}
-	}()
-
 	for {
 		if p.proxy.GetDest().String() != p.primaryDest.String() {
 			err := p.proxy.ConnectDest(ctx, p.primaryDest)
@@ -82,12 +67,26 @@ func (p *Scheduler) Run(ctx context.Context) error {
 			}
 		}
 		proxyTask := lib.NewTaskFunc(p.proxy.Run)
+
+		go func() {
+			select {
+			case <-ctx.Done():
+				return
+			case <-proxyTask.Done():
+				return
+			case <-p.proxy.VettingDone():
+			}
+
+			p.log.Infof("miner %s vetting done", p.proxy.GetID())
+			if p.onVetted != nil {
+				p.onVetted(p.proxy.GetID())
+				p.onVetted = nil
+			}
+		}()
+
 		proxyTask.Start(ctx)
 
 		select {
-		case <-ctx.Done():
-			<-proxyTask.Done()
-			return ctx.Err()
 		case <-proxyTask.Done():
 			return proxyTask.Err()
 		default:
@@ -110,7 +109,6 @@ func (p *Scheduler) taskLoop(ctx context.Context, proxyTask *lib.Task) error {
 	for {
 		// do tasks
 		for {
-			p.resetTasksSignal = make(chan struct{})
 			task, ok := p.tasks.Peek()
 			if !ok {
 				break
@@ -146,16 +144,9 @@ func (p *Scheduler) taskLoop(ctx context.Context, proxyTask *lib.Task) error {
 			}
 
 			select {
-			case <-ctx.Done():
-				<-proxyTask.Done()
-				p.signalTasksOnDisconnect()
-				return ctx.Err()
 			case <-proxyTask.Done():
 				p.signalTasksOnDisconnect()
 				return proxyTask.Err()
-			case <-p.resetTasksSignal:
-				close(jobDoneCh)
-				p.log.Debugf("tasks resetted")
 			case <-task.cancelCh:
 				close(jobDoneCh)
 				p.log.Debugf("task cancelled %s", task.ID)
@@ -166,10 +157,6 @@ func (p *Scheduler) taskLoop(ctx context.Context, proxyTask *lib.Task) error {
 		}
 
 		select {
-		case <-ctx.Done():
-			<-proxyTask.Done()
-			p.signalTasksOnDisconnect()
-			return ctx.Err()
 		case <-proxyTask.Done():
 			p.signalTasksOnDisconnect()
 			return proxyTask.Err()
@@ -185,10 +172,6 @@ func (p *Scheduler) taskLoop(ctx context.Context, proxyTask *lib.Task) error {
 		}
 
 		select {
-		case <-ctx.Done():
-			p.signalTasksOnDisconnect()
-			<-proxyTask.Done()
-			return ctx.Err()
 		case <-proxyTask.Done():
 			p.signalTasksOnDisconnect()
 			return proxyTask.Err()
@@ -203,7 +186,8 @@ func (p *Scheduler) signalTasksOnDisconnect() {
 		if !ok {
 			break
 		}
-		task.OnDisconnect(p.ID(), p.HashrateGHS())
+		p.log.Debugf("signalling task %s on disconnect", task.ID)
+		task.OnDisconnect(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()))
 	}
 }
 
@@ -212,7 +196,7 @@ func (p *Scheduler) AddTask(
 	dest *url.URL,
 	jobSubmitted float64,
 	onSubmit func(diff float64, ID string),
-	onDisconnect func(ID string, HrGHS float64),
+	onDisconnect func(ID string, HrGHS float64, remainingJob float64),
 ) {
 	shouldSignal := p.tasks.Size() == 0
 	remainingJob := new(atomic.Int64)
