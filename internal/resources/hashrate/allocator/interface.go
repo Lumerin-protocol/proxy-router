@@ -25,6 +25,8 @@ type StratumProxyInterface interface {
 	GetMinerConnectedAt() time.Time
 	GetStats() map[string]int
 	GetDestConns() *map[string]string
+	IsVetting() bool
+	VettingDone() <-chan struct{}
 }
 
 type HashrateFactory = func() *hashrate.Hashrate

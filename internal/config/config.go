@@ -83,7 +83,7 @@ func (cfg *Config) SetDefaults() {
 		cfg.Hashrate.ErrorThreshold = 0.05
 	}
 	if cfg.Hashrate.ValidationGraceDuration == 0 {
-		cfg.Hashrate.ValidationGraceDuration = 5 * cfg.Hashrate.CycleDuration
+		cfg.Hashrate.ValidationGraceDuration = 10 * cfg.Hashrate.CycleDuration
 	}
 
 	// Marketplace

@@ -17,9 +17,12 @@ const (
 )
 
 type MinerItem struct {
-	ID    string
-	HrGHS float64
+	ID           string
+	HrGHS        float64
+	JobRemaining float64
 }
+
+type OnVettedListener int
 
 type MinerItemJobScheduled struct {
 	ID       string
@@ -27,22 +30,26 @@ type MinerItemJobScheduled struct {
 	Fraction float64
 }
 
+type MinerIDJob = map[string]float64
+
 type AllocatorInterface interface {
 	Run(ctx context.Context) error
 	UpsertAllocation(ID string, hashrate float64, dest string, counter func(diff float64)) error
 }
 
 type Allocator struct {
-	proxies    *lib.Collection[*Scheduler]
-	proxyState sync.Map // map[string]bool map[proxyID]contractID
-	log        gi.ILogger
+	proxies *lib.Collection[*Scheduler]
+
+	storeListeners []func(ID string)
+	mutex          sync.RWMutex
+
+	log gi.ILogger
 }
 
 func NewAllocator(proxies *lib.Collection[*Scheduler], log gi.ILogger) *Allocator {
 	return &Allocator{
-		proxies:    proxies,
-		proxyState: sync.Map{},
-		log:        log,
+		proxies: proxies,
+		log:     log,
 	}
 }
 
@@ -50,7 +57,14 @@ func (p *Allocator) Run(ctx context.Context) error {
 	return nil
 }
 
-func (p *Allocator) AllocateFullMinersForHR(ID string, hrGHS float64, dest *url.URL, duration time.Duration, onSubmit func(diff float64, ID string)) (minerIDs []string, deltaGHS float64) {
+func (p *Allocator) AllocateFullMinersForHR(
+	ID string,
+	hrGHS float64,
+	dest *url.URL,
+	duration time.Duration,
+	onSubmit func(diff float64, ID string),
+	onDisconnect func(ID string, HrGHS float64),
+) (minerIDs []string, deltaGHS float64) {
 	miners := p.GetFreeMiners()
 
 	for _, miner := range miners {
@@ -58,10 +72,10 @@ func (p *Allocator) AllocateFullMinersForHR(ID string, hrGHS float64, dest *url.
 		if minerGHS <= hrGHS && minerGHS > 0 {
 			proxy, ok := p.proxies.Load(miner.ID)
 			if ok {
-				proxy.AddTask(ID, dest, hashrate.GHSToJobSubmitted(minerGHS)*duration.Seconds(), onSubmit)
+				proxy.AddTask(ID, dest, hashrate.GHSToJobSubmitted(minerGHS)*duration.Seconds(), onSubmit, onDisconnect)
 				minerIDs = append(minerIDs, miner.ID)
 				hrGHS -= minerGHS
-				p.log.Infof("miner %s allocated for %f GHS", miner.ID, minerGHS)
+				p.log.Infof("full miner %s allocated for %.0f GHS", miner.ID, minerGHS)
 			}
 		}
 	}
@@ -74,36 +88,74 @@ func (p *Allocator) AllocateFullMinersForHR(ID string, hrGHS float64, dest *url.
 	// })
 }
 
-func (p *Allocator) AllocatePartialForHR(ID string, hrGHS float64, dest *url.URL, cycleDuration time.Duration, onSubmit func(diff float64, ID string)) (string, bool) {
-	partialMiners := p.GetPartialMiners(cycleDuration)
-	jobForCycle := hashrate.GHSToJobSubmitted(hrGHS) * cycleDuration.Seconds()
+func (p *Allocator) AllocatePartialForHR(
+	ID string,
+	hrGHS float64,
+	dest *url.URL,
+	cycleDuration time.Duration,
+	onSubmit func(diff float64, ID string),
+	onDisconnect func(ID string, remainingJob float64),
+) (minerIDJob MinerIDJob, remainderGHS float64) {
+	jobNeeded := hashrate.GHSToJobSubmitted(hrGHS) * cycleDuration.Seconds()
+	minerIDJob, remainderJob := p.AllocatePartialForJob(ID, jobNeeded, dest, cycleDuration, onSubmit, onDisconnect)
+	remainderGHS = hashrate.JobSubmittedToGHS(remainderJob) / cycleDuration.Seconds()
+	return minerIDJob, remainderGHS
+}
 
-	// search in partially allocated miners
+func (p *Allocator) AllocatePartialForJob(
+	ID string,
+	jobNeeded float64,
+	dest *url.URL,
+	cycleDuration time.Duration,
+	onSubmit func(diff float64, ID string),
+	onDisconnect func(ID string, remainingJob float64),
+) (minerIDJob MinerIDJob, remainderGHS float64) {
+
+	partialMiners := p.GetPartialMiners(cycleDuration)
+	minerIDJob = MinerIDJob{}
+
+	minJob := 50000.0
+
 	for _, miner := range partialMiners {
-		remainingJob := miner.Job / miner.Fraction
-		if remainingJob >= jobForCycle {
+		minerJobRemaining := miner.Job / miner.Fraction
+		// try to add the whole chunk and return
+		if minerJobRemaining >= jobNeeded {
 			m, ok := p.proxies.Load(miner.ID)
 			if ok {
-				m.AddTask(ID, dest, jobForCycle, onSubmit)
-				return miner.ID, true
+				m.AddTask(ID, dest, jobNeeded, onSubmit, onDisconnect)
+				minerIDJob[miner.ID] = jobNeeded
+				return minerIDJob, 0
+			}
+		}
+		// try to add at leas a minJob and continue
+		if minerJobRemaining >= minJob {
+			m, ok := p.proxies.Load(miner.ID)
+			if ok {
+				m.AddTask(ID, dest, minerJobRemaining, onSubmit, onDisconnect)
+				minerIDJob[miner.ID] = jobNeeded
+				jobNeeded -= minerJobRemaining
 			}
 		}
 	}
 
 	// search in free miners
+	// missing loop cause we already checked full miners
 	freeMiners := p.GetFreeMiners()
 	for _, miner := range freeMiners {
-		remainingJob := hashrate.GHSToJobSubmitted(miner.HrGHS) * cycleDuration.Seconds()
-		if remainingJob >= jobForCycle {
+		minerJobRemaining := hashrate.GHSToJobSubmitted(miner.HrGHS) * cycleDuration.Seconds()
+		if minerJobRemaining >= jobNeeded {
 			m, ok := p.proxies.Load(miner.ID)
 			if ok {
-				m.AddTask(ID, dest, jobForCycle, onSubmit)
-				return miner.ID, true
+				m.AddTask(ID, dest, jobNeeded, onSubmit, onDisconnect)
+				minerIDJob[miner.ID] = jobNeeded
+				return minerIDJob, 0
 			}
 		}
 	}
 
-	return "", false
+	// search in partially allocated miners
+
+	return minerIDJob, jobNeeded
 }
 
 func (p *Allocator) GetFreeMiners() []MinerItem {
@@ -168,7 +220,7 @@ func (p *Allocator) GetMinersFulfillingContract(contractID string) []*DestItem {
 		for _, task := range tasks {
 			dests = append(dests, &DestItem{
 				Dest: task.Dest.String(),
-				Job:  task.RemainingJobToSubmit,
+				Job:  float64(task.RemainingJobToSubmit.Load()),
 			})
 		}
 		return true
@@ -182,4 +234,28 @@ func (p *Allocator) CancelTasks(contractID string) {
 		item.RemoveTasksByID(contractID)
 		return true
 	})
+}
+
+func (p *Allocator) AddVettedListener(f func(ID string)) OnVettedListener {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	p.storeListeners = append(p.storeListeners, f)
+	return OnVettedListener(len(p.storeListeners) - 1)
+}
+
+func (p *Allocator) RemoveVettedListener(s OnVettedListener) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	p.storeListeners = append(p.storeListeners[:s], p.storeListeners[s+1:]...)
+}
+
+func (p *Allocator) InvokeVettedListeners(ID string) {
+	p.mutex.RLock()
+	defer p.mutex.RUnlock()
+
+	for _, f := range p.storeListeners {
+		go f(ID)
+	}
 }

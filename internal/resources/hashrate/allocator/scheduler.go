@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
@@ -14,14 +14,6 @@ import (
 	h "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy"
 )
-
-type Task struct {
-	ID                   string
-	Dest                 *url.URL
-	RemainingJobToSubmit float64
-	OnSubmit             func(diff float64, ID string)
-	cancelCh             chan struct{}
-}
 
 // Scheduler is a proxy wrapper that can schedule one-time tasks to different destinations
 type Scheduler struct {
@@ -38,11 +30,12 @@ type Scheduler struct {
 	usedHR           *hashrate.Hashrate
 
 	// deps
-	proxy StratumProxyInterface
-	log   interfaces.ILogger
+	proxy    StratumProxyInterface
+	onVetted func(ID string)
+	log      interfaces.ILogger
 }
 
-func NewScheduler(proxy StratumProxyInterface, hashrateCounterID string, defaultDest *url.URL, minerVettingShares int, hashrateFactory HashrateFactory, log interfaces.ILogger) *Scheduler {
+func NewScheduler(proxy StratumProxyInterface, hashrateCounterID string, defaultDest *url.URL, minerVettingShares int, hashrateFactory HashrateFactory, onVetted func(ID string), log interfaces.ILogger) *Scheduler {
 	return &Scheduler{
 		primaryDest:        defaultDest,
 		hashrateCounterID:  hashrateCounterID,
@@ -50,6 +43,7 @@ func NewScheduler(proxy StratumProxyInterface, hashrateCounterID string, default
 		newTaskSignal:      make(chan struct{}, 1),
 		usedHR:             hashrateFactory(),
 		proxy:              proxy,
+		onVetted:           onVetted,
 		log:                log,
 	}
 }
@@ -63,6 +57,20 @@ func (p *Scheduler) Run(ctx context.Context) error {
 	if err != nil {
 		return err // handshake error
 	}
+
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		case <-p.proxy.VettingDone():
+		}
+
+		p.log.Infof("miner %s vetting done", p.proxy.GetID())
+		if p.onVetted != nil {
+			p.onVetted(p.proxy.GetID())
+			p.onVetted = nil
+		}
+	}()
 
 	for {
 		if p.proxy.GetDest().String() != p.primaryDest.String() {
@@ -115,19 +123,22 @@ func (p *Scheduler) taskLoop(ctx context.Context, proxyTask *lib.Task) error {
 			default:
 			}
 
-			jobDone := make(chan struct{})
-			jobDoneOnce := sync.Once{}
-			p.log.Debugf("start doing task for job ID %s, for job %.0f", task.ID, task.RemainingJobToSubmit)
-			p.totalTaskJob -= task.RemainingJobToSubmit
+			jobDoneCh := make(chan struct{})
+			remainingJob := float64(task.RemainingJobToSubmit.Load())
+			p.log.Debugf("start doing task for job ID %s, for job amount %.f", lib.StrShort(task.ID), remainingJob)
+			p.totalTaskJob -= remainingJob
+
 			err := p.proxy.SetDest(ctx, task.Dest, func(diff float64) {
-				task.RemainingJobToSubmit -= diff
 				task.OnSubmit(diff, p.proxy.GetID())
 				p.usedHR.OnSubmit(diff)
-				if task.RemainingJobToSubmit <= 0 {
-					jobDoneOnce.Do(func() {
+				remainingJob := task.RemainingJobToSubmit.Add(-int64(diff))
+				if remainingJob <= 0 {
+					select {
+					case <-jobDoneCh:
+					default:
 						p.log.Debugf("finished doing task for job %s", task.ID)
-						close(jobDone)
-					})
+						close(jobDoneCh)
+					}
 				}
 			})
 			if err != nil {
@@ -137,17 +148,18 @@ func (p *Scheduler) taskLoop(ctx context.Context, proxyTask *lib.Task) error {
 			select {
 			case <-ctx.Done():
 				<-proxyTask.Done()
+				p.signalTasksOnDisconnect()
 				return ctx.Err()
 			case <-proxyTask.Done():
-				p.tasks.Pop()
+				p.signalTasksOnDisconnect()
 				return proxyTask.Err()
 			case <-p.resetTasksSignal:
-				close(jobDone)
+				close(jobDoneCh)
 				p.log.Debugf("tasks resetted")
 			case <-task.cancelCh:
-				close(jobDone)
+				close(jobDoneCh)
 				p.log.Debugf("task cancelled %s", task.ID)
-			case <-jobDone:
+			case <-jobDoneCh:
 			}
 
 			p.tasks.Pop()
@@ -156,8 +168,10 @@ func (p *Scheduler) taskLoop(ctx context.Context, proxyTask *lib.Task) error {
 		select {
 		case <-ctx.Done():
 			<-proxyTask.Done()
+			p.signalTasksOnDisconnect()
 			return ctx.Err()
 		case <-proxyTask.Done():
+			p.signalTasksOnDisconnect()
 			return proxyTask.Err()
 		case <-p.newTaskSignal:
 			continue
@@ -172,22 +186,44 @@ func (p *Scheduler) taskLoop(ctx context.Context, proxyTask *lib.Task) error {
 
 		select {
 		case <-ctx.Done():
+			p.signalTasksOnDisconnect()
 			<-proxyTask.Done()
 			return ctx.Err()
 		case <-proxyTask.Done():
+			p.signalTasksOnDisconnect()
 			return proxyTask.Err()
 		case <-p.newTaskSignal:
 		}
 	}
 }
 
-func (p *Scheduler) AddTask(ID string, dest *url.URL, jobSubmitted float64, onSubmit func(diff float64, ID string)) {
+func (p *Scheduler) signalTasksOnDisconnect() {
+	for {
+		task, ok := p.tasks.Pop()
+		if !ok {
+			break
+		}
+		task.OnDisconnect(p.ID(), p.HashrateGHS())
+	}
+}
+
+func (p *Scheduler) AddTask(
+	ID string,
+	dest *url.URL,
+	jobSubmitted float64,
+	onSubmit func(diff float64, ID string),
+	onDisconnect func(ID string, HrGHS float64),
+) {
 	shouldSignal := p.tasks.Size() == 0
+	remainingJob := new(atomic.Int64)
+	remainingJob.Store(int64(jobSubmitted))
+
 	p.tasks.Push(Task{
 		ID:                   ID,
 		Dest:                 dest,
-		RemainingJobToSubmit: jobSubmitted,
+		RemainingJobToSubmit: remainingJob,
 		OnSubmit:             onSubmit,
+		OnDisconnect:         onDisconnect,
 		cancelCh:             make(chan struct{}),
 	})
 	p.totalTaskJob += jobSubmitted
@@ -233,17 +269,17 @@ func (p *Scheduler) IsFree() bool {
 	return p.tasks.Size() == 0
 }
 
-func (p *Scheduler) IsPartialBusy() bool {
-	return p.totalTaskJob < hashrate.GHSToJobSubmitted(p.HashrateGHS())
+func (p *Scheduler) IsPartialBusy(cycleDuration time.Duration) bool {
+	return p.totalTaskJob < hashrate.GHSToJobSubmittedV2(p.HashrateGHS(), cycleDuration)
 }
 
 // AcceptsTasks returns true if there are vacant space for tasks for provided interval
 func (p *Scheduler) IsAcceptingTasks(duration time.Duration) bool {
 	totalJob := 0.0
 	for _, tsk := range p.tasks {
-		totalJob += tsk.RemainingJobToSubmit
+		totalJob += float64(tsk.RemainingJobToSubmit.Load())
 	}
-	maxJob := h.GHSToJobSubmitted(p.HashrateGHS()) * duration.Seconds()
+	maxJob := h.GHSToJobSubmittedV2(p.HashrateGHS(), duration)
 	return p.tasks.Size() > 0 && totalJob < maxJob
 }
 
@@ -267,7 +303,7 @@ func (p *Scheduler) HashrateGHS() float64 {
 	return hr
 }
 
-func (p *Scheduler) GetStatus() MinerStatus {
+func (p *Scheduler) GetStatus(cycleDuration time.Duration) MinerStatus {
 	if p.IsVetting() {
 		return MinerStatusVetting
 	}
@@ -276,7 +312,7 @@ func (p *Scheduler) GetStatus() MinerStatus {
 		return MinerStatusFree
 	}
 
-	if p.IsPartialBusy() {
+	if p.IsPartialBusy(cycleDuration) {
 		return MinerStatusPartialBusy
 	}
 
@@ -304,7 +340,7 @@ func (p *Scheduler) GetStats() interface{} {
 }
 
 func (p *Scheduler) IsVetting() bool {
-	return p.GetHashrate().GetTotalShares() < p.minerVettingShares
+	return p.proxy.IsVetting()
 }
 
 func (p *Scheduler) GetUptime() time.Duration {
@@ -329,14 +365,9 @@ func (p *Scheduler) GetDestinations() []*DestItem {
 	for i, t := range p.tasks {
 		dests[i] = &DestItem{
 			Dest: t.Dest.String(),
-			Job:  t.RemainingJobToSubmit,
+			Job:  float64(t.RemainingJobToSubmit.Load()),
 		}
 	}
 
 	return dests
-}
-
-type DestItem struct {
-	Dest string
-	Job  float64
 }

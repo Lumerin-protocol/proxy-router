@@ -205,7 +205,7 @@ func start() error {
 
 	cm := contractmanager.NewContractManager(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), ownerAddr, hrContractFactory.CreateContract, store, log)
 
-	handl := httphandlers.NewHTTPHandler(alloc, cm, globalHashrate, publicUrl, HashrateCounterDefault, log)
+	handl := httphandlers.NewHTTPHandler(alloc, cm, globalHashrate, publicUrl, HashrateCounterDefault, cfg.Hashrate.CycleDuration, log)
 	httpServer := transport.NewServer(cfg.Web.Address, handl, log)
 
 	g, ctx := errgroup.WithContext(ctx)

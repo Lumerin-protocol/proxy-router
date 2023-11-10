@@ -3,6 +3,7 @@ package httphandlers
 import (
 	"context"
 	"net/url"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/config"
@@ -24,19 +25,21 @@ type HTTPHandler struct {
 	globalHashrate         *hr.GlobalHashrate
 	allocator              *allocator.Allocator
 	contractManager        *contractmanager.ContractManager
+	cycleDuration          time.Duration
 	hashrateCounterDefault string
 	publicUrl              *url.URL
 	pubKey                 string
 	log                    interfaces.ILogger
 }
 
-func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractmanager.ContractManager, globalHashrate *hr.GlobalHashrate, publicUrl *url.URL, hashrateCounter string, log interfaces.ILogger) *gin.Engine {
+func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractmanager.ContractManager, globalHashrate *hr.GlobalHashrate, publicUrl *url.URL, hashrateCounter string, cycleDuration time.Duration, log interfaces.ILogger) *gin.Engine {
 	handl := &HTTPHandler{
 		allocator:              allocator,
 		contractManager:        contractManager,
 		globalHashrate:         globalHashrate,
 		publicUrl:              publicUrl,
 		hashrateCounterDefault: hashrateCounter,
+		cycleDuration:          cycleDuration,
 		log:                    log,
 	}
 
