@@ -118,7 +118,7 @@ func (c *ControllerSeller) handleContractPurchased(ctx context.Context, event *i
 		return nil
 	}
 
-	c.StartFulfilling()
+	_ = c.StartFulfilling()
 
 	return nil
 }
@@ -154,7 +154,7 @@ func (c *ControllerSeller) handleCipherTextUpdated(ctx context.Context, event *i
 
 	c.ContractWatcherSellerV2.StopFulfilling()
 	c.SetData(terms)
-	c.ContractWatcherSellerV2.StartFulfilling()
+	_ = c.ContractWatcherSellerV2.StartFulfilling()
 	return nil
 }
 
