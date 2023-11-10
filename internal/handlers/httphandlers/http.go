@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"time"
 
+	"net/http/pprof"
+
 	"github.com/gin-gonic/gin"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/config"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/contractmanager"
@@ -55,6 +57,8 @@ func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractman
 
 	r.POST("/change-dest", handl.ChangeDest)
 	r.POST("/contracts", handl.CreateContract)
+
+	r.Any("/debug/pprof/*action", gin.WrapF(pprof.Index))
 
 	err := r.SetTrustedProxies(nil)
 	if err != nil {
