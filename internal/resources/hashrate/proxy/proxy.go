@@ -49,6 +49,8 @@ type Proxy struct {
 	onSubmit                HashrateCounterFunc        // callback to update contract hashrate
 	onSubmitMutex           sync.RWMutex               // mutex to protect onSubmit
 	destMap                 *lib.Collection[*ConnDest] // map of all available destinations (pools) currently connected to the single source (miner)
+	vettingDoneCh           chan struct{}              // channel to signal that the miner has been vetted
+	vettingShares           int                        // number of shares to vet the miner
 
 	// deps
 	source         *ConnSource           // initiator of the communication, miner
@@ -59,16 +61,18 @@ type Proxy struct {
 }
 
 // TODO: pass connection factory for destURL
-func NewProxy(ID string, source *ConnSource, destFactory DestConnFactory, hashrateFactory HashrateFactory, globalHashrate GlobalHashrateCounter, destURL *url.URL, notPropagateWorkerName bool, log gi.ILogger) *Proxy {
+func NewProxy(ID string, source *ConnSource, destFactory DestConnFactory, hashrateFactory HashrateFactory, globalHashrate GlobalHashrateCounter, destURL *url.URL, notPropagateWorkerName bool, vettingShares int, log gi.ILogger) *Proxy {
 	proxy := &Proxy{
 		ID:                     ID,
 		destURL:                destURL,
 		notPropagateWorkerName: notPropagateWorkerName,
 
-		source:      source,
-		destMap:     lib.NewCollection[*ConnDest](),
-		destFactory: destFactory,
-		log:         log,
+		source:        source,
+		destMap:       lib.NewCollection[*ConnDest](),
+		destFactory:   destFactory,
+		log:           log,
+		vettingDoneCh: make(chan struct{}),
+		vettingShares: vettingShares,
 
 		hashrate:       hashrateFactory(),
 		globalHashrate: globalHashrate,
@@ -341,4 +345,12 @@ func (p *Proxy) GetDestConns() *map[string]string {
 		return true
 	})
 	return &destConns
+}
+
+func (p *Proxy) VettingDone() <-chan struct{} {
+	return p.vettingDoneCh
+}
+
+func (p *Proxy) IsVetting() bool {
+	return p.GetHashrate().GetTotalShares() < p.vettingShares
 }

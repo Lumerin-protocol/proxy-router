@@ -40,7 +40,7 @@ func (c *HTTPHandler) GetMiners(ctx *gin.Context) {
 
 		TotalMiners += 1
 
-		switch m.GetStatus() {
+		switch m.GetStatus(c.cycleDuration) {
 		case allocator.MinerStatusFree:
 			FreeMiners += 1
 		case allocator.MinerStatusVetting:
@@ -85,7 +85,7 @@ func (c *HTTPHandler) MapMiner(m *allocator.Scheduler) *Miner {
 		},
 		ID:                    m.ID(),
 		WorkerName:            m.GetWorkerName(),
-		Status:                m.GetStatus().String(),
+		Status:                m.GetStatus(c.cycleDuration).String(),
 		CurrentDifficulty:     int(m.GetCurrentDifficulty()),
 		HashrateAvgGHS:        mapHRToInt(m),
 		CurrentDestination:    m.GetCurrentDest().String(),

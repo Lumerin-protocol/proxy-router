@@ -205,24 +205,33 @@ func start() error {
 
 	cm := contractmanager.NewContractManager(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), ownerAddr, hrContractFactory.CreateContract, store, log)
 
-	handl := httphandlers.NewHTTPHandler(alloc, cm, globalHashrate, publicUrl, HashrateCounterDefault, log)
+	handl := httphandlers.NewHTTPHandler(alloc, cm, globalHashrate, publicUrl, HashrateCounterDefault, cfg.Hashrate.CycleDuration, log)
 	httpServer := transport.NewServer(cfg.Web.Address, handl, log)
 
-	g, ctx := errgroup.WithContext(ctx)
-
+	ctx, cancel = context.WithCancel(ctx)
+	g, errCtx := errgroup.WithContext(ctx)
 	g.Go(func() error {
-		return httpServer.Run(ctx)
+		return tcpServer.Run(errCtx)
 	})
 
 	g.Go(func() error {
-		return tcpServer.Run(ctx)
+		return cm.Run(errCtx)
 	})
 
-	g.Go(func() error {
-		return cm.Run(ctx)
-	})
+	// http server should shut down latest to keep pprof running
+
+	serverErrCh := make(chan error, 1)
+	serverCtx, cancelServer := context.WithCancel(context.Background())
+	go func() {
+		serverErrCh <- httpServer.Run(serverCtx)
+		cancel()
+	}()
 
 	err = g.Wait()
+
+	cancelServer()
+	<-serverErrCh
+
 	log.Infof("App exited due to %s", err)
 	return err
 }

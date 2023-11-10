@@ -35,8 +35,8 @@ func NewTCPHandler(
 		sourceConn := proxy.NewSourceConn(stratumConn, sourceLog)
 
 		url := lib.CopyURL(defaultDestUrl) // clones url
-		prx := proxy.NewProxy(ID, sourceConn, destFactory, hashrateFactory, globalHashrate, url, notPropagateWorkerName, proxyLog)
-		scheduler := allocator.NewScheduler(prx, hashrateCounterDefault, url, minerVettingShares, hashrateFactory, schedulerLog)
+		prx := proxy.NewProxy(ID, sourceConn, destFactory, hashrateFactory, globalHashrate, url, notPropagateWorkerName, minerVettingShares, proxyLog)
+		scheduler := allocator.NewScheduler(prx, hashrateCounterDefault, url, minerVettingShares, hashrateFactory, alloc.InvokeVettedListeners, schedulerLog)
 		alloc.GetMiners().Store(scheduler)
 
 		err := scheduler.Run(ctx)

@@ -3,6 +3,9 @@ package httphandlers
 import (
 	"context"
 	"net/url"
+	"time"
+
+	"net/http/pprof"
 
 	"github.com/gin-gonic/gin"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/config"
@@ -24,19 +27,21 @@ type HTTPHandler struct {
 	globalHashrate         *hr.GlobalHashrate
 	allocator              *allocator.Allocator
 	contractManager        *contractmanager.ContractManager
+	cycleDuration          time.Duration
 	hashrateCounterDefault string
 	publicUrl              *url.URL
 	pubKey                 string
 	log                    interfaces.ILogger
 }
 
-func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractmanager.ContractManager, globalHashrate *hr.GlobalHashrate, publicUrl *url.URL, hashrateCounter string, log interfaces.ILogger) *gin.Engine {
+func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractmanager.ContractManager, globalHashrate *hr.GlobalHashrate, publicUrl *url.URL, hashrateCounter string, cycleDuration time.Duration, log interfaces.ILogger) *gin.Engine {
 	handl := &HTTPHandler{
 		allocator:              allocator,
 		contractManager:        contractManager,
 		globalHashrate:         globalHashrate,
 		publicUrl:              publicUrl,
 		hashrateCounterDefault: hashrateCounter,
+		cycleDuration:          cycleDuration,
 		log:                    log,
 	}
 
@@ -52,6 +57,8 @@ func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractman
 
 	r.POST("/change-dest", handl.ChangeDest)
 	r.POST("/contracts", handl.CreateContract)
+
+	r.Any("/debug/pprof/*action", gin.WrapF(pprof.Index))
 
 	err := r.SetTrustedProxies(nil)
 	if err != nil {
