@@ -48,14 +48,16 @@ func (c *ControllerSeller) Run(ctx context.Context) error {
 		case event := <-sub.Events():
 			err := c.controller(ctx, event)
 			if err != nil {
-				c.StopFulfilling()
+				c.ContractWatcherSellerV2.StopFulfilling()
+				<-c.ContractWatcherSellerV2.Done()
 				return err
 			}
 		case err := <-sub.Err():
-			c.StopFulfilling()
+			c.ContractWatcherSellerV2.StopFulfilling()
+			<-c.ContractWatcherSellerV2.Done()
 			return err
 		case <-ctx.Done():
-			c.StopFulfilling()
+			c.ContractWatcherSellerV2.StopFulfilling()
 			<-c.ContractWatcherSellerV2.Done()
 			c.ContractWatcherSellerV2.Reset()
 			return ctx.Err()

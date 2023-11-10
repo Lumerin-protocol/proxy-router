@@ -29,6 +29,7 @@ type ContractWatcherSellerV2 struct {
 	// state
 	stats             *stats
 	isRunning         *atomic.Bool
+	startCh           chan struct{}
 	stopCh            chan struct{}
 	doneCh            chan struct{}
 	err               *atomic.Error
@@ -54,6 +55,7 @@ func NewContractWatcherSellerV2(terms *hashrateContract.Terms, cycleDuration tim
 			actualHRGHS: hashrateFactory(),
 		},
 		isRunning:   atomic.NewBool(false),
+		startCh:     make(chan struct{}),
 		stopCh:      make(chan struct{}),
 		doneCh:      make(chan struct{}),
 		err:         atomic.NewError(nil),
@@ -69,13 +71,15 @@ func (p *ContractWatcherSellerV2) StartFulfilling() error {
 	if !p.isRunning.CAS(false, true) {
 		return ErrAlreadyRunning
 	}
+
+	p.startCh = make(chan struct{})
 	p.stopCh = make(chan struct{})
 	p.doneCh = make(chan struct{})
 	p.err = atomic.NewError(nil)
 
 	go func() {
-		defer close(p.doneCh)
-		p.log.Infof("contract %s started", p.ID())
+		close(p.startCh)
+		defer p.log.Infof("contract %s started", p.ID())
 
 		err := p.run()
 		p.err.Store(err)
@@ -83,11 +87,20 @@ func (p *ContractWatcherSellerV2) StartFulfilling() error {
 			p.log.Errorf("contract %s stopped with error: %s", p.ID(), err)
 		}
 		p.isRunning.Store(false)
+		close(p.doneCh)
 	}()
+
 	return nil
 }
 
 func (p *ContractWatcherSellerV2) StopFulfilling() {
+	// workaround if never started
+	select {
+	case <-p.startCh:
+	default:
+		close(p.doneCh)
+	}
+
 	select {
 	case <-p.stopCh:
 		return
@@ -152,6 +165,8 @@ CONTRACT_CYCLE:
 		p.stats.partialMiners = p.stats.partialMiners[:0]
 		p.stats.jobFullMiners.Store(0)
 		p.stats.jobPartialMiners.Store(0)
+		p.stats.sharesFullMiners.Store(0)
+		p.stats.sharesPartialMiners.Store(0)
 
 		p.cycleEndsAt = time.Now().Add(p.contractCycleDuration)
 
@@ -160,13 +175,11 @@ CONTRACT_CYCLE:
 		p.log.Debugf("deliveryTarget after adj %.0f GHS", p.stats.deliveryTargetGHS)
 
 		if p.stats.deliveryTargetGHS > 0 {
-			p.log.Warnf("not enough hashrate to fulfill contract (%2.f GHS)", p.stats.deliveryTargetGHS)
+			p.log.Warnf("not enough hashrate to fulfill contract (lacking %2.f GHS)", p.stats.deliveryTargetGHS)
 		}
 
 	EVENTS_CONTROLLER:
 		for {
-			p.log.Debugf("new events controller cycle started")
-
 			select {
 			// new miner connected
 			case miner := <-p.minerConnectCh.Receive():
@@ -174,11 +187,12 @@ CONTRACT_CYCLE:
 				if p.stats.deliveryTargetGHS <= 0 {
 					continue EVENTS_CONTROLLER
 				}
+				p.log.Debugf("deliveryTarget before adj %.0f GHS", p.stats.deliveryTargetGHS)
+				p.stats.deliveryTargetGHS -= p.adjustHashrate(p.stats.deliveryTargetGHS)
+				p.log.Debugf("deliveryTarget after adj %.0f GHS", p.stats.deliveryTargetGHS)
 
-				adjusted := p.adjustHashrate(p.stats.deliveryTargetGHS)
-				p.stats.deliveryTargetGHS -= adjusted
 				if p.stats.deliveryTargetGHS > 0 {
-					p.log.Warnf("not enough hashrate to fulfill contract (miner connected) (%2.f GHS)", p.stats.deliveryTargetGHS)
+					p.log.Warnf("not enough hashrate to fulfill contract (miner connected) (lacking %2.f GHS)", p.stats.deliveryTargetGHS)
 				}
 				continue EVENTS_CONTROLLER
 
@@ -187,6 +201,21 @@ CONTRACT_CYCLE:
 				p.log.Infof("got miner disconnect event: %s", minerItem.ID)
 
 				p.replaceMiner(minerItem)
+				continue EVENTS_CONTROLLER
+
+			// shorter loop if not enough hashrate
+			case <-time.After(10 * time.Second):
+				if p.stats.deliveryTargetGHS > 0 {
+					p.log.Debugf("not enough hashrate: trying to allocate more")
+
+					before := p.stats.deliveryTargetGHS
+					p.stats.deliveryTargetGHS -= p.adjustHashrate(p.stats.deliveryTargetGHS)
+					p.log.Debugf("deliveryTarget before %0.f after %0.f added %.0f GHS", before, p.stats.deliveryTargetGHS, before-p.stats.deliveryTargetGHS)
+
+					if p.stats.deliveryTargetGHS > 0 {
+						p.log.Warnf("not enough hashrate to fulfill contract (short loop) (lacking %2.f GHS)", p.stats.deliveryTargetGHS)
+					}
+				}
 				continue EVENTS_CONTROLLER
 
 			// contract ended
@@ -258,11 +287,9 @@ func (p *ContractWatcherSellerV2) adjustHashrate(hashrateGHS float64) (adjustedG
 		addedGHS := hr.JobSubmittedToGHSV2(addedJob, remainingCycleTime)
 		adjustedGHS += addedGHS
 		p.log.Debugf("added %.f GHS of partial miners", addedGHS)
-
 	}
 
-	p.log.Debugf("adjusted %.f GHS", adjustedGHS)
-
+	p.log.Debugf("adjustment delta %.f GHS", adjustedGHS)
 	return adjustedGHS
 }
 
@@ -274,10 +301,12 @@ func (p *ContractWatcherSellerV2) addFullMiners(hashrateGHS float64) (addedGHS f
 		p.getAdjustedDest(),
 		p.Duration(),
 		p.stats.onFullMinerShare,
-		func(ID string, remainingJob float64) {
+		func(ID string, hashrateGHS float64, remainingJob float64) {
+			p.log.Warn("full miner disconnected", ID)
 			p.minerDisconnectCh.Send(allocator.MinerItem{
-				ID:    ID,
-				HrGHS: remainingJob,
+				ID:           ID,
+				HrGHS:        hashrateGHS,
+				JobRemaining: remainingJob,
 			})
 		},
 	)
@@ -324,16 +353,18 @@ func (p *ContractWatcherSellerV2) addPartialMiners(job float64) (addedJob float6
 		p.contractCycleDuration,
 		func(diff float64, ID string) {
 			p.stats.onPartialMinerShare(diff, ID)
-			expectedTotalJob := hr.GHSToJobSubmittedV2(p.HashrateGHS(), p.contractCycleDuration)
+			expectedTotalJob := hr.GHSToJobSubmittedV2(p.HashrateGHS(), p.contractCycleDuration) + float64(p.stats.globalUnderDeliveryGHS.Load())
 			if p.stats.totalJob() >= expectedTotalJob {
-				p.log.Infof("this cycle reached target prematurely", p.ID())
+				p.log.Infof("this cycle reached target prematurely %s expectedTotalJob %.f totalJob %.f", p.ID(), expectedTotalJob, p.stats.totalJob())
 				p.removeAllPartialMiners()
 			}
 		},
-		func(ID string, remainingJob float64) {
+		func(ID string, hrGHS float64, remainingJob float64) {
+			p.log.Warn("partial miner disconnected", ID)
 			p.minerDisconnectCh.Send(allocator.MinerItem{
-				ID:    ID,
-				HrGHS: remainingJob,
+				ID:           ID,
+				HrGHS:        hrGHS,
+				JobRemaining: remainingJob,
 			})
 		},
 	)
@@ -379,32 +410,27 @@ func (p *ContractWatcherSellerV2) removeAllPartialMiners() {
 
 func (p *ContractWatcherSellerV2) replaceMiner(minerItem allocator.MinerItem) {
 	p.log.Debugf("replacing miner %s, %.f GHS", minerItem.ID, minerItem.HrGHS)
-	minerID := minerItem.ID
-	minerHashrate := minerItem.HrGHS
-	isFullMiner := p.stats.removeFullMiner(minerID)
-	isPartialMiner := p.stats.removePartialMiner(minerID)
 
-	p.stats.deliveryTargetGHS += minerHashrate
+	isFullMiner := p.stats.removeFullMiner(minerItem.ID)
+	isPartialMiner := p.stats.removePartialMiner(minerItem.ID)
 
 	if isFullMiner {
-		minerHashrate -= p.addFullMiners(minerHashrate)
-		if minerHashrate > 0 {
-			remainingJob := hr.GHSToJobSubmittedV2(minerHashrate, p.remainingCycleTime())
-			addedJob := p.addPartialMiners(remainingJob)
-			addedGHS := hr.JobSubmittedToGHSV2(addedJob, p.remainingCycleTime())
-			minerHashrate -= addedGHS
-		}
-		if minerHashrate > 0 {
-			p.log.Warnf("not enough hashrate to replace the full miner %s (needed more %.0f GHS)", minerID, minerHashrate)
-		}
+		p.stats.deliveryTargetGHS += minerItem.HrGHS
+		p.log.Debugf("miner %s is full miner", minerItem.ID)
 	}
 
 	if isPartialMiner {
-		remainingJob := minerItem.JobRemaining
-		remainingJob -= p.addPartialMiners(remainingJob)
-		if remainingJob > 0 {
-			p.log.Warnf("not enough hashrate to replace the partial miner %s (needed more %.0f GHS)", minerID, remainingJob)
-		}
+		p.log.Debugf("miner %s is partial miner", minerItem.ID)
+		remainingGHS := hr.JobSubmittedToGHSV2(minerItem.JobRemaining, p.remainingCycleTime())
+		p.stats.deliveryTargetGHS += remainingGHS
+	}
+
+	p.log.Debugf("deliveryTarget before adj %.0f GHS", p.stats.deliveryTargetGHS)
+	p.stats.deliveryTargetGHS -= p.adjustHashrate(p.stats.deliveryTargetGHS)
+	p.log.Debugf("deliveryTarget after adj %.0f GHS", p.stats.deliveryTargetGHS)
+
+	if p.stats.deliveryTargetGHS > 0 {
+		p.log.Warnf("not enough hashrate to replace miner (lacking %2.f GHS)", p.stats.deliveryTargetGHS)
 	}
 }
 

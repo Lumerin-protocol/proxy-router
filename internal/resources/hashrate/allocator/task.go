@@ -10,7 +10,7 @@ type Task struct {
 	Dest                 *url.URL
 	RemainingJobToSubmit *atomic.Int64
 	OnSubmit             func(diff float64, ID string)
-	OnDisconnect         func(ID string, HrGHS float64)
+	OnDisconnect         func(ID string, HrGHS float64, remainingJob float64)
 	cancelCh             chan struct{}
 }
 
