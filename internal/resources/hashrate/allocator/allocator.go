@@ -23,7 +23,7 @@ type MinerItem struct {
 	JobRemaining float64
 }
 
-type OnVettedListener int
+type ListenerHandle int
 
 type MinerItemJobScheduled struct {
 	ID       string
@@ -41,8 +41,9 @@ type AllocatorInterface interface {
 type Allocator struct {
 	proxies *lib.Collection[*Scheduler]
 
-	storeListeners []func(ID string)
-	mutex          sync.RWMutex
+	lastListenerID  int
+	vettedListeners map[int]func(ID string)
+	mutex           sync.RWMutex
 
 	log gi.ILogger
 }
@@ -239,26 +240,29 @@ func (p *Allocator) CancelTasks(contractID string) {
 	})
 }
 
-func (p *Allocator) AddVettedListener(f func(ID string)) OnVettedListener {
+func (p *Allocator) AddVettedListener(f func(ID string)) ListenerHandle {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
-	p.storeListeners = append(p.storeListeners, f)
-	return OnVettedListener(len(p.storeListeners) - 1)
+	ID := p.lastListenerID
+	p.lastListenerID++
+
+	p.vettedListeners[ID] = f
+	return ListenerHandle(ID)
 }
 
-func (p *Allocator) RemoveVettedListener(s OnVettedListener) {
+func (p *Allocator) RemoveVettedListener(s ListenerHandle) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
-	p.storeListeners = append(p.storeListeners[:s], p.storeListeners[s+1:]...)
+	delete(p.vettedListeners, int(s))
 }
 
-func (p *Allocator) InvokeVettedListeners(ID string) {
+func (p *Allocator) InvokeVettedListeners(minerID string) {
 	p.mutex.RLock()
 	defer p.mutex.RUnlock()
 
-	for _, f := range p.storeListeners {
-		go f(ID)
+	for _, f := range p.vettedListeners {
+		go f(minerID)
 	}
 }
