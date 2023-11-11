@@ -220,27 +220,31 @@ CONTRACT_CYCLE:
 
 			// contract ended
 			case <-time.After(p.getEndsAfter()):
+				elapsedCycleDuration := p.contractCycleDuration - p.remainingCycleDuration()
+				p.onCycleEnd(elapsedCycleDuration) // to log the last cycle
 				p.removeAllMiners()
 				p.reportTotalStats()
 				return nil
 
 			// contract stopped from outside
 			case <-p.stopCh:
+				elapsedCycleDuration := p.contractCycleDuration - p.remainingCycleDuration()
+				p.onCycleEnd(elapsedCycleDuration) // to log the last cycle
 				p.removeAllMiners()
 				p.reportTotalStats()
 				return ErrStopped
 
 			// contract cycle ended
-			case <-time.After(p.remainingCycleTime()):
-				p.onCycleEnd()
+			case <-time.After(p.remainingCycleDuration()):
+				p.onCycleEnd(p.contractCycleDuration)
 				continue CONTRACT_CYCLE
 			}
 		}
 	}
 }
 
-func (p *ContractWatcherSellerV2) onCycleEnd() {
-	thisCycleActualGHS := hr.JobSubmittedToGHSV2(p.stats.totalJob(), p.contractCycleDuration)
+func (p *ContractWatcherSellerV2) onCycleEnd(cycleDuration time.Duration) {
+	thisCycleActualGHS := hr.JobSubmittedToGHSV2(p.stats.totalJob(), cycleDuration)
 	thisCycleUnderDeliveryGHS := p.HashrateGHS() - thisCycleActualGHS
 	p.stats.globalUnderDeliveryGHS.Add(int64(thisCycleUnderDeliveryGHS))
 	p.stats.deliveryTargetGHS = p.HashrateGHS() - p.getFullMinersHR() + float64(p.stats.globalUnderDeliveryGHS.Load())
@@ -248,10 +252,10 @@ func (p *ContractWatcherSellerV2) onCycleEnd() {
 	logEntry := DeliveryLogEntry{
 		Timestamp:                         time.Now(),
 		ActualGHS:                         int(thisCycleActualGHS),
-		FullMinersGHS:                     int(hr.JobSubmittedToGHSV2(float64(p.stats.jobFullMiners.Load()), p.contractCycleDuration)),
+		FullMinersGHS:                     int(hr.JobSubmittedToGHSV2(float64(p.stats.jobFullMiners.Load()), cycleDuration)),
 		FullMiners:                        p.stats.fullMiners,
 		FullMinersShares:                  int(p.stats.sharesFullMiners.Load()),
-		PartialMinersGHS:                  int(hr.JobSubmittedToGHSV2(float64(p.stats.jobPartialMiners.Load()), p.contractCycleDuration)),
+		PartialMinersGHS:                  int(hr.JobSubmittedToGHSV2(float64(p.stats.jobPartialMiners.Load()), cycleDuration)),
 		PartialMiners:                     p.stats.partialMiners,
 		PartialMinersShares:               int(p.stats.sharesPartialMiners.Load()),
 		UnderDeliveryGHS:                  int(thisCycleUnderDeliveryGHS),
@@ -421,7 +425,7 @@ func (p *ContractWatcherSellerV2) replaceMiner(minerItem allocator.MinerItem) {
 
 	if isPartialMiner {
 		p.log.Debugf("miner %s is partial miner", minerItem.ID)
-		remainingGHS := hr.JobSubmittedToGHSV2(minerItem.JobRemaining, p.remainingCycleTime())
+		remainingGHS := hr.JobSubmittedToGHSV2(minerItem.JobRemaining, p.remainingCycleDuration())
 		p.stats.deliveryTargetGHS += remainingGHS
 	}
 
@@ -524,7 +528,7 @@ func (p *ContractWatcherSellerV2) getEndsAfter() time.Duration {
 	return endTime.Sub(time.Now())
 }
 
-func (p *ContractWatcherSellerV2) remainingCycleTime() time.Duration {
+func (p *ContractWatcherSellerV2) remainingCycleDuration() time.Duration {
 	return p.cycleEndsAt.Sub(time.Now())
 }
 
