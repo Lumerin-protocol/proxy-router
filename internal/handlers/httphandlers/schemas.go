@@ -16,6 +16,36 @@ type MinersResponse struct {
 	Miners []Miner
 }
 
+type ContractsResponse struct {
+	SellerTotal SellerTotal
+	BuyerTotal  BuyerTotal
+
+	Contracts []Contract
+}
+
+type SellerTotal struct {
+	TotalNumber     int
+	TotalGHS        int
+	TotalBalanceLMR float64
+
+	RunningNumber    int
+	RunningTargetGHS int
+	RunningActualGHS int
+
+	StarvingNumber int
+	StarvingGHS    int
+
+	AvailableNumber int
+	AvailableGHS    int
+}
+
+type BuyerTotal struct {
+	Number            int
+	HashrateGHS       int
+	ActualHashrateGHS int
+	StarvingGHS       int
+}
+
 type Miner struct {
 	Resource
 
@@ -43,6 +73,7 @@ type Contract struct {
 	SellerAddr              string
 	ResourceEstimatesTarget map[string]int
 	ResourceEstimatesActual map[string]int
+	StarvingGHS             int
 
 	BalanceLMR     float64
 	IsDeleted      bool

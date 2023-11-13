@@ -14,6 +14,7 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/contract"
 	hrcontract "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/contract"
 	"golang.org/x/exp/slices"
 )
@@ -74,6 +75,55 @@ func (c *HTTPHandler) GetContracts(ctx *gin.Context) {
 	})
 
 	ctx.JSON(200, data)
+}
+
+func (c *HTTPHandler) GetContractsV2(ctx *gin.Context) {
+	res := ContractsResponse{
+		SellerTotal: SellerTotal{},
+		BuyerTotal:  BuyerTotal{},
+		Contracts:   []Contract{},
+	}
+
+	c.contractManager.GetContracts().Range(func(item resources.Contract) bool {
+		cnt := c.mapContract(item)
+		res.Contracts = append(res.Contracts, *cnt)
+
+		if item.Role() == resources.ContractRoleSeller {
+			res.SellerTotal.TotalNumber++
+			res.SellerTotal.TotalBalanceLMR += cnt.BalanceLMR
+
+			if item.BlockchainState() == hashrate.BlockchainStateRunning {
+				res.SellerTotal.RunningNumber++
+				res.SellerTotal.RunningTargetGHS += int(item.ResourceEstimates()[contract.ResourceEstimateHashrateGHS])
+				res.SellerTotal.RunningActualGHS += int(item.ResourceEstimatesActual()[c.hashrateCounterDefault])
+
+				if item.StarvingGHS() > 0 {
+					res.SellerTotal.StarvingNumber++
+					res.SellerTotal.StarvingGHS += item.StarvingGHS()
+				}
+			}
+
+			if item.BlockchainState() == hashrate.BlockchainStateAvailable {
+				res.SellerTotal.AvailableNumber++
+				res.SellerTotal.AvailableGHS += int(item.ResourceEstimates()[contract.ResourceEstimateHashrateGHS])
+			}
+		}
+
+		if item.Role() == resources.ContractRoleBuyer {
+			res.BuyerTotal.Number++
+			res.BuyerTotal.HashrateGHS += int(item.ResourceEstimates()[contract.ResourceEstimateHashrateGHS])
+			res.BuyerTotal.ActualHashrateGHS += int(item.ResourceEstimatesActual()[c.hashrateCounterDefault])
+			res.BuyerTotal.StarvingGHS += item.StarvingGHS()
+		}
+
+		return true
+	})
+
+	slices.SortStableFunc(res.Contracts, func(a Contract, b Contract) bool {
+		return a.ID < b.ID
+	})
+
+	ctx.JSON(200, res)
 }
 
 func (c *HTTPHandler) GetContract(ctx *gin.Context) {
@@ -137,6 +187,7 @@ func (p *HTTPHandler) mapContract(item resources.Contract) *Contract {
 		SellerAddr:              item.Seller(),
 		ResourceEstimatesTarget: roundResourceEstimates(item.ResourceEstimates()),
 		ResourceEstimatesActual: roundResourceEstimates(item.ResourceEstimatesActual()),
+		StarvingGHS:             item.StarvingGHS(),
 		PriceLMR:                LMRWithDecimalsToLMR(item.Price()),
 		Duration:                formatDuration(item.Duration()),
 

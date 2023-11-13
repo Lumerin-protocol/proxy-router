@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
@@ -26,6 +27,7 @@ type ContractWatcherBuyer struct {
 	validationStage        hashrateContract.ValidationStage
 	fulfillmentStartedAt   time.Time
 	validatorGraceDuration time.Duration
+	starvingGHS            atomic.Uint64
 
 	tsk    *lib.Task
 	cancel context.CancelFunc
@@ -226,6 +228,7 @@ func (p *ContractWatcherBuyer) isReceivingAcceptableHashrate() bool {
 		p.log.Warnf("no hashrate submitted yet")
 	}
 	targetHashrateGHS := p.HashrateGHS()
+	p.starvingGHS.Store(uint64(targetHashrateGHS - actualHashrate))
 
 	hrError := lib.RelativeError(targetHashrateGHS, actualHashrate)
 
@@ -291,4 +294,8 @@ func (p *ContractWatcherBuyer) ResourceType() string {
 func (p *ContractWatcherBuyer) Dest() string {
 	// the destination is localhost for the buyer
 	return ""
+}
+
+func (p *ContractWatcherBuyer) StarvingGHS() int {
+	return int(p.starvingGHS.Load())
 }
