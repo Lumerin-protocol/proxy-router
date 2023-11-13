@@ -196,16 +196,25 @@ func start() error {
 		return err
 	}
 
-	ownerAddr, err := lib.PrivKeyStringToAddr(cfg.Marketplace.WalletPrivateKey)
+	walletAddr, err := lib.PrivKeyStringToAddr(cfg.Marketplace.WalletPrivateKey)
+	if err != nil {
+		return err
+	}
+	lumerinAddr, err := store.GetLumerinAddress(ctx)
 	if err != nil {
 		return err
 	}
 
-	log.Infof("wallet address: %s", ownerAddr.String())
+	log.Infof("wallet address: %s", walletAddr.String())
+	log.Infof("lumerin address: %s", lumerinAddr.String())
 
-	cm := contractmanager.NewContractManager(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), ownerAddr, hrContractFactory.CreateContract, store, log)
+	derived := new(config.DerivedConfig)
+	derived.WalletAddress = walletAddr.String()
+	derived.LumerinAddress = lumerinAddr.String()
 
-	handl := httphandlers.NewHTTPHandler(alloc, cm, globalHashrate, publicUrl, HashrateCounterDefault, cfg.Hashrate.CycleDuration, &cfg, log)
+	cm := contractmanager.NewContractManager(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), walletAddr, hrContractFactory.CreateContract, store, log)
+
+	handl := httphandlers.NewHTTPHandler(alloc, cm, globalHashrate, publicUrl, HashrateCounterDefault, cfg.Hashrate.CycleDuration, &cfg, derived, log)
 	httpServer := transport.NewServer(cfg.Web.Address, handl, log)
 
 	ctx, cancel = context.WithCancel(ctx)

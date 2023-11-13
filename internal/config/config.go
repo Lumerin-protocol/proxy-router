@@ -6,6 +6,11 @@ import (
 	"time"
 )
 
+type DerivedConfig struct {
+	WalletAddress  string
+	LumerinAddress string
+}
+
 // Validation tags described here: https://pkg.go.dev/github.com/go-playground/validator/v10
 type Config struct {
 	Blockchain struct {
@@ -162,6 +167,9 @@ func (cfg *Config) SetDefaults() {
 // GetSanitized returns a copy of the config with sensitive data removed
 // explicitly adding each field here to avoid accidentally leaking sensitive data
 func (cfg *Config) GetSanitized() interface{} {
+	// expose also Wallet address
+	// and Lumerin address attacched to clonefactory
+
 	publicCfg := Config{}
 
 	publicCfg.Blockchain.EthLegacyTx = cfg.Blockchain.EthLegacyTx

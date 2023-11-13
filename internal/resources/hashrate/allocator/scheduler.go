@@ -121,7 +121,6 @@ func (p *Scheduler) taskLoop(ctx context.Context, proxyTask *lib.Task) error {
 			default:
 			}
 
-			jobDoneCh := make(chan struct{})
 			remainingJob := float64(task.RemainingJobToSubmit.Load())
 			p.log.Debugf("start doing task for job ID %s, for job amount %.f", lib.StrShort(task.ID), remainingJob)
 			p.totalTaskJob -= remainingJob
@@ -132,10 +131,10 @@ func (p *Scheduler) taskLoop(ctx context.Context, proxyTask *lib.Task) error {
 				remainingJob := task.RemainingJobToSubmit.Add(-int64(diff))
 				if remainingJob <= 0 {
 					select {
-					case <-jobDoneCh:
+					case <-task.cancelCh:
 					default:
 						p.log.Debugf("finished doing task for job %s", task.ID)
-						close(jobDoneCh)
+						close(task.cancelCh)
 					}
 				}
 			})
@@ -148,9 +147,7 @@ func (p *Scheduler) taskLoop(ctx context.Context, proxyTask *lib.Task) error {
 				p.signalTasksOnDisconnect()
 				return proxyTask.Err()
 			case <-task.cancelCh:
-				close(jobDoneCh)
 				p.log.Debugf("task cancelled %s", task.ID)
-			case <-jobDoneCh:
 			}
 
 			p.tasks.Pop()
@@ -217,7 +214,6 @@ func (p *Scheduler) AddTask(
 	p.log.Debugf("added new task, dest: %s, for jobSubmitted: %.0f, totalTaskJob: %.0f", dest, jobSubmitted, p.totalTaskJob)
 }
 
-// TODO: ensure it is concurrency safe
 func (p *Scheduler) RemoveTasksByID(ID string) {
 	p.tasks.Range(func(task Task) bool {
 		if task.ID == ID {
