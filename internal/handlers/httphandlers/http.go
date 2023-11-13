@@ -22,19 +22,24 @@ type Proxy interface {
 }
 
 type ContractFactory func(contractData *hashrate.Terms) (resources.Contract, error)
+type Sanitizable interface {
+	GetSanitized() any
+}
 
 type HTTPHandler struct {
 	globalHashrate         *hr.GlobalHashrate
 	allocator              *allocator.Allocator
 	contractManager        *contractmanager.ContractManager
+	cfg                    Sanitizable
 	cycleDuration          time.Duration
 	hashrateCounterDefault string
 	publicUrl              *url.URL
 	pubKey                 string
+	config                 Sanitizable
 	log                    interfaces.ILogger
 }
 
-func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractmanager.ContractManager, globalHashrate *hr.GlobalHashrate, publicUrl *url.URL, hashrateCounter string, cycleDuration time.Duration, log interfaces.ILogger) *gin.Engine {
+func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractmanager.ContractManager, globalHashrate *hr.GlobalHashrate, publicUrl *url.URL, hashrateCounter string, cycleDuration time.Duration, config Sanitizable, log interfaces.ILogger) *gin.Engine {
 	handl := &HTTPHandler{
 		allocator:              allocator,
 		contractManager:        contractManager,
@@ -42,6 +47,7 @@ func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractman
 		publicUrl:              publicUrl,
 		hashrateCounterDefault: hashrateCounter,
 		cycleDuration:          cycleDuration,
+		config:                 config,
 		log:                    log,
 	}
 
@@ -49,15 +55,18 @@ func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractman
 	r := gin.New()
 
 	r.GET("/healthcheck", handl.HealthCheck)
+	r.GET("/config", handl.GetConfig)
+
 	r.GET("/miners", handl.GetMiners)
+
 	r.GET("/contracts", handl.GetContracts)
 	r.GET("/contracts-v2", handl.GetContractsV2)
 	r.GET("/contracts/:ID", handl.GetContract)
 	r.GET("/contracts/:ID/logs", handl.GetDeliveryLogs)
-	r.GET("/workers", handl.GetWorkers)
-
-	r.POST("/change-dest", handl.ChangeDest)
 	r.POST("/contracts", handl.CreateContract)
+
+	r.GET("/workers", handl.GetWorkers)
+	r.POST("/change-dest", handl.ChangeDest)
 
 	r.Any("/debug/pprof/*action", gin.WrapF(pprof.Index))
 

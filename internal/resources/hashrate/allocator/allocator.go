@@ -50,13 +50,10 @@ type Allocator struct {
 
 func NewAllocator(proxies *lib.Collection[*Scheduler], log gi.ILogger) *Allocator {
 	return &Allocator{
-		proxies: proxies,
-		log:     log,
+		proxies:         proxies,
+		vettedListeners: make(map[int]func(ID string), 0),
+		log:             log,
 	}
-}
-
-func (p *Allocator) Run(ctx context.Context) error {
-	return nil
 }
 
 func (p *Allocator) AllocateFullMinersForHR(

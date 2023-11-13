@@ -23,6 +23,11 @@ type ContractsResponse struct {
 	Contracts []Contract
 }
 
+type ConfigResponse struct {
+	Version string
+	Config  interface{}
+}
+
 type SellerTotal struct {
 	TotalNumber     int
 	TotalGHS        int
