@@ -158,3 +158,51 @@ func (cfg *Config) SetDefaults() {
 		cfg.Web.PublicUrl = "http://localhost:8080"
 	}
 }
+
+// GetSanitized returns a copy of the config with sensitive data removed
+// explicitly adding each field here to avoid accidentally leaking sensitive data
+func (cfg *Config) GetSanitized() interface{} {
+	publicCfg := Config{}
+
+	publicCfg.Blockchain.EthLegacyTx = cfg.Blockchain.EthLegacyTx
+	publicCfg.Environment = cfg.Environment
+
+	publicCfg.Hashrate.CycleDuration = cfg.Hashrate.CycleDuration
+	publicCfg.Hashrate.ErrorThreshold = cfg.Hashrate.ErrorThreshold
+	publicCfg.Hashrate.ErrorTimeout = cfg.Hashrate.ErrorTimeout
+	publicCfg.Hashrate.ShareTimeout = cfg.Hashrate.ShareTimeout
+	publicCfg.Hashrate.ValidationStartTimeout = cfg.Hashrate.ValidationStartTimeout
+	publicCfg.Hashrate.ValidationGraceDuration = cfg.Hashrate.ValidationGraceDuration
+
+	publicCfg.Marketplace.CloneFactoryAddress = cfg.Marketplace.CloneFactoryAddress
+
+	publicCfg.Miner.NotPropagateWorkerName = cfg.Miner.NotPropagateWorkerName
+	publicCfg.Miner.ShareTimeout = cfg.Miner.ShareTimeout
+	publicCfg.Miner.VettingShares = cfg.Miner.VettingShares
+
+	publicCfg.Log.Color = cfg.Log.Color
+	publicCfg.Log.FolderPath = cfg.Log.FolderPath
+	publicCfg.Log.IsProd = cfg.Log.IsProd
+	publicCfg.Log.JSON = cfg.Log.JSON
+	publicCfg.Log.LevelApp = cfg.Log.LevelApp
+	publicCfg.Log.LevelConnection = cfg.Log.LevelConnection
+	publicCfg.Log.LevelProxy = cfg.Log.LevelProxy
+	publicCfg.Log.LevelScheduler = cfg.Log.LevelScheduler
+
+	publicCfg.Pool.Address = cfg.Pool.Address
+
+	publicCfg.Proxy.Address = cfg.Proxy.Address
+
+	publicCfg.System.Enable = cfg.System.Enable
+	publicCfg.System.LocalPortRange = cfg.System.LocalPortRange
+	publicCfg.System.NetdevMaxBacklog = cfg.System.NetdevMaxBacklog
+	publicCfg.System.RlimitHard = cfg.System.RlimitHard
+	publicCfg.System.RlimitSoft = cfg.System.RlimitSoft
+	publicCfg.System.Somaxconn = cfg.System.Somaxconn
+	publicCfg.System.TcpMaxSynBacklog = cfg.System.TcpMaxSynBacklog
+
+	publicCfg.Web.Address = cfg.Web.Address
+	publicCfg.Web.PublicUrl = cfg.Web.PublicUrl
+
+	return publicCfg
+}
