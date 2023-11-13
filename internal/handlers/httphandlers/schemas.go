@@ -25,6 +25,7 @@ type ContractsResponse struct {
 
 type ConfigResponse struct {
 	Version string
+	Commit  string
 	Config  interface{}
 }
 
