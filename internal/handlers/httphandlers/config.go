@@ -7,8 +7,9 @@ import (
 
 func (h *HTTPHandler) GetConfig(ctx *gin.Context) {
 	ctx.JSON(200, ConfigResponse{
-		Version: config.BuildVersion,
-		Commit:  config.Commit,
-		Config:  h.config.GetSanitized(),
+		Version:       config.BuildVersion,
+		Commit:        config.Commit,
+		Config:        h.config.GetSanitized(),
+		DerivedConfig: h.derivedConfig,
 	})
 }

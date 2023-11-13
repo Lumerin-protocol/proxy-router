@@ -24,9 +24,10 @@ type ContractsResponse struct {
 }
 
 type ConfigResponse struct {
-	Version string
-	Commit  string
-	Config  interface{}
+	Version       string
+	Commit        string
+	DerivedConfig interface{}
+	Config        interface{}
 }
 
 type SellerTotal struct {
