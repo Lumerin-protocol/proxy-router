@@ -1,7 +1,8 @@
 # logs
 logs
-*.log
 .env
+*.log
+
 
 # binary folder
 bin 
