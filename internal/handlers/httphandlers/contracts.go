@@ -202,7 +202,7 @@ func (p *HTTPHandler) mapContract(item resources.Contract) *Contract {
 		ApplicationStatus: item.State().String(),
 		BlockchainStatus:  item.BlockchainState().String(),
 		Dest:              item.Dest(),
-		Miners:            p.allocator.GetMinersFulfillingContract(item.ID()),
+		Miners:            p.allocator.GetMinersFulfillingContract(item.ID(), p.cycleDuration),
 	}
 }
 
