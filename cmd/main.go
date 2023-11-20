@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"syscall"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/contractmanager"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/handlers/httphandlers"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/handlers/tcphandlers"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/repositories/contracts"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/repositories/transport"
@@ -47,34 +49,59 @@ func start() error {
 		return err
 	}
 
+	fmt.Printf("Loaded config: %+v\n", cfg)
+
 	destUrl, err := url.Parse(cfg.Pool.Address)
 	if err != nil {
 		return err
 	}
 
-	log, err := lib.NewLogger(cfg.Log.LevelApp, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, cfg.Log.FolderPath)
+	mainLogFilePath := ""
+	logFolderPath := ""
+
+	if cfg.Log.FolderPath != "" {
+		logFolderPath = filepath.Join(".", cfg.Log.FolderPath, time.Now().Format("2006-01-02T15-04-05"))
+		err = os.MkdirAll(logFolderPath, os.ModePerm)
+		if err != nil {
+			return err
+		}
+
+		mainLogFilePath = filepath.Join(logFolderPath, "main.log")
+	}
+
+	log, err := lib.NewLogger(cfg.Log.LevelApp, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, mainLogFilePath)
 	if err != nil {
 		return err
 	}
 
-	schedulerLog, err := lib.NewLogger(cfg.Log.LevelScheduler, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, cfg.Log.FolderPath)
+	proxyLog, err := lib.NewLogger(cfg.Log.LevelProxy, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, mainLogFilePath)
 	if err != nil {
 		return err
 	}
 
-	proxyLog, err := lib.NewLogger(cfg.Log.LevelProxy, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, cfg.Log.FolderPath)
+	connLog, err := lib.NewLogger(cfg.Log.LevelConnection, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, mainLogFilePath)
 	if err != nil {
 		return err
 	}
 
-	connLog, err := lib.NewLogger(cfg.Log.LevelConnection, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, cfg.Log.FolderPath)
-	if err != nil {
-		return err
+	schedulerLogFactory := func(minerID string) (interfaces.ILogger, error) {
+		fp := ""
+		if logFolderPath != "" {
+			fp = filepath.Join(logFolderPath, fmt.Sprintf("scheduler-%s.log", minerID))
+		}
+		return lib.NewLogger(cfg.Log.LevelScheduler, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, fp)
+	}
+
+	contractLogFactory := func(contractID string) (interfaces.ILogger, error) {
+		fp := ""
+		if logFolderPath != "" {
+			fp = filepath.Join(logFolderPath, fmt.Sprintf("contract-%s.log", contractID))
+		}
+		return lib.NewLogger(cfg.Log.LevelContract, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, fp)
 	}
 
 	defer func() {
 		_ = log.Sync()
-		_ = schedulerLog.Sync()
 		_ = proxyLog.Sync()
 		_ = connLog.Sync()
 	}()
@@ -155,7 +182,7 @@ func start() error {
 
 	tcpServer := transport.NewTCPServer(cfg.Proxy.Address, connLog)
 	tcpHandler := tcphandlers.NewTCPHandler(
-		log, connLog, proxyLog, schedulerLog,
+		log, connLog, proxyLog, schedulerLogFactory,
 		cfg.Miner.NotPropagateWorkerName, cfg.Miner.ShareTimeout, cfg.Miner.VettingShares,
 		destUrl,
 		destFactory, hashrateFactory,
@@ -183,7 +210,7 @@ func start() error {
 		hashrateFactory,
 		globalHashrate,
 		store,
-		log,
+		contractLogFactory,
 
 		cfg.Marketplace.WalletPrivateKey,
 		cfg.Hashrate.CycleDuration,

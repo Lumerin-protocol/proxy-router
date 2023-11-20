@@ -45,6 +45,7 @@ type Config struct {
 		LevelConnection string `env:"LOG_LEVEL_CONNECTION" flag:"log-level-connection" validate:"omitempty,oneof=debug info warn error dpanic panic fatal"`
 		LevelProxy      string `env:"LOG_LEVEL_PROXY"      flag:"log-level-proxy"      validate:"omitempty,oneof=debug info warn error dpanic panic fatal"`
 		LevelScheduler  string `env:"LOG_LEVEL_SCHEDULER"  flag:"log-level-scheduler"  validate:"omitempty,oneof=debug info warn error dpanic panic fatal"`
+		LevelContract   string `env:"LOG_LEVEL_CONTRACT"   flag:"log-level-contract"   validate:"omitempty,oneof=debug info warn error dpanic panic fatal"`
 	}
 	Pool struct {
 		Address string `env:"POOL_ADDRESS" flag:"pool-address" validate:"required,uri"`
@@ -117,6 +118,9 @@ func (cfg *Config) SetDefaults() {
 	}
 	if cfg.Log.LevelScheduler == "" {
 		cfg.Log.LevelScheduler = "info"
+	}
+	if cfg.Log.LevelContract == "" {
+		cfg.Log.LevelContract = "debug"
 	}
 	if cfg.Log.LevelApp == "" {
 		cfg.Log.LevelApp = "debug"
