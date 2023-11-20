@@ -1,10 +1,7 @@
 package lib
 
 import (
-	"fmt"
 	"os"
-	"path/filepath"
-	"time"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"go.uber.org/zap"
@@ -97,13 +94,7 @@ func newFileCore(level zapcore.Level, isProd bool, isJSON bool, path string) (za
 		encoder = zapcore.NewConsoleEncoder(encoderCfg)
 	}
 
-	newpath := filepath.Join(".", path)
-	err := os.MkdirAll(newpath, os.ModePerm)
-	if err != nil {
-		return nil, err
-	}
-	fpath := filepath.Join(newpath, fmt.Sprintf("%s.log", time.Now().Format(timeLayout)))
-	file, err := os.OpenFile(fpath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 	if err != nil {
 		return nil, err
 	}

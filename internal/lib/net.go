@@ -27,3 +27,11 @@ func TCPPipe() (clientConn net.Conn, serverConn net.Conn, err error) {
 
 	return clientConn, serverConn, <-errCh
 }
+
+func ParsePort(addr string) (port string) {
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+	return port
+}

@@ -95,7 +95,7 @@ type Contract struct {
 	ApplicationStatus string
 	BlockchainStatus  string
 	Dest              string
-	Miners            []*allocator.DestItem
+	Miners            []*allocator.MinerItemJobScheduled
 }
 
 type Resource struct {

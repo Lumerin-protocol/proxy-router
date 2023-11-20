@@ -31,7 +31,7 @@ type ContractFactory struct {
 	allocator       *allocator.Allocator
 	globalHashrate  *hashrate.GlobalHashrate
 	hashrateFactory func() *hashrate.Hashrate
-	log             interfaces.ILogger
+	logFactory      func(contractID string) (interfaces.ILogger, error)
 }
 
 func NewContractFactory(
@@ -39,7 +39,7 @@ func NewContractFactory(
 	hashrateFactory func() *hashrate.Hashrate,
 	globalHashrate *hashrate.GlobalHashrate,
 	store *contracts.HashrateEthereum,
-	log interfaces.ILogger,
+	logFactory func(contractID string) (interfaces.ILogger, error),
 
 	privateKey string,
 	cycleDuration time.Duration,
@@ -58,7 +58,7 @@ func NewContractFactory(
 		hashrateFactory: hashrateFactory,
 		globalHashrate:  globalHashrate,
 		store:           store,
-		log:             log,
+		logFactory:      logFactory,
 
 		address: address,
 
@@ -72,12 +72,21 @@ func NewContractFactory(
 }
 
 func (c *ContractFactory) CreateContract(contractData *hashrateContract.EncryptedTerms) (resources.Contract, error) {
+	log, err := c.logFactory(lib.AddrShort(contractData.ID()))
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() { _ = log.Sync() }()
+
+	logNamed := log.Named(lib.AddrShort(contractData.ID()))
+
 	if contractData.Seller() == c.address.String() {
 		terms, err := contractData.Decrypt(c.privateKey)
 		if err != nil {
 			return nil, err
 		}
-		watcher := NewContractWatcherSellerV2(terms, c.cycleDuration, c.hashrateFactory, c.allocator, c.log.Named(lib.AddrShort(contractData.ID())))
+		watcher := NewContractWatcherSellerV2(terms, c.cycleDuration, c.hashrateFactory, c.allocator, logNamed)
 		return NewControllerSeller(watcher, c.store, c.privateKey), nil
 	}
 	if contractData.Buyer() == c.address.String() {
@@ -86,7 +95,7 @@ func (c *ContractFactory) CreateContract(contractData *hashrateContract.Encrypte
 			c.hashrateFactory,
 			c.allocator,
 			c.globalHashrate,
-			c.log.Named(lib.AddrShort(contractData.ID())),
+			logNamed,
 
 			c.cycleDuration,
 			c.shareTimeout,

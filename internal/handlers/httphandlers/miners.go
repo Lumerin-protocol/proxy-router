@@ -93,6 +93,6 @@ func (c *HTTPHandler) MapMiner(m *allocator.Scheduler) *Miner {
 		Stats:                 m.GetStats(),
 		Uptime:                formatDuration(m.GetUptime()),
 		ActivePoolConnections: m.GetDestConns(),
-		Destinations:          m.GetDestinations(),
+		Destinations:          m.GetDestinations(c.cycleDuration),
 	}
 }
