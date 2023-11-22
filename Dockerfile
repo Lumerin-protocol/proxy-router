@@ -1,6 +1,11 @@
 FROM golang:1.19.3-alpine as builder
+
+ARG COMMIT
+ENV COMMIT=$COMMIT
+
 WORKDIR /app 
 COPY . .
+
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 ./build.sh && \
   cp /bin/sh /app/sh && chmod +x /app/sh
 

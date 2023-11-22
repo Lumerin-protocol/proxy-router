@@ -119,6 +119,7 @@ func (p *Allocator) AllocatePartialForJob(
 		if jobNeeded <= minJob {
 			return minerIDJob, 0
 		}
+
 		// try to add the whole chunk and return
 		if miner.JobRemaining >= jobNeeded {
 			m, ok := p.proxies.Load(miner.ID)
@@ -128,6 +129,7 @@ func (p *Allocator) AllocatePartialForJob(
 				return minerIDJob, 0
 			}
 		}
+
 		// try to add at least a minJob and continue
 		if miner.JobRemaining >= minJob {
 			m, ok := p.proxies.Load(miner.ID)

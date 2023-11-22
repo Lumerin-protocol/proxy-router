@@ -57,8 +57,11 @@ func (c *ControllerSeller) Run(ctx context.Context) error {
 			<-c.ContractWatcherSellerV2.Done()
 			return err
 		case <-ctx.Done():
+			c.log.Infof("context done, stopping contract watcher")
 			c.ContractWatcherSellerV2.StopFulfilling()
+			c.log.Infof("waiting for contract watcher to stop")
 			<-c.ContractWatcherSellerV2.Done()
+			c.log.Infof("contract watcher stopped")
 			c.ContractWatcherSellerV2.Reset()
 			return ctx.Err()
 		case <-c.ContractWatcherSellerV2.Done():

@@ -7,6 +7,12 @@ import (
 )
 
 func Repeat(t *testing.T, n int, f func(*testing.T)) {
+	for i := 0; i < n; i++ {
+		f(t)
+	}
+}
+
+func RepeatConcurrent(t *testing.T, n int, f func(*testing.T)) {
 	wg := sync.WaitGroup{}
 	for i := 0; i < n; i++ {
 		wg.Add(1)
@@ -18,7 +24,7 @@ func Repeat(t *testing.T, n int, f func(*testing.T)) {
 	wg.Wait()
 }
 
-func RepeatTimeout(t *testing.T, n int, timeout time.Duration, f func(*testing.T)) {
+func RepeatConcurrentTimeout(t *testing.T, n int, timeout time.Duration, f func(*testing.T)) {
 	doneCh := make(chan struct{})
 	go func() {
 		wg := sync.WaitGroup{}
