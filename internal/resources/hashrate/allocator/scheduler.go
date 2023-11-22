@@ -83,7 +83,7 @@ func (p *Scheduler) Run(ctx context.Context) error {
 			case <-p.proxy.VettingDone():
 			}
 
-			p.log.Infof("miner %s vetting done", p.proxy.GetID())
+			p.log.Infof("vetting done")
 			if p.onVetted != nil {
 				p.onVetted(p.proxy.GetID())
 				p.onVetted = nil
@@ -158,6 +158,7 @@ func (p *Scheduler) taskLoop(ctx context.Context, proxyTask *lib.Task) (proxyExi
 
 		select {
 		case <-proxyTask.Done():
+			task.OnDisconnect(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()))
 			p.tasks.UnlockAndRemove()
 			return true, proxyTask.Err()
 		case <-task.cancelCh:
@@ -185,12 +186,14 @@ func (p *Scheduler) taskLoop(ctx context.Context, proxyTask *lib.Task) (proxyExi
 
 		err := p.proxy.SetDest(ctx, task.Dest, onSubmit)
 		if err != nil {
+			task.OnDisconnect(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()))
 			p.tasks.UnlockAndRemove()
 			return true, err
 		}
 
 		select {
 		case <-proxyTask.Done():
+			task.OnDisconnect(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()))
 			p.tasks.UnlockAndRemove()
 			return true, proxyTask.Err()
 		case <-task.cancelCh:
@@ -241,7 +244,12 @@ func (p *Scheduler) AddTask(
 	if newLength == 1 {
 		p.newTaskSignal <- struct{}{}
 	}
-	p.log.Debugf("added new task, dest: %s, for jobSubmitted: %.0f", dest, jobSubmitted)
+
+	taskGHS := hashrate.JobSubmittedToGHSV2(jobSubmitted, time.Until(deadline))
+	p.log.Debugf(`added new task, 
+	contractID: %s, for jobSubmitted: %.0f, and duration: %s,
+	hashrate %0.f, where miners hashrate is %0.f`,
+		lib.StrShort(ID), jobSubmitted, time.Until(deadline), taskGHS, p.HashrateGHS())
 }
 
 func (p *Scheduler) RemoveTasksByID(ID string) {

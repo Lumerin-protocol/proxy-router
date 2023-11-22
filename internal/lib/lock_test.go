@@ -33,7 +33,9 @@ func TestMutexTimeout(t *testing.T) {
 }
 
 func TestMutexTimeoutRepeat(t *testing.T) {
-	testlib.Repeat(t, 1000, TestMutexTimeout)
+	testlib.Repeat(t, 10, func(t *testing.T) {
+		testlib.RepeatConcurrent(t, 500, TestMutexTimeout)
+	})
 }
 
 func TestMutexCtx(t *testing.T) {
@@ -62,5 +64,7 @@ func TestMutexCtx(t *testing.T) {
 }
 
 func TestMutexCtxRepeat(t *testing.T) {
-	testlib.Repeat(t, 1000, TestMutexCtx)
+	testlib.Repeat(t, 10, func(t *testing.T) {
+		testlib.RepeatConcurrent(t, 500, TestMutexCtx)
+	})
 }
