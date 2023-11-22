@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync/atomic"
+	"math"
 	"time"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
@@ -13,6 +13,7 @@ import (
 	hashrateContract "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
+	"go.uber.org/atomic"
 )
 
 type ContractWatcherBuyer struct {
@@ -21,13 +22,13 @@ type ContractWatcherBuyer struct {
 	shareTimeout             time.Duration // time to wait for the share to arrive, otherwise close contract
 	hrErrorThreshold         float64       // hashrate relative error threshold for the contract to be considered fulfilling accurately
 	hashrateCounterNameBuyer string
+	flatness                 time.Duration
 
-	*hashrateContract.EncryptedTerms
-	state                  resources.ContractState
-	validationStage        hashrateContract.ValidationStage
-	fulfillmentStartedAt   time.Time
-	validatorGraceDuration time.Duration
-	starvingGHS            atomic.Uint64
+	// state
+	state                *lib.AtomicValue[resources.ContractState]
+	validationStage      *lib.AtomicValue[hashrateContract.ValidationStage]
+	fulfillmentStartedAt *atomic.Time
+	starvingGHS          *atomic.Uint64
 
 	tsk    *lib.Task
 	cancel context.CancelFunc
@@ -35,6 +36,7 @@ type ContractWatcherBuyer struct {
 	doneCh chan struct{}
 
 	//deps
+	*hashrateContract.EncryptedTerms
 	allocator      *allocator.Allocator
 	globalHashrate *hashrate.GlobalHashrate
 	log            interfaces.ILogger
@@ -55,21 +57,21 @@ func NewContractWatcherBuyer(
 ) *ContractWatcherBuyer {
 	return &ContractWatcherBuyer{
 		EncryptedTerms:           terms,
-		state:                    resources.ContractStatePending,
+		state:                    lib.NewAtomicValue(resources.ContractStatePending),
 		allocator:                allocator,
 		globalHashrate:           globalHashrate,
 		log:                      log,
 		contractCycleDuration:    cycleDuration,
 		shareTimeout:             shareTimeout,
 		hrErrorThreshold:         hrErrorThreshold,
-		validationStage:          hashrateContract.ValidationStageValidating,
+		validationStage:          lib.NewAtomicValue(hashrateContract.ValidationStageValidating),
 		hashrateCounterNameBuyer: hashrateCounterNameBuyer,
-		validatorGraceDuration:   validatorGraceDuration,
+		flatness:                 validatorGraceDuration,
 	}
 }
 
 func (p *ContractWatcherBuyer) StartFulfilling(ctx context.Context) {
-	if p.state == resources.ContractStateRunning {
+	if p.state.Load() == resources.ContractStateRunning {
 		p.log.Infof("buyer contract already fulfilling")
 		return
 	}
@@ -79,10 +81,10 @@ func (p *ContractWatcherBuyer) StartFulfilling(ctx context.Context) {
 	p.doneCh = make(chan struct{})
 
 	go func() {
-		p.state = resources.ContractStateRunning
-		p.err = p.Run(ctx)
+		p.state.Store(resources.ContractStateRunning)
+		p.err = p.run(ctx)
 		close(p.doneCh)
-		p.state = resources.ContractStatePending
+		p.state.Store(resources.ContractStatePending)
 	}()
 }
 
@@ -107,24 +109,21 @@ func (p *ContractWatcherBuyer) SetData(terms *hashrateContract.EncryptedTerms) {
 	p.EncryptedTerms = terms
 }
 
-func (p *ContractWatcherBuyer) Run(ctx context.Context) error {
-	p.state = resources.ContractStateRunning
+func (p *ContractWatcherBuyer) run(ctx context.Context) error {
+	p.state.Store(resources.ContractStateRunning)
 	startedAt := time.Now()
-	p.fulfillmentStartedAt = startedAt
+	p.fulfillmentStartedAt.Store(startedAt)
 
-	err := p.fillBuyerCounterGraceData()
-	if err != nil {
-		return err
-	}
+	p.globalHashrate.Reset(p.ID())
+	p.globalHashrate.Initialize(p.ID())
 
 	ticker := time.NewTicker(p.contractCycleDuration)
 	defer ticker.Stop()
 
-	tillEndTime := time.Until(p.EndTime())
+	tillEndTime := p.getUntilContractEnd()
 	if tillEndTime <= 0 {
 		return nil
 	}
-
 	endTimer := time.NewTimer(tillEndTime)
 
 	for {
@@ -133,7 +132,7 @@ func (p *ContractWatcherBuyer) Run(ctx context.Context) error {
 			return err
 		}
 
-		tillEndTime := time.Until(p.EndTime())
+		tillEndTime := p.getUntilContractEnd()
 		if tillEndTime <= 0 {
 			return nil
 		}
@@ -155,43 +154,10 @@ func (p *ContractWatcherBuyer) Run(ctx context.Context) error {
 	}
 }
 
-func (p *ContractWatcherBuyer) fillBuyerCounterGraceData() error {
-	p.globalHashrate.Reset(p.ID())
-	p.globalHashrate.Initialize(p.ID())
-	worker := p.globalHashrate.GetWorker(p.getWorkerName())
-	if worker == nil {
-		return fmt.Errorf("failed to get worker")
-	}
-
-	counter := worker.GetHashrateCounter(p.hashrateCounterNameBuyer)
-	if counter == nil {
-		return fmt.Errorf("missing sma hashrate counter")
-	}
-
-	sma, ok := counter.(*hashrate.Sma)
-	if !ok {
-		return fmt.Errorf("failed to get sma")
-	}
-
-	shareTime := 15 * time.Second
-
-	totalJob := hashrate.GHSToJobSubmitted(p.HashrateGHS()) * p.validatorGraceDuration.Seconds()
-	totalShares := int(p.validatorGraceDuration / shareTime)
-	jobPerShare := totalJob / float64(totalShares)
-	remainder := totalJob - jobPerShare*float64(totalShares)
-	for i := totalShares - 1; i > 0; i-- {
-		sma.AddWithTimestamp(jobPerShare, p.fulfillmentStartedAt.Add(-time.Duration(i)*shareTime))
-	}
-	// add remainder to the last share
-	sma.AddWithTimestamp(jobPerShare+remainder, p.fulfillmentStartedAt)
-
-	return nil
-}
-
 func (p *ContractWatcherBuyer) proceedToNextStage() {
 	if p.isContractExpired() {
-		p.validationStage = hashrateContract.ValidationStageFinished
-		p.log.Infof("new validation stage %s", p.validationStage.String())
+		p.validationStage.Store(hashrateContract.ValidationStageFinished)
+		p.log.Infof("new validation stage %s", p.validationStage.Load().String())
 		return
 	}
 }
@@ -201,16 +167,16 @@ func (p *ContractWatcherBuyer) checkIncomingHashrate(ctx context.Context) error 
 
 	isHashrateOK := p.isReceivingAcceptableHashrate()
 
-	switch p.validationStage {
+	switch p.validationStage.Load() {
 	case hashrateContract.ValidationStageValidating:
 		lastShareTime, ok := p.globalHashrate.GetLastSubmitTime(p.getWorkerName())
 		if !ok {
-			lastShareTime = p.fulfillmentStartedAt
+			lastShareTime = p.fulfillmentStartedAt.Load()
 		}
-
 		if time.Since(lastShareTime) > p.shareTimeout {
 			return fmt.Errorf("no share submitted within shareTimeout (%s), lastShare at (%s)", p.shareTimeout, lastShareTime.Format(time.RFC3339))
 		}
+
 		if !isHashrateOK {
 			return fmt.Errorf("contract is not delivering accurate hashrate")
 		}
@@ -228,28 +194,35 @@ func (p *ContractWatcherBuyer) isReceivingAcceptableHashrate() bool {
 		p.log.Warnf("no hashrate submitted yet")
 	}
 	targetHashrateGHS := p.HashrateGHS()
-	p.starvingGHS.Store(uint64(targetHashrateGHS - actualHashrate))
+
+	starvingGHS := math.Max(targetHashrateGHS-actualHashrate, 0.0)
+	p.starvingGHS.Store(uint64(starvingGHS))
 
 	hrError := lib.RelativeError(targetHashrateGHS, actualHashrate)
+	maxHrError := GetMaxGlobalError(p.Elapsed(), p.hrErrorThreshold, p.flatness)
 
 	hrMsg := fmt.Sprintf(
-		"elapsed %s worker %s, target GHS %.0f, actual GHS %.0f, error %.0f%%, threshold(%.0f%%)",
-		p.Elapsed().Round(time.Second), p.getWorkerName(), targetHashrateGHS, actualHashrate, hrError*100, p.hrErrorThreshold*100,
+		"elapsed %s target GHS %.0f, actual GHS %.0f, error %.0f%%, threshold(%.0f%%)",
+		p.Elapsed().Round(time.Second), targetHashrateGHS, actualHashrate, hrError*100, maxHrError*100,
 	)
 
-	if hrError < p.hrErrorThreshold {
+	if hrError < maxHrError {
 		p.log.Infof("contract is delivering accurately: %s", hrMsg)
 		return true
 	}
 
 	if actualHashrate > targetHashrateGHS {
 		p.log.Infof("contract is overdelivering: %s", hrMsg)
-		// contract overdelivery is fine for buyer
+		// contract overdelivery is ok for buyer
 		return true
 	}
 
 	p.log.Warnf("contract is underdelivering: %s", hrMsg)
 	return false
+}
+
+func (p *ContractWatcherBuyer) getUntilContractEnd() time.Duration {
+	return time.Until(p.EndTime())
 }
 
 func (p *ContractWatcherBuyer) isContractExpired() bool {
@@ -260,20 +233,22 @@ func (p *ContractWatcherBuyer) getWorkerName() string {
 	return p.ID()
 }
 
+// public getters
+
 func (p *ContractWatcherBuyer) Role() resources.ContractRole {
 	return resources.ContractRoleBuyer
 }
 
 func (p *ContractWatcherBuyer) FulfillmentStartTime() time.Time {
-	return p.fulfillmentStartedAt
+	return p.fulfillmentStartedAt.Load()
 }
 
 func (p *ContractWatcherBuyer) State() resources.ContractState {
-	return p.state
+	return p.state.Load()
 }
 
 func (p *ContractWatcherBuyer) ValidationStage() hashrateContract.ValidationStage {
-	return p.validationStage
+	return p.validationStage.Load()
 }
 
 func (p *ContractWatcherBuyer) ResourceEstimates() map[string]float64 {
