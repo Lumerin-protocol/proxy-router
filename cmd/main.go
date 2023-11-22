@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"runtime"
 	"syscall"
 	"time"
 
@@ -149,9 +148,7 @@ func start() error {
 
 		s = <-shutdownChan
 
-		var b []byte
-		runtime.Stack(b, true)
-		log.Warnf("Received signal: %s. \n Stack trace: \n %s", s, string(b))
+		log.Warnf("Received signal: %s. \n", s)
 
 		log.Warnf("Forcing exit...")
 		os.Exit(1)
