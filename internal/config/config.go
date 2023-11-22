@@ -19,12 +19,11 @@ type Config struct {
 	}
 	Environment string `env:"ENVIRONMENT" flag:"environment"`
 	Hashrate    struct {
-		CycleDuration           time.Duration `env:"HASHRATE_CYCLE_DURATION"           flag:"hashrate-cycle-duration"           validate:"omitempty,duration" desc:"duration of the hashrate cycle, after which the hashrate is evaluated, applies to both seller and buyer"`
-		ErrorThreshold          float64       `env:"HASHRATE_ERROR_THRESHOLD"          flag:"hashrate-error-threshold"                                        desc:"hashrate relative error threshold for the contract to be considered fulfilling accurately, applies for buyer"`
-		ErrorTimeout            time.Duration `env:"HASHRATE_ERROR_TIMEOUT"            flag:"hashrate-error-timeout"            validate:"omitempty,duration" desc:"time to wait for for the hashrate to fall within acceptable limits, otherwise close contract, applies for buyer"`
-		ShareTimeout            time.Duration `env:"HASHRATE_SHARE_TIMEOUT"            flag:"hashrate-share-timeout"            validate:"omitempty,duration" desc:"time to wait for the share to arrive, otherwise close contract, applies for buyer"`
-		ValidationStartTimeout  time.Duration `env:"HASHRATE_VALIDATION_START_TIMEOUT" flag:"hashrate-validation-start-timeout" validate:"omitempty,duration" desc:"time when validation kicks in, applies for buyer"`
-		ValidationGraceDuration time.Duration `env:"HASHRATE_VALIDATION_GRACE_DURATION" flag:"hashrate-validation-grace-duration" validate:"omitempty,duration" desc:"duration of the grace period during which validation strictness slowly increases to the target values, applies for buyer"`
+		CycleDuration     time.Duration `env:"HASHRATE_CYCLE_DURATION"           flag:"hashrate-cycle-duration"           validate:"omitempty,duration" desc:"duration of the hashrate cycle, after which the hashrate is evaluated, applies to both seller and buyer"`
+		ErrorThreshold    float64       `env:"HASHRATE_ERROR_THRESHOLD"          flag:"hashrate-error-threshold"                                        desc:"hashrate relative error threshold for the contract to be considered fulfilling accurately, applies for buyer"`
+		ErrorTimeout      time.Duration `env:"HASHRATE_ERROR_TIMEOUT"            flag:"hashrate-error-timeout"            validate:"omitempty,duration" desc:"time to wait for for the hashrate to fall within acceptable limits, otherwise close contract, applies for buyer"`
+		ShareTimeout      time.Duration `env:"HASHRATE_SHARE_TIMEOUT"            flag:"hashrate-share-timeout"            validate:"omitempty,duration" desc:"time to wait for the share to arrive, otherwise close contract, applies for buyer"`
+		ValidatorFlatness time.Duration `env:"HASHRATE_VALIDATION_FLATNESS"      flag:"hashrate-validation-flatness"      validate:"omitempty,duration" desc:"artificial parameter of validation function, applies for buyer"`
 	}
 	Marketplace struct {
 		CloneFactoryAddress string `env:"CLONE_FACTORY_ADDRESS" flag:"contract-address"   validate:"required_if=Disable false,omitempty,eth_addr"`
@@ -79,17 +78,14 @@ func (cfg *Config) SetDefaults() {
 	if cfg.Hashrate.CycleDuration == 0 {
 		cfg.Hashrate.CycleDuration = 5 * time.Minute
 	}
-	if cfg.Hashrate.ValidationStartTimeout == 0 {
-		cfg.Hashrate.ValidationStartTimeout = 15 * time.Minute
-	}
 	if cfg.Hashrate.ShareTimeout == 0 {
 		cfg.Hashrate.ShareTimeout = 7 * time.Minute
 	}
 	if cfg.Hashrate.ErrorThreshold == 0 {
 		cfg.Hashrate.ErrorThreshold = 0.05
 	}
-	if cfg.Hashrate.ValidationGraceDuration == 0 {
-		cfg.Hashrate.ValidationGraceDuration = 10 * cfg.Hashrate.CycleDuration
+	if cfg.Hashrate.ValidatorFlatness == 0 {
+		cfg.Hashrate.ValidatorFlatness = 20 * time.Minute
 	}
 
 	// Marketplace
@@ -183,8 +179,7 @@ func (cfg *Config) GetSanitized() interface{} {
 	publicCfg.Hashrate.ErrorThreshold = cfg.Hashrate.ErrorThreshold
 	publicCfg.Hashrate.ErrorTimeout = cfg.Hashrate.ErrorTimeout
 	publicCfg.Hashrate.ShareTimeout = cfg.Hashrate.ShareTimeout
-	publicCfg.Hashrate.ValidationStartTimeout = cfg.Hashrate.ValidationStartTimeout
-	publicCfg.Hashrate.ValidationGraceDuration = cfg.Hashrate.ValidationGraceDuration
+	publicCfg.Hashrate.ValidatorFlatness = cfg.Hashrate.ValidatorFlatness
 
 	publicCfg.Marketplace.CloneFactoryAddress = cfg.Marketplace.CloneFactoryAddress
 

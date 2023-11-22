@@ -22,7 +22,7 @@ type ContractWatcherBuyer struct {
 	shareTimeout             time.Duration // time to wait for the share to arrive, otherwise close contract
 	hrErrorThreshold         float64       // hashrate relative error threshold for the contract to be considered fulfilling accurately
 	hashrateCounterNameBuyer string
-	flatness                 time.Duration
+	hrValidationFlatness     time.Duration
 
 	// state
 	state                *lib.AtomicValue[resources.ContractState]
@@ -53,7 +53,7 @@ func NewContractWatcherBuyer(
 	shareTimeout time.Duration,
 	hrErrorThreshold float64,
 	hashrateCounterNameBuyer string,
-	validatorGraceDuration time.Duration,
+	hrValidationFlatness time.Duration,
 ) *ContractWatcherBuyer {
 	return &ContractWatcherBuyer{
 		EncryptedTerms:           terms,
@@ -66,7 +66,7 @@ func NewContractWatcherBuyer(
 		hrErrorThreshold:         hrErrorThreshold,
 		validationStage:          lib.NewAtomicValue(hashrateContract.ValidationStageValidating),
 		hashrateCounterNameBuyer: hashrateCounterNameBuyer,
-		flatness:                 validatorGraceDuration,
+		hrValidationFlatness:     hrValidationFlatness,
 	}
 }
 
@@ -199,7 +199,7 @@ func (p *ContractWatcherBuyer) isReceivingAcceptableHashrate() bool {
 	p.starvingGHS.Store(uint64(starvingGHS))
 
 	hrError := lib.RelativeError(targetHashrateGHS, actualHashrate)
-	maxHrError := GetMaxGlobalError(p.Elapsed(), p.hrErrorThreshold, p.flatness)
+	maxHrError := GetMaxGlobalError(p.Elapsed(), p.hrErrorThreshold, p.hrValidationFlatness)
 
 	hrMsg := fmt.Sprintf(
 		"elapsed %s target GHS %.0f, actual GHS %.0f, error %.0f%%, threshold(%.0f%%)",
