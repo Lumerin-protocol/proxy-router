@@ -159,7 +159,7 @@ func start() error {
 
 	var (
 		HashrateCounterDefault = "ema--5m"
-		HashrateCounterBuyer   = fmt.Sprintf("sma-%s", cfg.Hashrate.ValidatorFlatness.Round(time.Second).String())
+		HashrateCounterBuyer   = hashrate.MeanCounterKey
 	)
 
 	hashrateFactory := func() *hashrate.Hashrate {
@@ -168,7 +168,7 @@ func start() error {
 				HashrateCounterDefault: hashrate.NewEma(5 * time.Minute),
 				"ema-10m":              hashrate.NewEma(10 * time.Minute),
 				"ema-30m":              hashrate.NewEma(30 * time.Minute),
-				HashrateCounterBuyer:   hashrate.NewSma(cfg.Hashrate.ValidatorFlatness),
+				HashrateCounterBuyer:   hashrate.NewMean(),
 			},
 		)
 	}
