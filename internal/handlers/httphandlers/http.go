@@ -11,6 +11,7 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/config"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/contractmanager"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
@@ -37,10 +38,12 @@ type HTTPHandler struct {
 	pubKey                 string
 	config                 Sanitizable
 	derivedConfig          *config.DerivedConfig
+	appStartTime           time.Time
+	logStorage             *lib.Collection[*interfaces.LogStorage]
 	log                    interfaces.ILogger
 }
 
-func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractmanager.ContractManager, globalHashrate *hr.GlobalHashrate, publicUrl *url.URL, hashrateCounter string, cycleDuration time.Duration, config Sanitizable, derivedConfig *config.DerivedConfig, log interfaces.ILogger) *gin.Engine {
+func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractmanager.ContractManager, globalHashrate *hr.GlobalHashrate, publicUrl *url.URL, hashrateCounter string, cycleDuration time.Duration, config Sanitizable, derivedConfig *config.DerivedConfig, appStartTime time.Time, logStorage *lib.Collection[*interfaces.LogStorage], log interfaces.ILogger) *gin.Engine {
 	handl := &HTTPHandler{
 		allocator:              allocator,
 		contractManager:        contractManager,
@@ -50,6 +53,8 @@ func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractman
 		cycleDuration:          cycleDuration,
 		config:                 config,
 		derivedConfig:          derivedConfig,
+		appStartTime:           appStartTime,
+		logStorage:             logStorage,
 		log:                    log,
 	}
 
@@ -65,6 +70,7 @@ func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractman
 	r.GET("/contracts-v2", handl.GetContractsV2)
 	r.GET("/contracts/:ID", handl.GetContract)
 	r.GET("/contracts/:ID/logs", handl.GetDeliveryLogs)
+	r.GET("/contracts/:ID/logs-console", handl.GetDeliveryLogsConsole)
 	r.POST("/contracts", handl.CreateContract)
 
 	r.GET("/workers", handl.GetWorkers)
@@ -84,6 +90,7 @@ func (h *HTTPHandler) HealthCheck(ctx *gin.Context) {
 	ctx.JSON(200, gin.H{
 		"status":  "healthy",
 		"version": config.BuildVersion,
+		"uptime":  time.Since(h.appStartTime).Round(time.Second).String(),
 	})
 }
 

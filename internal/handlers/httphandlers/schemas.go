@@ -73,6 +73,7 @@ type Contract struct {
 	Resource
 
 	Logs                    string
+	ConsoleLogs             string
 	Role                    string
 	Stage                   string
 	ID                      string

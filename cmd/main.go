@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"runtime"
 	"syscall"
 	"time"
 
@@ -92,12 +91,17 @@ func start() error {
 		return lib.NewLogger(cfg.Log.LevelScheduler, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, fp)
 	}
 
+	contractLogStorage := lib.NewCollection[*interfaces.LogStorage]()
+
 	contractLogFactory := func(contractID string) (interfaces.ILogger, error) {
+		logStorage := interfaces.NewLogStorage(contractID)
+		contractLogStorage.Store(logStorage)
+		fmt.Printf("created storage id %s \n", contractID)
 		fp := ""
 		if logFolderPath != "" {
-			fp = filepath.Join(logFolderPath, fmt.Sprintf("contract-%s.log", contractID))
+			fp = filepath.Join(logFolderPath, fmt.Sprintf("contract-%s.log", lib.StrShort(contractID)))
 		}
-		return lib.NewLogger(cfg.Log.LevelContract, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, fp)
+		return lib.NewLoggerMemory(cfg.Log.LevelContract, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, fp, logStorage.Buffer)
 	}
 
 	defer func() {
@@ -149,9 +153,7 @@ func start() error {
 
 		s = <-shutdownChan
 
-		var b []byte
-		runtime.Stack(b, true)
-		log.Warnf("Received signal: %s. \n Stack trace: \n %s", s, string(b))
+		log.Warnf("Received signal: %s. \n", s)
 
 		log.Warnf("Forcing exit...")
 		os.Exit(1)
@@ -159,7 +161,7 @@ func start() error {
 
 	var (
 		HashrateCounterDefault = "ema--5m"
-		HashrateCounterBuyer   = fmt.Sprintf("sma-%s", cfg.Hashrate.ValidationGraceDuration.Round(time.Second).String())
+		HashrateCounterBuyer   = hashrate.MeanCounterKey
 	)
 
 	hashrateFactory := func() *hashrate.Hashrate {
@@ -168,7 +170,7 @@ func start() error {
 				HashrateCounterDefault: hashrate.NewEma(5 * time.Minute),
 				"ema-10m":              hashrate.NewEma(10 * time.Minute),
 				"ema-30m":              hashrate.NewEma(30 * time.Minute),
-				HashrateCounterBuyer:   hashrate.NewSma(cfg.Hashrate.ValidationGraceDuration),
+				HashrateCounterBuyer:   hashrate.NewMean(),
 			},
 		)
 	}
@@ -217,7 +219,7 @@ func start() error {
 		cfg.Hashrate.ShareTimeout,
 		cfg.Hashrate.ErrorThreshold,
 		HashrateCounterBuyer,
-		cfg.Hashrate.ValidationGraceDuration,
+		cfg.Hashrate.ValidatorFlatness,
 	)
 	if err != nil {
 		return err
@@ -241,7 +243,7 @@ func start() error {
 
 	cm := contractmanager.NewContractManager(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), walletAddr, hrContractFactory.CreateContract, store, log)
 
-	handl := httphandlers.NewHTTPHandler(alloc, cm, globalHashrate, publicUrl, HashrateCounterDefault, cfg.Hashrate.CycleDuration, &cfg, derived, log)
+	handl := httphandlers.NewHTTPHandler(alloc, cm, globalHashrate, publicUrl, HashrateCounterDefault, cfg.Hashrate.CycleDuration, &cfg, derived, time.Now(), contractLogStorage, log)
 	httpServer := transport.NewServer(cfg.Web.Address, handl, log)
 
 	ctx, cancel = context.WithCancel(ctx)

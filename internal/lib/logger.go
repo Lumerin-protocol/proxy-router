@@ -1,6 +1,7 @@
 package lib
 
 import (
+	"io"
 	"os"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
@@ -11,7 +12,17 @@ import (
 const timeLayout = "2006-01-02T15:04:05"
 
 func NewLogger(level string, color, isProd bool, isJSON bool, filepath string) (*Logger, error) {
-	log, err := newLogger(level, color, isProd, isJSON, filepath)
+	log, err := newLogger(level, color, isProd, isJSON, filepath, nil)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &Logger{SugaredLogger: log.Sugar()}, nil
+}
+
+func NewLoggerMemory(level string, color, isProd bool, isJSON bool, filepath string, wr io.Writer) (*Logger, error) {
+	log, err := newLogger(level, color, isProd, isJSON, filepath, wr)
 
 	if err != nil {
 		return nil, err
@@ -22,26 +33,38 @@ func NewLogger(level string, color, isProd bool, isJSON bool, filepath string) (
 
 // NewTestLogger logs only to stdout
 func NewTestLogger() *Logger {
-	log, _ := newLogger("debug", false, false, false, "")
+	log, _ := newLogger("debug", false, false, false, "", nil)
 	return &Logger{SugaredLogger: log.Sugar()}
 }
 
-func newLogger(levelStr string, color bool, isProd bool, isJSON bool, filepath string) (*zap.Logger, error) {
+func newLogger(levelStr string, color bool, isProd bool, isJSON bool, filepath string, extraWriter io.Writer) (*zap.Logger, error) {
 	level, err := zapcore.ParseLevel(levelStr)
 	if err != nil {
 		return nil, err
 	}
 
-	var core zapcore.Core
+	var cores []zapcore.Core
+
 	if filepath != "" {
 		fileCore, err := newFileCore(zapcore.DebugLevel, isProd, isJSON, filepath)
 		if err != nil {
 			return nil, err
 		}
-		consoleCore := newConsoleCore(level, color, isProd, isJSON)
-		core = zapcore.NewTee(fileCore, consoleCore)
+		cores = append(cores, fileCore)
+	}
+	if extraWriter != nil {
+		memoryCore := zapcore.NewCore(zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig()), zapcore.AddSync(extraWriter), level)
+		cores = append(cores, memoryCore)
+	}
+
+	consoleCore := newConsoleCore(level, color, isProd, isJSON)
+	cores = append(cores, consoleCore)
+
+	var core zapcore.Core
+	if len(cores) > 1 {
+		core = zapcore.NewTee(cores...)
 	} else {
-		core = newConsoleCore(level, color, isProd, isJSON)
+		core = cores[0]
 	}
 
 	opts := []zap.Option{
