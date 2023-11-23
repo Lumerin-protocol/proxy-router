@@ -37,10 +37,11 @@ type HTTPHandler struct {
 	pubKey                 string
 	config                 Sanitizable
 	derivedConfig          *config.DerivedConfig
+	appStartTime           time.Time
 	log                    interfaces.ILogger
 }
 
-func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractmanager.ContractManager, globalHashrate *hr.GlobalHashrate, publicUrl *url.URL, hashrateCounter string, cycleDuration time.Duration, config Sanitizable, derivedConfig *config.DerivedConfig, log interfaces.ILogger) *gin.Engine {
+func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractmanager.ContractManager, globalHashrate *hr.GlobalHashrate, publicUrl *url.URL, hashrateCounter string, cycleDuration time.Duration, config Sanitizable, derivedConfig *config.DerivedConfig, appStartTime time.Time, log interfaces.ILogger) *gin.Engine {
 	handl := &HTTPHandler{
 		allocator:              allocator,
 		contractManager:        contractManager,
@@ -50,6 +51,7 @@ func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractman
 		cycleDuration:          cycleDuration,
 		config:                 config,
 		derivedConfig:          derivedConfig,
+		appStartTime:           appStartTime,
 		log:                    log,
 	}
 
@@ -84,6 +86,7 @@ func (h *HTTPHandler) HealthCheck(ctx *gin.Context) {
 	ctx.JSON(200, gin.H{
 		"status":  "healthy",
 		"version": config.BuildVersion,
+		"uptime":  time.Since(h.appStartTime).Round(time.Second).String(),
 	})
 }
 

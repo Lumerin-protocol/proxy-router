@@ -238,7 +238,7 @@ func start() error {
 
 	cm := contractmanager.NewContractManager(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), walletAddr, hrContractFactory.CreateContract, store, log)
 
-	handl := httphandlers.NewHTTPHandler(alloc, cm, globalHashrate, publicUrl, HashrateCounterDefault, cfg.Hashrate.CycleDuration, &cfg, derived, log)
+	handl := httphandlers.NewHTTPHandler(alloc, cm, globalHashrate, publicUrl, HashrateCounterDefault, cfg.Hashrate.CycleDuration, &cfg, derived, time.Now(), log)
 	httpServer := transport.NewServer(cfg.Web.Address, handl, log)
 
 	ctx, cancel = context.WithCancel(ctx)
