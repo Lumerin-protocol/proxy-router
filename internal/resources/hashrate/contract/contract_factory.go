@@ -72,7 +72,7 @@ func NewContractFactory(
 }
 
 func (c *ContractFactory) CreateContract(contractData *hashrateContract.EncryptedTerms) (resources.Contract, error) {
-	log, err := c.logFactory(lib.AddrShort(contractData.ID()))
+	log, err := c.logFactory(contractData.ID())
 	if err != nil {
 		return nil, err
 	}

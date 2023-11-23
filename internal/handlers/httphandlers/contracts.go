@@ -142,6 +142,27 @@ func (c *HTTPHandler) GetContract(ctx *gin.Context) {
 	ctx.JSON(200, contractData)
 }
 
+func (c *HTTPHandler) GetDeliveryLogsConsole(ctx *gin.Context) {
+	contractID := ctx.Param("ID")
+	if contractID == "" {
+		ctx.JSON(400, gin.H{"error": "contract id is required"})
+		return
+	}
+	contract, ok := c.logStorage.Load(contractID)
+	if !ok {
+		ctx.JSON(404, gin.H{"error": "contract not found"})
+		return
+	}
+
+	ctx.Writer.WriteHeader(200)
+	_, err := io.Copy(ctx.Writer, contract.GetReader())
+	if err != nil {
+		c.log.Errorf("failed to write logs: %s", err)
+		_ = ctx.Error(err)
+		ctx.Abort()
+	}
+}
+
 func (c *HTTPHandler) GetDeliveryLogs(ctx *gin.Context) {
 	contractID := ctx.Param("ID")
 	if contractID == "" {
@@ -180,6 +201,7 @@ func (p *HTTPHandler) mapContract(item resources.Contract) *Contract {
 			Self: p.publicUrl.JoinPath(fmt.Sprintf("/contracts/%s", item.ID())).String(),
 		},
 		Logs:                    p.publicUrl.JoinPath(fmt.Sprintf("/contracts/%s/logs", item.ID())).String(),
+		ConsoleLogs:             p.publicUrl.JoinPath(fmt.Sprintf("/contracts/%s/logs-console", item.ID())).String(),
 		Role:                    item.Role().String(),
 		Stage:                   item.ValidationStage().String(),
 		ID:                      item.ID(),

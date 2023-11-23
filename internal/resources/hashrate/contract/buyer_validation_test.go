@@ -13,7 +13,7 @@ func TestC1(t *testing.T) {
 	}
 
 	for _, d := range data {
-		k := GetMaxGlobalError(d, 0.05, 20*time.Minute)
+		k := GetMaxGlobalError(d, 0.05, 20*time.Minute, 5*time.Minute)
 		fmt.Printf("elapsed %s - error threshold %.2f\n", d, k)
 	}
 }
