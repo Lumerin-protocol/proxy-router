@@ -56,17 +56,21 @@ func NewContractWatcherBuyer(
 	hrValidationFlatness time.Duration,
 ) *ContractWatcherBuyer {
 	return &ContractWatcherBuyer{
-		EncryptedTerms:           terms,
-		state:                    lib.NewAtomicValue(resources.ContractStatePending),
-		allocator:                allocator,
-		globalHashrate:           globalHashrate,
-		log:                      log,
 		contractCycleDuration:    cycleDuration,
 		shareTimeout:             shareTimeout,
 		hrErrorThreshold:         hrErrorThreshold,
-		validationStage:          lib.NewAtomicValue(hashrateContract.ValidationStageValidating),
-		hashrateCounterNameBuyer: hashrateCounterNameBuyer,
 		hrValidationFlatness:     hrValidationFlatness,
+		hashrateCounterNameBuyer: hashrateCounterNameBuyer,
+
+		state:                lib.NewAtomicValue(resources.ContractStatePending),
+		validationStage:      lib.NewAtomicValue(hashrateContract.ValidationStageValidating),
+		fulfillmentStartedAt: atomic.NewTime(time.Time{}),
+		starvingGHS:          atomic.NewUint64(0),
+
+		EncryptedTerms: terms,
+		allocator:      allocator,
+		globalHashrate: globalHashrate,
+		log:            log,
 	}
 }
 
@@ -197,16 +201,17 @@ func (p *ContractWatcherBuyer) isReceivingAcceptableHashrate() bool {
 
 	starvingGHS := math.Max(targetHashrateGHS-actualHashrate, 0.0)
 	p.starvingGHS.Store(uint64(starvingGHS))
+	fulfilmentElapsed := time.Since(p.fulfillmentStartedAt.Load())
 
 	hrError := lib.RelativeError(targetHashrateGHS, actualHashrate)
-	maxHrError := GetMaxGlobalError(p.Elapsed(), p.hrErrorThreshold, p.hrValidationFlatness)
+	maxHrError := GetMaxGlobalError(fulfilmentElapsed, p.hrErrorThreshold, p.hrValidationFlatness, 5*time.Minute)
 
 	hrMsg := fmt.Sprintf(
 		"elapsed %s target GHS %.0f, actual GHS %.0f, error %.0f%%, threshold(%.0f%%)",
-		p.Elapsed().Round(time.Second), targetHashrateGHS, actualHashrate, hrError*100, maxHrError*100,
+		fulfilmentElapsed.Round(time.Second), targetHashrateGHS, actualHashrate, hrError*100, maxHrError*100,
 	)
 
-	if hrError < maxHrError {
+	if hrError <= maxHrError {
 		p.log.Infof("contract is delivering accurately: %s", hrMsg)
 		return true
 	}
@@ -217,7 +222,7 @@ func (p *ContractWatcherBuyer) isReceivingAcceptableHashrate() bool {
 		return true
 	}
 
-	p.log.Warnf("contract is underdelivering: %s", hrMsg)
+	p.log.Warnf("contract is underdelivering: %s, %f", hrMsg, hrError-maxHrError)
 	return false
 }
 
