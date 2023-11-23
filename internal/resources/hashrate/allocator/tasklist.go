@@ -122,13 +122,13 @@ func (p *TaskList) Cancel(contractID string) {
 	defer p.mutex.Unlock()
 
 	for i := 0; i < p.tasks.Len(); i++ {
-		if i == 0 && p.taskTaken {
-			p.tasks.Front().Cancel()
-			continue
-		}
 		task := p.tasks.At(i)
 		if task.ID == contractID {
-			p.tasks.Remove(i)
+			if i == 0 && p.taskTaken {
+				p.tasks.Front().Cancel()
+			} else {
+				p.tasks.Remove(i)
+			}
 		}
 	}
 }
