@@ -2,6 +2,7 @@ package allocator
 
 import (
 	"context"
+	"math"
 	"net/url"
 	"sort"
 	"sync"
@@ -107,7 +108,7 @@ func (p *Allocator) AllocatePartialForJob(
 	p.proxyMutex.Lock()
 	defer p.proxyMutex.Unlock()
 
-	p.log.Infof("attemoting to partially allocate job %.f", jobNeeded)
+	p.log.Infof("attempting to partially allocate job %.f", jobNeeded)
 
 	partialMiners := p.getPartialMiners(cycleEndTimeout)
 	p.log.Infof("available partial miners %v", partialMiners)
@@ -147,15 +148,26 @@ func (p *Allocator) AllocatePartialForJob(
 	p.log.Infof("available free miners %v", freeMiners)
 
 	for _, miner := range freeMiners {
-		minerJobRemaining := hashrate.GHSToJobSubmittedV2(miner.HrGHS, cycleEndTimeout)
-		if minerJobRemaining >= jobNeeded {
-			m, ok := p.proxies.Load(miner.ID)
-			if ok {
-				m.AddTask(ID, dest, jobNeeded, onSubmit, onDisconnect, time.Now().Add(cycleEndTimeout))
-				minerIDJob[miner.ID] = jobNeeded
-				return minerIDJob, 0
-			}
+		if jobNeeded < minJob {
+			jobNeeded = 0
+			break
 		}
+
+		minerJobRemaining := hashrate.GHSToJobSubmittedV2(miner.HrGHS, cycleEndTimeout)
+		if minerJobRemaining <= minJob {
+			continue
+		}
+
+		jobToAllocate := math.Min(minerJobRemaining, jobNeeded)
+
+		m, ok := p.proxies.Load(miner.ID)
+		if !ok {
+			continue
+		}
+
+		m.AddTask(ID, dest, jobToAllocate, onSubmit, onDisconnect, time.Now().Add(cycleEndTimeout))
+		minerIDJob[miner.ID] = jobToAllocate
+		jobNeeded -= jobToAllocate
 	}
 
 	return minerIDJob, jobNeeded
@@ -165,6 +177,9 @@ func (p *Allocator) getFreeMiners() []MinerItem {
 	freeMiners := []MinerItem{}
 	p.proxies.Range(func(item *Scheduler) bool {
 		if item.IsVetting() {
+			return true
+		}
+		if item.IsDisconnecting() {
 			return true
 		}
 		if item.IsFree() {
@@ -188,6 +203,9 @@ func (p *Allocator) getPartialMiners(remainingCycleDuration time.Duration) []Par
 
 	p.proxies.Range(func(item *Scheduler) bool {
 		if item.IsVetting() {
+			return true
+		}
+		if item.IsDisconnecting() {
 			return true
 		}
 
@@ -223,6 +241,10 @@ func (p *Allocator) GetMinersFulfillingContract(contractID string, cycleDuration
 
 	p.GetMiners().Range(func(item *Scheduler) bool {
 		if item.IsVetting() {
+			return true
+		}
+
+		if item.IsDisconnecting() {
 			return true
 		}
 
