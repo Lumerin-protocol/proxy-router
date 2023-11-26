@@ -2,6 +2,7 @@ package contract
 
 import (
 	"fmt"
+	"math"
 	"net/url"
 	"time"
 
@@ -271,16 +272,19 @@ func (p *ContractWatcherSellerV2) onCycleEnd(cycleDuration time.Duration) {
 func (p *ContractWatcherSellerV2) adjustHashrate(hashrateGHS float64) (adjustedGHS float64) {
 	fullMinerThresholdGHS := 1000.0
 	partialMinersThresholdGHS := 100.0
-	adjustmentRequired := false
+
+	adjustmentRequired := math.Abs(hashrateGHS) > AdjustmentThresholdGHS
+	if !adjustmentRequired {
+		p.starvingGHS.Store(0)
+		return 0
+	}
 
 	if hashrateGHS < -fullMinerThresholdGHS {
-		adjustmentRequired = true
 		removedGHS := p.removeFullMiners(hashrateGHS)
 		adjustedGHS -= removedGHS
 	}
 
 	if hashrateGHS > fullMinerThresholdGHS {
-		adjustmentRequired = true
 		addedGHS := p.addFullMiners(hashrateGHS)
 		adjustedGHS += addedGHS
 	}
@@ -288,7 +292,6 @@ func (p *ContractWatcherSellerV2) adjustHashrate(hashrateGHS float64) (adjustedG
 	remainingCycleDuration := p.remainingCycleDuration()
 	remainingGHS := hashrateGHS - adjustedGHS
 	if remainingGHS > partialMinersThresholdGHS {
-		adjustmentRequired = true
 		job := hr.GHSToJobSubmittedV2(remainingGHS, remainingCycleDuration)
 		addedJob := p.addPartialMiners(job, remainingCycleDuration)
 		addedGHS := hr.JobSubmittedToGHSV2(addedJob, remainingCycleDuration)
@@ -298,14 +301,10 @@ func (p *ContractWatcherSellerV2) adjustHashrate(hashrateGHS float64) (adjustedG
 
 	p.log.Debugf("adjustment delta %.f GHS", adjustedGHS)
 
-	if adjustmentRequired {
-		starvingGHS := uint64(hashrateGHS - adjustedGHS)
-		p.starvingGHS.Store(starvingGHS)
-		if starvingGHS > 0 {
-			p.log.Warnf("not enough hashrate to fulfill contract (lacking %d GHS)", starvingGHS)
-		}
-	} else {
-		p.starvingGHS.Store(0)
+	starvingGHS := uint64(hashrateGHS - adjustedGHS)
+	p.starvingGHS.Store(starvingGHS)
+	if starvingGHS > 0 {
+		p.log.Warnf("not enough hashrate to fulfill contract (lacking %d GHS)", starvingGHS)
 	}
 
 	return adjustedGHS
