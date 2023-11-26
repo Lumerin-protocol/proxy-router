@@ -25,10 +25,11 @@ type Scheduler struct {
 	hashrateCounterID  string
 
 	// state
-	primaryDest   *url.URL
-	tasks         *TaskList
-	newTaskSignal chan struct{}
-	usedHR        *hashrate.Hashrate
+	primaryDest     *url.URL
+	tasks           *TaskList
+	newTaskSignal   chan struct{}
+	usedHR          *hashrate.Hashrate
+	isDisconnecting *atomic.Bool
 
 	// deps
 	proxy    StratumProxyInterface
@@ -46,6 +47,7 @@ func NewScheduler(proxy StratumProxyInterface, hashrateCounterID string, default
 		usedHR:             hashrateFactory(),
 		proxy:              proxy,
 		onVetted:           onVetted,
+		isDisconnecting:    atomic.NewBool(false),
 		log:                log,
 	}
 }
@@ -63,12 +65,15 @@ func (p *Scheduler) Run(ctx context.Context) error {
 	p.primaryDest = p.proxy.GetDest()
 	p.log = p.log.Named(fmt.Sprintf("SCH %s %s", p.proxy.GetSourceWorkerName(), lib.ParsePort(p.proxy.GetID())))
 
+	p.log.Infof("proxy connected")
+
 	for {
 		if p.proxy.GetDest().String() != p.primaryDest.String() {
 			err := p.proxy.ConnectDest(ctx, p.primaryDest)
 			if err != nil {
 				err := lib.WrapError(ErrConnPrimary, err)
 				p.log.Warnf("%s: %s", err, p.primaryDest)
+				p.onDisconnect()
 				return err
 			}
 		}
@@ -94,16 +99,21 @@ func (p *Scheduler) Run(ctx context.Context) error {
 
 		select {
 		case <-proxyTask.Done():
+			p.onDisconnect()
 			return proxyTask.Err()
 		default:
 		}
 
 		err = p.mainLoop(ctx, proxyTask)
 		if errors.Is(err, proxy.ErrDest) || errors.Is(err, proxy.ErrConnectDest) {
+			if p.tasks.taskTaken {
+				p.tasks.UnlockAndRemove()
+			}
 			p.log.Warnf("dest error: %v", err)
-			p.log.Infof("reconnecting to primary dest %s", p.primaryDest)
+			p.log.Debugf("reconnecting to primary dest %s", p.primaryDest)
 			continue
 		} else {
+			p.onDisconnect()
 			return err
 		}
 	}
@@ -114,13 +124,11 @@ func (p *Scheduler) mainLoop(ctx context.Context, proxyTask *lib.Task) error {
 		// do tasks
 		proxyExited, err := p.taskLoop(ctx, proxyTask)
 		if proxyExited {
-			p.onDisconnect()
 			return err
 		}
 
 		select {
 		case <-proxyTask.Done():
-			p.onDisconnect()
 			p.log.Infof("proxy exited: %v", proxyTask.Err())
 			return proxyTask.Err()
 		case <-p.newTaskSignal:
@@ -136,6 +144,7 @@ func (p *Scheduler) mainLoop(ctx context.Context, proxyTask *lib.Task) error {
 
 		select {
 		case <-proxyTask.Done():
+			p.isDisconnecting.Store(true)
 			p.onDisconnect()
 			p.log.Infof("proxy exited: %v", proxyTask.Err())
 			return proxyTask.Err()
@@ -158,8 +167,6 @@ func (p *Scheduler) taskLoop(ctx context.Context, proxyTask *lib.Task) (proxyExi
 
 		select {
 		case <-proxyTask.Done():
-			task.OnDisconnect(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()))
-			p.tasks.UnlockAndRemove()
 			return true, proxyTask.Err()
 		case <-task.cancelCh:
 			p.log.Debugf("task cancelled %s", lib.StrShort(task.ID))
@@ -186,15 +193,11 @@ func (p *Scheduler) taskLoop(ctx context.Context, proxyTask *lib.Task) (proxyExi
 
 		err := p.proxy.SetDest(ctx, task.Dest, onSubmit)
 		if err != nil {
-			task.OnDisconnect(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()))
-			p.tasks.UnlockAndRemove()
 			return true, err
 		}
 
 		select {
 		case <-proxyTask.Done():
-			task.OnDisconnect(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()))
-			p.tasks.UnlockAndRemove()
 			return true, proxyTask.Err()
 		case <-task.cancelCh:
 			p.log.Debugf("task cancelled %s", lib.StrShort(task.ID))
@@ -209,11 +212,17 @@ func (p *Scheduler) taskLoop(ctx context.Context, proxyTask *lib.Task) (proxyExi
 }
 
 func (p *Scheduler) onDisconnect() {
+	p.isDisconnecting.Store(true)
+
 	p.tasks.Range(func(task *MinerTask) bool {
 		p.log.Debugf("signalling task %s on disconnect", lib.StrShort(task.ID))
 		task.OnDisconnect(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()))
 		return true
 	})
+
+	if p.tasks.taskTaken {
+		p.tasks.UnlockAndRemove()
+	}
 }
 
 func (p *Scheduler) getExpectedCycleJob(cycleDuration time.Duration) float64 {
@@ -346,6 +355,10 @@ func (p *Scheduler) HashrateGHS() float64 {
 }
 
 func (p *Scheduler) GetStatus(cycleDuration time.Duration) MinerStatus {
+	if p.isDisconnecting.Load() {
+		return MinerStatusDisconnecting
+	}
+
 	if p.IsVetting() {
 		return MinerStatusVetting
 	}
@@ -383,6 +396,10 @@ func (p *Scheduler) GetStats() interface{} {
 
 func (p *Scheduler) IsVetting() bool {
 	return p.proxy.IsVetting()
+}
+
+func (p *Scheduler) IsDisconnecting() bool {
+	return p.isDisconnecting.Load()
 }
 
 func (p *Scheduler) GetUptime() time.Duration {

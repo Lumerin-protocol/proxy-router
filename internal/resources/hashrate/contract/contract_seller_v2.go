@@ -2,6 +2,7 @@ package contract
 
 import (
 	"fmt"
+	"math"
 	"net/url"
 	"time"
 
@@ -84,7 +85,7 @@ func (p *ContractWatcherSellerV2) StartFulfilling() error {
 
 	go func() {
 		close(p.startCh)
-		defer p.log.Infof("contract %s started", p.ID())
+		p.log.Infof("contract %s started", p.ID())
 
 		err := p.run()
 		p.err.Store(err)
@@ -124,6 +125,7 @@ func (p *ContractWatcherSellerV2) Err() error {
 
 func (p *ContractWatcherSellerV2) Reset() {
 	p.doneCh = make(chan struct{})
+	p.startCh = make(chan struct{})
 }
 
 func (p *ContractWatcherSellerV2) run() error {
@@ -269,46 +271,43 @@ func (p *ContractWatcherSellerV2) onCycleEnd(cycleDuration time.Duration) {
 // if hashrateGHS > 0 the allocation increases, if hashrateGHS < 0 the allocation decreases
 // returns the amount of hashrateGHS that was added or removed (with negative sign)
 func (p *ContractWatcherSellerV2) adjustHashrate(hashrateGHS float64) (adjustedGHS float64) {
+	expectedAdjustmentGHS := hashrateGHS
 	fullMinerThresholdGHS := 1000.0
 	partialMinersThresholdGHS := 100.0
-	adjustmentRequired := false
+
+	adjustmentRequired := math.Abs(hashrateGHS) > AdjustmentThresholdGHS
+	if !adjustmentRequired {
+		p.starvingGHS.Store(0)
+		return 0
+	}
 
 	if hashrateGHS < -fullMinerThresholdGHS {
-		adjustmentRequired = true
-		removedGHS := p.removeFullMiners(hashrateGHS)
-		adjustedGHS -= removedGHS
+		hashrateGHS += p.removeFullMiners(hashrateGHS)
 	}
 
 	if hashrateGHS > fullMinerThresholdGHS {
-		adjustmentRequired = true
-		addedGHS := p.addFullMiners(hashrateGHS)
-		adjustedGHS += addedGHS
+		hashrateGHS -= p.addFullMiners(hashrateGHS)
 	}
 
 	remainingCycleDuration := p.remainingCycleDuration()
-	remainingGHS := hashrateGHS - adjustedGHS
-	if remainingGHS > partialMinersThresholdGHS {
-		adjustmentRequired = true
-		job := hr.GHSToJobSubmittedV2(remainingGHS, remainingCycleDuration)
+
+	if hashrateGHS > partialMinersThresholdGHS {
+		job := hr.GHSToJobSubmittedV2(hashrateGHS, remainingCycleDuration)
 		addedJob := p.addPartialMiners(job, remainingCycleDuration)
 		addedGHS := hr.JobSubmittedToGHSV2(addedJob, remainingCycleDuration)
-		adjustedGHS += addedGHS
+		hashrateGHS -= addedGHS
 		p.log.Debugf("added %.f GHS of partial miners", addedGHS)
 	}
 
-	p.log.Debugf("adjustment delta %.f GHS", adjustedGHS)
-
-	if adjustmentRequired {
-		starvingGHS := uint64(hashrateGHS - adjustedGHS)
-		p.starvingGHS.Store(starvingGHS)
-		if starvingGHS > 0 {
-			p.log.Warnf("not enough hashrate to fulfill contract (lacking %d GHS)", starvingGHS)
-		}
-	} else {
-		p.starvingGHS.Store(0)
+	starvingGHS := uint64(hashrateGHS)
+	p.starvingGHS.Store(starvingGHS)
+	if starvingGHS > 0 {
+		p.log.Warnf("not enough hashrate to fulfill contract (lacking %d GHS)", starvingGHS)
 	}
 
-	return adjustedGHS
+	deltaGHS := expectedAdjustmentGHS - hashrateGHS
+	p.log.Debugf("adjustment delta %.f GHS", deltaGHS)
+	return deltaGHS
 }
 
 // addFullMiners adds full miners, they persist for the duration of the contract
@@ -371,9 +370,10 @@ func (p *ContractWatcherSellerV2) addPartialMiners(job float64, cycleEndTimeout 
 		cycleEndTimeout,
 		func(diff float64, ID string) {
 			p.stats.onPartialMinerShare(diff, ID)
-			expectedTotalJob := hr.GHSToJobSubmittedV2(p.HashrateGHS(), cycleEndTimeout) + float64(p.stats.globalUnderDeliveryGHS.Load())
-			if p.stats.totalJob() >= expectedTotalJob {
-				p.log.Infof("this cycle reached target prematurely %s expectedTotalJob %.f totalJob %.f", p.ID(), expectedTotalJob, p.stats.totalJob())
+			actualCycleGHS := hr.JobSubmittedToGHSV2(p.stats.totalJob(), p.contractCycleDuration)
+			expectedCycleGHS := p.HashrateGHS() + float64(p.stats.globalUnderDeliveryGHS.Load())
+			if actualCycleGHS >= expectedCycleGHS {
+				p.log.Infof("this cycle reached target prematurely actualGHS %.f expectedGHS %.f", p.ID(), actualCycleGHS, expectedCycleGHS)
 				p.removeAllPartialMiners()
 			}
 		},
@@ -411,7 +411,7 @@ func (p *ContractWatcherSellerV2) removeAllFullMiners() {
 			continue
 		}
 		miner.RemoveTasksByID(p.ID())
-		p.log.Debugf("miner %s tasks removed", miner.ID())
+		p.log.Debugf("full miner %s was removed from this contract", miner.ID())
 	}
 	return
 }
@@ -423,7 +423,7 @@ func (p *ContractWatcherSellerV2) removeAllPartialMiners() {
 			continue
 		}
 		miner.RemoveTasksByID(p.ID())
-		p.log.Debugf("miner %s tasks removed", miner.ID())
+		p.log.Debugf("partial miner %s was removed from this contract", miner.ID())
 	}
 }
 

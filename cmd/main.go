@@ -96,7 +96,6 @@ func start() error {
 	contractLogFactory := func(contractID string) (interfaces.ILogger, error) {
 		logStorage := interfaces.NewLogStorage(contractID)
 		contractLogStorage.Store(logStorage)
-		fmt.Printf("created storage id %s \n", contractID)
 		fp := ""
 		if logFolderPath != "" {
 			fp = filepath.Join(logFolderPath, fmt.Sprintf("contract-%s.log", lib.StrShort(contractID)))

@@ -12,6 +12,7 @@ import (
 	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
+	"go.uber.org/atomic"
 )
 
 const (
@@ -32,12 +33,8 @@ var (
 type Proxy struct {
 	// config
 	ID                     string
-	destURL                *url.URL // destination URL, TODO: remove, use dest.ID() instead
+	destURL                *atomic.Pointer[url.URL]
 	notPropagateWorkerName bool
-
-	// destWorkerName string
-	// submitErrLimit int
-	// onFault        func(context.Context) // called when proxy becomes faulty (e.g. when submit error limit is reached
 
 	// state
 	destToSourceStartSignal chan struct{}      // signal to start reading from destination
@@ -64,7 +61,7 @@ type Proxy struct {
 func NewProxy(ID string, source *ConnSource, destFactory DestConnFactory, hashrateFactory HashrateFactory, globalHashrate GlobalHashrateCounter, destURL *url.URL, notPropagateWorkerName bool, vettingShares int, log gi.ILogger) *Proxy {
 	proxy := &Proxy{
 		ID:                     ID,
-		destURL:                destURL,
+		destURL:                atomic.NewPointer(destURL),
 		notPropagateWorkerName: notPropagateWorkerName,
 
 		source:        source,
@@ -123,7 +120,7 @@ func (p *Proxy) Run(ctx context.Context) error {
 
 				// try to reconnect to the same dest
 				p.destMap.Delete(p.dest.ID())
-				err := p.ConnectDest(ctx, lib.CopyURL(p.destURL))
+				err := p.ConnectDest(ctx, lib.CopyURL(p.destURL.Load()))
 				if err != nil {
 					p.log.Errorf("error reconnecting to dest %s: %s", p.dest.ID(), err)
 					return err
@@ -173,7 +170,7 @@ func (p *Proxy) ConnectDest(ctx context.Context, newDestURL *url.URL) error {
 	}
 
 	p.dest = newDest
-	p.destURL = newDestURL
+	p.destURL.Store(newDestURL)
 	p.destMap.Store(newDest)
 
 	p.pipe.SetDest(newDest)
@@ -256,7 +253,7 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 	}
 
 	p.dest = newDest
-	p.destURL = newDestURL
+	p.destURL.Store(newDestURL)
 	p.destMap.Store(newDest)
 
 	p.onSubmitMutex.Lock()
@@ -308,11 +305,11 @@ func (p *Proxy) GetMinerConnectedAt() time.Time {
 }
 
 func (p *Proxy) GetDest() *url.URL {
-	return p.destURL
+	return p.destURL.Load()
 }
 
 func (p *Proxy) GetDestWorkerName() string {
-	return p.destURL.User.Username()
+	return p.destURL.Load().User.Username()
 }
 
 func (p *Proxy) GetDifficulty() float64 {

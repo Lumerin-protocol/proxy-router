@@ -125,7 +125,7 @@ func (p *HandlerFirstConnect) handleDest(ctx context.Context, msg i.MiningMessag
 func (p *HandlerFirstConnect) onMiningConfigure(ctx context.Context, msgTyped *m.MiningConfigure) error {
 	p.proxy.source.SetVersionRolling(msgTyped.GetVersionRolling())
 
-	destConn, err := p.proxy.destFactory(ctx, p.proxy.destURL, p.proxy.ID)
+	destConn, err := p.proxy.destFactory(ctx, p.proxy.destURL.Load(), p.proxy.ID)
 	if err != nil {
 		return err
 	}
@@ -174,7 +174,7 @@ func (p *HandlerFirstConnect) onMiningSubscribe(ctx context.Context, msgTyped *m
 	minerSubscribeReceived = true
 
 	if p.proxy.dest == nil {
-		destConn, err := p.proxy.destFactory(ctx, p.proxy.destURL, p.proxy.ID)
+		destConn, err := p.proxy.destFactory(ctx, p.proxy.destURL.Load(), p.proxy.ID)
 		if err != nil {
 			return err
 		}
@@ -227,24 +227,24 @@ func (p *HandlerFirstConnect) onMiningAuthorize(ctx context.Context, msgTyped *m
 		return lib.WrapError(ErrHandshakeSource, err)
 	}
 
-	if shouldPropagateWorkerName(p.proxy.notPropagateWorkerName, msgTyped.GetUserName(), p.proxy.destURL) {
+	if shouldPropagateWorkerName(p.proxy.notPropagateWorkerName, msgTyped.GetUserName(), p.proxy.destURL.Load()) {
 		_, workerName, hasWorkerName := lib.SplitUsername(msgTyped.GetUserName())
 		// if incoming miner was named "accountName.workerName" then we preserve worker name in destination
 		if hasWorkerName {
-			lib.SetWorkerName(p.proxy.destURL, workerName)
+			lib.SetWorkerName(p.proxy.destURL.Load(), workerName)
 		}
 	}
 
-	destWorkerName := getDestUserName(p.proxy.notPropagateWorkerName, msgTyped.GetUserName(), p.proxy.destURL)
+	destWorkerName := getDestUserName(p.proxy.notPropagateWorkerName, msgTyped.GetUserName(), p.proxy.destURL.Load())
 	p.proxy.dest.SetUserName(destWorkerName)
 
 	// otherwise we use the same username as in source
 	// this is the case for the incoming contracts,
 	// where the miner userName is contractID
 
-	userName := p.proxy.destURL.User.Username()
+	userName := p.proxy.destURL.Load().User.Username()
 	p.proxy.dest.SetUserName(userName)
-	pwd, ok := p.proxy.destURL.User.Password()
+	pwd, ok := p.proxy.destURL.Load().User.Password()
 	if !ok {
 		pwd = ""
 	}

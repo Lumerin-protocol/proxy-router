@@ -1,6 +1,7 @@
 package contract
 
 import (
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	hr "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 	"go.uber.org/atomic"
 )
@@ -34,19 +35,9 @@ func (s *stats) addFullMiners(IDs ...string) {
 }
 
 func (s *stats) removeFullMiner(ID string) (ok bool) {
-	if len(s.fullMiners) == 0 {
-		return
-	}
-	newFullMiners := make([]string, 0, len(s.fullMiners)-1)
-	for _, minerID := range s.fullMiners {
-		if minerID == ID {
-			ok = true
-			continue
-		}
-		newFullMiners = append(newFullMiners, minerID)
-	}
-	s.fullMiners = newFullMiners
-	return
+	oldLen := len(s.fullMiners)
+	s.fullMiners = lib.FilterValue(s.fullMiners, ID)
+	return oldLen != len(s.fullMiners)
 }
 
 func (s *stats) addPartialMiners(IDs ...string) {
@@ -54,19 +45,9 @@ func (s *stats) addPartialMiners(IDs ...string) {
 }
 
 func (s *stats) removePartialMiner(ID string) (ok bool) {
-	if len(s.partialMiners) == 0 {
-		return
-	}
-	newPartialMiners := make([]string, 0, len(s.partialMiners)-1)
-	for _, minerID := range s.partialMiners {
-		if minerID == ID {
-			ok = true
-			continue
-		}
-		newPartialMiners = append(newPartialMiners, minerID)
-	}
-	s.partialMiners = newPartialMiners
-	return
+	oldLen := len(s.partialMiners)
+	s.partialMiners = lib.FilterValue(s.partialMiners, ID)
+	return oldLen != len(s.partialMiners)
 }
 
 func (c *stats) totalJob() float64 {
