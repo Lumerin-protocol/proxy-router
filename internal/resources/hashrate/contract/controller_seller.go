@@ -129,6 +129,7 @@ func (c *ControllerSeller) handleContractPurchased(ctx context.Context, event *i
 func (c *ControllerSeller) handleContractClosed(ctx context.Context, event *implementation.ImplementationContractClosed) error {
 	c.log.Warnf("got closed event for contract")
 	c.StopFulfilling()
+	<-c.Done()
 
 	err := c.LoadTermsFromBlockchain(ctx)
 
@@ -156,8 +157,12 @@ func (c *ControllerSeller) handleCipherTextUpdated(ctx context.Context, event *i
 	}
 
 	c.ContractWatcherSellerV2.StopFulfilling()
-	c.SetData(terms)
-	_ = c.ContractWatcherSellerV2.StartFulfilling()
+	<-c.ContractWatcherSellerV2.Done()
+	c.SetTerms(terms)
+	err = c.ContractWatcherSellerV2.StartFulfilling()
+	if err != nil {
+		c.log.Errorf("error handleCipherTextUpdated: %s", err)
+	}
 	return nil
 }
 
@@ -177,7 +182,7 @@ func (c *ControllerSeller) LoadTermsFromBlockchain(ctx context.Context) error {
 		return err
 	}
 
-	c.SetData(terms)
+	c.SetTerms(terms)
 
 	return nil
 }
