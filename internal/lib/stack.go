@@ -60,3 +60,9 @@ func (s *Stack[T]) Range(f func(T) bool) {
 		}
 	}
 }
+
+func (s *Stack[T]) Copy() *Stack[T] {
+	newStack := make(Stack[T], s.Size())
+	copy(newStack, *s)
+	return &newStack
+}

@@ -12,6 +12,7 @@ import (
 	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
+	"go.uber.org/atomic"
 )
 
 const (
@@ -32,12 +33,8 @@ var (
 type Proxy struct {
 	// config
 	ID                     string
-	destURL                *url.URL // destination URL, TODO: remove, use dest.ID() instead
+	destURL                *atomic.Pointer[url.URL]
 	notPropagateWorkerName bool
-
-	// destWorkerName string
-	// submitErrLimit int
-	// onFault        func(context.Context) // called when proxy becomes faulty (e.g. when submit error limit is reached
 
 	// state
 	destToSourceStartSignal chan struct{}      // signal to start reading from destination
@@ -49,6 +46,8 @@ type Proxy struct {
 	onSubmit                HashrateCounterFunc        // callback to update contract hashrate
 	onSubmitMutex           sync.RWMutex               // mutex to protect onSubmit
 	destMap                 *lib.Collection[*ConnDest] // map of all available destinations (pools) currently connected to the single source (miner)
+	vettingDoneCh           chan struct{}              // channel to signal that the miner has been vetted
+	vettingShares           int                        // number of shares to vet the miner
 
 	// deps
 	source         *ConnSource           // initiator of the communication, miner
@@ -59,16 +58,18 @@ type Proxy struct {
 }
 
 // TODO: pass connection factory for destURL
-func NewProxy(ID string, source *ConnSource, destFactory DestConnFactory, hashrateFactory HashrateFactory, globalHashrate GlobalHashrateCounter, destURL *url.URL, notPropagateWorkerName bool, log gi.ILogger) *Proxy {
+func NewProxy(ID string, source *ConnSource, destFactory DestConnFactory, hashrateFactory HashrateFactory, globalHashrate GlobalHashrateCounter, destURL *url.URL, notPropagateWorkerName bool, vettingShares int, log gi.ILogger) *Proxy {
 	proxy := &Proxy{
 		ID:                     ID,
-		destURL:                destURL,
+		destURL:                atomic.NewPointer(destURL),
 		notPropagateWorkerName: notPropagateWorkerName,
 
-		source:      source,
-		destMap:     lib.NewCollection[*ConnDest](),
-		destFactory: destFactory,
-		log:         log,
+		source:        source,
+		destMap:       lib.NewCollection[*ConnDest](),
+		destFactory:   destFactory,
+		log:           log,
+		vettingDoneCh: make(chan struct{}),
+		vettingShares: vettingShares,
 
 		hashrate:       hashrateFactory(),
 		globalHashrate: globalHashrate,
@@ -95,53 +96,90 @@ func (p *Proxy) Connect(ctx context.Context) error {
 
 func (p *Proxy) Run(ctx context.Context) error {
 	defer p.closeConnections()
-
 	handler := NewHandlerMining(p, p.log)
-
 	p.pipe = NewPipe(p.source, p.dest, handler.sourceInterceptor, handler.destInterceptor, p.log)
+
+	for {
+		p.pipe.StartSourceToDest(ctx)
+		p.pipe.StartDestToSource(ctx)
+
+		ctx, cancel := context.WithCancel(ctx)
+		p.cancelRun = cancel
+
+		err := p.pipe.Run(ctx)
+		p.unansweredMsg.Wait()
+
+		if err != nil {
+			// destination error
+			if errors.Is(err, ErrDest) {
+				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
+					p.log.Warnf("destination closed the connection, dest %s", p.dest.ID())
+				} else {
+					p.log.Errorf("destination error, source %s dest %s: %s", p.source.GetID(), p.dest.ID(), err)
+				}
+
+				// try to reconnect to the same dest
+				p.destMap.Delete(p.dest.ID())
+				err := p.ConnectDest(ctx, lib.CopyURL(p.destURL.Load()))
+				if err != nil {
+					p.log.Errorf("error reconnecting to dest %s: %s", p.dest.ID(), err)
+					return err
+				}
+				continue
+			}
+
+			// source error
+			if errors.Is(err, ErrSource) {
+				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
+					p.log.Warnf("source closed the connection, source %s, err %s", p.source.GetID(), err)
+				} else {
+					p.log.Errorf("source connection error, source %s: %s", p.source.GetID(), err)
+				}
+				return err
+			}
+
+			if errors.Is(err, context.Canceled) {
+				return err
+			}
+
+			p.log.Errorf("error running pipe: %s", err)
+
+			// other errors
+			return err
+		}
+		return nil
+	}
+}
+
+func (p *Proxy) ConnectDest(ctx context.Context, newDestURL *url.URL) error {
+	p.setDestLock.Lock()
+	defer p.setDestLock.Unlock()
+
+	p.log.Debugf("reconnecting to destination %s", newDestURL.String())
+
+	destChanger := NewHandlerChangeDest(p, p.destFactory, p.log)
+
+	newDest, err := destChanger.connectNewDest(ctx, newDestURL)
+	if err != nil {
+		return err
+	}
+
+	err = destChanger.resendRelevantNotifications(ctx, newDest)
+	if err != nil {
+		return err
+	}
+
+	p.dest = newDest
+	p.destURL.Store(newDestURL)
+	p.destMap.Store(newDest)
+
+	p.pipe.SetDest(newDest)
+
 	p.pipe.StartSourceToDest(ctx)
 	p.pipe.StartDestToSource(ctx)
 
-	ctx, cancel := context.WithCancel(ctx)
-	p.cancelRun = cancel
+	p.log.Infof("destination reconnected %s", newDestURL.String())
 
-	err := p.pipe.Run(ctx)
-	p.unansweredMsg.Wait()
-
-	if err != nil {
-		// destination error
-		if errors.Is(err, ErrDest) {
-			if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
-				p.log.Warnf("destination closed the connection, dest %s", p.dest.ID())
-			} else {
-				p.log.Errorf("destination error, source %s dest %s: %s", p.source.GetID(), p.dest.ID(), err)
-			}
-
-			return err
-			// TODO: reconnect to the same dest
-			// return p.SetDest(ctx, p.destURL, p.onSubmit)
-		}
-
-		// source error
-		if errors.Is(err, ErrSource) {
-			if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
-				p.log.Warnf("source closed the connection, source %s", p.source.GetID())
-			} else {
-				p.log.Errorf("source connection error, source %s: %s", p.source.GetID(), err)
-			}
-			return err
-		}
-
-		if errors.Is(err, context.Canceled) {
-			p.log.Warnf("proxy stopped %s", p.ID)
-			return err
-		}
-
-		p.log.Errorf("error running pipe: %s", err)
-
-		// other errors
-		return err
-	}
 	return nil
 }
 
@@ -215,7 +253,7 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 	}
 
 	p.dest = newDest
-	p.destURL = newDestURL
+	p.destURL.Store(newDestURL)
 	p.destMap.Store(newDest)
 
 	p.onSubmitMutex.Lock()
@@ -235,7 +273,6 @@ func (p *Proxy) closeConnections() {
 	if p.dest != nil {
 		p.dest.conn.Close()
 	}
-	p.destMap.Delete(p.destURL.String())
 
 	p.destMap.Range(func(dest *ConnDest) bool {
 		dest.conn.Close()
@@ -268,11 +305,11 @@ func (p *Proxy) GetMinerConnectedAt() time.Time {
 }
 
 func (p *Proxy) GetDest() *url.URL {
-	return p.destURL
+	return p.destURL.Load()
 }
 
 func (p *Proxy) GetDestWorkerName() string {
-	return p.destURL.User.Username()
+	return p.destURL.Load().User.Username()
 }
 
 func (p *Proxy) GetDifficulty() float64 {
@@ -305,4 +342,12 @@ func (p *Proxy) GetDestConns() *map[string]string {
 		return true
 	})
 	return &destConns
+}
+
+func (p *Proxy) VettingDone() <-chan struct{} {
+	return p.vettingDoneCh
+}
+
+func (p *Proxy) IsVetting() bool {
+	return p.GetHashrate().GetTotalShares() < p.vettingShares
 }

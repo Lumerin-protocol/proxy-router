@@ -1,6 +1,7 @@
 package hashrate
 
 import (
+	"sync/atomic"
 	"time"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
@@ -18,9 +19,18 @@ func NewGlobalHashrate(hrFactory HashrateFactory) *GlobalHashrate {
 	}
 }
 
+func (t *GlobalHashrate) Initialize(workerName string) {
+	t.data.LoadOrStore(NewWorkerHashrateModel(workerName, t.hrFactory()))
+}
+
 func (t *GlobalHashrate) OnSubmit(workerName string, diff float64) {
-	actual, _ := t.data.LoadOrStore(&WorkerHashrateModel{id: workerName, hr: t.hrFactory()})
+	actual, _ := t.data.LoadOrStore(NewWorkerHashrateModel(workerName, t.hrFactory()))
 	actual.OnSubmit(diff)
+}
+
+func (t *GlobalHashrate) OnConnect(workerName string) {
+	actual, _ := t.data.LoadOrStore(NewWorkerHashrateModel(workerName, t.hrFactory()))
+	actual.OnConnect()
 }
 
 func (t *GlobalHashrate) GetLastSubmitTime(workerName string) (tm time.Time, ok bool) {
@@ -28,7 +38,8 @@ func (t *GlobalHashrate) GetLastSubmitTime(workerName string) (tm time.Time, ok 
 	if !ok {
 		return time.Time{}, false
 	}
-	return record.hr.GetLastSubmitTime(), true
+	time := record.hr.GetLastSubmitTime()
+	return time, !time.IsZero()
 }
 
 func (t *GlobalHashrate) GetHashRateGHS(workerName string, counterID string) (hrGHS float64, ok bool) {
@@ -74,9 +85,30 @@ func (t *GlobalHashrate) Reset(workerName string) {
 	t.data.Delete(workerName)
 }
 
+func (t *GlobalHashrate) GetWorker(workerName string) *WorkerHashrateModel {
+	var worker *WorkerHashrateModel
+	t.Range(func(item *WorkerHashrateModel) bool {
+		if item.id == workerName {
+			worker = item
+			return false
+		}
+		return true
+	})
+	return worker
+}
+
 type WorkerHashrateModel struct {
-	id string
-	hr *Hashrate
+	id         string
+	hr         *Hashrate
+	reconnects *atomic.Uint32
+}
+
+func NewWorkerHashrateModel(id string, hr *Hashrate) *WorkerHashrateModel {
+	return &WorkerHashrateModel{
+		id:         id,
+		hr:         hr,
+		reconnects: &atomic.Uint32{},
+	}
 }
 
 func (m *WorkerHashrateModel) ID() string {
@@ -85,6 +117,10 @@ func (m *WorkerHashrateModel) ID() string {
 
 func (m *WorkerHashrateModel) OnSubmit(diff float64) {
 	m.hr.OnSubmit(diff)
+}
+
+func (m *WorkerHashrateModel) OnConnect() {
+	m.reconnects.Add(1)
 }
 
 func (m *WorkerHashrateModel) GetHashRateGHS(counterID string) (float64, bool) {
@@ -97,4 +133,12 @@ func (m *WorkerHashrateModel) GetHashrateAvgGHSAll() map[string]float64 {
 
 func (m *WorkerHashrateModel) GetLastSubmitTime() time.Time {
 	return m.hr.GetLastSubmitTime()
+}
+
+func (m *WorkerHashrateModel) GetHashrateCounter(counterID string) Counter {
+	return m.hr.custom[counterID]
+}
+
+func (m *WorkerHashrateModel) Reconnects() int {
+	return int(m.reconnects.Load())
 }

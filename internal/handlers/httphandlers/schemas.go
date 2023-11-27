@@ -1,4 +1,4 @@
-package handlers
+package httphandlers
 
 import "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
 
@@ -7,12 +7,50 @@ type MinersResponse struct {
 	UsedHashrateGHS      int
 	AvailableHashrateGHS int
 
-	TotalMiners   int
-	BusyMiners    int
-	FreeMiners    int
-	VettingMiners int
+	TotalMiners       int
+	VettingMiners     int
+	FreeMiners        int
+	PartialBusyMiners int
+	BusyMiners        int
 
 	Miners []Miner
+}
+
+type ContractsResponse struct {
+	SellerTotal SellerTotal
+	BuyerTotal  BuyerTotal
+
+	Contracts []Contract
+}
+
+type ConfigResponse struct {
+	Version       string
+	Commit        string
+	DerivedConfig interface{}
+	Config        interface{}
+}
+
+type SellerTotal struct {
+	TotalNumber     int
+	TotalGHS        int
+	TotalBalanceLMR float64
+
+	RunningNumber    int
+	RunningTargetGHS int
+	RunningActualGHS int
+
+	StarvingNumber int
+	StarvingGHS    int
+
+	AvailableNumber int
+	AvailableGHS    int
+}
+
+type BuyerTotal struct {
+	Number            int
+	HashrateGHS       int
+	ActualHashrateGHS int
+	StarvingGHS       int
 }
 
 type Miner struct {
@@ -34,6 +72,8 @@ type Miner struct {
 type Contract struct {
 	Resource
 
+	Logs                    string
+	ConsoleLogs             string
 	Role                    string
 	Stage                   string
 	ID                      string
@@ -41,6 +81,7 @@ type Contract struct {
 	SellerAddr              string
 	ResourceEstimatesTarget map[string]int
 	ResourceEstimatesActual map[string]int
+	StarvingGHS             int
 
 	BalanceLMR     float64
 	IsDeleted      bool
@@ -55,7 +96,7 @@ type Contract struct {
 	ApplicationStatus string
 	BlockchainStatus  string
 	Dest              string
-	Miners            []*allocator.DestItem
+	Miners            []*allocator.MinerItemJobScheduled
 }
 
 type Resource struct {
@@ -65,4 +106,5 @@ type Resource struct {
 type Worker struct {
 	WorkerName string
 	Hashrate   map[string]float64
+	Reconnects int
 }

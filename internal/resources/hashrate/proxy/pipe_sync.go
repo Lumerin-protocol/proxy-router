@@ -138,7 +138,10 @@ func readToChan(ctx context.Context, stream func() i.StratumReadWriter, ch chan<
 		// nil check is required because message could be intercepted on connection level
 		// it returns nil to tell that nothing should be written
 		if msg != nil {
-			ch <- msg
+			select {
+			case ch <- msg:
+			case <-ctx.Done():
+			}
 		}
 	}
 }

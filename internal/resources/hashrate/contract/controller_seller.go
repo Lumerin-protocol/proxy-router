@@ -13,17 +13,17 @@ import (
 )
 
 type ControllerSeller struct {
-	*ContractWatcherSeller
+	*ContractWatcherSellerV2
 
 	store   *contracts.HashrateEthereum
 	privKey string
 }
 
-func NewControllerSeller(contract *ContractWatcherSeller, store *contracts.HashrateEthereum, privKey string) *ControllerSeller {
+func NewControllerSeller(contract *ContractWatcherSellerV2, store *contracts.HashrateEthereum, privKey string) *ControllerSeller {
 	return &ControllerSeller{
-		ContractWatcherSeller: contract,
-		store:                 store,
-		privKey:               privKey,
+		ContractWatcherSellerV2: contract,
+		store:                   store,
+		privKey:                 privKey,
 	}
 }
 
@@ -37,7 +37,10 @@ func (c *ControllerSeller) Run(ctx context.Context) error {
 	c.log.Infof("started watching contract as seller, address %s", c.ID())
 
 	if c.ShouldBeRunning() {
-		c.StartFulfilling(ctx)
+		err := c.StartFulfilling()
+		if err != nil {
+			return err
+		}
 	}
 
 	for {
@@ -45,17 +48,28 @@ func (c *ControllerSeller) Run(ctx context.Context) error {
 		case event := <-sub.Events():
 			err := c.controller(ctx, event)
 			if err != nil {
-				c.StopFulfilling()
+				c.ContractWatcherSellerV2.StopFulfilling()
+				<-c.ContractWatcherSellerV2.Done()
 				return err
 			}
 		case err := <-sub.Err():
-			c.StopFulfilling()
+			c.ContractWatcherSellerV2.StopFulfilling()
+			<-c.ContractWatcherSellerV2.Done()
 			return err
-		case <-c.ContractWatcherSeller.Done():
-			err := c.ContractWatcherSeller.Err()
+		case <-ctx.Done():
+			c.log.Infof("context done, stopping contract watcher")
+			c.ContractWatcherSellerV2.StopFulfilling()
+			c.log.Infof("waiting for contract watcher to stop")
+			<-c.ContractWatcherSellerV2.Done()
+			c.log.Infof("contract watcher stopped")
+			c.ContractWatcherSellerV2.Reset()
+			return ctx.Err()
+		case <-c.ContractWatcherSellerV2.Done():
+			err := c.ContractWatcherSellerV2.Err()
 			if err != nil {
 				// fulfillment error, buyer will close on underdelivery
 				c.log.Warnf("seller contract ended with error: %s", err)
+				c.ContractWatcherSellerV2.Reset()
 				continue
 			}
 
@@ -72,7 +86,7 @@ func (c *ControllerSeller) Run(ctx context.Context) error {
 				c.log.Errorf("error closing contract: %s", err)
 			} else {
 				c.log.Warnf("seller contract closed")
-				c.ContractWatcherSeller.Reset()
+				c.ContractWatcherSellerV2.Reset()
 			}
 		}
 	}
@@ -103,11 +117,11 @@ func (c *ControllerSeller) handleContractPurchased(ctx context.Context, event *i
 		return err
 	}
 
-	if c.BlockchainState() != hashrateContract.BlockchainStateRunning {
+	if !c.ShouldBeRunning() {
 		return nil
 	}
 
-	c.StartFulfilling(ctx)
+	_ = c.StartFulfilling()
 
 	return nil
 }
@@ -115,6 +129,7 @@ func (c *ControllerSeller) handleContractPurchased(ctx context.Context, event *i
 func (c *ControllerSeller) handleContractClosed(ctx context.Context, event *implementation.ImplementationContractClosed) error {
 	c.log.Warnf("got closed event for contract")
 	c.StopFulfilling()
+	<-c.Done()
 
 	err := c.LoadTermsFromBlockchain(ctx)
 
@@ -141,9 +156,13 @@ func (c *ControllerSeller) handleCipherTextUpdated(ctx context.Context, event *i
 		return nil
 	}
 
-	c.ContractWatcherSeller.StopFulfilling()
-	c.SetData(terms)
-	c.ContractWatcherSeller.StartFulfilling(ctx)
+	c.ContractWatcherSellerV2.StopFulfilling()
+	<-c.ContractWatcherSellerV2.Done()
+	c.SetTerms(terms)
+	err = c.ContractWatcherSellerV2.StartFulfilling()
+	if err != nil {
+		c.log.Errorf("error handleCipherTextUpdated: %s", err)
+	}
 	return nil
 }
 
@@ -163,7 +182,7 @@ func (c *ControllerSeller) LoadTermsFromBlockchain(ctx context.Context) error {
 		return err
 	}
 
-	c.SetData(terms)
+	c.SetTerms(terms)
 
 	return nil
 }

@@ -9,10 +9,11 @@ type DeliveryLogEntry struct {
 	Timestamp                         time.Time
 	ActualGHS                         int
 	FullMinersGHS                     int
-	FullMinersNumber                  int
+	FullMiners                        []string
+	FullMinersShares                  int
 	PartialMinersGHS                  int
-	PartialMinersNumber               int
-	SharesSubmitted                   int
+	PartialMiners                     []string
+	PartialMinersShares               int
 	UnderDeliveryGHS                  int
 	GlobalHashrateGHS                 int
 	GlobalUnderDeliveryGHS            int
