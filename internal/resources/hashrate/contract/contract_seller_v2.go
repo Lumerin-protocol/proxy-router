@@ -373,7 +373,8 @@ func (p *ContractWatcherSellerV2) addPartialMiners(job float64, cycleEndTimeout 
 			actualCycleGHS := hr.JobSubmittedToGHSV2(p.stats.totalJob(), p.contractCycleDuration)
 			expectedCycleGHS := p.HashrateGHS() + float64(p.stats.globalUnderDeliveryGHS.Load())
 			if actualCycleGHS >= expectedCycleGHS {
-				p.log.Infof("this cycle reached target prematurely actualGHS %.f expectedGHS %.f", p.ID(), actualCycleGHS, expectedCycleGHS)
+				p.log.Infof("this cycle reached target prematurely actualGHS %.f expectedGHS %.f", actualCycleGHS, expectedCycleGHS)
+				// TODO: potential race if new partial miner is added when removePartialMiners is reading
 				p.removeAllPartialMiners()
 			}
 		},
@@ -595,9 +596,10 @@ func (p *ContractWatcherSellerV2) ShouldBeRunning() bool {
 }
 
 // terms setters
-func (p *ContractWatcherSellerV2) SetData(terms *hashrate.Terms) {
+func (p *ContractWatcherSellerV2) SetTerms(terms *hashrate.Terms) {
 	if p.isRunning.Load() {
-		panic("cannot set data while running")
+		p.log.Error("cannot update contract terms while running")
+		return
 	}
 	p.Terms = terms
 }
