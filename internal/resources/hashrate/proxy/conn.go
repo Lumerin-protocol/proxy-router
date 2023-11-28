@@ -61,6 +61,9 @@ type StratumConnection struct {
 	// deps
 	conn net.Conn
 	log  gi.ILogger
+
+	readSync  *sync.Mutex
+	writeSync *sync.Mutex
 }
 
 // CreateConnection creates a new StratumConnection and starts background timer for its closure
@@ -77,6 +80,8 @@ func CreateConnection(conn net.Conn, address string, readTimeout, writeTimeout t
 		writeHappened:    make(chan struct{}, 1),
 		closedCh:         make(chan struct{}),
 		log:              log,
+		readSync:         &sync.Mutex{},
+		writeSync:        &sync.Mutex{},
 	}
 	err := conn.SetDeadline(time.Now().Add(1 * time.Hour))
 	if err != nil {
@@ -97,6 +102,9 @@ func Connect(address *url.URL, log gi.ILogger) (*StratumConnection, error) {
 }
 
 func (c *StratumConnection) Read(ctx context.Context) (interfaces.MiningMessageGeneric, error) {
+	c.readSync.Lock()
+	defer c.readSync.Unlock()
+
 	cancelRoutineDoneCh := make(chan struct{})
 	defer func() {
 		<-cancelRoutineDoneCh
@@ -137,10 +145,12 @@ func (c *StratumConnection) Read(ctx context.Context) (interfaces.MiningMessageG
 			return nil, ctx.Err()
 		}
 
-		line, err := c.reader.ReadSlice('\n')
+		line, err := c.reader.ReadBytes('\n')
 		if err != nil {
 			if len(line) > 0 {
-				c.readBuffer = append(c.readBuffer, line...)
+				buf := make([]byte, len(c.readBuffer)+len(line))
+				copy(buf[len(c.readBuffer):], line)
+				c.readBuffer = buf
 			}
 			// if read was cancelled via context return context error, not deadline exceeded
 			if ctx.Err() != nil && errors.Is(err, os.ErrDeadlineExceeded) {
@@ -151,8 +161,11 @@ func (c *StratumConnection) Read(ctx context.Context) (interfaces.MiningMessageG
 
 		c.readHappened <- struct{}{}
 		if len(c.readBuffer) > 0 {
-			line = append(c.readBuffer, line...)
+			newLine := make([]byte, len(c.readBuffer)+len(line))
+			copy(newLine, c.readBuffer)
+			copy(newLine[len(c.readBuffer):], line)
 			c.readBuffer = []byte{}
+			line = newLine
 		}
 		c.log.Debugf("<= %s", string(line))
 
@@ -174,6 +187,9 @@ func (c *StratumConnection) Read(ctx context.Context) (interfaces.MiningMessageG
 
 // Write writes message to the connection. Safe for concurrent use, cause underlying TCPConn is thread-safe
 func (c *StratumConnection) Write(ctx context.Context, msg interfaces.MiningMessageGeneric) error {
+	c.writeSync.Lock()
+	defer c.writeSync.Unlock()
+
 	if msg == nil {
 		return fmt.Errorf("nil message write attempt")
 	}
