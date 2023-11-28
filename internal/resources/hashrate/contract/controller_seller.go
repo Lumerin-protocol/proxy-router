@@ -2,6 +2,7 @@ package contract
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/Lumerin-protocol/contracts-go/implementation"
@@ -48,21 +49,30 @@ func (c *ControllerSeller) Run(ctx context.Context) error {
 		case event := <-sub.Events():
 			err := c.controller(ctx, event)
 			if err != nil {
-				c.ContractWatcherSellerV2.StopFulfilling()
-				<-c.ContractWatcherSellerV2.Done()
+				if c.IsRunning() {
+					c.ContractWatcherSellerV2.StopFulfilling()
+					c.log.Infof("waiting for contract watcher to stop")
+					<-c.ContractWatcherSellerV2.Done()
+					c.log.Infof("contract watcher stopped")
+				}
 				return err
 			}
 		case err := <-sub.Err():
-			c.ContractWatcherSellerV2.StopFulfilling()
-			<-c.ContractWatcherSellerV2.Done()
+			if c.IsRunning() {
+				c.ContractWatcherSellerV2.StopFulfilling()
+				c.log.Infof("waiting for contract watcher to stop")
+				<-c.ContractWatcherSellerV2.Done()
+				c.log.Infof("contract watcher stopped")
+			}
 			return err
 		case <-ctx.Done():
 			c.log.Infof("context done, stopping contract watcher")
-			c.ContractWatcherSellerV2.StopFulfilling()
-			c.log.Infof("waiting for contract watcher to stop")
-			<-c.ContractWatcherSellerV2.Done()
-			c.log.Infof("contract watcher stopped")
-			c.ContractWatcherSellerV2.Reset()
+			if c.IsRunning() {
+				c.ContractWatcherSellerV2.StopFulfilling()
+				c.log.Infof("waiting for contract watcher to stop")
+				<-c.ContractWatcherSellerV2.Done()
+				c.log.Infof("contract watcher stopped")
+			}
 			return ctx.Err()
 		case <-c.ContractWatcherSellerV2.Done():
 			err := c.ContractWatcherSellerV2.Err()
@@ -82,12 +92,18 @@ func (c *ControllerSeller) Run(ctx context.Context) error {
 
 			c.log.Infof("closing contract id %s, startsAt %s, duration %s, elapsed %s", c.ID(), c.StartTime(), c.Duration(), c.Elapsed())
 			err = c.store.CloseContract(ctx, c.ID(), contracts.CloseoutTypeWithoutClaim, c.privKey)
+			if errors.Is(err, contracts.ErrNotRunning) {
+				c.log.Infof("contract is not running, nothing to close")
+				c.ContractWatcherSellerV2.Reset()
+				continue
+			}
 			if err != nil {
 				c.log.Errorf("error closing contract: %s", err)
-			} else {
-				c.log.Warnf("seller contract closed")
-				c.ContractWatcherSellerV2.Reset()
+				continue
 			}
+
+			c.log.Warnf("seller contract closed")
+			c.ContractWatcherSellerV2.Reset()
 		}
 	}
 }
@@ -107,7 +123,7 @@ func (c *ControllerSeller) controller(ctx context.Context, event interface{}) er
 }
 
 func (c *ControllerSeller) handleContractPurchased(ctx context.Context, event *implementation.ImplementationContractPurchased) error {
-	c.log.Debugf("got purchased event for contract %s", c.ID())
+	c.log.Debugf("got purchased event for contract")
 	if c.State() == resources.ContractStateRunning {
 		return nil
 	}
@@ -121,15 +137,21 @@ func (c *ControllerSeller) handleContractPurchased(ctx context.Context, event *i
 		return nil
 	}
 
-	_ = c.StartFulfilling()
+	c.ContractWatcherSellerV2.Reset()
+	err = c.StartFulfilling()
+	if err != nil {
+		c.log.Errorf("error handleContractPurchased: %s", err)
+	}
 
 	return nil
 }
 
 func (c *ControllerSeller) handleContractClosed(ctx context.Context, event *implementation.ImplementationContractClosed) error {
 	c.log.Warnf("got closed event for contract")
-	c.StopFulfilling()
-	<-c.Done()
+	if c.IsRunning() {
+		c.StopFulfilling()
+		<-c.Done()
+	}
 
 	err := c.LoadTermsFromBlockchain(ctx)
 
@@ -141,6 +163,8 @@ func (c *ControllerSeller) handleContractClosed(ctx context.Context, event *impl
 }
 
 func (c *ControllerSeller) handleCipherTextUpdated(ctx context.Context, event *implementation.ImplementationCipherTextUpdated) error {
+	c.log.Debugf("got cipherTextUpdated event for contract")
+
 	currentDest := c.Dest()
 
 	terms, err := c.GetTermsFromBlockchain(ctx)
@@ -155,9 +179,10 @@ func (c *ControllerSeller) handleCipherTextUpdated(ctx context.Context, event *i
 	if currentDest == newDest {
 		return nil
 	}
-
-	c.ContractWatcherSellerV2.StopFulfilling()
-	<-c.ContractWatcherSellerV2.Done()
+	if c.IsRunning() {
+		c.ContractWatcherSellerV2.StopFulfilling()
+		<-c.ContractWatcherSellerV2.Done()
+	}
 	c.SetTerms(terms)
 	err = c.ContractWatcherSellerV2.StartFulfilling()
 	if err != nil {
@@ -167,6 +192,8 @@ func (c *ControllerSeller) handleCipherTextUpdated(ctx context.Context, event *i
 }
 
 func (c *ControllerSeller) handlePurchaseInfoUpdated(ctx context.Context, event *implementation.ImplementationPurchaseInfoUpdated) error {
+	c.log.Debugf("got purchaseInfoUpdated event for contract")
+
 	err := c.LoadTermsFromBlockchain(ctx)
 	if err != nil {
 		return err

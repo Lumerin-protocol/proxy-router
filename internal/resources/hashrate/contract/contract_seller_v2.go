@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"sync"
 	"time"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
@@ -33,11 +34,9 @@ type ContractWatcherSellerV2 struct {
 
 	// state
 	stats             *stats
-	isRunning         *atomic.Bool
 	startCh           chan struct{}
 	stopCh            chan struct{}
 	doneCh            chan struct{}
-	err               *atomic.Error
 	cycleEndsAt       time.Time
 	minerConnectCh    *lib.ChanRecvStop[allocator.MinerItem]
 	minerDisconnectCh *lib.ChanRecvStop[allocator.MinerItem]
@@ -46,6 +45,10 @@ type ContractWatcherSellerV2 struct {
 	// shared state
 	fulfillmentStartedAt atomic.Value // time.Time
 	starvingGHS          atomic.Uint64
+	err                  *atomic.Error
+
+	isRunning      bool
+	isRunningMutex sync.RWMutex
 
 	// deps
 	*hashrate.Terms
@@ -60,7 +63,7 @@ func NewContractWatcherSellerV2(terms *hashrateContract.Terms, cycleDuration tim
 		stats: &stats{
 			actualHRGHS: hashrateFactory(),
 		},
-		isRunning:   atomic.NewBool(false),
+		isRunning:   false,
 		startCh:     make(chan struct{}),
 		stopCh:      make(chan struct{}),
 		doneCh:      make(chan struct{}),
@@ -74,17 +77,13 @@ func NewContractWatcherSellerV2(terms *hashrateContract.Terms, cycleDuration tim
 }
 
 func (p *ContractWatcherSellerV2) StartFulfilling() error {
-	if !p.isRunning.CAS(false, true) {
-		return ErrAlreadyRunning
-	}
+	p.isRunningMutex.Lock()
+	defer p.isRunningMutex.Unlock()
+	p.Reset()
 
-	p.startCh = make(chan struct{})
-	p.stopCh = make(chan struct{})
-	p.doneCh = make(chan struct{})
-	p.err = atomic.NewError(nil)
+	p.isRunning = true
 
 	go func() {
-		close(p.startCh)
 		p.log.Infof("contract %s started", p.ID())
 
 		err := p.run()
@@ -92,27 +91,27 @@ func (p *ContractWatcherSellerV2) StartFulfilling() error {
 		if err != nil && err != ErrStopped {
 			p.log.Errorf("contract %s stopped with error: %s", p.ID(), err)
 		}
-		p.isRunning.Store(false)
 		close(p.doneCh)
+		p.log.Infof("contract stopped")
+
+		p.isRunningMutex.Lock()
+		p.isRunning = false
+		p.isRunningMutex.Unlock()
 	}()
 
 	return nil
 }
 
 func (p *ContractWatcherSellerV2) StopFulfilling() {
-	// workaround if never started
-	select {
-	case <-p.startCh:
-	default:
-		close(p.doneCh)
+	p.isRunningMutex.Lock()
+	defer p.isRunningMutex.Unlock()
+
+	if !p.isRunning {
+		return
 	}
 
-	select {
-	case <-p.stopCh:
-		return
-	default:
-		close(p.stopCh)
-	}
+	close(p.stopCh)
+	p.log.Infof("contract %s stopping", p.ID())
 }
 
 func (p *ContractWatcherSellerV2) Done() <-chan struct{} {
@@ -123,9 +122,16 @@ func (p *ContractWatcherSellerV2) Err() error {
 	return p.err.Load()
 }
 
+// Reset resets the contract state
 func (p *ContractWatcherSellerV2) Reset() {
-	p.doneCh = make(chan struct{})
+	p.stats = &stats{
+		actualHRGHS: p.hrFactory(),
+	}
+	p.isRunning = false
 	p.startCh = make(chan struct{})
+	p.stopCh = make(chan struct{})
+	p.doneCh = make(chan struct{})
+	p.err = atomic.NewError(nil)
 }
 
 func (p *ContractWatcherSellerV2) run() error {
@@ -570,10 +576,18 @@ func (p *ContractWatcherSellerV2) GetDeliveryLogs() ([]DeliveryLogEntry, error) 
 	return p.deliveryLog.GetEntries()
 }
 func (p *ContractWatcherSellerV2) State() resources.ContractState {
-	if p.isRunning.Load() {
+	p.isRunningMutex.RLock()
+	defer p.isRunningMutex.RUnlock()
+
+	if p.isRunning {
 		return resources.ContractStateRunning
 	}
 	return resources.ContractStatePending
+}
+func (p *ContractWatcherSellerV2) IsRunning() bool {
+	p.isRunningMutex.RLock()
+	defer p.isRunningMutex.RUnlock()
+	return p.isRunning
 }
 func (p *ContractWatcherSellerV2) StarvingGHS() int {
 	return int(p.starvingGHS.Load())
@@ -597,11 +611,16 @@ func (p *ContractWatcherSellerV2) ShouldBeRunning() bool {
 
 // terms setters
 func (p *ContractWatcherSellerV2) SetTerms(terms *hashrate.Terms) {
-	if p.isRunning.Load() {
-		p.log.Error("cannot update contract terms while running")
+	p.isRunningMutex.RLock()
+	defer p.isRunningMutex.RUnlock()
+
+	if p.isRunning {
+		p.log.Warnf("cannot update contract terms while running, terms will apply after closeout")
 		return
 	}
+
 	p.Terms = terms
+	p.log.Infof("contract terms updated: price %.f LMR, hashrate %.f GHS, duration %s, state %s", terms.PriceLMR(), terms.HashrateGHS(), terms.Duration().Round(time.Second), terms.BlockchainState().String())
 }
 
 func (p *ContractWatcherSellerV2) logDeliveryTarget() {

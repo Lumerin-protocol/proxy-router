@@ -66,7 +66,7 @@ func (cm *ContractManager) Run(ctx context.Context) error {
 		return err
 	}
 	defer sub.Unsubscribe()
-	cm.log.Infof("subscribed to clonefactory events, address %s", cm.cfAddr.Hex())
+	cm.log.Infof("subscribed to clonefactory events at address %s", cm.cfAddr.Hex())
 
 	for {
 		select {
