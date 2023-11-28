@@ -1,5 +1,5 @@
 package config
 
-type ConfigInterface interface {
+type ConfigWithDefaults interface {
 	SetDefaults()
 }

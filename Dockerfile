@@ -1,12 +1,9 @@
 FROM golang:1.19.3-alpine as builder
-
-ARG COMMIT
-ENV COMMIT=$COMMIT
-
 WORKDIR /app 
 COPY . .
-
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 ./build.sh && \
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+  -ldflags="-s -w -X 'gitlab.com/TitanInd/proxy/proxy-router-v3/internal/config.BuildVersion=$(grep '^VERSION=' .version | cut -d '=' -f 2-)'" \
+  -o bin/hashrouter cmd/main.go && \
   cp /bin/sh /app/sh && chmod +x /app/sh
 
 FROM scratch

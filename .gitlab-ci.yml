@@ -65,7 +65,6 @@ test:
   echo "**************************"
   docker build \
     -t $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG --no-cache . \
-    --build-arg COMMIT=$(git rev-parse HEAD) \
     --build-arg ETH_NODE_ADDRESS=$ETH_NODE_ADDRESS \
     --build-arg ETH_NODE_LEGACY_TX=$ETH_NODE_LEGACY_TX \
     --build-arg ENVIRONMENT=$ENVIRONMENT \

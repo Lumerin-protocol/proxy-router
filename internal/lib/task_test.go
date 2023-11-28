@@ -3,7 +3,6 @@ package lib
 import (
 	"context"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -231,11 +230,4 @@ func TestStopAfterEnd(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	<-task.Stop()
 	fmt.Println("end")
-}
-
-func TestNilStringErr(t *testing.T) {
-	var nilErr error
-	err2 := WrapError(fmt.Errorf("test error"), nilErr)
-
-	require.NotContains(t, strings.ToLower(err2.Error()), "panic")
 }

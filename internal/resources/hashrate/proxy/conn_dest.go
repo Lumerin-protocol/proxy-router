@@ -255,41 +255,48 @@ func (s *ConnDest) onceResult(ctx context.Context, msgID int, handler ResultHand
 }
 
 // WriteAwaitRes writes message to the destination connection and awaits for the response
-func (s *ConnDest) WriteAwaitRes(parentCtx context.Context, msg i.MiningMessageWithID) (resMsg i.MiningMessageWithID, err error) {
+func (s *ConnDest) WriteAwaitRes(ctx context.Context, msg i.MiningMessageWithID) (resMsg i.MiningMessageWithID, err error) {
+	errCh := make(chan error, 1)
 	resCh := make(chan i.MiningMessageWithID, 1)
 	msgID := msg.GetID()
 
-	responceCtx, responceCancel := context.WithTimeout(parentCtx, RESPONSE_TIMEOUT)
-	defer responceCancel()
-
-	go func() {
-		<-responceCtx.Done()
-		s.resultHandlers.Delete(msgID)
-	}()
+	ctx, cancel := context.WithTimeout(ctx, RESPONSE_TIMEOUT)
 
 	s.resultHandlers.Store(msgID, func(a *sm.MiningResult) (msg i.MiningMessageWithID, err error) {
+		defer cancel()
+		defer close(errCh)
+		defer close(resCh)
+
 		select {
-		case <-responceCtx.Done():
+		case <-ctx.Done():
 		case resCh <- a:
 		}
+
 		return nil, nil
 	})
 
-	err = s.Write(parentCtx, msg)
+	err = s.Write(ctx, msg)
 	if err != nil {
+		s.resultHandlers.Delete(msgID)
+		cancel()
+		close(errCh)
+		close(resCh)
 		return nil, err
 	}
 
-	select {
-	case <-responceCtx.Done():
-		err := responceCtx.Err()
-		if errors.Is(err, context.DeadlineExceeded) {
-			err = fmt.Errorf("dest response timeout (%s) msgID(%d)", RESPONSE_TIMEOUT, msgID)
+	// cleanup on context cancel or timeout
+	go func() {
+		<-ctx.Done()
+		s.resultHandlers.Delete(msgID)
+		// the handler cancels context on success, so if error is DeadlineExceeded it means timeout
+		if ctx.Err() == context.DeadlineExceeded {
+			errCh <- fmt.Errorf("dest response timeout (%s) msgID(%d)", RESPONSE_TIMEOUT, msgID)
+			close(resCh)
+			close(errCh)
 		}
-		return nil, err
-	case res := <-resCh:
-		return res, nil
-	}
+	}()
+
+	return <-resCh, <-errCh
 }
 
 func (c *ConnDest) GetStats() *DestStats {

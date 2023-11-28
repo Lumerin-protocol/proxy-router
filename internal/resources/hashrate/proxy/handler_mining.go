@@ -111,13 +111,6 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 		p.proxy.hashrate.OnSubmit(dest.GetDiff())
 		// workername hashrate
 		p.proxy.globalHashrate.OnSubmit(p.proxy.source.GetUserName(), dest.GetDiff())
-		if p.proxy.hashrate.GetTotalShares() > p.proxy.vettingShares {
-			select {
-			case <-p.proxy.vettingDoneCh:
-			default:
-				close(p.proxy.vettingDoneCh)
-			}
-		}
 
 		// contract hashrate
 		p.proxy.onSubmitMutex.RLock()
