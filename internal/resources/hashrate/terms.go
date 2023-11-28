@@ -155,6 +155,12 @@ func (b *BaseTerms) Price() *big.Int {
 	return new(big.Int).Set(b.price) // copy
 }
 
+// PriceLMR returns price in LMR without decimals
+func (b *BaseTerms) PriceLMR() float64 {
+	price, _ := lib.NewRat(b.Price(), big.NewInt(1e8)).Float64()
+	return price
+}
+
 func (p *BaseTerms) BlockchainState() BlockchainState {
 	return p.state
 }

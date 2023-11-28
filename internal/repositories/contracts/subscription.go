@@ -2,6 +2,7 @@ package contracts
 
 import (
 	"context"
+	"errors"
 
 	"github.com/Lumerin-protocol/contracts-go/clonefactory"
 	"github.com/Lumerin-protocol/contracts-go/implementation"
@@ -22,6 +23,8 @@ func implementationEventFactory(name string) interface{} {
 		return new(implementation.ImplementationContractClosed)
 	case "cipherTextUpdated":
 		return new(implementation.ImplementationCipherTextUpdated)
+	case "purchaseInfoUpdated":
+		return new(implementation.ImplementationPurchaseInfoUpdated)
 	default:
 		return nil
 	}
@@ -73,9 +76,14 @@ func WatchContractEvents(ctx context.Context, client EthereumClient, contractAdd
 		EVENTS_LOOP:
 			for {
 				select {
-				case log := <-in:
-					event, err := mapper(log)
+				case logEntry := <-in:
+					event, err := mapper(logEntry)
 					if err != nil {
+
+						if errors.Is(err, ErrUnknownEvent) {
+							log.Warnf("unknown event: %s", err)
+							continue
+						}
 						// mapper error, retry won't help
 						return err
 					}
