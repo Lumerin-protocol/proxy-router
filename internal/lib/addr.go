@@ -1,6 +1,7 @@
 package lib
 
 import (
+	"fmt"
 	"math/big"
 	"math/rand"
 
@@ -11,7 +12,11 @@ func GetRandomAddr() common.Address {
 	return common.BigToAddress(big.NewInt(rand.Int63()))
 }
 
-// AddrShort returns a short representation of an address in "0x123..567" format
 func AddrShort(addr string) string {
-	return StrShortConf(addr, 5, 3)
+	ox, prefix, suffix := 2, 3, 3
+	l := len(addr)
+	if l >= (prefix + suffix + 2) {
+		return fmt.Sprintf("0x%s..%s", addr[ox:ox+prefix], addr[l-suffix:l])
+	}
+	return addr
 }

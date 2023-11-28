@@ -24,8 +24,7 @@ const (
 
 type HashrateEthereum struct {
 	// config
-	legacyTx         bool // use legacy transaction fee, for local node testing
-	clonefactoryAddr common.Address
+	legacyTx bool // use legacy transaction fee, for local node testing
 
 	// state
 	nonce   uint64
@@ -53,28 +52,17 @@ func NewHashrateEthereum(clonefactoryAddr common.Address, client EthereumClient,
 		panic("invalid implementation ABI: " + err.Error())
 	}
 	return &HashrateEthereum{
-		cloneFactory:     cf,
-		clonefactoryAddr: clonefactoryAddr,
-		client:           client,
-		cfABI:            cfABI,
-		implABI:          implABI,
-		mutex:            lib.NewMutex(),
-		log:              log,
+		cloneFactory: cf,
+		client:       client,
+		cfABI:        cfABI,
+		implABI:      implABI,
+		mutex:        lib.NewMutex(),
+		log:          log,
 	}
 }
 
 func (g *HashrateEthereum) SetLegacyTx(legacyTx bool) {
 	g.legacyTx = legacyTx
-}
-
-func (g *HashrateEthereum) GetLumerinAddress(ctx context.Context) (common.Address, error) {
-	data, err := g.client.StorageAt(ctx, g.clonefactoryAddr, common.HexToHash("0"), nil)
-	if err != nil {
-		return common.Address{}, err
-	}
-
-	addrHex := common.Bytes2Hex(data[10:30])
-	return common.HexToAddress(addrHex), nil
 }
 
 func (g *HashrateEthereum) GetContractsIDs(ctx context.Context) ([]string, error) {

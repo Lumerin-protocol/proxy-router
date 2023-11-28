@@ -1,8 +1,10 @@
 package lib
 
 import (
-	"io"
+	"fmt"
 	"os"
+	"path/filepath"
+	"time"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"go.uber.org/zap"
@@ -12,17 +14,7 @@ import (
 const timeLayout = "2006-01-02T15:04:05"
 
 func NewLogger(level string, color, isProd bool, isJSON bool, filepath string) (*Logger, error) {
-	log, err := newLogger(level, color, isProd, isJSON, filepath, nil)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &Logger{SugaredLogger: log.Sugar()}, nil
-}
-
-func NewLoggerMemory(level string, color, isProd bool, isJSON bool, filepath string, wr io.Writer) (*Logger, error) {
-	log, err := newLogger(level, color, isProd, isJSON, filepath, wr)
+	log, err := newLogger(level, color, isProd, isJSON, filepath)
 
 	if err != nil {
 		return nil, err
@@ -33,38 +25,26 @@ func NewLoggerMemory(level string, color, isProd bool, isJSON bool, filepath str
 
 // NewTestLogger logs only to stdout
 func NewTestLogger() *Logger {
-	log, _ := newLogger("debug", false, false, false, "", nil)
+	log, _ := newLogger("debug", false, false, false, "")
 	return &Logger{SugaredLogger: log.Sugar()}
 }
 
-func newLogger(levelStr string, color bool, isProd bool, isJSON bool, filepath string, extraWriter io.Writer) (*zap.Logger, error) {
+func newLogger(levelStr string, color bool, isProd bool, isJSON bool, filepath string) (*zap.Logger, error) {
 	level, err := zapcore.ParseLevel(levelStr)
 	if err != nil {
 		return nil, err
 	}
 
-	var cores []zapcore.Core
-
+	var core zapcore.Core
 	if filepath != "" {
 		fileCore, err := newFileCore(zapcore.DebugLevel, isProd, isJSON, filepath)
 		if err != nil {
 			return nil, err
 		}
-		cores = append(cores, fileCore)
-	}
-	if extraWriter != nil {
-		memoryCore := zapcore.NewCore(zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig()), zapcore.AddSync(extraWriter), level)
-		cores = append(cores, memoryCore)
-	}
-
-	consoleCore := newConsoleCore(level, color, isProd, isJSON)
-	cores = append(cores, consoleCore)
-
-	var core zapcore.Core
-	if len(cores) > 1 {
-		core = zapcore.NewTee(cores...)
+		consoleCore := newConsoleCore(level, color, isProd, isJSON)
+		core = zapcore.NewTee(fileCore, consoleCore)
 	} else {
-		core = cores[0]
+		core = newConsoleCore(level, color, isProd, isJSON)
 	}
 
 	opts := []zap.Option{
@@ -117,7 +97,13 @@ func newFileCore(level zapcore.Level, isProd bool, isJSON bool, path string) (za
 		encoder = zapcore.NewConsoleEncoder(encoderCfg)
 	}
 
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+	newpath := filepath.Join(".", path)
+	err := os.MkdirAll(newpath, os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+	fpath := filepath.Join(newpath, fmt.Sprintf("%s.log", time.Now().Format(timeLayout)))
+	file, err := os.OpenFile(fpath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 	if err != nil {
 		return nil, err
 	}

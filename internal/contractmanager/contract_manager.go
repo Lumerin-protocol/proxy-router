@@ -40,11 +40,9 @@ func NewContractManager(clonefactoryAddr, ownerAddr common.Address, contractFact
 }
 
 func (cm *ContractManager) Run(ctx context.Context) error {
-	defer func() {
-		cm.log.Info("waiting for all contracts to stop")
-		cm.contractsWG.Wait()
-		cm.log.Info("all contracts stopped")
-	}()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	defer cm.contractsWG.Wait()
 
 	contractIDs, err := cm.store.GetContractsIDs(ctx)
 	if err != nil {
@@ -147,7 +145,6 @@ func (cm *ContractManager) AddContract(ctx context.Context, data *hashrate.Encry
 		if err != nil {
 			cm.log.Warn(err)
 		}
-		cm.log.Infof("exited from contract %s", data.ID())
 
 		cm.contracts.Delete(cntr.ID())
 	}()

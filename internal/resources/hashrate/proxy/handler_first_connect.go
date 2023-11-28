@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/common"
 	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
@@ -16,19 +15,14 @@ import (
 	sm "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
 )
 
-var (
-	ErrNotStratum = errors.New("not a stratum protocol") // means that incoming connection is not a stratum protocol
-)
-
 type HandlerFirstConnect struct {
-	// state
+	proxy *Proxy
+
 	handshakePipe       *pipeSync
 	handshakePipeTsk    *lib.Task
 	cancelHandshakePipe context.CancelFunc
-	isStratum           atomic.Bool
-	// deps
-	proxy *Proxy
-	log   gi.ILogger
+
+	log gi.ILogger
 }
 
 func NewHandlerFirstConnect(proxy *Proxy, log gi.ILogger) *HandlerFirstConnect {
@@ -50,16 +44,10 @@ func (p *HandlerFirstConnect) Connect(ctx context.Context) error {
 		return nil
 	}
 
-	if !p.isStratum.Load() {
-		return lib.WrapError(ErrNotStratum, p.handshakePipeTsk.Err())
-	}
-
 	return p.handshakePipeTsk.Err()
 }
 
 func (p *HandlerFirstConnect) handleSource(ctx context.Context, msg i.MiningMessageGeneric) (i.MiningMessageGeneric, error) {
-	p.markAsStratum()
-
 	switch msgTyped := msg.(type) {
 	case *m.MiningConfigure:
 		return nil, p.onMiningConfigure(ctx, msgTyped)
@@ -125,7 +113,7 @@ func (p *HandlerFirstConnect) handleDest(ctx context.Context, msg i.MiningMessag
 func (p *HandlerFirstConnect) onMiningConfigure(ctx context.Context, msgTyped *m.MiningConfigure) error {
 	p.proxy.source.SetVersionRolling(msgTyped.GetVersionRolling())
 
-	destConn, err := p.proxy.destFactory(ctx, p.proxy.destURL.Load(), p.proxy.ID)
+	destConn, err := p.proxy.destFactory(ctx, p.proxy.destURL, p.proxy.ID)
 	if err != nil {
 		return err
 	}
@@ -174,7 +162,7 @@ func (p *HandlerFirstConnect) onMiningSubscribe(ctx context.Context, msgTyped *m
 	minerSubscribeReceived = true
 
 	if p.proxy.dest == nil {
-		destConn, err := p.proxy.destFactory(ctx, p.proxy.destURL.Load(), p.proxy.ID)
+		destConn, err := p.proxy.destFactory(ctx, p.proxy.destURL, p.proxy.ID)
 		if err != nil {
 			return err
 		}
@@ -211,7 +199,6 @@ func (p *HandlerFirstConnect) onMiningSubscribe(ctx context.Context, msgTyped *m
 }
 
 func (p *HandlerFirstConnect) onMiningAuthorize(ctx context.Context, msgTyped *m.MiningAuthorize) error {
-	p.proxy.globalHashrate.OnConnect(msgTyped.GetUserName())
 	p.proxy.source.SetUserName(msgTyped.GetUserName())
 	p.log = p.log.Named(msgTyped.GetUserName())
 	p.proxy.log = p.log
@@ -227,24 +214,24 @@ func (p *HandlerFirstConnect) onMiningAuthorize(ctx context.Context, msgTyped *m
 		return lib.WrapError(ErrHandshakeSource, err)
 	}
 
-	if shouldPropagateWorkerName(p.proxy.notPropagateWorkerName, msgTyped.GetUserName(), p.proxy.destURL.Load()) {
+	if shouldPropagateWorkerName(p.proxy.notPropagateWorkerName, msgTyped.GetUserName(), p.proxy.destURL) {
 		_, workerName, hasWorkerName := lib.SplitUsername(msgTyped.GetUserName())
 		// if incoming miner was named "accountName.workerName" then we preserve worker name in destination
 		if hasWorkerName {
-			lib.SetWorkerName(p.proxy.destURL.Load(), workerName)
+			lib.SetWorkerName(p.proxy.destURL, workerName)
 		}
 	}
 
-	destWorkerName := getDestUserName(p.proxy.notPropagateWorkerName, msgTyped.GetUserName(), p.proxy.destURL.Load())
+	destWorkerName := getDestUserName(p.proxy.notPropagateWorkerName, msgTyped.GetUserName(), p.proxy.destURL)
 	p.proxy.dest.SetUserName(destWorkerName)
 
 	// otherwise we use the same username as in source
 	// this is the case for the incoming contracts,
 	// where the miner userName is contractID
 
-	userName := p.proxy.destURL.Load().User.Username()
+	userName := p.proxy.destURL.User.Username()
 	p.proxy.dest.SetUserName(userName)
-	pwd, ok := p.proxy.destURL.Load().User.Password()
+	pwd, ok := p.proxy.destURL.User.Password()
 	if !ok {
 		pwd = ""
 	}
@@ -271,10 +258,6 @@ func (p *HandlerFirstConnect) onMiningAuthorize(ctx context.Context, msgTyped *m
 	}
 
 	return nil
-}
-
-func (p *HandlerFirstConnect) markAsStratum() {
-	p.isStratum.CompareAndSwap(false, true)
 }
 
 func getDestUserName(notPreserveWorkerName bool, incomingUserName string, destURL *url.URL) string {
