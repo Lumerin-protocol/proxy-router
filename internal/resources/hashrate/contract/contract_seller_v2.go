@@ -124,8 +124,17 @@ func (p *ContractWatcherSellerV2) Err() error {
 
 // Reset resets the contract state
 func (p *ContractWatcherSellerV2) Reset() {
+	fullMiners := lib.NewSet()
 	p.stats = &stats{
-		actualHRGHS: p.hrFactory(),
+		jobFullMiners:          atomic.NewUint64(0),
+		jobPartialMiners:       atomic.NewUint64(0),
+		sharesFullMiners:       atomic.NewUint64(0),
+		sharesPartialMiners:    atomic.NewUint64(0),
+		globalUnderDeliveryGHS: atomic.NewInt64(0),
+		fullMiners:             &fullMiners,
+		partialMiners:          make([]string, 0),
+		actualHRGHS:            p.hrFactory(),
+		deliveryTargetGHS:      0,
 	}
 	p.isRunning = false
 	p.startCh = make(chan struct{})
