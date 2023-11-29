@@ -97,3 +97,11 @@ func GHSToJobSubmitted(hrGHS float64) float64 {
 func JobSubmittedToGHS(jobSubmitted float64) float64 {
 	return JobSubmittedToHS(jobSubmitted) / math.Pow10(9)
 }
+
+func GHSToJobSubmittedV2(hrGHS float64, duration time.Duration) float64 {
+	return HSToJobSubmitted(hrGHS*math.Pow10(9)) * duration.Seconds()
+}
+
+func JobSubmittedToGHSV2(jobSubmitted float64, duration time.Duration) float64 {
+	return JobSubmittedToHS(jobSubmitted) / math.Pow10(9) / duration.Seconds()
+}

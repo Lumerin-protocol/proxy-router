@@ -26,6 +26,11 @@ const (
 	WRITE_CLOSE_TIMEOUT = 10 * time.Minute
 )
 
+var (
+	ErrConnWriteTimeout = fmt.Errorf("connection write timeout")
+	ErrConnReadTimeout  = fmt.Errorf("connection read timeout")
+)
+
 type StratumConnection struct {
 	// config
 	id string
@@ -46,9 +51,12 @@ type StratumConnection struct {
 	writeHappened chan struct{}
 	closedCh      chan struct{}
 	closeOnce     sync.Once
+	timeoutErr    atomic.Pointer[error]
 
 	idleReadAtNano  atomic.Int64 // unixNano time when connection is going to close due to idle read (no read operation for READ_CLOSE_TIMEOUT)
 	idleWriteAtNano atomic.Int64 // unixNano time when connection is going to close due to idle write (no write operation for WRITE_CLOSE_TIMEOUT)
+
+	readBuffer []byte
 
 	// deps
 	conn net.Conn
@@ -89,6 +97,11 @@ func Connect(address *url.URL, log gi.ILogger) (*StratumConnection, error) {
 }
 
 func (c *StratumConnection) Read(ctx context.Context) (interfaces.MiningMessageGeneric, error) {
+	cancelRoutineDoneCh := make(chan struct{})
+	defer func() {
+		<-cancelRoutineDoneCh
+	}()
+
 	doneCh := make(chan struct{})
 	defer close(doneCh)
 
@@ -96,6 +109,8 @@ func (c *StratumConnection) Read(ctx context.Context) (interfaces.MiningMessageG
 	// which unblocks read operation causing it to return os.ErrDeadlineExceeded
 	// TODO: consider implementing it in separate goroutine instead of a goroutine per read
 	go func() {
+		defer close(cancelRoutineDoneCh)
+
 		select {
 		case <-ctx.Done():
 			c.log.Debugf("connection %s read cancelled", c.id)
@@ -107,13 +122,14 @@ func (c *StratumConnection) Read(ctx context.Context) (interfaces.MiningMessageG
 			}
 		case <-doneCh:
 			return
+		case <-c.closedCh:
+			return
 		}
 	}()
 
 	err := c.conn.SetReadDeadline(time.Time{})
-
 	if err != nil {
-		return nil, err
+		return nil, c.maybeTimeoutError(err)
 	}
 
 	for {
@@ -121,21 +137,23 @@ func (c *StratumConnection) Read(ctx context.Context) (interfaces.MiningMessageG
 			return nil, ctx.Err()
 		}
 
-		line, isPrefix, err := c.reader.ReadLine()
-
-		if isPrefix {
-			return nil, fmt.Errorf("line is too long for the buffer used: %s", string(line))
-		}
-
+		line, err := c.reader.ReadSlice('\n')
 		if err != nil {
+			if len(line) > 0 {
+				c.readBuffer = append(c.readBuffer, line...)
+			}
 			// if read was cancelled via context return context error, not deadline exceeded
 			if ctx.Err() != nil && errors.Is(err, os.ErrDeadlineExceeded) {
 				return nil, ctx.Err()
 			}
-			return nil, err
+			return nil, c.maybeTimeoutError(err)
 		}
 
 		c.readHappened <- struct{}{}
+		if len(c.readBuffer) > 0 {
+			line = append(c.readBuffer, line...)
+			c.readBuffer = []byte{}
+		}
 		c.log.Debugf("<= %s", string(line))
 
 		m, err := stratumv1_message.ParseStratumMessage(line)
@@ -162,12 +180,9 @@ func (c *StratumConnection) Write(ctx context.Context, msg interfaces.MiningMess
 
 	b := append(msg.Serialize(), lib.CharNewLine)
 
-	doneCh := make(chan struct{})
-	defer close(doneCh)
-
 	err := c.conn.SetWriteDeadline(time.Time{})
 	if err != nil {
-		return err
+		return c.maybeTimeoutError(err)
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, WRITE_TIMEOUT)
@@ -175,7 +190,18 @@ func (c *StratumConnection) Write(ctx context.Context, msg interfaces.MiningMess
 	// cancellation via context is implemented using SetReadDeadline,
 	// which unblocks read operation causing it to return os.ErrDeadlineExceeded
 	// TODO: consider implementing it in separate goroutine instead of a goroutine per read
+	cancelRoutineDoneCh := make(chan struct{})
+	defer func() {
+		<-cancelRoutineDoneCh
+	}()
+
+	doneCh := make(chan struct{})
+	defer close(doneCh)
+
 	go func() {
+		defer cancel()
+		defer close(cancelRoutineDoneCh)
+
 		select {
 		case <-ctx.Done():
 			err := c.conn.SetWriteDeadline(time.Now())
@@ -185,7 +211,8 @@ func (c *StratumConnection) Write(ctx context.Context, msg interfaces.MiningMess
 				return
 			}
 		case <-doneCh:
-			cancel()
+			return
+		case <-c.closedCh:
 			return
 		}
 	}()
@@ -197,7 +224,7 @@ func (c *StratumConnection) Write(ctx context.Context, msg interfaces.MiningMess
 		if ctx.Err() != nil && errors.Is(err, os.ErrDeadlineExceeded) {
 			return ctx.Err()
 		}
-		return err
+		return c.maybeTimeoutError(err)
 	}
 
 	c.writeHappened <- struct{}{}
@@ -214,7 +241,7 @@ func (c *StratumConnection) GetID() string {
 func (c *StratumConnection) Close() error {
 	err := c.conn.Close()
 	if err == nil {
-		c.log.Infof("connection closed %s", c.id)
+		c.log.Debugf("connection closed %s", c.id)
 	} else {
 		c.log.Warnf("connection already closed %s", c.id)
 	}
@@ -255,14 +282,14 @@ func (c *StratumConnection) runTimeoutTimers() {
 			for {
 				select {
 				case <-readTimer.C:
-					c.log.Info("connection read timeout")
+					c.timeoutErr.Store(&ErrConnReadTimeout)
 					if !writeTimer.Stop() {
 						<-writeTimer.C
 					}
 					c.Close()
 					return
 				case <-writeTimer.C:
-					c.log.Info("connection write timeout")
+					c.timeoutErr.Store(&ErrConnWriteTimeout)
 					if !readTimer.Stop() {
 						<-readTimer.C
 					}
@@ -292,4 +319,12 @@ func (c *StratumConnection) runTimeoutTimers() {
 			}
 		}()
 	})
+}
+
+func (c *StratumConnection) maybeTimeoutError(err error) error {
+	timeoutErr := c.timeoutErr.Load()
+	if errors.Is(err, net.ErrClosed) && timeoutErr != nil {
+		return lib.WrapError(*timeoutErr, err)
+	}
+	return err
 }
