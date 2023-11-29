@@ -19,10 +19,6 @@ import (
 	hr "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 )
 
-const (
-	SUBSCRIPTION_MAX_RECONNECTS = 50 // max consequent reconnects
-)
-
 var (
 	ErrNotRunning = fmt.Errorf("the contract is not in the running state")
 )
@@ -229,11 +225,11 @@ func (g *HashrateEthereum) closeContract(ctx context.Context, contractID string,
 }
 
 func (s *HashrateEthereum) CreateCloneFactorySubscription(ctx context.Context, clonefactoryAddr common.Address) (*lib.Subscription, error) {
-	return WatchContractEvents(ctx, s.client, clonefactoryAddr, CreateEventMapper(clonefactoryEventFactory, s.cfABI), SUBSCRIPTION_MAX_RECONNECTS, s.log)
+	return WatchContractEvents(ctx, s.client, clonefactoryAddr, CreateEventMapper(clonefactoryEventFactory, s.cfABI), s.log)
 }
 
 func (s *HashrateEthereum) CreateImplementationSubscription(ctx context.Context, contractAddr common.Address) (*lib.Subscription, error) {
-	return WatchContractEvents(ctx, s.client, contractAddr, CreateEventMapper(implementationEventFactory, s.implABI), SUBSCRIPTION_MAX_RECONNECTS, s.log)
+	return WatchContractEvents(ctx, s.client, contractAddr, CreateEventMapper(implementationEventFactory, s.implABI), s.log)
 }
 
 func (g *HashrateEthereum) getTransactOpts(ctx context.Context, privKey string) (*bind.TransactOpts, error) {
