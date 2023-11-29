@@ -184,6 +184,14 @@ func (p *Proxy) ConnectDest(ctx context.Context, newDestURL *url.URL) error {
 }
 
 func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(diff float64)) error {
+	return p.setDest(ctx, newDestURL, onSubmit, true)
+}
+
+func (p *Proxy) SetDestWithoutAutoread(ctx context.Context, newDestURL *url.URL, onSubmit func(diff float64)) error {
+	return p.setDest(ctx, newDestURL, onSubmit, false)
+}
+
+func (p *Proxy) setDest(ctx context.Context, newDestURL *url.URL, onSubmit func(diff float64), autoReadCurrentDest bool) error {
 	p.setDestLock.Lock()
 	defer p.setDestLock.Unlock()
 
@@ -227,27 +235,29 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 	// TODO: wait to stop?
 
 	// set old dest to autoread mode
-	destUrl := p.destURL.String()
-	dest := p.dest
-	err := dest.AutoReadStart(ctx, func(err error) {
-		if err != nil {
-			if !errors.Is(err, net.ErrClosed) {
-				p.log.Warnf("autoread exited with error %s", err)
-				err := dest.conn.Close()
-				if err != nil {
-					p.log.Warnf("error closing dest %s: %s", destUrl, err)
+	if autoReadCurrentDest {
+		destUrl := p.destURL.String()
+		dest := p.dest
+		err := dest.AutoReadStart(ctx, func(err error) {
+			if err != nil {
+				if !errors.Is(err, net.ErrClosed) {
+					p.log.Warnf("autoread exited with error %s", err)
+					err := dest.conn.Close()
+					if err != nil {
+						p.log.Warnf("error closing dest %s: %s", destUrl, err)
+					}
 				}
 			}
+
+			p.destMap.Delete(destUrl)
+		})
+		if err != nil {
+			return err
 		}
-
-		p.destMap.Delete(destUrl)
-	})
-	if err != nil {
-		return err
+		p.log.Debugf("set old dest to autoread")
 	}
-	p.log.Debugf("set old dest to autoread")
 
-	err = destChanger.resendRelevantNotifications(ctx, newDest)
+	err := destChanger.resendRelevantNotifications(ctx, newDest)
 	if err != nil {
 		return err
 	}
