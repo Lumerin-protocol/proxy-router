@@ -1,7 +1,8 @@
-package handlers
+package tcphandlers
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/url"
 	"time"
@@ -14,10 +15,9 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy"
 )
 
-// cfg.Miner.ShareTimeout
-
 func NewTCPHandler(
-	log, connLog, proxyLog, schedulerLog interfaces.ILogger,
+	log, connLog, proxyLog interfaces.ILogger,
+	schedulerLogFactory func(contractID string) (interfaces.ILogger, error),
 	notPropagateWorkerName bool, minerShareTimeout time.Duration, minerVettingShares int,
 	defaultDestUrl *url.URL,
 	destFactory proxy.DestConnFactory,
@@ -35,14 +35,30 @@ func NewTCPHandler(
 
 		sourceConn := proxy.NewSourceConn(stratumConn, sourceLog)
 
+		schedulerLog, err := schedulerLogFactory(ID)
+		if err != nil {
+			sourceLog.Errorf("failed to create scheduler logger: %s", err)
+			return
+		}
+
+		defer func() { _ = schedulerLog.Sync() }()
+
 		url := lib.CopyURL(defaultDestUrl) // clones url
-		proxy := proxy.NewProxy(ID, sourceConn, destFactory, hashrateFactory, globalHashrate, url, notPropagateWorkerName, proxyLog)
-		scheduler := allocator.NewScheduler(proxy, hashrateCounterDefault, url, minerVettingShares, schedulerLog)
+		prx := proxy.NewProxy(ID, sourceConn, destFactory, hashrateFactory, globalHashrate, url, notPropagateWorkerName, minerVettingShares, proxyLog)
+		scheduler := allocator.NewScheduler(prx, hashrateCounterDefault, url, minerVettingShares, hashrateFactory, alloc.InvokeVettedListeners, schedulerLog)
 		alloc.GetMiners().Store(scheduler)
 
-		err := scheduler.Run(ctx)
+		err = scheduler.Run(ctx)
 		if err != nil {
-			log.Warnf("proxy disconnected: %s %s", err, ID)
+			var logFunc func(template string, args ...interface{})
+			if errors.Is(err, proxy.ErrNotStratum) {
+				logFunc = connLog.Debugf
+			} else if errors.Is(err, context.Canceled) {
+				logFunc = connLog.Infof
+			} else {
+				logFunc = connLog.Errorf
+			}
+			logFunc("proxy disconnected: %s %s", err, ID)
 		}
 
 		alloc.GetMiners().Delete(ID)

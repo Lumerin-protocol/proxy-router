@@ -18,6 +18,7 @@ type HashrateCounterFunc func(diff float64)
 
 type GlobalHashrateCounter interface {
 	OnSubmit(workerName string, diff float64)
+	OnConnect(workerName string)
 }
 
 type Hashrate interface {

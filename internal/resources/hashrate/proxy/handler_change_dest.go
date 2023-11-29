@@ -62,6 +62,7 @@ func (p *HandlerChangeDest) connectNewDest(ctx context.Context, newDestURL *url.
 	select {
 	case err := <-autoReadDone:
 		// if newDestRunTask finished first there was reading error
+		// TODO: fix the case when err == nil
 		return nil, lib.WrapError(ErrConnectDest, err)
 	case <-handshakeTask.Done():
 	}

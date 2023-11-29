@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"runtime"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -14,7 +14,9 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/config"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/contractmanager"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/handlers"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/handlers/httphandlers"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/handlers/tcphandlers"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/repositories/contracts"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/repositories/transport"
@@ -46,34 +48,63 @@ func start() error {
 		return err
 	}
 
+	fmt.Printf("Loaded config: %+v\n", cfg)
+
 	destUrl, err := url.Parse(cfg.Pool.Address)
 	if err != nil {
 		return err
 	}
 
-	log, err := lib.NewLogger(cfg.Log.LevelApp, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, cfg.Log.FolderPath)
+	mainLogFilePath := ""
+	logFolderPath := ""
+
+	if cfg.Log.FolderPath != "" {
+		logFolderPath = filepath.Join(".", cfg.Log.FolderPath, time.Now().Format("2006-01-02T15-04-05"))
+		err = os.MkdirAll(logFolderPath, os.ModePerm)
+		if err != nil {
+			return err
+		}
+
+		mainLogFilePath = filepath.Join(logFolderPath, "main.log")
+	}
+
+	log, err := lib.NewLogger(cfg.Log.LevelApp, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, mainLogFilePath)
 	if err != nil {
 		return err
 	}
 
-	schedulerLog, err := lib.NewLogger(cfg.Log.LevelScheduler, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, cfg.Log.FolderPath)
+	proxyLog, err := lib.NewLogger(cfg.Log.LevelProxy, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, mainLogFilePath)
 	if err != nil {
 		return err
 	}
 
-	proxyLog, err := lib.NewLogger(cfg.Log.LevelProxy, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, cfg.Log.FolderPath)
+	connLog, err := lib.NewLogger(cfg.Log.LevelConnection, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, mainLogFilePath)
 	if err != nil {
 		return err
 	}
 
-	connLog, err := lib.NewLogger(cfg.Log.LevelConnection, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, cfg.Log.FolderPath)
-	if err != nil {
-		return err
+	schedulerLogFactory := func(minerID string) (interfaces.ILogger, error) {
+		fp := ""
+		if logFolderPath != "" {
+			fp = filepath.Join(logFolderPath, fmt.Sprintf("scheduler-%s.log", minerID))
+		}
+		return lib.NewLogger(cfg.Log.LevelScheduler, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, fp)
+	}
+
+	contractLogStorage := lib.NewCollection[*interfaces.LogStorage]()
+
+	contractLogFactory := func(contractID string) (interfaces.ILogger, error) {
+		logStorage := interfaces.NewLogStorage(contractID)
+		contractLogStorage.Store(logStorage)
+		fp := ""
+		if logFolderPath != "" {
+			fp = filepath.Join(logFolderPath, fmt.Sprintf("contract-%s.log", lib.StrShort(contractID)))
+		}
+		return lib.NewLoggerMemory(cfg.Log.LevelContract, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, fp, logStorage.Buffer)
 	}
 
 	defer func() {
 		_ = log.Sync()
-		_ = schedulerLog.Sync()
 		_ = proxyLog.Sync()
 		_ = connLog.Sync()
 	}()
@@ -121,9 +152,7 @@ func start() error {
 
 		s = <-shutdownChan
 
-		var b []byte
-		runtime.Stack(b, true)
-		log.Warnf("Received signal: %s. \n Stack trace: \n %s", s, string(b))
+		log.Warnf("Received signal: %s. \n", s)
 
 		log.Warnf("Forcing exit...")
 		os.Exit(1)
@@ -131,6 +160,7 @@ func start() error {
 
 	var (
 		HashrateCounterDefault = "ema--5m"
+		HashrateCounterBuyer   = hashrate.MeanCounterKey
 	)
 
 	hashrateFactory := func() *hashrate.Hashrate {
@@ -139,6 +169,7 @@ func start() error {
 				HashrateCounterDefault: hashrate.NewEma(5 * time.Minute),
 				"ema-10m":              hashrate.NewEma(10 * time.Minute),
 				"ema-30m":              hashrate.NewEma(30 * time.Minute),
+				HashrateCounterBuyer:   hashrate.NewMean(),
 			},
 		)
 	}
@@ -151,8 +182,8 @@ func start() error {
 	alloc := allocator.NewAllocator(lib.NewCollection[*allocator.Scheduler](), log.Named("ALLOCATOR"))
 
 	tcpServer := transport.NewTCPServer(cfg.Proxy.Address, connLog)
-	tcpHandler := handlers.NewTCPHandler(
-		log, connLog, proxyLog, schedulerLog,
+	tcpHandler := tcphandlers.NewTCPHandler(
+		log, connLog, proxyLog, schedulerLogFactory,
 		cfg.Miner.NotPropagateWorkerName, cfg.Miner.ShareTimeout, cfg.Miner.VettingShares,
 		destUrl,
 		destFactory, hashrateFactory,
@@ -180,46 +211,64 @@ func start() error {
 		hashrateFactory,
 		globalHashrate,
 		store,
-		log,
+		contractLogFactory,
 
 		cfg.Marketplace.WalletPrivateKey,
 		cfg.Hashrate.CycleDuration,
-		cfg.Hashrate.ValidationStartTimeout,
 		cfg.Hashrate.ShareTimeout,
 		cfg.Hashrate.ErrorThreshold,
-		cfg.Hashrate.ErrorTimeout,
+		HashrateCounterBuyer,
+		cfg.Hashrate.ValidatorFlatness,
 	)
 	if err != nil {
 		return err
 	}
 
-	ownerAddr, err := lib.PrivKeyStringToAddr(cfg.Marketplace.WalletPrivateKey)
+	walletAddr, err := lib.PrivKeyStringToAddr(cfg.Marketplace.WalletPrivateKey)
+	if err != nil {
+		return err
+	}
+	lumerinAddr, err := store.GetLumerinAddress(ctx)
 	if err != nil {
 		return err
 	}
 
-	log.Infof("wallet address: %s", ownerAddr.String())
+	log.Infof("wallet address: %s", walletAddr.String())
+	log.Infof("lumerin address: %s", lumerinAddr.String())
 
-	cm := contractmanager.NewContractManager(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), ownerAddr, hrContractFactory.CreateContract, store, log)
+	derived := new(config.DerivedConfig)
+	derived.WalletAddress = walletAddr.String()
+	derived.LumerinAddress = lumerinAddr.String()
 
-	handl := handlers.NewHTTPHandler(alloc, cm, globalHashrate, publicUrl, HashrateCounterDefault, log)
+	cm := contractmanager.NewContractManager(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), walletAddr, hrContractFactory.CreateContract, store, log)
+
+	handl := httphandlers.NewHTTPHandler(alloc, cm, globalHashrate, publicUrl, HashrateCounterDefault, cfg.Hashrate.CycleDuration, &cfg, derived, time.Now(), contractLogStorage, log)
 	httpServer := transport.NewServer(cfg.Web.Address, handl, log)
 
-	g, ctx := errgroup.WithContext(ctx)
-
+	ctx, cancel = context.WithCancel(ctx)
+	g, errCtx := errgroup.WithContext(ctx)
 	g.Go(func() error {
-		return httpServer.Run(ctx)
+		return tcpServer.Run(errCtx)
 	})
 
 	g.Go(func() error {
-		return tcpServer.Run(ctx)
+		return cm.Run(errCtx)
 	})
 
-	g.Go(func() error {
-		return cm.Run(ctx)
-	})
+	// http server should shut down latest to keep pprof running
+
+	serverErrCh := make(chan error, 1)
+	serverCtx, cancelServer := context.WithCancel(context.Background())
+	go func() {
+		serverErrCh <- httpServer.Run(serverCtx)
+		cancel()
+	}()
 
 	err = g.Wait()
+
+	cancelServer()
+	<-serverErrCh
+
 	log.Infof("App exited due to %s", err)
 	return err
 }

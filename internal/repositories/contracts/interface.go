@@ -24,6 +24,7 @@ type EthereumClient interface {
 	bind.DeployBackend
 	ChainID(ctx context.Context) (*big.Int, error)
 	BalanceAt(ctx context.Context, addr common.Address, blockNumber *big.Int) (*big.Int, error)
+	StorageAt(ctx context.Context, account common.Address, key common.Hash, blockNumber *big.Int) ([]byte, error)
 }
 
 type CloseListererFunc = func()

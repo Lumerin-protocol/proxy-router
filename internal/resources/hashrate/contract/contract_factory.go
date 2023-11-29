@@ -16,12 +16,12 @@ import (
 
 type ContractFactory struct {
 	// config
-	privateKey             string // private key of the user
-	cycleDuration          time.Duration
-	validationStartTimeout time.Duration
-	shareTimeout           time.Duration
-	hrErrorThreshold       float64
-	hashrateErrorInterval  time.Duration
+	privateKey               string // private key of the user
+	cycleDuration            time.Duration
+	shareTimeout             time.Duration
+	hrErrorThreshold         float64
+	hashrateCounterNameBuyer string
+	validatorFlatness        time.Duration
 
 	// state
 	address common.Address // derived from private key
@@ -31,7 +31,7 @@ type ContractFactory struct {
 	allocator       *allocator.Allocator
 	globalHashrate  *hashrate.GlobalHashrate
 	hashrateFactory func() *hashrate.Hashrate
-	log             interfaces.ILogger
+	logFactory      func(contractID string) (interfaces.ILogger, error)
 }
 
 func NewContractFactory(
@@ -39,14 +39,14 @@ func NewContractFactory(
 	hashrateFactory func() *hashrate.Hashrate,
 	globalHashrate *hashrate.GlobalHashrate,
 	store *contracts.HashrateEthereum,
-	log interfaces.ILogger,
+	logFactory func(contractID string) (interfaces.ILogger, error),
 
 	privateKey string,
 	cycleDuration time.Duration,
-	validationStartTimeout time.Duration,
 	shareTimeout time.Duration,
 	hrErrorThreshold float64,
-	hashrateErrorInterval time.Duration,
+	hashrateCounterNameBuyer string,
+	validatorFlatness time.Duration,
 ) (*ContractFactory, error) {
 	address, err := lib.PrivKeyStringToAddr(privateKey)
 	if err != nil {
@@ -58,26 +58,35 @@ func NewContractFactory(
 		hashrateFactory: hashrateFactory,
 		globalHashrate:  globalHashrate,
 		store:           store,
-		log:             log,
+		logFactory:      logFactory,
 
 		address: address,
 
-		privateKey:             privateKey,
-		cycleDuration:          cycleDuration,
-		validationStartTimeout: validationStartTimeout,
-		shareTimeout:           shareTimeout,
-		hrErrorThreshold:       hrErrorThreshold,
-		hashrateErrorInterval:  hashrateErrorInterval,
+		privateKey:               privateKey,
+		cycleDuration:            cycleDuration,
+		shareTimeout:             shareTimeout,
+		hrErrorThreshold:         hrErrorThreshold,
+		hashrateCounterNameBuyer: hashrateCounterNameBuyer,
+		validatorFlatness:        validatorFlatness,
 	}, nil
 }
 
 func (c *ContractFactory) CreateContract(contractData *hashrateContract.EncryptedTerms) (resources.Contract, error) {
+	log, err := c.logFactory(contractData.ID())
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() { _ = log.Sync() }()
+
+	logNamed := log.Named(lib.AddrShort(contractData.ID()))
+
 	if contractData.Seller() == c.address.String() {
 		terms, err := contractData.Decrypt(c.privateKey)
 		if err != nil {
 			return nil, err
 		}
-		watcher := NewContractWatcherSeller(terms, c.cycleDuration, c.hashrateFactory, c.allocator, c.log.Named(lib.AddrShort(contractData.ID())))
+		watcher := NewContractWatcherSellerV2(terms, c.cycleDuration, c.hashrateFactory, c.allocator, logNamed)
 		return NewControllerSeller(watcher, c.store, c.privateKey), nil
 	}
 	if contractData.Buyer() == c.address.String() {
@@ -86,13 +95,13 @@ func (c *ContractFactory) CreateContract(contractData *hashrateContract.Encrypte
 			c.hashrateFactory,
 			c.allocator,
 			c.globalHashrate,
-			c.log.Named(lib.AddrShort(contractData.ID())),
+			logNamed,
 
 			c.cycleDuration,
-			c.validationStartTimeout,
 			c.shareTimeout,
 			c.hrErrorThreshold,
-			c.hashrateErrorInterval,
+			c.hashrateCounterNameBuyer,
+			c.validatorFlatness,
 		)
 		return NewControllerBuyer(watcher, c.store, c.privateKey), nil
 	}
