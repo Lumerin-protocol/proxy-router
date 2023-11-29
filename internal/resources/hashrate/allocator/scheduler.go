@@ -69,7 +69,8 @@ func (p *Scheduler) Run(ctx context.Context) error {
 
 	for {
 		if p.proxy.GetDest().String() != p.primaryDest.String() {
-			err := p.proxy.ConnectDest(ctx, p.primaryDest)
+			err := p.proxy.SetDestWithoutAutoread(ctx, p.primaryDest, nil)
+
 			if err != nil {
 				err := lib.WrapError(ErrConnPrimary, err)
 				p.log.Warnf("%s: %s", err, p.primaryDest)

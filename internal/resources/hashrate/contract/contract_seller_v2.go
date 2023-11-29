@@ -135,13 +135,14 @@ func (p *ContractWatcherSellerV2) Reset() {
 }
 
 func (p *ContractWatcherSellerV2) run() error {
+	fullMiners := lib.NewSet()
 	p.stats = &stats{
 		jobFullMiners:          atomic.NewUint64(0),
 		jobPartialMiners:       atomic.NewUint64(0),
 		sharesFullMiners:       atomic.NewUint64(0),
 		sharesPartialMiners:    atomic.NewUint64(0),
 		globalUnderDeliveryGHS: atomic.NewInt64(0),
-		fullMiners:             make([]string, 0),
+		fullMiners:             &fullMiners,
 		partialMiners:          make([]string, 0),
 		actualHRGHS:            p.hrFactory(),
 		deliveryTargetGHS:      0,
@@ -257,7 +258,7 @@ func (p *ContractWatcherSellerV2) onCycleEnd(cycleDuration time.Duration) {
 		Timestamp:                         time.Now(),
 		ActualGHS:                         int(thisCycleActualGHS),
 		FullMinersGHS:                     int(hr.JobSubmittedToGHSV2(float64(p.stats.jobFullMiners.Load()), cycleDuration)),
-		FullMiners:                        lib.CopySlice(p.stats.fullMiners),
+		FullMiners:                        p.stats.fullMiners.ToSlice(),
 		FullMinersShares:                  int(p.stats.sharesFullMiners.Load()),
 		PartialMinersGHS:                  int(hr.JobSubmittedToGHSV2(float64(p.stats.jobPartialMiners.Load()), cycleDuration)),
 		PartialMiners:                     lib.CopySlice(p.stats.partialMiners),
@@ -362,7 +363,7 @@ func (p *ContractWatcherSellerV2) removeFullMiners(hrGHS float64) (removedGHS fl
 		}
 	}
 
-	p.log.Debugf("removed %d full miners, removedGHS %.f", len(items)-len(p.stats.fullMiners), removedGHS)
+	p.log.Debugf("removed %d full miners, removedGHS %.f", len(items)-p.stats.fullMiners.Len(), removedGHS)
 	p.log.Debugf("full miners: %v", p.stats.fullMiners)
 	return removedGHS
 }
@@ -484,9 +485,9 @@ func (p *ContractWatcherSellerV2) getAdjustedDest() *url.URL {
 }
 
 func (p *ContractWatcherSellerV2) getFullMinersSorted() []*allocator.MinerItem {
-	items := make([]*allocator.MinerItem, 0, len(p.stats.fullMiners))
+	items := make([]*allocator.MinerItem, 0, p.stats.fullMiners.Len())
 
-	for _, minerID := range p.stats.fullMiners {
+	for _, minerID := range p.stats.fullMiners.ToSlice() {
 		miner, ok := p.allocator.GetMiners().Load(minerID)
 		if !ok {
 			continue
@@ -501,30 +502,30 @@ func (p *ContractWatcherSellerV2) getFullMinersSorted() []*allocator.MinerItem {
 		return a.HrGHS < b.HrGHS
 	})
 
-	if len(items) < len(p.stats.fullMiners) {
-		var minerIDs []string
+	if len(items) < p.stats.fullMiners.Len() {
+		minerIDs := lib.NewSet()
 		for _, miner := range items {
-			minerIDs = append(minerIDs, miner.ID)
+			minerIDs.Add(miner.ID)
 		}
-		p.stats.fullMiners = minerIDs
+		p.stats.fullMiners = &minerIDs
 	}
 
 	return items
 }
 
 func (p *ContractWatcherSellerV2) getAvailableFullMiners() []string {
-	newFullMiners := make([]string, 0, len(p.stats.fullMiners))
-	for _, minerID := range p.stats.fullMiners {
+	newFullMiners := lib.NewSet()
+	for _, minerID := range p.stats.fullMiners.ToSlice() {
 		_, ok := p.allocator.GetMiners().Load(minerID)
 		if !ok {
 			continue
 		}
-		newFullMiners = append(newFullMiners, minerID)
+		newFullMiners.Add(minerID)
 	}
-	if len(newFullMiners) != len(p.stats.fullMiners) {
-		p.stats.fullMiners = newFullMiners
+	if newFullMiners.Len() != p.stats.fullMiners.Len() {
+		p.stats.fullMiners = &newFullMiners
 	}
-	return p.stats.fullMiners
+	return p.stats.fullMiners.ToSlice()
 }
 
 func (p *ContractWatcherSellerV2) getFullMinersHR() float64 {

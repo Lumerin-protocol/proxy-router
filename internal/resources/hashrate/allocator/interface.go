@@ -11,10 +11,12 @@ import (
 
 type StratumProxyInterface interface {
 	Connect(ctx context.Context) error
+	// deprecated
 	ConnectDest(ctx context.Context, newDestURL *url.URL) error
 
 	Run(ctx context.Context) error
 	SetDest(ctx context.Context, dest *url.URL, onSubmit func(diff float64)) error
+	SetDestWithoutAutoread(ctx context.Context, dest *url.URL, onSubmit func(diff float64)) error
 
 	GetID() string
 	GetHashrate() proxy.Hashrate

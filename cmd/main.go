@@ -48,7 +48,7 @@ func start() error {
 		return err
 	}
 
-	fmt.Printf("Loaded config: %+v\n", cfg)
+	fmt.Printf("Loaded config: %+v\n", cfg.GetSanitized())
 
 	destUrl, err := url.Parse(cfg.Pool.Address)
 	if err != nil {

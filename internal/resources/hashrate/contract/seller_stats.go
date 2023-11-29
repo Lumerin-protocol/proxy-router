@@ -12,7 +12,7 @@ type stats struct {
 	sharesFullMiners       *atomic.Uint64
 	sharesPartialMiners    *atomic.Uint64
 	globalUnderDeliveryGHS *atomic.Int64
-	fullMiners             []string
+	fullMiners             *lib.Set
 	partialMiners          []string
 	deliveryTargetGHS      float64
 	actualHRGHS            *hr.Hashrate
@@ -31,13 +31,11 @@ func (s *stats) onPartialMinerShare(diff float64, ID string) {
 }
 
 func (s *stats) addFullMiners(IDs ...string) {
-	s.fullMiners = append(s.fullMiners, IDs...)
+	s.fullMiners.Add(IDs...)
 }
 
 func (s *stats) removeFullMiner(ID string) (ok bool) {
-	oldLen := len(s.fullMiners)
-	s.fullMiners = lib.FilterValue(s.fullMiners, ID)
-	return oldLen != len(s.fullMiners)
+	return s.fullMiners.Remove(ID)
 }
 
 func (s *stats) addPartialMiners(IDs ...string) {
