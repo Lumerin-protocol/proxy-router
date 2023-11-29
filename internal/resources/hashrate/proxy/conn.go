@@ -149,6 +149,7 @@ func (c *StratumConnection) Read(ctx context.Context) (interfaces.MiningMessageG
 		if err != nil {
 			if len(line) > 0 {
 				buf := make([]byte, len(c.readBuffer)+len(line))
+				copy(buf, c.readBuffer)
 				copy(buf[len(c.readBuffer):], line)
 				c.readBuffer = buf
 			}
