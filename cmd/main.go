@@ -59,7 +59,7 @@ func start() error {
 	logFolderPath := ""
 
 	if cfg.Log.FolderPath != "" {
-		logFolderPath = filepath.Join(".", cfg.Log.FolderPath, time.Now().Format("2006-01-02T15-04-05"))
+		logFolderPath = filepath.Join(cfg.Log.FolderPath, time.Now().Format("2006-01-02T15-04-05"))
 		err = os.MkdirAll(logFolderPath, os.ModePerm)
 		if err != nil {
 			return err
