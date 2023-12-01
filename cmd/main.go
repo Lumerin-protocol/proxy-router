@@ -59,7 +59,8 @@ func start() error {
 	logFolderPath := ""
 
 	if cfg.Log.FolderPath != "" {
-		logFolderPath = filepath.Join(".", cfg.Log.FolderPath, time.Now().Format("2006-01-02T15-04-05"))
+		folderName := lib.SanitizeFilename(time.Now().Format("2006-01-02T15-04-05Z07:00"))
+		logFolderPath = filepath.Join(cfg.Log.FolderPath, folderName)
 		err = os.MkdirAll(logFolderPath, os.ModePerm)
 		if err != nil {
 			return err
@@ -86,7 +87,7 @@ func start() error {
 	schedulerLogFactory := func(minerID string) (interfaces.ILogger, error) {
 		fp := ""
 		if logFolderPath != "" {
-			fp = filepath.Join(logFolderPath, fmt.Sprintf("scheduler-%s.log", minerID))
+			fp = filepath.Join(logFolderPath, fmt.Sprintf("scheduler-%s.log", lib.SanitizeFilename(minerID)))
 		}
 		return lib.NewLogger(cfg.Log.LevelScheduler, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, fp)
 	}
@@ -98,7 +99,7 @@ func start() error {
 		contractLogStorage.Store(logStorage)
 		fp := ""
 		if logFolderPath != "" {
-			fp = filepath.Join(logFolderPath, fmt.Sprintf("contract-%s.log", lib.StrShort(contractID)))
+			fp = filepath.Join(logFolderPath, fmt.Sprintf("contract-%s.log", lib.SanitizeFilename(lib.StrShort(contractID))))
 		}
 		return lib.NewLoggerMemory(cfg.Log.LevelContract, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, fp, logStorage.Buffer)
 	}
