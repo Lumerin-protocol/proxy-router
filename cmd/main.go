@@ -28,6 +28,11 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+const (
+	IDLE_READ_CLOSE_TIMEOUT  = 10 * time.Minute
+	IDLE_WRITE_CLOSE_TIMEOUT = 10 * time.Minute
+)
+
 var (
 	ErrConnectToEthNode = fmt.Errorf("cannot connect to ethereum node")
 )
@@ -177,16 +182,17 @@ func start() error {
 	}
 
 	destFactory := func(ctx context.Context, url *url.URL, connLogID string) (*proxy.ConnDest, error) {
-		return proxy.ConnectDest(ctx, url, connLog.Named(connLogID))
+		return proxy.ConnectDest(ctx, url, IDLE_READ_CLOSE_TIMEOUT, cfg.Pool.IdleWriteTimeout, connLog.Named(connLogID))
 	}
 
 	globalHashrate := hashrate.NewGlobalHashrate(hashrateFactory)
-	alloc := allocator.NewAllocator(lib.NewCollection[*allocator.Scheduler](), log.Named("ALLOCATOR"))
+	alloc := allocator.NewAllocator(lib.NewCollection[*allocator.Scheduler](), log.Named("ALC"))
 
 	tcpServer := transport.NewTCPServer(cfg.Proxy.Address, connLog)
 	tcpHandler := tcphandlers.NewTCPHandler(
 		log, connLog, proxyLog, schedulerLogFactory,
-		cfg.Miner.NotPropagateWorkerName, cfg.Miner.ShareTimeout, cfg.Miner.VettingShares,
+		cfg.Miner.NotPropagateWorkerName, cfg.Miner.IdleReadTimeout, IDLE_WRITE_CLOSE_TIMEOUT,
+		cfg.Miner.VettingShares, cfg.Proxy.MaxCachedDests,
 		destUrl,
 		destFactory, hashrateFactory,
 		globalHashrate, HashrateCounterDefault,

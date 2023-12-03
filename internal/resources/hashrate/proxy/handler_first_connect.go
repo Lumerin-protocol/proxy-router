@@ -213,7 +213,7 @@ func (p *HandlerFirstConnect) onMiningSubscribe(ctx context.Context, msgTyped *m
 func (p *HandlerFirstConnect) onMiningAuthorize(ctx context.Context, msgTyped *m.MiningAuthorize) error {
 	p.proxy.globalHashrate.OnConnect(msgTyped.GetUserName())
 	p.proxy.source.SetUserName(msgTyped.GetUserName())
-	p.log = p.log.Named(msgTyped.GetUserName())
+	p.log = p.log.Named(fmt.Sprintf("PRX %s %s", msgTyped.GetUserName(), lib.ParsePort(p.proxy.GetID())))
 	p.proxy.log = p.log
 
 	msgID := msgTyped.GetID()
@@ -254,8 +254,7 @@ func (p *HandlerFirstConnect) onMiningAuthorize(ctx context.Context, msgTyped *m
 		if res.IsError() {
 			return nil, lib.WrapError(ErrHandshakeDest, fmt.Errorf("cannot authorize in dest pool: %s", res.GetError()))
 		}
-		p.log.Infof("connected to destination: %s", p.proxy.destURL.String())
-		p.log.Info("handshake completed")
+		p.log.Infof("handshake completed: %s", p.proxy.destURL.String())
 
 		p.proxy.destMap.Store(p.proxy.dest)
 

@@ -18,7 +18,8 @@ import (
 func NewTCPHandler(
 	log, connLog, proxyLog interfaces.ILogger,
 	schedulerLogFactory func(contractID string) (interfaces.ILogger, error),
-	notPropagateWorkerName bool, minerShareTimeout time.Duration, minerVettingShares int,
+	notPropagateWorkerName bool, idleReadTimeout, idleWriteTimeout time.Duration,
+	minerVettingShares, maxCachedDests int,
 	defaultDestUrl *url.URL,
 	destFactory proxy.DestConnFactory,
 	hashrateFactory proxy.HashrateFactory,
@@ -30,7 +31,7 @@ func NewTCPHandler(
 		ID := conn.RemoteAddr().String()
 		sourceLog := connLog.Named("[SRC] " + ID)
 
-		stratumConn := proxy.CreateConnection(conn, ID, minerShareTimeout, 10*time.Minute, sourceLog)
+		stratumConn := proxy.CreateConnection(conn, ID, idleReadTimeout, idleWriteTimeout, sourceLog)
 		defer stratumConn.Close()
 
 		sourceConn := proxy.NewSourceConn(stratumConn, sourceLog)
@@ -48,7 +49,13 @@ func NewTCPHandler(
 		defer func() { _ = schedulerLog.Sync() }()
 
 		url := lib.CopyURL(defaultDestUrl) // clones url
-		prx := proxy.NewProxy(ID, sourceConn, destFactory, hashrateFactory, globalHashrate, url, notPropagateWorkerName, minerVettingShares, proxyLog)
+		prx := proxy.NewProxy(
+			ID, sourceConn,
+			destFactory, hashrateFactory,
+			globalHashrate, url, notPropagateWorkerName,
+			minerVettingShares, maxCachedDests,
+			proxyLog,
+		)
 		scheduler := allocator.NewScheduler(prx, hashrateCounterDefault, url, minerVettingShares, hashrateFactory, alloc.InvokeVettedListeners, schedulerLog)
 		alloc.GetMiners().Store(scheduler)
 
@@ -60,7 +67,7 @@ func NewTCPHandler(
 			} else if errors.Is(err, context.Canceled) {
 				logFunc = connLog.Infof
 			} else {
-				logFunc = connLog.Errorf
+				logFunc = connLog.Warnf
 			}
 			logFunc("proxy disconnected: %s %s", err, ID)
 		}
