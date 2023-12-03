@@ -29,6 +29,10 @@ func NewControllerSeller(contract *ContractWatcherSellerV2, store *contracts.Has
 }
 
 func (c *ControllerSeller) Run(ctx context.Context) error {
+	defer func() {
+		_ = c.log.Close()
+	}()
+
 	sub, err := c.store.CreateImplementationSubscription(ctx, common.HexToAddress(c.ID()))
 	if err != nil {
 		return err

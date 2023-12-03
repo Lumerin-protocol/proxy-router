@@ -22,6 +22,7 @@ type MinerItem struct {
 	ID           string
 	HrGHS        float64
 	JobRemaining float64
+	IsFullMiner  bool
 }
 
 type ListenerHandle int
@@ -68,8 +69,9 @@ func (p *Allocator) AllocateFullMinersForHR(
 	hrGHS float64,
 	dest *url.URL,
 	duration time.Duration,
-	onSubmit func(diff float64, ID string),
-	onDisconnect func(ID string, HrGHS float64, remainingJob float64),
+	onSubmit OnSubmitCb,
+	onDisconnect OnDisconnectCb,
+	onEnd OnEndCb,
 ) (minerIDs []string, deltaGHS float64) {
 	p.proxyMutex.Lock()
 	defer p.proxyMutex.Unlock()
@@ -86,7 +88,7 @@ func (p *Allocator) AllocateFullMinersForHR(
 		if minerGHS <= hrGHS && minerGHS > 0 {
 			proxy, ok := p.proxies.Load(miner.ID)
 			if ok {
-				proxy.AddTask(ID, dest, hashrate.GHSToJobSubmittedV2(minerGHS, duration), onSubmit, onDisconnect, time.Now().Add(duration))
+				proxy.AddTask(ID, dest, hashrate.GHSToJobSubmittedV2(minerGHS, duration), onSubmit, onDisconnect, onEnd, time.Now().Add(duration))
 				minerIDs = append(minerIDs, miner.ID)
 				hrGHS -= minerGHS
 				p.log.Infof("full miner %s allocated for %.0f GHS", miner.ID, minerGHS)
@@ -104,6 +106,7 @@ func (p *Allocator) AllocatePartialForJob(
 	cycleEndTimeout time.Duration,
 	onSubmit func(diff float64, ID string),
 	onDisconnect func(ID string, hrGHS float64, remainingJob float64),
+	onEnd OnEndCb,
 ) (minerIDJob MinerIDJob, remainderGHS float64) {
 	p.proxyMutex.Lock()
 	defer p.proxyMutex.Unlock()
@@ -125,7 +128,7 @@ func (p *Allocator) AllocatePartialForJob(
 		if miner.JobRemaining >= jobNeeded {
 			m, ok := p.proxies.Load(miner.ID)
 			if ok {
-				m.AddTask(ID, dest, jobNeeded, onSubmit, onDisconnect, time.Now().Add(cycleEndTimeout))
+				m.AddTask(ID, dest, jobNeeded, onSubmit, onDisconnect, onEnd, time.Now().Add(cycleEndTimeout))
 				minerIDJob[miner.ID] = jobNeeded
 				return minerIDJob, 0
 			}
@@ -135,7 +138,7 @@ func (p *Allocator) AllocatePartialForJob(
 		if miner.JobRemaining >= minJob {
 			m, ok := p.proxies.Load(miner.ID)
 			if ok {
-				m.AddTask(ID, dest, miner.JobRemaining, onSubmit, onDisconnect, time.Now().Add(cycleEndTimeout))
+				m.AddTask(ID, dest, miner.JobRemaining, onSubmit, onDisconnect, onEnd, time.Now().Add(cycleEndTimeout))
 				minerIDJob[miner.ID] = miner.JobRemaining
 				jobNeeded -= miner.JobRemaining
 			}
@@ -165,7 +168,7 @@ func (p *Allocator) AllocatePartialForJob(
 			continue
 		}
 
-		m.AddTask(ID, dest, jobToAllocate, onSubmit, onDisconnect, time.Now().Add(cycleEndTimeout))
+		m.AddTask(ID, dest, jobToAllocate, onSubmit, onDisconnect, onEnd, time.Now().Add(cycleEndTimeout))
 		minerIDJob[miner.ID] = jobToAllocate
 		jobNeeded -= jobToAllocate
 	}

@@ -154,7 +154,7 @@ func (c *HTTPHandler) GetDeliveryLogsConsole(ctx *gin.Context) {
 		return
 	}
 
-	ctx.Writer.WriteHeader(200)
+	ctx.Status(200)
 	_, err := io.Copy(ctx.Writer, contract.GetReader())
 	if err != nil {
 		c.log.Errorf("failed to write logs: %s", err)

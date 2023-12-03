@@ -64,9 +64,9 @@ func NewDestConn(conn *StratumConnection, url *url.URL, log gi.ILogger) *ConnDes
 	return dest
 }
 
-func ConnectDest(ctx context.Context, destURL *url.URL, log gi.ILogger) (*ConnDest, error) {
+func ConnectDest(ctx context.Context, destURL *url.URL, idleReadCloseTimeout, idleWriteCloseTimeout time.Duration, log gi.ILogger) (*ConnDest, error) {
 	destLog := log.Named(fmt.Sprintf("[DST] %s@%s", destURL.User.Username(), destURL.Host))
-	conn, err := Connect(destURL, destLog)
+	conn, err := Connect(destURL, idleReadCloseTimeout, idleWriteCloseTimeout, destLog)
 	if err != nil {
 		return nil, err
 	}
@@ -74,10 +74,11 @@ func ConnectDest(ctx context.Context, destURL *url.URL, log gi.ILogger) (*ConnDe
 	return NewDestConn(conn, destURL, destLog), nil
 }
 
-func (c *ConnDest) AutoReadStart(ctx context.Context, cb func(err error)) error {
+func (c *ConnDest) AutoReadStart(ctx context.Context, cb func(err error)) (ok bool) {
 	if c.arCancel != nil {
-		return errors.New("auto read already started")
+		return false
 	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	c.arCancel = cancel
 	c.arDone = make(chan struct{})
@@ -89,7 +90,8 @@ func (c *ConnDest) AutoReadStart(ctx context.Context, cb func(err error)) error 
 		cb(err)
 		close(c.arDone)
 	}()
-	return nil
+
+	return true
 }
 
 func (c *ConnDest) AutoReadStop() error {

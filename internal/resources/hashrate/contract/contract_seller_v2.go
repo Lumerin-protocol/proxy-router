@@ -335,12 +335,17 @@ func (p *ContractWatcherSellerV2) addFullMiners(hashrateGHS float64) (addedGHS f
 		p.Duration(),
 		p.stats.onFullMinerShare,
 		func(ID string, hashrateGHS float64, remainingJob float64) {
-			p.log.Warn("full miner disconnected", ID)
+			p.log.Warnf("full miner disconnected %s", ID)
 			p.minerDisconnectCh.Send(allocator.MinerItem{
 				ID:           ID,
 				HrGHS:        hashrateGHS,
 				JobRemaining: remainingJob,
+				IsFullMiner:  true,
 			})
+		},
+		func(ID string, HrGHS, remainingJob float64, err error) {
+			p.log.Warnf("full miner ended, id %s, hr %.f, remaining job %d, error %s", ID, HrGHS, remainingJob, err)
+			p.stats.fullMiners.Remove(ID)
 		},
 	)
 	if len(fullMiners) > 0 {
@@ -366,7 +371,7 @@ func (p *ContractWatcherSellerV2) removeFullMiners(hrGHS float64) (removedGHS fl
 			miner.RemoveTasksByID(p.ID())
 			removedGHS = +miner.HashrateGHS()
 		}
-		p.stats.removeFullMiner(minerToRemove)
+		_ = p.stats.removeFullMiner(minerToRemove)
 		if hrGHS-removedGHS < 0 {
 			break
 		}
@@ -400,7 +405,13 @@ func (p *ContractWatcherSellerV2) addPartialMiners(job float64, cycleEndTimeout 
 				ID:           ID,
 				HrGHS:        hrGHS,
 				JobRemaining: remainingJob,
+				IsFullMiner:  false,
 			})
+		},
+		func(ID string, HrGHS, remainingJob float64, err error) {
+			p.log.Warnf("partial miner ended, id %s, hr %.f, remaining job %.f, error %s", ID, HrGHS, remainingJob, err)
+			p.stats.fullMiners.Remove(ID)
+			_ = p.stats.removePartialMiner(ID)
 		},
 	)
 
@@ -447,17 +458,12 @@ func (p *ContractWatcherSellerV2) removeAllPartialMiners() {
 func (p *ContractWatcherSellerV2) replaceMiner(minerItem allocator.MinerItem) (adjustedGHS float64) {
 	p.log.Debugf("replacing miner %s, %.f GHS", minerItem.ID, minerItem.HrGHS)
 
-	isFullMiner := p.stats.removeFullMiner(minerItem.ID)
-	isPartialMiner := p.stats.removePartialMiner(minerItem.ID)
-
-	if isFullMiner {
+	if minerItem.IsFullMiner {
+		p.log.Debugf("replacing full miner %s %.f GHS", minerItem.ID, minerItem.HrGHS)
 		p.stats.deliveryTargetGHS += minerItem.HrGHS
-		p.log.Debugf("miner %s is full miner", minerItem.ID)
-	}
-
-	if isPartialMiner {
-		p.log.Debugf("miner %s is partial miner", minerItem.ID)
+	} else {
 		remainingGHS := hr.JobSubmittedToGHSV2(minerItem.JobRemaining, p.remainingCycleDuration())
+		p.log.Debugf("replacing partial miner %s %.f GHS", minerItem.ID, remainingGHS)
 		p.stats.deliveryTargetGHS += remainingGHS
 	}
 

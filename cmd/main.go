@@ -28,6 +28,11 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+const (
+	IDLE_READ_CLOSE_TIMEOUT  = 10 * time.Minute
+	IDLE_WRITE_CLOSE_TIMEOUT = 10 * time.Minute
+)
+
 var (
 	ErrConnectToEthNode = fmt.Errorf("cannot connect to ethereum node")
 )
@@ -59,7 +64,8 @@ func start() error {
 	logFolderPath := ""
 
 	if cfg.Log.FolderPath != "" {
-		logFolderPath = filepath.Join(cfg.Log.FolderPath, time.Now().Format("2006-01-02T15-04-05"))
+		folderName := lib.SanitizeFilename(time.Now().Format("2006-01-02T15-04-05Z07:00"))
+		logFolderPath = filepath.Join(cfg.Log.FolderPath, folderName)
 		err = os.MkdirAll(logFolderPath, os.ModePerm)
 		if err != nil {
 			return err
@@ -86,7 +92,7 @@ func start() error {
 	schedulerLogFactory := func(minerID string) (interfaces.ILogger, error) {
 		fp := ""
 		if logFolderPath != "" {
-			fp = filepath.Join(logFolderPath, fmt.Sprintf("scheduler-%s.log", minerID))
+			fp = filepath.Join(logFolderPath, fmt.Sprintf("scheduler-%s.log", lib.SanitizeFilename(minerID)))
 		}
 		return lib.NewLogger(cfg.Log.LevelScheduler, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, fp)
 	}
@@ -98,21 +104,22 @@ func start() error {
 		contractLogStorage.Store(logStorage)
 		fp := ""
 		if logFolderPath != "" {
-			fp = filepath.Join(logFolderPath, fmt.Sprintf("contract-%s.log", lib.StrShort(contractID)))
+			fp = filepath.Join(logFolderPath, fmt.Sprintf("contract-%s.log", lib.SanitizeFilename(lib.StrShort(contractID))))
 		}
 		return lib.NewLoggerMemory(cfg.Log.LevelContract, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, fp, logStorage.Buffer)
 	}
 
 	defer func() {
-		_ = log.Sync()
-		_ = proxyLog.Sync()
-		_ = connLog.Sync()
+		_ = connLog.Close()
+		_ = proxyLog.Close()
+		_ = log.Close()
 	}()
 
 	log.Infof("proxy-router %s", config.BuildVersion)
 
+	sysConfig := system.CreateConfigurator(log)
+
 	if cfg.System.Enable {
-		sysConfig, err := system.CreateConfigurator(log)
 		if err != nil {
 			return err
 		}
@@ -175,16 +182,17 @@ func start() error {
 	}
 
 	destFactory := func(ctx context.Context, url *url.URL, connLogID string) (*proxy.ConnDest, error) {
-		return proxy.ConnectDest(ctx, url, connLog.Named(connLogID))
+		return proxy.ConnectDest(ctx, url, IDLE_READ_CLOSE_TIMEOUT, cfg.Pool.IdleWriteTimeout, connLog.Named(connLogID))
 	}
 
 	globalHashrate := hashrate.NewGlobalHashrate(hashrateFactory)
-	alloc := allocator.NewAllocator(lib.NewCollection[*allocator.Scheduler](), log.Named("ALLOCATOR"))
+	alloc := allocator.NewAllocator(lib.NewCollection[*allocator.Scheduler](), log.Named("ALC"))
 
 	tcpServer := transport.NewTCPServer(cfg.Proxy.Address, connLog)
 	tcpHandler := tcphandlers.NewTCPHandler(
 		log, connLog, proxyLog, schedulerLogFactory,
-		cfg.Miner.NotPropagateWorkerName, cfg.Miner.ShareTimeout, cfg.Miner.VettingShares,
+		cfg.Miner.NotPropagateWorkerName, cfg.Miner.IdleReadTimeout, IDLE_WRITE_CLOSE_TIMEOUT,
+		cfg.Miner.VettingShares, cfg.Proxy.MaxCachedDests,
 		destUrl,
 		destFactory, hashrateFactory,
 		globalHashrate, HashrateCounterDefault,
@@ -242,7 +250,7 @@ func start() error {
 
 	cm := contractmanager.NewContractManager(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), walletAddr, hrContractFactory.CreateContract, store, log)
 
-	handl := httphandlers.NewHTTPHandler(alloc, cm, globalHashrate, publicUrl, HashrateCounterDefault, cfg.Hashrate.CycleDuration, &cfg, derived, time.Now(), contractLogStorage, log)
+	handl := httphandlers.NewHTTPHandler(alloc, cm, globalHashrate, sysConfig, publicUrl, HashrateCounterDefault, cfg.Hashrate.CycleDuration, &cfg, derived, time.Now(), contractLogStorage, log)
 	httpServer := transport.NewServer(cfg.Web.Address, handl, log)
 
 	ctx, cancel = context.WithCancel(ctx)
@@ -253,6 +261,22 @@ func start() error {
 
 	g.Go(func() error {
 		return cm.Run(errCtx)
+	})
+
+	g.Go(func() error {
+		for {
+			select {
+			case <-errCtx.Done():
+				return nil
+			case <-time.After(5 * time.Minute):
+				fd, err := sysConfig.GetFileDescriptors(errCtx, os.Getpid())
+				if err != nil {
+					log.Errorf("failed to get open files: %s", err)
+				} else {
+					log.Infof("open files: %d", len(fd))
+				}
+			}
+		}
 	})
 
 	// http server should shut down latest to keep pprof running

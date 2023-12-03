@@ -32,7 +32,7 @@ type Config struct {
 	}
 	Miner struct {
 		NotPropagateWorkerName bool          `env:"MINER_NOT_PROPAGATE_WORKER_NAME" flag:"miner-not-propagate-worker-name"     validate:""                      desc:"not preserve worker name from the source in the destination pool. Preserving works only if the source miner worker name is defined as 'accountName.workerName'. Does not apply for contracts"`
-		ShareTimeout           time.Duration `env:"MINER_SHARE_TIMEOUT"             flag:"miner-share-timeout"                 validate:"omitempty,duration"    desc:"closes connection if no share submitted withtin duration. Keep in mind that sometimes it takes longer to submit first share, comparing to other. Too low value will cause miner to reconnect too often"`
+		IdleReadTimeout        time.Duration `env:"MINER_IDLE_READ_TIMEOUT"         flag:"miner-idle-read-timeout"             validate:"omitempty,duration"    desc:"closes connection if no read operation performed for this duration (e.g. no share submitted)"`
 		VettingShares          int           `env:"MINER_VETTING_SHARES"            flag:"miner-vetting-shares"                validate:"omitempty,number"`
 	}
 	Log struct {
@@ -47,11 +47,12 @@ type Config struct {
 		LevelContract   string `env:"LOG_LEVEL_CONTRACT"   flag:"log-level-contract"   validate:"omitempty,oneof=debug info warn error dpanic panic fatal"`
 	}
 	Pool struct {
-		Address string `env:"POOL_ADDRESS" flag:"pool-address" validate:"required,uri"`
-		// ConnTimeout time.Duration `env:"POOL_CONN_TIMEOUT" flag:"pool-conn-timeout" validate:"duration"`
+		Address          string        `env:"POOL_ADDRESS" flag:"pool-address" validate:"required,uri"`
+		IdleWriteTimeout time.Duration `env:"POOL_IDLE_WRITE_TIMEOUT" flag:"pool-idle-write-timeout" validate:"duration" desc:"if there are no writes for this duration, the connection is going to be closed"`
 	}
 	Proxy struct {
-		Address string `env:"PROXY_ADDRESS" flag:"proxy-address" validate:"required,hostname_port"`
+		Address        string `env:"PROXY_ADDRESS" flag:"proxy-address" validate:"required,hostname_port"`
+		MaxCachedDests int    `env:"PROXY_MAX_CACHED_DESTS" flag:"proxy-max-cached-dests" validate:"required,number" desc:"maximum number of cached destinations per proxy"`
 	}
 	System struct {
 		Enable           bool   `env:"SYS_ENABLE"              flag:"sys-enable" desc:"enable system level configuration adjustments"`
@@ -100,8 +101,8 @@ func (cfg *Config) SetDefaults() {
 		cfg.Miner.VettingShares = 2
 	}
 
-	if cfg.Miner.ShareTimeout == 0 {
-		cfg.Miner.ShareTimeout = 5 * time.Minute
+	if cfg.Miner.IdleReadTimeout == 0 {
+		cfg.Miner.IdleReadTimeout = 10 * time.Minute
 	}
 
 	// Log
@@ -120,6 +121,16 @@ func (cfg *Config) SetDefaults() {
 	}
 	if cfg.Log.LevelApp == "" {
 		cfg.Log.LevelApp = "debug"
+	}
+
+	// Pool
+	if cfg.Pool.IdleWriteTimeout == 0 {
+		cfg.Pool.IdleWriteTimeout = 10 * time.Minute
+	}
+
+	// Proxy
+	if cfg.Proxy.MaxCachedDests == 0 {
+		cfg.Proxy.MaxCachedDests = 5
 	}
 
 	// System
@@ -167,9 +178,6 @@ func (cfg *Config) SetDefaults() {
 // GetSanitized returns a copy of the config with sensitive data removed
 // explicitly adding each field here to avoid accidentally leaking sensitive data
 func (cfg *Config) GetSanitized() interface{} {
-	// expose also Wallet address
-	// and Lumerin address attacched to clonefactory
-
 	publicCfg := Config{}
 
 	publicCfg.Blockchain.EthLegacyTx = cfg.Blockchain.EthLegacyTx
@@ -184,7 +192,7 @@ func (cfg *Config) GetSanitized() interface{} {
 	publicCfg.Marketplace.CloneFactoryAddress = cfg.Marketplace.CloneFactoryAddress
 
 	publicCfg.Miner.NotPropagateWorkerName = cfg.Miner.NotPropagateWorkerName
-	publicCfg.Miner.ShareTimeout = cfg.Miner.ShareTimeout
+	publicCfg.Miner.IdleReadTimeout = cfg.Miner.IdleReadTimeout
 	publicCfg.Miner.VettingShares = cfg.Miner.VettingShares
 
 	publicCfg.Log.Color = cfg.Log.Color
@@ -197,8 +205,10 @@ func (cfg *Config) GetSanitized() interface{} {
 	publicCfg.Log.LevelScheduler = cfg.Log.LevelScheduler
 
 	publicCfg.Pool.Address = cfg.Pool.Address
+	publicCfg.Pool.IdleWriteTimeout = cfg.Pool.IdleWriteTimeout
 
 	publicCfg.Proxy.Address = cfg.Proxy.Address
+	publicCfg.Proxy.MaxCachedDests = cfg.Proxy.MaxCachedDests
 
 	publicCfg.System.Enable = cfg.System.Enable
 	publicCfg.System.LocalPortRange = cfg.System.LocalPortRange

@@ -48,3 +48,13 @@ func (p *Collection[T]) LoadOrStore(item T) (actual T, loaded bool) {
 func (p *Collection[T]) Delete(ID string) {
 	p.items.Delete(ID)
 }
+
+// Len returns the number of items in the collection. It is O(n)
+func (p *Collection[T]) Len() int {
+	count := 0
+	p.items.Range(func(key, value any) bool {
+		count++
+		return true
+	})
+	return count
+}
