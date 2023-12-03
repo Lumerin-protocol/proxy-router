@@ -77,8 +77,6 @@ func (c *ContractFactory) CreateContract(contractData *hashrateContract.Encrypte
 		return nil, err
 	}
 
-	defer func() { _ = log.Sync() }()
-
 	logNamed := log.Named(lib.AddrShort(contractData.ID()))
 
 	if contractData.Seller() == c.address.String() {

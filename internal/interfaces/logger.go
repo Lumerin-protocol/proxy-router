@@ -16,6 +16,7 @@ type ILogger interface {
 	Panicf(template string, args ...interface{})
 	Fatalf(template string, args ...interface{})
 	Sync() error
+	Close() error
 	Named(name string) ILogger
 	With(args ...interface{}) ILogger
 }

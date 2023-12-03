@@ -36,6 +36,10 @@ func NewTCPHandler(
 		sourceConn := proxy.NewSourceConn(stratumConn, sourceLog)
 
 		schedulerLog, err := schedulerLogFactory(ID)
+		defer func() {
+			_ = schedulerLog.Close()
+		}()
+
 		if err != nil {
 			sourceLog.Errorf("failed to create scheduler logger: %s", err)
 			return

@@ -1,5 +1,5 @@
 run:
-	go run cmd/main.go
+	GOTRACEBACK=crash go run -race cmd/main.go
 
 build:
 	./build.sh
