@@ -2,6 +2,7 @@ package validator
 
 import (
 	"encoding/hex"
+	"sync"
 
 	sm "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
 )
@@ -13,7 +14,10 @@ type MiningJob struct {
 	diff            float64
 	extraNonce1     string
 	extraNonce2Size int
-	shares          map[shareBytes]bool
+	// TODO: a quick fix of race condition.
+	// Sync map should not be needed here, because
+	// all methods should be called from single goroutine, but as
+	shares sync.Map // map[shareBytes]bool
 }
 
 func NewMiningJob(msg *sm.MiningNotify, diff float64, extraNonce1 string, extraNonce2Size int) *MiningJob {
@@ -22,19 +26,14 @@ func NewMiningJob(msg *sm.MiningNotify, diff float64, extraNonce1 string, extraN
 		diff:            diff,
 		extraNonce1:     extraNonce1,
 		extraNonce2Size: extraNonce2Size,
-		shares:          make(map[shareBytes]bool, 32),
+		shares:          sync.Map{},
 	}
 }
 
 func (m *MiningJob) CheckDuplicateAndAddShare(s *sm.MiningSubmit) bool {
 	bytes := SerializeShare(s.GetExtraNonce2(), s.GetNtime(), s.GetNonce(), s.GetVmask())
-
-	if m.shares[bytes] {
-		return true
-	}
-
-	m.shares[bytes] = true
-	return false
+	_, loaded := m.shares.LoadOrStore(bytes, true)
+	return loaded
 }
 
 func (m *MiningJob) GetNotify() *sm.MiningNotify {
@@ -77,6 +76,5 @@ func (m *MiningJob) Copy() *MiningJob {
 		diff:            m.diff,
 		extraNonce1:     m.extraNonce1,
 		extraNonce2Size: m.extraNonce2Size,
-		shares:          m.shares,
 	}
 }

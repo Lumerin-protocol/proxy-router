@@ -66,7 +66,7 @@ func NewDestConn(conn *StratumConnection, url *url.URL, log gi.ILogger) *ConnDes
 
 func ConnectDest(ctx context.Context, destURL *url.URL, idleReadCloseTimeout, idleWriteCloseTimeout time.Duration, log gi.ILogger) (*ConnDest, error) {
 	destLog := log.Named(fmt.Sprintf("[DST] %s@%s", destURL.User.Username(), destURL.Host))
-	conn, err := Connect(destURL, idleReadCloseTimeout, idleWriteCloseTimeout, IdleCloseStrategyOr, destLog)
+	conn, err := Connect(destURL, idleReadCloseTimeout, idleWriteCloseTimeout, destLog)
 	if err != nil {
 		return nil, err
 	}
