@@ -14,7 +14,7 @@ type MiningJob struct {
 	diff            float64
 	extraNonce1     string
 	extraNonce2Size int
-	// TODO: a quick fix of race condition.
+	// TODO: a quick fix of race condition in CheckDuplicateAndAddShare.
 	// Sync map should not be needed here, because
 	// all methods should be called from single goroutine, but as
 	shares sync.Map // map[shareBytes]bool
