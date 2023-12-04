@@ -190,11 +190,11 @@ func TestConnTimeoutWrite(t *testing.T) {
 
 	// write second message, should fail due to timeout
 	err = clientConn.Write(ctx, sm.NewMiningAuthorize(0, "0", "0"))
-	require.ErrorIs(t, err, ErrConnWriteTimeout)
+	require.ErrorIs(t, err, ErrIdleWriteTimeout)
 
 	// try to read message, should fail as well due to timeout
 	_, err = clientConn.Read(ctx)
-	require.ErrorIs(t, err, ErrConnWriteTimeout)
+	require.ErrorIs(t, err, ErrIdleWriteTimeout)
 }
 
 func TestConnTimeoutRead(t *testing.T) {
@@ -226,9 +226,9 @@ func TestConnTimeoutRead(t *testing.T) {
 
 	// read second message, should fail due to timeout
 	_, err = clientConn.Read(ctx)
-	require.ErrorIs(t, err, ErrConnReadTimeout)
+	require.ErrorIs(t, err, ErrIdleReadTimeout)
 
 	// try to read message, should fail as well due to timeout
 	err = clientConn.Write(ctx, sm.NewMiningAuthorize(0, "0", "0"))
-	require.ErrorIs(t, err, ErrConnReadTimeout)
+	require.ErrorIs(t, err, ErrIdleReadTimeout)
 }

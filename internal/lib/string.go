@@ -2,14 +2,7 @@ package lib
 
 import (
 	"fmt"
-	"regexp"
 )
-
-var filenameSanitize = regexp.MustCompile(`([^a-zA-Z0-9.\+ ]+)`)
-
-func SanitizeFilename(src string) string {
-	return filenameSanitize.ReplaceAllLiteralString(src, "-")
-}
 
 // StrShort returns a short version of the string in a format "aaaaa..aa"
 func StrShort(str string) string {

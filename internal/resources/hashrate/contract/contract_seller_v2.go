@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"sync"
 	"time"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
@@ -33,11 +34,9 @@ type ContractWatcherSellerV2 struct {
 
 	// state
 	stats             *stats
-	isRunning         *atomic.Bool
 	startCh           chan struct{}
 	stopCh            chan struct{}
 	doneCh            chan struct{}
-	err               *atomic.Error
 	cycleEndsAt       time.Time
 	minerConnectCh    *lib.ChanRecvStop[allocator.MinerItem]
 	minerDisconnectCh *lib.ChanRecvStop[allocator.MinerItem]
@@ -46,6 +45,10 @@ type ContractWatcherSellerV2 struct {
 	// shared state
 	fulfillmentStartedAt atomic.Value // time.Time
 	starvingGHS          atomic.Uint64
+	err                  *atomic.Error
+
+	isRunning      bool
+	isRunningMutex sync.RWMutex
 
 	// deps
 	*hashrate.Terms
@@ -60,7 +63,7 @@ func NewContractWatcherSellerV2(terms *hashrateContract.Terms, cycleDuration tim
 		stats: &stats{
 			actualHRGHS: hashrateFactory(),
 		},
-		isRunning:   atomic.NewBool(false),
+		isRunning:   false,
 		startCh:     make(chan struct{}),
 		stopCh:      make(chan struct{}),
 		doneCh:      make(chan struct{}),
@@ -74,17 +77,13 @@ func NewContractWatcherSellerV2(terms *hashrateContract.Terms, cycleDuration tim
 }
 
 func (p *ContractWatcherSellerV2) StartFulfilling() error {
-	if !p.isRunning.CAS(false, true) {
-		return ErrAlreadyRunning
-	}
+	p.isRunningMutex.Lock()
+	defer p.isRunningMutex.Unlock()
+	p.Reset()
 
-	p.startCh = make(chan struct{})
-	p.stopCh = make(chan struct{})
-	p.doneCh = make(chan struct{})
-	p.err = atomic.NewError(nil)
+	p.isRunning = true
 
 	go func() {
-		close(p.startCh)
 		p.log.Infof("contract %s started", p.ID())
 
 		err := p.run()
@@ -92,27 +91,27 @@ func (p *ContractWatcherSellerV2) StartFulfilling() error {
 		if err != nil && err != ErrStopped {
 			p.log.Errorf("contract %s stopped with error: %s", p.ID(), err)
 		}
-		p.isRunning.Store(false)
 		close(p.doneCh)
+		p.log.Infof("contract stopped")
+
+		p.isRunningMutex.Lock()
+		p.isRunning = false
+		p.isRunningMutex.Unlock()
 	}()
 
 	return nil
 }
 
 func (p *ContractWatcherSellerV2) StopFulfilling() {
-	// workaround if never started
-	select {
-	case <-p.startCh:
-	default:
-		close(p.doneCh)
+	p.isRunningMutex.Lock()
+	defer p.isRunningMutex.Unlock()
+
+	if !p.isRunning {
+		return
 	}
 
-	select {
-	case <-p.stopCh:
-		return
-	default:
-		close(p.stopCh)
-	}
+	close(p.stopCh)
+	p.log.Infof("contract %s stopping", p.ID())
 }
 
 func (p *ContractWatcherSellerV2) Done() <-chan struct{} {
@@ -123,19 +122,36 @@ func (p *ContractWatcherSellerV2) Err() error {
 	return p.err.Load()
 }
 
+// Reset resets the contract state
 func (p *ContractWatcherSellerV2) Reset() {
-	p.doneCh = make(chan struct{})
-	p.startCh = make(chan struct{})
-}
-
-func (p *ContractWatcherSellerV2) run() error {
+	fullMiners := lib.NewSet()
 	p.stats = &stats{
 		jobFullMiners:          atomic.NewUint64(0),
 		jobPartialMiners:       atomic.NewUint64(0),
 		sharesFullMiners:       atomic.NewUint64(0),
 		sharesPartialMiners:    atomic.NewUint64(0),
 		globalUnderDeliveryGHS: atomic.NewInt64(0),
-		fullMiners:             make([]string, 0),
+		fullMiners:             &fullMiners,
+		partialMiners:          make([]string, 0),
+		actualHRGHS:            p.hrFactory(),
+		deliveryTargetGHS:      0,
+	}
+	p.isRunning = false
+	p.startCh = make(chan struct{})
+	p.stopCh = make(chan struct{})
+	p.doneCh = make(chan struct{})
+	p.err = atomic.NewError(nil)
+}
+
+func (p *ContractWatcherSellerV2) run() error {
+	fullMiners := lib.NewSet()
+	p.stats = &stats{
+		jobFullMiners:          atomic.NewUint64(0),
+		jobPartialMiners:       atomic.NewUint64(0),
+		sharesFullMiners:       atomic.NewUint64(0),
+		sharesPartialMiners:    atomic.NewUint64(0),
+		globalUnderDeliveryGHS: atomic.NewInt64(0),
+		fullMiners:             &fullMiners,
 		partialMiners:          make([]string, 0),
 		actualHRGHS:            p.hrFactory(),
 		deliveryTargetGHS:      0,
@@ -251,7 +267,7 @@ func (p *ContractWatcherSellerV2) onCycleEnd(cycleDuration time.Duration) {
 		Timestamp:                         time.Now(),
 		ActualGHS:                         int(thisCycleActualGHS),
 		FullMinersGHS:                     int(hr.JobSubmittedToGHSV2(float64(p.stats.jobFullMiners.Load()), cycleDuration)),
-		FullMiners:                        lib.CopySlice(p.stats.fullMiners),
+		FullMiners:                        p.stats.fullMiners.ToSlice(),
 		FullMinersShares:                  int(p.stats.sharesFullMiners.Load()),
 		PartialMinersGHS:                  int(hr.JobSubmittedToGHSV2(float64(p.stats.jobPartialMiners.Load()), cycleDuration)),
 		PartialMiners:                     lib.CopySlice(p.stats.partialMiners),
@@ -319,12 +335,17 @@ func (p *ContractWatcherSellerV2) addFullMiners(hashrateGHS float64) (addedGHS f
 		p.Duration(),
 		p.stats.onFullMinerShare,
 		func(ID string, hashrateGHS float64, remainingJob float64) {
-			p.log.Warn("full miner disconnected", ID)
+			p.log.Warnf("full miner disconnected %s", ID)
 			p.minerDisconnectCh.Send(allocator.MinerItem{
 				ID:           ID,
 				HrGHS:        hashrateGHS,
 				JobRemaining: remainingJob,
+				IsFullMiner:  true,
 			})
+		},
+		func(ID string, HrGHS, remainingJob float64, err error) {
+			p.log.Warnf("full miner ended, id %s, hr %.f, remaining job %d, error %s", ID, HrGHS, remainingJob, err)
+			p.stats.fullMiners.Remove(ID)
 		},
 	)
 	if len(fullMiners) > 0 {
@@ -350,13 +371,13 @@ func (p *ContractWatcherSellerV2) removeFullMiners(hrGHS float64) (removedGHS fl
 			miner.RemoveTasksByID(p.ID())
 			removedGHS = +miner.HashrateGHS()
 		}
-		p.stats.removeFullMiner(minerToRemove)
+		_ = p.stats.removeFullMiner(minerToRemove)
 		if hrGHS-removedGHS < 0 {
 			break
 		}
 	}
 
-	p.log.Debugf("removed %d full miners, removedGHS %.f", len(items)-len(p.stats.fullMiners), removedGHS)
+	p.log.Debugf("removed %d full miners, removedGHS %.f", len(items)-p.stats.fullMiners.Len(), removedGHS)
 	p.log.Debugf("full miners: %v", p.stats.fullMiners)
 	return removedGHS
 }
@@ -384,7 +405,13 @@ func (p *ContractWatcherSellerV2) addPartialMiners(job float64, cycleEndTimeout 
 				ID:           ID,
 				HrGHS:        hrGHS,
 				JobRemaining: remainingJob,
+				IsFullMiner:  false,
 			})
+		},
+		func(ID string, HrGHS, remainingJob float64, err error) {
+			p.log.Warnf("partial miner ended, id %s, hr %.f, remaining job %.f, error %s", ID, HrGHS, remainingJob, err)
+			p.stats.fullMiners.Remove(ID)
+			_ = p.stats.removePartialMiner(ID)
 		},
 	)
 
@@ -431,17 +458,12 @@ func (p *ContractWatcherSellerV2) removeAllPartialMiners() {
 func (p *ContractWatcherSellerV2) replaceMiner(minerItem allocator.MinerItem) (adjustedGHS float64) {
 	p.log.Debugf("replacing miner %s, %.f GHS", minerItem.ID, minerItem.HrGHS)
 
-	isFullMiner := p.stats.removeFullMiner(minerItem.ID)
-	isPartialMiner := p.stats.removePartialMiner(minerItem.ID)
-
-	if isFullMiner {
+	if minerItem.IsFullMiner {
+		p.log.Debugf("replacing full miner %s %.f GHS", minerItem.ID, minerItem.HrGHS)
 		p.stats.deliveryTargetGHS += minerItem.HrGHS
-		p.log.Debugf("miner %s is full miner", minerItem.ID)
-	}
-
-	if isPartialMiner {
-		p.log.Debugf("miner %s is partial miner", minerItem.ID)
+	} else {
 		remainingGHS := hr.JobSubmittedToGHSV2(minerItem.JobRemaining, p.remainingCycleDuration())
+		p.log.Debugf("replacing partial miner %s %.f GHS", minerItem.ID, remainingGHS)
 		p.stats.deliveryTargetGHS += remainingGHS
 	}
 
@@ -478,9 +500,9 @@ func (p *ContractWatcherSellerV2) getAdjustedDest() *url.URL {
 }
 
 func (p *ContractWatcherSellerV2) getFullMinersSorted() []*allocator.MinerItem {
-	items := make([]*allocator.MinerItem, 0, len(p.stats.fullMiners))
+	items := make([]*allocator.MinerItem, 0, p.stats.fullMiners.Len())
 
-	for _, minerID := range p.stats.fullMiners {
+	for _, minerID := range p.stats.fullMiners.ToSlice() {
 		miner, ok := p.allocator.GetMiners().Load(minerID)
 		if !ok {
 			continue
@@ -495,30 +517,30 @@ func (p *ContractWatcherSellerV2) getFullMinersSorted() []*allocator.MinerItem {
 		return a.HrGHS < b.HrGHS
 	})
 
-	if len(items) < len(p.stats.fullMiners) {
-		var minerIDs []string
+	if len(items) < p.stats.fullMiners.Len() {
+		minerIDs := lib.NewSet()
 		for _, miner := range items {
-			minerIDs = append(minerIDs, miner.ID)
+			minerIDs.Add(miner.ID)
 		}
-		p.stats.fullMiners = minerIDs
+		p.stats.fullMiners = &minerIDs
 	}
 
 	return items
 }
 
 func (p *ContractWatcherSellerV2) getAvailableFullMiners() []string {
-	newFullMiners := make([]string, 0, len(p.stats.fullMiners))
-	for _, minerID := range p.stats.fullMiners {
+	newFullMiners := lib.NewSet()
+	for _, minerID := range p.stats.fullMiners.ToSlice() {
 		_, ok := p.allocator.GetMiners().Load(minerID)
 		if !ok {
 			continue
 		}
-		newFullMiners = append(newFullMiners, minerID)
+		newFullMiners.Add(minerID)
 	}
-	if len(newFullMiners) != len(p.stats.fullMiners) {
-		p.stats.fullMiners = newFullMiners
+	if newFullMiners.Len() != p.stats.fullMiners.Len() {
+		p.stats.fullMiners = &newFullMiners
 	}
-	return p.stats.fullMiners
+	return p.stats.fullMiners.ToSlice()
 }
 
 func (p *ContractWatcherSellerV2) getFullMinersHR() float64 {
@@ -570,10 +592,18 @@ func (p *ContractWatcherSellerV2) GetDeliveryLogs() ([]DeliveryLogEntry, error) 
 	return p.deliveryLog.GetEntries()
 }
 func (p *ContractWatcherSellerV2) State() resources.ContractState {
-	if p.isRunning.Load() {
+	p.isRunningMutex.RLock()
+	defer p.isRunningMutex.RUnlock()
+
+	if p.isRunning {
 		return resources.ContractStateRunning
 	}
 	return resources.ContractStatePending
+}
+func (p *ContractWatcherSellerV2) IsRunning() bool {
+	p.isRunningMutex.RLock()
+	defer p.isRunningMutex.RUnlock()
+	return p.isRunning
 }
 func (p *ContractWatcherSellerV2) StarvingGHS() int {
 	return int(p.starvingGHS.Load())
@@ -597,11 +627,16 @@ func (p *ContractWatcherSellerV2) ShouldBeRunning() bool {
 
 // terms setters
 func (p *ContractWatcherSellerV2) SetTerms(terms *hashrate.Terms) {
-	if p.isRunning.Load() {
-		p.log.Error("cannot update contract terms while running")
+	p.isRunningMutex.RLock()
+	defer p.isRunningMutex.RUnlock()
+
+	if p.isRunning {
+		p.log.Warnf("cannot update contract terms while running, terms will apply after closeout")
 		return
 	}
+
 	p.Terms = terms
+	p.log.Infof("contract terms updated: price %.f LMR, hashrate %.f GHS, duration %s, state %s", terms.PriceLMR(), terms.HashrateGHS(), terms.Duration().Round(time.Second), terms.BlockchainState().String())
 }
 
 func (p *ContractWatcherSellerV2) logDeliveryTarget() {

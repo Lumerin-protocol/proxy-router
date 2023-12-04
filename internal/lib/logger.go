@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
+	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -12,44 +13,54 @@ import (
 const timeLayout = "2006-01-02T15:04:05"
 
 func NewLogger(level string, color, isProd bool, isJSON bool, filepath string) (*Logger, error) {
-	log, err := newLogger(level, color, isProd, isJSON, filepath, nil)
-
+	log, file, err := newLogger(level, color, isProd, isJSON, filepath, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Logger{SugaredLogger: log.Sugar()}, nil
+	return &Logger{
+		SugaredLogger: log.Sugar(),
+		file:          file,
+	}, nil
 }
 
 func NewLoggerMemory(level string, color, isProd bool, isJSON bool, filepath string, wr io.Writer) (*Logger, error) {
-	log, err := newLogger(level, color, isProd, isJSON, filepath, wr)
+	log, file, err := newLogger(level, color, isProd, isJSON, filepath, wr)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return &Logger{SugaredLogger: log.Sugar()}, nil
+	return &Logger{
+		SugaredLogger: log.Sugar(),
+		file:          file,
+	}, nil
 }
 
 // NewTestLogger logs only to stdout
 func NewTestLogger() *Logger {
-	log, _ := newLogger("debug", false, false, false, "", nil)
-	return &Logger{SugaredLogger: log.Sugar()}
+	log, file, _ := newLogger("debug", false, false, false, "", nil)
+	return &Logger{
+		SugaredLogger: log.Sugar(),
+		file:          file,
+	}
 }
 
-func newLogger(levelStr string, color bool, isProd bool, isJSON bool, filepath string, extraWriter io.Writer) (*zap.Logger, error) {
+func newLogger(levelStr string, color bool, isProd bool, isJSON bool, filepath string, extraWriter io.Writer) (*zap.Logger, *os.File, error) {
 	level, err := zapcore.ParseLevel(levelStr)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var cores []zapcore.Core
+	var file *os.File
 
 	if filepath != "" {
-		fileCore, err := newFileCore(zapcore.DebugLevel, isProd, isJSON, filepath)
+		fileCore, fd, err := newFileCore(zapcore.DebugLevel, isProd, isJSON, filepath)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
+		file = fd
 		cores = append(cores, fileCore)
 	}
 	if extraWriter != nil {
@@ -74,7 +85,7 @@ func newLogger(levelStr string, color bool, isProd bool, isJSON bool, filepath s
 		opts = append(opts, zap.Development())
 	}
 
-	return zap.New(core, opts...), nil
+	return zap.New(core, opts...), file, nil
 }
 
 func newConsoleCore(level zapcore.Level, color bool, isProd bool, isJSON bool) zapcore.Core {
@@ -104,7 +115,7 @@ func newEncoderCfg(isProd bool, color bool, isJSON bool) zapcore.EncoderConfig {
 	return encoderCfg
 }
 
-func newFileCore(level zapcore.Level, isProd bool, isJSON bool, path string) (zapcore.Core, error) {
+func newFileCore(level zapcore.Level, isProd bool, isJSON bool, path string) (zapcore.Core, *os.File, error) {
 	encoderCfg := newEncoderCfg(isProd, false, isJSON)
 	if !isJSON {
 		encoderCfg.EncodeTime = zapcore.TimeEncoderOfLayout(timeLayout)
@@ -119,20 +130,32 @@ func newFileCore(level zapcore.Level, isProd bool, isJSON bool, path string) (za
 
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return zapcore.NewCore(encoder, zapcore.AddSync(file), level), nil
+	return zapcore.NewCore(encoder, zapcore.AddSync(file), level), file, nil
 }
 
 type Logger struct {
 	*zap.SugaredLogger
+	file *os.File
 }
 
 func (l *Logger) Named(name string) interfaces.ILogger {
-	return &Logger{l.SugaredLogger.Named(name)}
+	return &Logger{
+		SugaredLogger: l.SugaredLogger.Named(name),
+	}
 }
 
 func (l *Logger) With(args ...interface{}) interfaces.ILogger {
-	return &Logger{l.SugaredLogger.With(args...)}
+	return &Logger{
+		SugaredLogger: l.SugaredLogger.With(args...),
+	}
+}
+
+func (l *Logger) Close() error {
+	return multierr.Combine(
+		l.Sync(),
+		l.file.Close(),
+	)
 }

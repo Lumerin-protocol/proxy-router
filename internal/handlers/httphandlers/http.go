@@ -2,7 +2,10 @@ package httphandlers
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"net/url"
+	"os"
 	"time"
 
 	"net/http/pprof"
@@ -16,6 +19,7 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
 	hr "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/system"
 )
 
 type Proxy interface {
@@ -31,6 +35,7 @@ type HTTPHandler struct {
 	globalHashrate         *hr.GlobalHashrate
 	allocator              *allocator.Allocator
 	contractManager        *contractmanager.ContractManager
+	sysConfig              *system.SystemConfigurator
 	cfg                    Sanitizable
 	cycleDuration          time.Duration
 	hashrateCounterDefault string
@@ -43,11 +48,12 @@ type HTTPHandler struct {
 	log                    interfaces.ILogger
 }
 
-func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractmanager.ContractManager, globalHashrate *hr.GlobalHashrate, publicUrl *url.URL, hashrateCounter string, cycleDuration time.Duration, config Sanitizable, derivedConfig *config.DerivedConfig, appStartTime time.Time, logStorage *lib.Collection[*interfaces.LogStorage], log interfaces.ILogger) *gin.Engine {
+func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractmanager.ContractManager, globalHashrate *hr.GlobalHashrate, sysConfig *system.SystemConfigurator, publicUrl *url.URL, hashrateCounter string, cycleDuration time.Duration, config Sanitizable, derivedConfig *config.DerivedConfig, appStartTime time.Time, logStorage *lib.Collection[*interfaces.LogStorage], log interfaces.ILogger) *gin.Engine {
 	handl := &HTTPHandler{
 		allocator:              allocator,
 		contractManager:        contractManager,
 		globalHashrate:         globalHashrate,
+		sysConfig:              sysConfig,
 		publicUrl:              publicUrl,
 		hashrateCounterDefault: hashrateCounter,
 		cycleDuration:          cycleDuration,
@@ -63,6 +69,7 @@ func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractman
 
 	r.GET("/healthcheck", handl.HealthCheck)
 	r.GET("/config", handl.GetConfig)
+	r.GET("/files", handl.GetFiles)
 
 	r.GET("/miners", handl.GetMiners)
 
@@ -92,6 +99,48 @@ func (h *HTTPHandler) HealthCheck(ctx *gin.Context) {
 		"version": config.BuildVersion,
 		"uptime":  time.Since(h.appStartTime).Round(time.Second).String(),
 	})
+}
+
+func (h *HTTPHandler) GetFiles(ctx *gin.Context) {
+	files, err := h.sysConfig.GetFileDescriptors(ctx, os.Getpid())
+	// pr, err := process.NewProcessWithContext(ctx, int32(os.Getpid()))
+	// if err != nil {
+	// 	ctx.JSON(500, gin.H{"error": err.Error()})
+	// 	return
+	// }
+	// files, err := pr.OpenFilesWithContext(ctx)
+	if err != nil {
+		ctx.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	ctx.Status(200)
+
+	err = writeFiles(ctx.Writer, files)
+	if err != nil {
+		h.log.Errorf("failed to write files: %s", err)
+		_ = ctx.Error(err)
+		ctx.Abort()
+	}
+}
+
+func writeFiles(writer io.Writer, files []system.FD) error {
+	text := fmt.Sprintf("Total: %d\n", len(files))
+	text += "\n"
+	text += "fd\tpath\n"
+
+	_, err := fmt.Fprintf(writer, text)
+	if err != nil {
+		return err
+	}
+
+	for _, f := range files {
+		_, err := fmt.Fprintf(writer, "%s\t%s\n", f.ID, f.Path)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (h *HTTPHandler) ChangeDest(ctx *gin.Context) {

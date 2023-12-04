@@ -142,3 +142,7 @@ func (m *WorkerHashrateModel) GetHashrateCounter(counterID string) Counter {
 func (m *WorkerHashrateModel) Reconnects() int {
 	return int(m.reconnects.Load())
 }
+
+func (m *WorkerHashrateModel) GetTotalShares() int {
+	return m.hr.GetTotalShares()
+}

@@ -15,7 +15,11 @@ import (
 )
 
 var (
-	ErrConnPrimary = errors.New("failed to connect to primary dest")
+	ErrConnPrimary           = errors.New("failed to connect to primary dest")
+	ErrConnDest              = errors.New("failed to connect to dest")
+	ErrProxyExited           = errors.New("proxy exited")
+	ErrTaskDeadlineExceeded  = errors.New("task deadline exceeded")
+	ErrTaskMinerDisconnected = errors.New("miner disconnected")
 )
 
 // Scheduler is a proxy wrapper that can schedule one-time tasks to different destinations
@@ -69,7 +73,8 @@ func (p *Scheduler) Run(ctx context.Context) error {
 
 	for {
 		if p.proxy.GetDest().String() != p.primaryDest.String() {
-			err := p.proxy.ConnectDest(ctx, p.primaryDest)
+			err := p.proxy.SetDestWithoutAutoread(ctx, p.primaryDest, nil)
+
 			if err != nil {
 				err := lib.WrapError(ErrConnPrimary, err)
 				p.log.Warnf("%s: %s", err, p.primaryDest)
@@ -139,13 +144,12 @@ func (p *Scheduler) mainLoop(ctx context.Context, proxyTask *lib.Task) error {
 		// all tasks are done, switch to default destination
 		err = p.proxy.SetDest(ctx, p.primaryDest, nil)
 		if err != nil {
+			err = lib.WrapError(ErrConnPrimary, err)
 			return err
 		}
 
 		select {
 		case <-proxyTask.Done():
-			p.isDisconnecting.Store(true)
-			p.onDisconnect()
 			p.log.Infof("proxy exited: %v", proxyTask.Err())
 			return proxyTask.Err()
 		case <-p.newTaskSignal:
@@ -167,13 +171,18 @@ func (p *Scheduler) taskLoop(ctx context.Context, proxyTask *lib.Task) (proxyExi
 
 		select {
 		case <-proxyTask.Done():
-			return true, proxyTask.Err()
+			err = lib.WrapError(ErrProxyExited, proxyTask.Err())
+			task.OnEnd(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()), err)
+			return true, err
 		case <-task.cancelCh:
 			p.log.Debugf("task cancelled %s", lib.StrShort(task.ID))
+			task.OnEnd(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()), nil)
 			p.tasks.UnlockAndRemove()
 			continue
 		case <-deadlineCh:
-			p.log.Debugf("task deadline exceeded %s", lib.StrShort(task.ID))
+			err := lib.WrapError(ErrTaskDeadlineExceeded, fmt.Errorf("%s", lib.StrShort(task.ID)))
+			p.log.Debugf(err.Error())
+			task.OnEnd(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()), err)
 			p.tasks.UnlockAndRemove()
 			continue
 		default:
@@ -193,18 +202,25 @@ func (p *Scheduler) taskLoop(ctx context.Context, proxyTask *lib.Task) (proxyExi
 
 		err := p.proxy.SetDest(ctx, task.Dest, onSubmit)
 		if err != nil {
+			err = lib.WrapError(ErrConnDest, err)
+			task.OnEnd(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()), err)
 			return true, err
 		}
 
 		select {
 		case <-proxyTask.Done():
-			return true, proxyTask.Err()
+			err = lib.WrapError(ErrProxyExited, proxyTask.Err())
+			task.OnEnd(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()), err)
+			return true, err
 		case <-task.cancelCh:
 			p.log.Debugf("task cancelled %s", lib.StrShort(task.ID))
+			task.OnEnd(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()), nil)
 			p.tasks.UnlockAndRemove()
 			continue
 		case <-deadlineCh:
-			p.log.Debugf("task deadline exceeded %s", lib.StrShort(task.ID))
+			err := lib.WrapError(ErrTaskDeadlineExceeded, fmt.Errorf("%s", lib.StrShort(task.ID)))
+			p.log.Debugf(err.Error())
+			task.OnEnd(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()), err)
 			p.tasks.UnlockAndRemove()
 			continue
 		}
@@ -217,6 +233,7 @@ func (p *Scheduler) onDisconnect() {
 	p.tasks.Range(func(task *MinerTask) bool {
 		p.log.Debugf("signalling task %s on disconnect", lib.StrShort(task.ID))
 		task.OnDisconnect(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()))
+		task.OnEnd(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()), ErrTaskMinerDisconnected)
 		return true
 	})
 
@@ -236,20 +253,13 @@ func (p *Scheduler) AddTask(
 	ID string,
 	dest *url.URL,
 	jobSubmitted float64,
-	onSubmit func(diff float64, ID string),
-	onDisconnect func(ID string, HrGHS float64, remainingJob float64),
+	onSubmit OnSubmitCb,
+	onDisconnect OnDisconnectCb,
+	onEnd OnEndCb,
 	deadline time.Time,
 ) {
-	newLength := p.tasks.Add(&MinerTask{
-		ID:                   ID,
-		Dest:                 dest,
-		Job:                  jobSubmitted,
-		RemainingJobToSubmit: atomic.NewInt64(int64(jobSubmitted)),
-		cancelCh:             make(chan struct{}),
-		OnSubmit:             onSubmit,
-		OnDisconnect:         onDisconnect,
-		Deadline:             deadline,
-	})
+	newLength := p.tasks.Add(ID, dest, jobSubmitted, deadline, onSubmit, onDisconnect, onEnd)
+
 	if newLength == 1 {
 		p.newTaskSignal <- struct{}{}
 	}

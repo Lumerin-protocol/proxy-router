@@ -18,6 +18,7 @@ import (
 const (
 	CONNECTION_TIMEOUT = 10 * time.Minute
 	RESPONSE_TIMEOUT   = 30 * time.Second
+	RECONNECT_TIMEOUT  = 3 * time.Second
 )
 
 var (
@@ -28,6 +29,7 @@ var (
 	ErrProxy             = errors.New("proxy error")
 	ErrNotAuthorizedPool = errors.New("not authorized in the pool")
 	ErrChangeDest        = errors.New("destination change error")
+	ErrAutoreadStarted   = errors.New("autoread already started")
 )
 
 type Proxy struct {
@@ -35,6 +37,7 @@ type Proxy struct {
 	ID                     string
 	destURL                *atomic.Pointer[url.URL]
 	notPropagateWorkerName bool
+	maxCachedDests         int // maximum number of cached dests
 
 	// state
 	destToSourceStartSignal chan struct{}      // signal to start reading from destination
@@ -57,12 +60,12 @@ type Proxy struct {
 	log            gi.ILogger
 }
 
-// TODO: pass connection factory for destURL
-func NewProxy(ID string, source *ConnSource, destFactory DestConnFactory, hashrateFactory HashrateFactory, globalHashrate GlobalHashrateCounter, destURL *url.URL, notPropagateWorkerName bool, vettingShares int, log gi.ILogger) *Proxy {
+func NewProxy(ID string, source *ConnSource, destFactory DestConnFactory, hashrateFactory HashrateFactory, globalHashrate GlobalHashrateCounter, destURL *url.URL, notPropagateWorkerName bool, vettingShares int, maxCachedDests int, log gi.ILogger) *Proxy {
 	proxy := &Proxy{
 		ID:                     ID,
 		destURL:                atomic.NewPointer(destURL),
 		notPropagateWorkerName: notPropagateWorkerName,
+		maxCachedDests:         maxCachedDests,
 
 		source:        source,
 		destMap:       lib.NewCollection[*ConnDest](),
@@ -116,6 +119,16 @@ func (p *Proxy) Run(ctx context.Context) error {
 					p.log.Warnf("destination closed the connection, dest %s", p.dest.ID())
 				} else {
 					p.log.Errorf("destination error, source %s dest %s: %s", p.source.GetID(), p.dest.ID(), err)
+				}
+				if p.dest != nil {
+					p.dest.conn.Close()
+				}
+
+				select {
+				case <-ctx.Done():
+					cancel()
+					return ctx.Err()
+				case <-time.After(RECONNECT_TIMEOUT):
 				}
 
 				// try to reconnect to the same dest
@@ -184,6 +197,14 @@ func (p *Proxy) ConnectDest(ctx context.Context, newDestURL *url.URL) error {
 }
 
 func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(diff float64)) error {
+	return p.setDest(ctx, newDestURL, onSubmit, true)
+}
+
+func (p *Proxy) SetDestWithoutAutoread(ctx context.Context, newDestURL *url.URL, onSubmit func(diff float64)) error {
+	return p.setDest(ctx, newDestURL, onSubmit, false)
+}
+
+func (p *Proxy) setDest(ctx context.Context, newDestURL *url.URL, onSubmit func(diff float64), autoReadCurrentDest bool) error {
 	p.setDestLock.Lock()
 	defer p.setDestLock.Unlock()
 
@@ -198,7 +219,7 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 	var newDest *ConnDest
 	cachedDest, ok := p.destMap.Load(newDestURL.String())
 	if ok {
-		p.log.Debugf("reusing dest connection %s from cache", newDestURL.String())
+		p.log.Infof("reusing connection from cache %s", newDestURL.String())
 		// limit waiting time, disconnect if not answered in time
 		p.unansweredMsg.Wait()
 		err := cachedDest.AutoReadStop()
@@ -209,7 +230,7 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 		cachedDest.ResetIdleCloseTimers()
 		newDest = cachedDest
 	} else {
-		p.log.Debugf("connecting to new dest %s", newDestURL.String())
+		p.log.Infof("connecting to new dest %s", newDestURL.String())
 		dest, err := destChanger.connectNewDest(ctx, newDestURL)
 		if err != nil {
 			return err
@@ -227,29 +248,40 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 	// TODO: wait to stop?
 
 	// set old dest to autoread mode
-	destUrl := p.destURL.String()
-	dest := p.dest
-	err := dest.AutoReadStart(ctx, func(err error) {
-		if err != nil {
-			if !errors.Is(err, net.ErrClosed) {
-				p.log.Warnf("autoread exited with error %s", err)
-				err := dest.conn.Close()
-				if err != nil {
-					p.log.Warnf("error closing dest %s: %s", destUrl, err)
+	if autoReadCurrentDest {
+		destUrl := p.destURL.String()
+		dest := p.dest
+		ok := dest.AutoReadStart(ctx, func(err error) {
+			if err != nil {
+				if errors.Is(err, net.ErrClosed) {
+					p.log.Infof("cached connection closed: %s %s", destUrl, err.Error())
+				} else {
+					p.log.Warnf("autoread exited with error %s", err)
+					err := dest.conn.Close()
+					if err != nil {
+						p.log.Warnf("error closing dest %s: %s", destUrl, err)
+					}
 				}
 			}
-		}
 
-		p.destMap.Delete(destUrl)
-	})
+			p.destMap.Delete(destUrl)
+		})
+		if !ok {
+			p.destMap.Delete(dest.ID())
+			dest.conn.Close()
+			p.log.Errorf("%s dest ID %s", ErrAutoreadStarted, dest.ID())
+		} else {
+			p.log.Debugf("set old dest to autoread")
+		}
+	}
+
+	err := destChanger.resendRelevantNotifications(ctx, newDest)
 	if err != nil {
 		return err
 	}
-	p.log.Debugf("set old dest to autoread")
 
-	err = destChanger.resendRelevantNotifications(ctx, newDest)
-	if err != nil {
-		return err
+	if p.destMap.Len() >= p.maxCachedDests {
+		p.closeOldestConn()
 	}
 
 	p.dest = newDest
@@ -267,6 +299,25 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 
 	p.log.Infof("destination changed to %s", newDestURL.String())
 	return nil
+}
+
+func (p *Proxy) closeOldestConn() {
+	p.log.Debugf("dest map size %d exceeds max cached dests %d, closing oldest dest", p.destMap.Len(), p.maxCachedDests)
+	var oldestDest *ConnDest
+
+	p.destMap.Range(func(dest *ConnDest) bool {
+		if oldestDest == nil {
+			oldestDest = dest
+			return true
+		}
+
+		if oldestDest.GetIdleCloseAt().After(dest.GetIdleCloseAt()) {
+			oldestDest = dest
+		}
+		return true
+	})
+	oldestDest.conn.Close()
+	p.destMap.Delete(oldestDest.ID())
 }
 
 func (p *Proxy) closeConnections() {

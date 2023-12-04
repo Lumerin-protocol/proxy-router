@@ -9,15 +9,36 @@ import (
 	"go.uber.org/atomic"
 )
 
+type OnSubmitCb func(diff float64, ID string)
+type OnDisconnectCb func(ID string, HrGHS float64, remainingJob float64)
+type OnEndCb func(ID string, HrGHS float64, remainingJob float64, err error)
+
 type MinerTask struct {
-	ID                   string
-	Dest                 *url.URL
-	Job                  float64
+	ID           string
+	Dest         *url.URL
+	Job          float64
+	Deadline     time.Time
+	OnSubmit     OnSubmitCb
+	OnDisconnect OnDisconnectCb
+	OnEnd        OnEndCb
+
 	RemainingJobToSubmit *atomic.Int64
 	cancelCh             chan struct{}
-	OnSubmit             func(diff float64, ID string)
-	OnDisconnect         func(ID string, HrGHS float64, remainingJob float64)
-	Deadline             time.Time
+}
+
+func NewTask(ID string, dest *url.URL, job float64, deadline time.Time, onSubmit OnSubmitCb, onDisconnect OnDisconnectCb, onEnd OnEndCb) *MinerTask {
+	return &MinerTask{
+		ID:           ID,
+		Dest:         dest,
+		Job:          job,
+		Deadline:     deadline,
+		OnSubmit:     onSubmit,
+		OnDisconnect: onDisconnect,
+		OnEnd:        onEnd,
+
+		RemainingJobToSubmit: atomic.NewInt64(int64(job)),
+		cancelCh:             make(chan struct{}),
+	}
 }
 
 func (t *MinerTask) RemainingJob() float64 {
@@ -48,11 +69,12 @@ func NewTaskList() *TaskList {
 	}
 }
 
-func (p *TaskList) Add(task *MinerTask) (len int) {
+func (p *TaskList) Add(ID string, dest *url.URL, job float64, deadline time.Time, onSubmit OnSubmitCb, onDisconnect OnDisconnectCb, onEnd OnEndCb) int {
+	task := NewTask(ID, dest, job, deadline, onSubmit, onDisconnect, onEnd)
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
-
 	p.tasks.PushBack(task)
+
 	return p.tasks.Len()
 }
 

@@ -1,6 +1,13 @@
 package system
 
 import (
+	"bufio"
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"os/exec"
 	"strings"
 	"syscall"
 )
@@ -73,4 +80,57 @@ func (c *DarwinConfigurator) ApplyConfig(cfg *Config) error {
 		Max: cfg.RlimitHard,
 	})
 	return err
+}
+
+func (*DarwinConfigurator) GetFileDescriptors(ctx context.Context, pid int) ([]FD, error) {
+	cmd := exec.CommandContext(ctx, "lsof", "-Fn", "+p", fmt.Sprint(pid))
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]FD, 0)
+	reader := bufio.NewReader(bytes.NewReader(out))
+	// read header
+	line, err := readPrefixedLine('p', reader)
+	if err != nil {
+		return nil, err
+	}
+	if line != fmt.Sprint(pid) {
+		return nil, fmt.Errorf("unexpected lsof output: %s", line)
+	}
+	for {
+		item := FD{}
+
+		// fd id
+		item.ID, err = readPrefixedLine('f', reader)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		// name
+		item.Path, err = readPrefixedLine('n', reader)
+		if err != nil {
+			return nil, err
+		}
+
+		items = append(items, item)
+	}
+
+	return items, nil
+}
+
+func readPrefixedLine(prefix rune, input *bufio.Reader) (string, error) {
+	line, _, err := input.ReadLine()
+	if err != nil {
+		return "", err
+	}
+
+	if rune(line[0]) != prefix {
+		return "", fmt.Errorf("unexpected lsof output: %s", line)
+	}
+	return string(line[1:]), nil
 }
