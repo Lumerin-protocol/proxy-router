@@ -18,6 +18,7 @@ import (
 const (
 	CONNECTION_TIMEOUT = 10 * time.Minute
 	RESPONSE_TIMEOUT   = 30 * time.Second
+	RECONNECT_TIMEOUT  = 3 * time.Second
 )
 
 var (
@@ -118,6 +119,16 @@ func (p *Proxy) Run(ctx context.Context) error {
 					p.log.Warnf("destination closed the connection, dest %s", p.dest.ID())
 				} else {
 					p.log.Errorf("destination error, source %s dest %s: %s", p.source.GetID(), p.dest.ID(), err)
+				}
+				if p.dest != nil {
+					p.dest.conn.Close()
+				}
+
+				select {
+				case <-ctx.Done():
+					cancel()
+					return ctx.Err()
+				case <-time.After(RECONNECT_TIMEOUT):
 				}
 
 				// try to reconnect to the same dest
@@ -257,6 +268,7 @@ func (p *Proxy) setDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 		})
 		if !ok {
 			p.destMap.Delete(dest.ID())
+			dest.conn.Close()
 			p.log.Errorf("%s dest ID %s", ErrAutoreadStarted, dest.ID())
 		} else {
 			p.log.Debugf("set old dest to autoread")

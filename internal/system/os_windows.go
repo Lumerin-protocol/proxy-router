@@ -1,6 +1,13 @@
 package system
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+var (
+	ErrNotImplemented = errors.New("not implemented")
+)
 
 type WindowsConfigurator struct {
 }
@@ -18,5 +25,5 @@ func (c *WindowsConfigurator) ApplyConfig(cfg *Config) error {
 }
 
 func (*WindowsConfigurator) GetFileDescriptors(ctx context.Context, pid int) ([]FD, error) {
-	return nil, nil
+	return nil, ErrNotImplemented
 }
