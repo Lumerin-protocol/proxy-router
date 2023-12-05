@@ -2,6 +2,7 @@ package httphandlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/url"
@@ -103,17 +104,25 @@ func (h *HTTPHandler) HealthCheck(ctx *gin.Context) {
 
 func (h *HTTPHandler) GetFiles(ctx *gin.Context) {
 	files, err := h.sysConfig.GetFileDescriptors(ctx, os.Getpid())
-	// pr, err := process.NewProcessWithContext(ctx, int32(os.Getpid()))
-	// if err != nil {
-	// 	ctx.JSON(500, gin.H{"error": err.Error()})
-	// 	return
-	// }
-	// files, err := pr.OpenFilesWithContext(ctx)
 	if err != nil {
 		ctx.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
 	ctx.Status(200)
+
+	systemCfg, err := h.sysConfig.GetConfig()
+	if err != nil {
+		fmt.Fprintf(ctx.Writer, "failed to get system config: %s\n", err)
+	} else {
+		json, err := json.Marshal(systemCfg)
+		if err != nil {
+			fmt.Fprintf(ctx.Writer, "failed to marshal system config: %s\n", err)
+		} else {
+			fmt.Fprintf(ctx.Writer, "system config: %s\n", json)
+		}
+	}
+
+	fmt.Fprintf(ctx.Writer, "\n")
 
 	err = writeFiles(ctx.Writer, files)
 	if err != nil {

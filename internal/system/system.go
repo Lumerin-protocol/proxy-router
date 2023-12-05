@@ -23,6 +23,10 @@ func CreateConfigurator(log interfaces.ILogger) *SystemConfigurator {
 	return NewConfigurator(NewOSConfigurator(), log)
 }
 
+func (c *SystemConfigurator) GetConfig() (*Config, error) {
+	return c.osConfigurator.GetConfig()
+}
+
 func (c *SystemConfigurator) ApplyConfig(cfg *Config) error {
 	if c.backup == nil {
 		backup, err := c.osConfigurator.GetConfig()

@@ -79,8 +79,8 @@ test:
     --build-arg WALLET_PRIVATE_KEY=$WALLET_PRIVATE_KEY \
     --build-arg MINER_VETTING_DURATION=$MINER_VETTING_DURATION \
     --build-arg MINER_SHARE_TIMEOUT=$MINER_SHARE_TIMEOUT \
-    --build-arg LOG_TO_FILE=$LOG_TO_FILE \
     --build-arg LOG_COLOR=$LOG_COLOR \
+    --build-arg LOG_JSON=$LOG_JSON \
     --build-arg LOG_LEVEL_APP=$LOG_LEVEL_APP \
     --build-arg LOG_LEVEL_CONNECTION=$LOG_LEVEL_CONNECTION \
     --build-arg LOG_LEVEL_PROXY=$LOG_LEVEL_PROXY \

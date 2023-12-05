@@ -293,6 +293,6 @@ func start() error {
 	cancelServer()
 	<-serverErrCh
 
-	log.Infof("App exited due to %s", err)
+	log.Warnf("App exited due to %s", err)
 	return err
 }
