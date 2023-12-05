@@ -144,10 +144,7 @@ func (cm *ContractManager) AddContract(ctx context.Context, data *hashrate.Encry
 		defer cm.contractsWG.Done()
 
 		err := cntr.Run(ctx)
-		if err != nil {
-			cm.log.Warn(err)
-		}
-		cm.log.Infof("exited from contract %s", data.ID())
+		cm.log.Warnf("exited from contract %s, err %s", data.ID(), err)
 
 		cm.contracts.Delete(cntr.ID())
 	}()

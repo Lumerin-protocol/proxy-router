@@ -315,10 +315,11 @@ func (p *ContractWatcherSellerV2) adjustHashrate(hashrateGHS float64) (adjustedG
 		p.log.Debugf("added %.f GHS of partial miners", addedGHS)
 	}
 
-	starvingGHS := uint64(hashrateGHS)
-	p.starvingGHS.Store(starvingGHS)
-	if starvingGHS > 0 {
-		p.log.Warnf("not enough hashrate to fulfill contract (lacking %d GHS)", starvingGHS)
+	if hashrateGHS > 0 {
+		p.log.Warnf("not enough hashrate to fulfill contract (lacking %d GHS)", hashrateGHS)
+		p.starvingGHS.Store(uint64(hashrateGHS))
+	} else {
+		p.starvingGHS.Store(0)
 	}
 
 	deltaGHS := expectedAdjustmentGHS - hashrateGHS
