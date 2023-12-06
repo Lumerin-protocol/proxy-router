@@ -84,21 +84,21 @@ func (p *Scheduler) Run(ctx context.Context) error {
 		}
 		proxyTask := lib.NewTaskFunc(p.proxy.Run)
 
-		go func() {
-			select {
-			case <-ctx.Done():
-				return
-			case <-proxyTask.Done():
-				return
-			case <-p.proxy.VettingDone():
-			}
+		// go func() {
+		// 	select {
+		// 	case <-ctx.Done():
+		// 		return
+		// 	case <-proxyTask.Done():
+		// 		return
+		// 	case <-p.proxy.VettingDone():
+		// 	}
 
-			p.log.Infof("vetting done")
-			if p.onVetted != nil {
-				p.onVetted(p.proxy.GetID())
-				p.onVetted = nil
-			}
-		}()
+		// 	p.log.Infof("vetting done")
+		// 	if p.onVetted != nil {
+		// 		p.onVetted(p.proxy.GetID())
+		// 		p.onVetted = nil
+		// 	}
+		// }()
 
 		proxyTask.Start(ctx)
 
