@@ -2,6 +2,7 @@ package resources
 
 import (
 	"context"
+	"math/big"
 	"time"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
@@ -13,24 +14,33 @@ type GenericContractManager interface {
 
 type Contract interface {
 	Run(ctx context.Context) error
-	GetRole() ContractRole                        // the role in the contract (buyer or seller)
-	GetState() ContractState                      // the state of the contract (pending or running)
-	GetBlockchainState() hashrate.BlockchainState // the state of the contract in blockchain (pending or running)
-	GetValidationStage() hashrate.ValidationStage // the stage of the contract validation (only buyer)
-	GetID() string                                // ID is the unique identifier of the contract, for smart contract data source this is the smart contract address
-	GetBuyer() string                             // ID of the buyer (address of the buyer for smart contract data source)
-	GetSeller() string                            // ID of the seller (address of the seller for smart contract data source)
-	GetDest() string                              // string representation of the destination of the contract (IP address for hashrate, stream URL for video stream etc)
 
-	GetStartedAt() *time.Time
-	GetFulfillmentStartedAt() *time.Time
-	GetEndTime() *time.Time
-	GetDuration() time.Duration
-	GetElapsed() *time.Duration
+	Role() ContractRole                        // the role in the contract (buyer or seller)
+	State() ContractState                      // the state of the contract (pending or running)
+	BlockchainState() hashrate.BlockchainState // the state of the contract in blockchain (pending or running)
+	ValidationStage() hashrate.ValidationStage // the stage of the contract validation (only buyer)
 
-	GetResourceType() string                  // resource is the name of the resource that the contract is for (hashrate, video stream etc)
-	GetResourceEstimates() map[string]float64 // map of resouce quantitative estimates, for example for hashrate this would be map[string]string{"hashrate GH/S": "1000"}
-	GetResourceEstimatesActual() map[string]float64
+	ID() string     // ID is the unique identifier of the contract, for smart contract data source this is the smart contract address
+	Seller() string // ID of the seller (address of the seller for smart contract data source)
+	Buyer() string  // ID of the buyer (address of the buyer for smart contract data source)
+	Dest() string   // string representation of the destination of the contract (IP address for hashrate, stream URL for video stream etc)
+	Price() *big.Int
+
+	Balance() *big.Int
+	IsDeleted() bool
+	HasFutureTerms() bool
+	Version() uint32
+
+	StartTime() time.Time
+	FulfillmentStartTime() time.Time
+	EndTime() time.Time
+	Duration() time.Duration
+	Elapsed() time.Duration
+
+	ResourceType() string                  // resource is the name of the resource that the contract is for (hashrate, video stream etc)
+	ResourceEstimates() map[string]float64 // map of resouce quantitative estimates, for example for hashrate this would be map[string]string{"hashrate GH/S": "1000"}
+	ResourceEstimatesActual() map[string]float64
+	StarvingGHS() int
 }
 
 type ContractState string

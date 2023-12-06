@@ -18,6 +18,7 @@ type HashrateCounterFunc func(diff float64)
 
 type GlobalHashrateCounter interface {
 	OnSubmit(workerName string, diff float64)
+	OnConnect(workerName string)
 }
 
 type Hashrate interface {
@@ -26,6 +27,7 @@ type Hashrate interface {
 	GetTotalWork() float64
 	GetTotalDuration() time.Duration
 	GetLastSubmitTime() time.Time
+	GetTotalShares() int
 }
 
 type DestConnFactory = func(ctx context.Context, url *url.URL, logID string) (*ConnDest, error)

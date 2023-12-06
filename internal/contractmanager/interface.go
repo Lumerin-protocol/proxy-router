@@ -7,11 +7,11 @@ import (
 )
 
 type TermsCommon interface {
-	GetID() string
-	GetState() hashrate.BlockchainState
-	GetSeller() string
-	GetBuyer() string
-	GetStartsAt() *time.Time
-	GetDuration() time.Duration
-	GetHashrateGHS() float64
+	ID() string
+	BlockchainState() hashrate.BlockchainState
+	Seller() string
+	Buyer() string
+	StartTime() time.Time
+	Duration() time.Duration
+	HashrateGHS() float64
 }

@@ -2,8 +2,9 @@ package contracts
 
 import (
 	"context"
+	"fmt"
 	"math/big"
-	"sync"
+	"strings"
 	"time"
 
 	"github.com/Lumerin-protocol/contracts-go/clonefactory"
@@ -18,17 +19,18 @@ import (
 	hr "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 )
 
-const (
-	SUBSCRIPTION_MAX_RECONNECTS = 50 // max consequent reconnects
+var (
+	ErrNotRunning = fmt.Errorf("the contract is not in the running state")
 )
 
 type HashrateEthereum struct {
 	// config
-	legacyTx bool // use legacy transaction fee, for local node testing
+	legacyTx         bool // use legacy transaction fee, for local node testing
+	clonefactoryAddr common.Address
 
 	// state
 	nonce   uint64
-	mutex   sync.Mutex
+	mutex   lib.Mutex
 	cfABI   *abi.ABI
 	implABI *abi.ABI
 
@@ -52,16 +54,28 @@ func NewHashrateEthereum(clonefactoryAddr common.Address, client EthereumClient,
 		panic("invalid implementation ABI: " + err.Error())
 	}
 	return &HashrateEthereum{
-		cloneFactory: cf,
-		client:       client,
-		cfABI:        cfABI,
-		implABI:      implABI,
-		log:          log,
+		cloneFactory:     cf,
+		clonefactoryAddr: clonefactoryAddr,
+		client:           client,
+		cfABI:            cfABI,
+		implABI:          implABI,
+		mutex:            lib.NewMutex(),
+		log:              log,
 	}
 }
 
 func (g *HashrateEthereum) SetLegacyTx(legacyTx bool) {
 	g.legacyTx = legacyTx
+}
+
+func (g *HashrateEthereum) GetLumerinAddress(ctx context.Context) (common.Address, error) {
+	data, err := g.client.StorageAt(ctx, g.clonefactoryAddr, common.HexToHash("0"), nil)
+	if err != nil {
+		return common.Address{}, err
+	}
+
+	addrHex := common.Bytes2Hex(data[10:30])
+	return common.HexToAddress(addrHex), nil
 }
 
 func (g *HashrateEthereum) GetContractsIDs(ctx context.Context) ([]string, error) {
@@ -89,27 +103,38 @@ func (g *HashrateEthereum) GetContract(ctx context.Context, contractID string) (
 		return nil, err
 	}
 
-	terms := &hashrate.EncryptedTerms{
-		Base: hashrate.Base{
-			ContractID: contractID,
-			Seller:     data.Seller.Hex(),
-			Duration:   time.Duration(data.Length.Int64()) * time.Second,
-			Hashrate:   float64(hr.HSToGHS(float64(data.Speed.Int64()))),
-			State:      hashrate.BlockchainState(data.State),
-		},
-	}
+	var (
+		startsAt      time.Time
+		buyer         string
+		destEncrypted string
+	)
 
 	if data.State == 1 { // running
-		startsAt := time.Unix(data.StartingBlockTimestamp.Int64(), 0)
-		terms.StartsAt = &startsAt
-		terms.Buyer = data.Buyer.Hex()
-		terms.DestEncrypted = data.EncryptedPoolData
+		startsAt = time.Unix(data.StartingBlockTimestamp.Int64(), 0)
+		buyer = data.Buyer.Hex()
+		destEncrypted = data.EncryptedPoolData
 	}
+
+	terms := hashrate.NewTerms(
+		contractID,
+		data.Seller.Hex(),
+		buyer,
+		startsAt,
+		time.Duration(data.Length.Int64())*time.Second,
+		float64(hr.HSToGHS(float64(data.Speed.Int64()))),
+		data.Price,
+		hashrate.BlockchainState(data.State),
+		data.IsDeleted,
+		data.Balance,
+		data.HasFutureTerms,
+		data.Version,
+		destEncrypted,
+	)
 
 	return terms, nil
 }
 
-func (g *HashrateEthereum) PurchaseContract(ctx context.Context, contractID string, privKey string) error {
+func (g *HashrateEthereum) PurchaseContract(ctx context.Context, contractID string, privKey string, version int) error {
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
 
@@ -118,7 +143,7 @@ func (g *HashrateEthereum) PurchaseContract(ctx context.Context, contractID stri
 		return err
 	}
 
-	_, err = g.cloneFactory.SetPurchaseRentalContract(opts, common.HexToAddress(contractID), "")
+	_, err = g.cloneFactory.SetPurchaseRentalContract(opts, common.HexToAddress(contractID), "", uint32(version))
 	if err != nil {
 		g.log.Error(err)
 		return err
@@ -146,9 +171,32 @@ func (g *HashrateEthereum) PurchaseContract(ctx context.Context, contractID stri
 }
 
 func (g *HashrateEthereum) CloseContract(ctx context.Context, contractID string, closeoutType CloseoutType, privKey string) error {
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	timeout := 2 * time.Minute
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	l := lib.NewMutex()
+
+	err := l.LockCtx(ctx)
+	if err != nil {
+		err = lib.WrapError(err, fmt.Errorf("close contract lock error %s", timeout))
+		g.log.Error(err)
+		return err
+	}
+	defer l.Unlock()
+
+	err = g.closeContract(ctx, contractID, closeoutType, privKey)
+	if err != nil {
+		if strings.Contains(err.Error(), "the contract is not in the running state") {
+			return ErrNotRunning
+		}
+		return lib.WrapError(fmt.Errorf("close contract error"), err)
+	}
+
+	return err
+}
+
+func (g *HashrateEthereum) closeContract(ctx context.Context, contractID string, closeoutType CloseoutType, privKey string) error {
 	instance, err := implementation.NewImplementation(common.HexToAddress(contractID), g.client)
 	if err != nil {
 		g.log.Error(err)
@@ -163,9 +211,9 @@ func (g *HashrateEthereum) CloseContract(ctx context.Context, contractID string,
 
 	tx, err := instance.SetContractCloseOut(transactOpts, big.NewInt(int64(closeoutType)))
 	if err != nil {
-		g.log.Error(err)
 		return err
 	}
+	g.log.Debugf("closed contract id %s, closeoutType %d nonce %d", contractID, closeoutType, tx.Nonce())
 
 	_, err = bind.WaitMined(ctx, g.client, tx)
 	if err != nil {
@@ -177,11 +225,11 @@ func (g *HashrateEthereum) CloseContract(ctx context.Context, contractID string,
 }
 
 func (s *HashrateEthereum) CreateCloneFactorySubscription(ctx context.Context, clonefactoryAddr common.Address) (*lib.Subscription, error) {
-	return WatchContractEvents(ctx, s.client, clonefactoryAddr, CreateEventMapper(clonefactoryEventFactory, s.cfABI), SUBSCRIPTION_MAX_RECONNECTS, s.log)
+	return WatchContractEvents(ctx, s.client, clonefactoryAddr, CreateEventMapper(clonefactoryEventFactory, s.cfABI), s.log)
 }
 
 func (s *HashrateEthereum) CreateImplementationSubscription(ctx context.Context, contractAddr common.Address) (*lib.Subscription, error) {
-	return WatchContractEvents(ctx, s.client, contractAddr, CreateEventMapper(implementationEventFactory, s.implABI), SUBSCRIPTION_MAX_RECONNECTS, s.log)
+	return WatchContractEvents(ctx, s.client, contractAddr, CreateEventMapper(implementationEventFactory, s.implABI), s.log)
 }
 
 func (g *HashrateEthereum) getTransactOpts(ctx context.Context, privKey string) (*bind.TransactOpts, error) {
@@ -209,42 +257,8 @@ func (g *HashrateEthereum) getTransactOpts(ctx context.Context, privKey string) 
 		transactOpts.GasPrice = gasPrice
 	}
 
-	fromAddr, err := lib.PrivKeyToAddr(privateKey)
-	if err != nil {
-		return nil, err
-	}
-
-	nonce, err := g.getNonce(ctx, fromAddr)
-	if err != nil {
-		return nil, err
-	}
-
 	transactOpts.Value = big.NewInt(0)
-	transactOpts.Nonce = nonce
 	transactOpts.Context = ctx
 
 	return transactOpts, nil
-}
-
-func (s *HashrateEthereum) getNonce(ctx context.Context, from common.Address) (*big.Int, error) {
-	// TODO: consider assuming that local cached nonce is correct and
-	// only retrieve pending nonce from blockchain in case of unlikely error
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	nonce := &big.Int{}
-	blockchainNonce, err := s.client.PendingNonceAt(ctx, from)
-	if err != nil {
-		return nonce, err
-	}
-
-	if s.nonce > blockchainNonce {
-		nonce.SetUint64(s.nonce)
-	} else {
-		nonce.SetUint64(blockchainNonce)
-	}
-
-	s.nonce = nonce.Uint64() //+ 1
-
-	return nonce, nil
 }

@@ -64,9 +64,9 @@ func NewDestConn(conn *StratumConnection, url *url.URL, log gi.ILogger) *ConnDes
 	return dest
 }
 
-func ConnectDest(ctx context.Context, destURL *url.URL, log gi.ILogger) (*ConnDest, error) {
+func ConnectDest(ctx context.Context, destURL *url.URL, idleReadCloseTimeout, idleWriteCloseTimeout time.Duration, log gi.ILogger) (*ConnDest, error) {
 	destLog := log.Named(fmt.Sprintf("[DST] %s@%s", destURL.User.Username(), destURL.Host))
-	conn, err := Connect(destURL, destLog)
+	conn, err := Connect(destURL, idleReadCloseTimeout, idleWriteCloseTimeout, destLog)
 	if err != nil {
 		return nil, err
 	}
@@ -74,10 +74,11 @@ func ConnectDest(ctx context.Context, destURL *url.URL, log gi.ILogger) (*ConnDe
 	return NewDestConn(conn, destURL, destLog), nil
 }
 
-func (c *ConnDest) AutoReadStart(ctx context.Context, cb func(err error)) error {
+func (c *ConnDest) AutoReadStart(ctx context.Context, cb func(err error)) (ok bool) {
 	if c.arCancel != nil {
-		return errors.New("auto read already started")
+		return false
 	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	c.arCancel = cancel
 	c.arDone = make(chan struct{})
@@ -89,7 +90,8 @@ func (c *ConnDest) AutoReadStart(ctx context.Context, cb func(err error)) error 
 		cb(err)
 		close(c.arDone)
 	}()
-	return nil
+
+	return true
 }
 
 func (c *ConnDest) AutoReadStop() error {
@@ -118,7 +120,7 @@ func (c *ConnDest) AutoRead(ctx context.Context) error {
 	}
 }
 
-func (c *ConnDest) GetID() string {
+func (c *ConnDest) ID() string {
 	return c.conn.GetID()
 }
 
@@ -152,7 +154,6 @@ func (c *ConnDest) SetExtraNonce(extraNonce string, extraNonceSize int) {
 	c.extraNonceLock.Lock()
 	defer c.extraNonceLock.Unlock()
 	c.extraNonce1, c.extraNonce2Size = extraNonce, extraNonceSize
-	c.log.Info("dest xnonce set to %s", extraNonce)
 }
 
 func (c *ConnDest) GetVersionRolling() (versionRolling bool, versionRollingMask string) {
@@ -188,10 +189,10 @@ func (c *ConnDest) SetUserName(userName string) {
 
 	c.userName = userName
 
-	newURL := *c.destUrl
-	lib.SetUserName(&newURL, userName)
+	newURL := lib.CopyURL(c.destUrl)
+	lib.SetUserName(newURL, userName)
 
-	c.destUrl = &newURL
+	c.destUrl = newURL
 	c.conn.id = c.destUrl.String()
 	c.conn.address = c.destUrl.String()
 }
@@ -256,40 +257,41 @@ func (s *ConnDest) onceResult(ctx context.Context, msgID int, handler ResultHand
 }
 
 // WriteAwaitRes writes message to the destination connection and awaits for the response
-func (s *ConnDest) WriteAwaitRes(ctx context.Context, msg i.MiningMessageWithID) (resMsg i.MiningMessageWithID, err error) {
-	errCh := make(chan error, 1)
+func (s *ConnDest) WriteAwaitRes(parentCtx context.Context, msg i.MiningMessageWithID) (resMsg i.MiningMessageWithID, err error) {
 	resCh := make(chan i.MiningMessageWithID, 1)
 	msgID := msg.GetID()
 
-	ctx, cancel := context.WithTimeout(ctx, RESPONSE_TIMEOUT)
-	didRun := false
+	responceCtx, responceCancel := context.WithTimeout(parentCtx, RESPONSE_TIMEOUT)
+	defer responceCancel()
+
+	go func() {
+		<-responceCtx.Done()
+		s.resultHandlers.Delete(msgID)
+	}()
 
 	s.resultHandlers.Store(msgID, func(a *sm.MiningResult) (msg i.MiningMessageWithID, err error) {
-		didRun = true
-		defer cancel()
-		defer close(errCh)
-		resCh <- a
+		select {
+		case <-responceCtx.Done():
+		case resCh <- a:
+		}
 		return nil, nil
 	})
 
-	err = s.Write(ctx, msg)
+	err = s.Write(parentCtx, msg)
 	if err != nil {
-		s.resultHandlers.Delete(msgID)
 		return nil, err
 	}
 
-	go func() {
-		<-ctx.Done()
-		s.resultHandlers.Delete(msgID)
-		if !didRun {
-			errCh <- fmt.Errorf("dest response timeout (%s) msgID(%d)", RESPONSE_TIMEOUT, msgID)
-			// TODO: verify if there is no write to closed chan
-			close(resCh)
-			close(errCh)
+	select {
+	case <-responceCtx.Done():
+		err := responceCtx.Err()
+		if errors.Is(err, context.DeadlineExceeded) {
+			err = fmt.Errorf("dest response timeout (%s) msgID(%d)", RESPONSE_TIMEOUT, msgID)
 		}
-	}()
-
-	return <-resCh, <-errCh
+		return nil, err
+	case res := <-resCh:
+		return res, nil
+	}
 }
 
 func (c *ConnDest) GetStats() *DestStats {

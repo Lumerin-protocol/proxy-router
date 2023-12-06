@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/omeid/uconfig/flat"
@@ -15,7 +16,13 @@ const (
 	TagEnv  = "env"
 	TagFlag = "flag"
 	TagDesc = "desc"
+
+	StrFlagNotDefined = "flag provided but not defined"
 )
+
+func isErrFlagNotDefined(err error) bool {
+	return strings.Contains(err.Error(), StrFlagNotDefined)
+}
 
 var (
 	ErrEnvLoad          = errors.New("error during loading .env file")
@@ -25,7 +32,7 @@ var (
 	ErrConfigValidation = errors.New("config validation error")
 )
 
-func LoadConfig(cfg ConfigWithDefaults, osArgs *[]string) error {
+func LoadConfig(cfg ConfigInterface, osArgs *[]string) error {
 	err := godotenv.Load(".env")
 	if err != nil {
 		fmt.Println(lib.WrapError(ErrEnvLoad, err))
@@ -38,6 +45,7 @@ func LoadConfig(cfg ConfigWithDefaults, osArgs *[]string) error {
 	}
 
 	flagset := flag.NewFlagSet("", flag.ContinueOnError)
+	flagset.Usage = func() {}
 
 	for _, field := range fields {
 		envName, ok := field.Tag(TagEnv)
@@ -67,26 +75,45 @@ func LoadConfig(cfg ConfigWithDefaults, osArgs *[]string) error {
 	if osArgs != nil {
 		args = *osArgs
 	} else {
+		// if flargs not provided use global os.Args
 		args = os.Args
 	}
 
-	// flags override .env variables
-	err = flagset.Parse(args[1:])
+	// skipping program name
+	args = args[1:]
 
-	if err != nil {
-		return lib.WrapError(ErrFlagParse, err)
+	// flags override .env variables
+	for {
+		if len(args) == 0 {
+			break
+		}
+
+		// skipping keys that are not flags
+		// or values for flags that are not defined
+		if args[0][0] != '-' {
+			continue
+		}
+
+		err = flagset.Parse(args)
+		if err == nil {
+			break
+		}
+
+		if !isErrFlagNotDefined(err) {
+			return lib.WrapError(ErrFlagParse, err)
+		}
+
+		args = flagset.Args()[1:]
 	}
 
 	cfg.SetDefaults()
 
 	validator, err := NewValidator()
-
 	if err != nil {
 		return lib.WrapError(ErrConfigValidation, err)
 	}
 
 	err = validator.Struct(cfg)
-
 	if err != nil {
 		return lib.WrapError(ErrConfigValidation, err)
 	}

@@ -29,7 +29,7 @@ func ParseMiningSetExtranonce(b []byte) (*MiningSetExtranonce, error) {
 }
 
 func (m *MiningSetExtranonce) GetExtranonce() (extranonce1 string, extranonce2size int) {
-	return m.Params[0].(string), m.Params[1].(int)
+	return m.Params[0].(string), int(m.Params[1].(float64)) // observed that extranonce2size returned as float, TODO: check if it is correct
 }
 
 func (m *MiningSetExtranonce) SetExtranonce(extranonce string, size int) {

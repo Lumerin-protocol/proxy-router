@@ -88,6 +88,7 @@ func (bs *BoundStackMap[T]) Capacity() int {
 func (bs *BoundStackMap[T]) Keys() []string {
 	bs.m.RLock()
 	defer bs.m.RUnlock()
+
 	return bs.data[:]
 }
 

@@ -5,7 +5,7 @@ import (
 )
 
 type IModel interface {
-	GetID() string
+	ID() string
 }
 
 type Collection[T IModel] struct {
@@ -37,14 +37,24 @@ func (p *Collection[T]) Range(f func(item T) bool) {
 }
 
 func (p *Collection[T]) Store(item T) {
-	p.items.Store(item.GetID(), item)
+	p.items.Store(item.ID(), item)
 }
 
 func (p *Collection[T]) LoadOrStore(item T) (actual T, loaded bool) {
-	act, load := p.items.LoadOrStore(item.GetID(), item)
+	act, load := p.items.LoadOrStore(item.ID(), item)
 	return act.(T), load
 }
 
 func (p *Collection[T]) Delete(ID string) {
 	p.items.Delete(ID)
+}
+
+// Len returns the number of items in the collection. It is O(n)
+func (p *Collection[T]) Len() int {
+	count := 0
+	p.items.Range(func(key, value any) bool {
+		count++
+		return true
+	})
+	return count
 }

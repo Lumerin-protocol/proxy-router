@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -13,7 +14,9 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/config"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/contractmanager"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/handlers"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/handlers/httphandlers"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/handlers/tcphandlers"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/repositories/contracts"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/repositories/transport"
@@ -23,6 +26,11 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/system"
 	"golang.org/x/sync/errgroup"
+)
+
+const (
+	IDLE_READ_CLOSE_TIMEOUT  = 10 * time.Minute
+	IDLE_WRITE_CLOSE_TIMEOUT = 10 * time.Minute
 )
 
 var (
@@ -45,42 +53,73 @@ func start() error {
 		return err
 	}
 
+	fmt.Printf("Loaded config: %+v\n", cfg.GetSanitized())
+
 	destUrl, err := url.Parse(cfg.Pool.Address)
 	if err != nil {
 		return err
 	}
 
-	log, err := lib.NewLogger(cfg.Log.LevelApp, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, cfg.Log.FolderPath)
+	mainLogFilePath := ""
+	logFolderPath := ""
+
+	if cfg.Log.FolderPath != "" {
+		folderName := lib.SanitizeFilename(time.Now().Format("2006-01-02T15-04-05Z07:00"))
+		logFolderPath = filepath.Join(cfg.Log.FolderPath, folderName)
+		err = os.MkdirAll(logFolderPath, os.ModePerm)
+		if err != nil {
+			return err
+		}
+
+		mainLogFilePath = filepath.Join(logFolderPath, "main.log")
+	}
+
+	log, err := lib.NewLogger(cfg.Log.LevelApp, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, mainLogFilePath)
 	if err != nil {
 		return err
 	}
 
-	schedulerLog, err := lib.NewLogger(cfg.Log.LevelScheduler, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, cfg.Log.FolderPath)
+	proxyLog, err := lib.NewLogger(cfg.Log.LevelProxy, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, mainLogFilePath)
 	if err != nil {
 		return err
 	}
 
-	proxyLog, err := lib.NewLogger(cfg.Log.LevelProxy, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, cfg.Log.FolderPath)
+	connLog, err := lib.NewLogger(cfg.Log.LevelConnection, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, mainLogFilePath)
 	if err != nil {
 		return err
 	}
 
-	connLog, err := lib.NewLogger(cfg.Log.LevelConnection, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, cfg.Log.FolderPath)
-	if err != nil {
-		return err
+	schedulerLogFactory := func(minerID string) (interfaces.ILogger, error) {
+		fp := ""
+		if logFolderPath != "" {
+			fp = filepath.Join(logFolderPath, fmt.Sprintf("scheduler-%s.log", lib.SanitizeFilename(minerID)))
+		}
+		return lib.NewLogger(cfg.Log.LevelScheduler, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, fp)
+	}
+
+	contractLogStorage := lib.NewCollection[*interfaces.LogStorage]()
+
+	contractLogFactory := func(contractID string) (interfaces.ILogger, error) {
+		logStorage := interfaces.NewLogStorage(contractID)
+		contractLogStorage.Store(logStorage)
+		fp := ""
+		if logFolderPath != "" {
+			fp = filepath.Join(logFolderPath, fmt.Sprintf("contract-%s.log", lib.SanitizeFilename(lib.StrShort(contractID))))
+		}
+		return lib.NewLoggerMemory(cfg.Log.LevelContract, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, fp, logStorage.Buffer)
 	}
 
 	defer func() {
-		_ = log.Sync()
-		_ = schedulerLog.Sync()
-		_ = proxyLog.Sync()
-		_ = connLog.Sync()
+		_ = connLog.Close()
+		_ = proxyLog.Close()
+		_ = log.Close()
 	}()
 
 	log.Infof("proxy-router %s", config.BuildVersion)
 
+	sysConfig := system.CreateConfigurator(log)
+
 	if cfg.System.Enable {
-		sysConfig, err := system.CreateConfigurator(log)
 		if err != nil {
 			return err
 		}
@@ -119,12 +158,16 @@ func start() error {
 		cancel()
 
 		s = <-shutdownChan
-		log.Warnf("Received signal: %s. Forcing exit...", s)
+
+		log.Warnf("Received signal: %s. \n", s)
+
+		log.Warnf("Forcing exit...")
 		os.Exit(1)
 	}()
 
 	var (
 		HashrateCounterDefault = "ema--5m"
+		HashrateCounterBuyer   = hashrate.MeanCounterKey
 	)
 
 	hashrateFactory := func() *hashrate.Hashrate {
@@ -133,21 +176,23 @@ func start() error {
 				HashrateCounterDefault: hashrate.NewEma(5 * time.Minute),
 				"ema-10m":              hashrate.NewEma(10 * time.Minute),
 				"ema-30m":              hashrate.NewEma(30 * time.Minute),
+				HashrateCounterBuyer:   hashrate.NewMean(),
 			},
 		)
 	}
 
 	destFactory := func(ctx context.Context, url *url.URL, connLogID string) (*proxy.ConnDest, error) {
-		return proxy.ConnectDest(ctx, url, connLog.Named(connLogID))
+		return proxy.ConnectDest(ctx, url, IDLE_READ_CLOSE_TIMEOUT, cfg.Pool.IdleWriteTimeout, connLog.Named(connLogID))
 	}
 
 	globalHashrate := hashrate.NewGlobalHashrate(hashrateFactory)
-	alloc := allocator.NewAllocator(lib.NewCollection[*allocator.Scheduler](), log.Named("ALLOCATOR"))
+	alloc := allocator.NewAllocator(lib.NewCollection[*allocator.Scheduler](), log.Named("ALC"))
 
 	tcpServer := transport.NewTCPServer(cfg.Proxy.Address, connLog)
-	tcpHandler := handlers.NewTCPHandler(
-		log, connLog, proxyLog, schedulerLog,
-		cfg.Miner.NotPropagateWorkerName, cfg.Miner.ShareTimeout, cfg.Miner.VettingDuration,
+	tcpHandler := tcphandlers.NewTCPHandler(
+		log, connLog, proxyLog, schedulerLogFactory,
+		cfg.Miner.NotPropagateWorkerName, cfg.Miner.IdleReadTimeout, IDLE_WRITE_CLOSE_TIMEOUT,
+		cfg.Miner.VettingShares, cfg.Proxy.MaxCachedDests,
 		destUrl,
 		destFactory, hashrateFactory,
 		globalHashrate, HashrateCounterDefault,
@@ -174,46 +219,80 @@ func start() error {
 		hashrateFactory,
 		globalHashrate,
 		store,
-		log,
+		contractLogFactory,
 
 		cfg.Marketplace.WalletPrivateKey,
 		cfg.Hashrate.CycleDuration,
-		cfg.Hashrate.ValidationStartTimeout,
 		cfg.Hashrate.ShareTimeout,
 		cfg.Hashrate.ErrorThreshold,
-		cfg.Hashrate.ErrorTimeout,
+		HashrateCounterBuyer,
+		cfg.Hashrate.ValidatorFlatness,
 	)
 	if err != nil {
 		return err
 	}
 
-	ownerAddr, err := lib.PrivKeyStringToAddr(cfg.Marketplace.WalletPrivateKey)
+	walletAddr, err := lib.PrivKeyStringToAddr(cfg.Marketplace.WalletPrivateKey)
+	if err != nil {
+		return err
+	}
+	lumerinAddr, err := store.GetLumerinAddress(ctx)
 	if err != nil {
 		return err
 	}
 
-	log.Infof("wallet address: %s", ownerAddr.String())
+	log.Infof("wallet address: %s", walletAddr.String())
+	log.Infof("lumerin address: %s", lumerinAddr.String())
 
-	cm := contractmanager.NewContractManager(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), ownerAddr, hrContractFactory.CreateContract, store, log)
+	derived := new(config.DerivedConfig)
+	derived.WalletAddress = walletAddr.String()
+	derived.LumerinAddress = lumerinAddr.String()
 
-	handl := handlers.NewHTTPHandler(alloc, cm, globalHashrate, publicUrl, HashrateCounterDefault, log)
+	cm := contractmanager.NewContractManager(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), walletAddr, hrContractFactory.CreateContract, store, log)
+
+	handl := httphandlers.NewHTTPHandler(alloc, cm, globalHashrate, sysConfig, publicUrl, HashrateCounterDefault, cfg.Hashrate.CycleDuration, &cfg, derived, time.Now(), contractLogStorage, log)
 	httpServer := transport.NewServer(cfg.Web.Address, handl, log)
 
-	g, ctx := errgroup.WithContext(ctx)
-
+	ctx, cancel = context.WithCancel(ctx)
+	g, errCtx := errgroup.WithContext(ctx)
 	g.Go(func() error {
-		return httpServer.Run(ctx)
+		return tcpServer.Run(errCtx)
 	})
 
 	g.Go(func() error {
-		return tcpServer.Run(ctx)
+		return cm.Run(errCtx)
 	})
 
 	g.Go(func() error {
-		return cm.Run(ctx)
+		for {
+			select {
+			case <-errCtx.Done():
+				return nil
+			case <-time.After(5 * time.Minute):
+				fd, err := sysConfig.GetFileDescriptors(errCtx, os.Getpid())
+				if err != nil {
+					log.Errorf("failed to get open files: %s", err)
+				} else {
+					log.Infof("open files: %d", len(fd))
+				}
+			}
+		}
 	})
+
+	// http server should shut down latest to keep pprof running
+
+	serverErrCh := make(chan error, 1)
+	serverCtx, cancelServer := context.WithCancel(context.Background())
+	go func() {
+		serverErrCh <- httpServer.Run(serverCtx)
+		cancel()
+	}()
 
 	err = g.Wait()
-	log.Infof("App exited due to %s", err)
+
+	cancelServer()
+	<-serverErrCh
+
+	log.Warnf("App exited due to %s", err)
 	return err
 }

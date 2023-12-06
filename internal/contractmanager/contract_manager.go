@@ -40,9 +40,11 @@ func NewContractManager(clonefactoryAddr, ownerAddr common.Address, contractFact
 }
 
 func (cm *ContractManager) Run(ctx context.Context) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	defer cm.contractsWG.Wait()
+	defer func() {
+		cm.log.Info("waiting for all contracts to stop")
+		cm.contractsWG.Wait()
+		cm.log.Info("all contracts stopped")
+	}()
 
 	contractIDs, err := cm.store.GetContractsIDs(ctx)
 	if err != nil {
@@ -64,7 +66,7 @@ func (cm *ContractManager) Run(ctx context.Context) error {
 		return err
 	}
 	defer sub.Unsubscribe()
-	cm.log.Infof("subscribed to clonefactory events, address %s", cm.cfAddr.Hex())
+	cm.log.Infof("subscribed to clonefactory events at address %s", cm.cfAddr.Hex())
 
 	for {
 		select {
@@ -110,7 +112,7 @@ func (cm *ContractManager) handleContractPurchased(ctx context.Context, event *c
 	if err != nil {
 		return err
 	}
-	if terms.GetBuyer() == cm.ownerAddr.String() {
+	if terms.Buyer() == cm.ownerAddr.String() {
 		cm.AddContract(ctx, terms)
 	}
 	return nil
@@ -123,7 +125,7 @@ func (cm *ContractManager) handleContractDeleteUpdated(ctx context.Context, even
 }
 
 func (cm *ContractManager) AddContract(ctx context.Context, data *hashrate.EncryptedTerms) {
-	_, ok := cm.contracts.Load(data.GetID())
+	_, ok := cm.contracts.Load(data.ID())
 	if ok {
 		cm.log.Error("contract already exists in store")
 		return
@@ -142,11 +144,9 @@ func (cm *ContractManager) AddContract(ctx context.Context, data *hashrate.Encry
 		defer cm.contractsWG.Done()
 
 		err := cntr.Run(ctx)
-		if err != nil {
-			cm.log.Warn(err)
-		}
+		cm.log.Warnf("exited from contract %s, err %s", data.ID(), err)
 
-		cm.contracts.Delete(cntr.GetID())
+		cm.contracts.Delete(cntr.ID())
 	}()
 }
 
@@ -155,5 +155,5 @@ func (cm *ContractManager) GetContracts() *lib.Collection[resources.Contract] {
 }
 
 func (cm *ContractManager) isOurContract(terms TermsCommon) bool {
-	return terms.GetSeller() == cm.ownerAddr.String() || terms.GetBuyer() == cm.ownerAddr.String()
+	return terms.Seller() == cm.ownerAddr.String() || terms.Buyer() == cm.ownerAddr.String()
 }

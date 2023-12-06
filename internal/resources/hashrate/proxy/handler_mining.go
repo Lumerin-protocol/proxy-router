@@ -82,7 +82,7 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 
 		d := p.proxy.GetDestByJobID(msgTyped.GetJobId())
 		if d != nil {
-			p.log.Warnf("job %s found in different dest %s", msgTyped.GetJobId(), d.GetID())
+			p.log.Warnf("job %s found in different dest %s", msgTyped.GetJobId(), d.ID())
 			diff, err = d.ValidateAndAddShare(msgTyped)
 			weAccepted = err == nil
 			if weAccepted {
@@ -111,9 +111,13 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 		p.proxy.hashrate.OnSubmit(dest.GetDiff())
 		// workername hashrate
 		p.proxy.globalHashrate.OnSubmit(p.proxy.source.GetUserName(), dest.GetDiff())
-
-		hr, _ := p.proxy.hashrate.GetHashrateAvgGHSCustom("mean")
-		p.log.Debugf("new share, diff: %0.f, hrGHS %.0f", diff, hr)
+		if p.proxy.hashrate.GetTotalShares() > p.proxy.vettingShares {
+			select {
+			case <-p.proxy.vettingDoneCh:
+			default:
+				close(p.proxy.vettingDoneCh)
+			}
+		}
 
 		// contract hashrate
 		p.proxy.onSubmitMutex.RLock()
@@ -134,7 +138,7 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 
 		err = p.proxy.source.Write(ctx, res1)
 		if err != nil {
-			p.log.Error("cannot write response to miner: ", err)
+			p.log.Errorf("cannot write response (%s) to miner: %s", res1.ID, err)
 			p.proxy.cancelRun()
 			return
 		}

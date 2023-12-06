@@ -1,6 +1,10 @@
 package system
 
-import "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
+import (
+	"context"
+
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
+)
 
 type SystemConfigurator struct {
 	backup         *Config
@@ -15,8 +19,12 @@ func NewConfigurator(osConfigurator osConfigurator, log interfaces.ILogger) *Sys
 	}
 }
 
-func CreateConfigurator(log interfaces.ILogger) (*SystemConfigurator, error) {
-	return NewConfigurator(NewOSConfigurator(), log), nil
+func CreateConfigurator(log interfaces.ILogger) *SystemConfigurator {
+	return NewConfigurator(NewOSConfigurator(), log)
+}
+
+func (c *SystemConfigurator) GetConfig() (*Config, error) {
+	return c.osConfigurator.GetConfig()
 }
 
 func (c *SystemConfigurator) ApplyConfig(cfg *Config) error {
@@ -43,4 +51,8 @@ func (c *SystemConfigurator) RestoreConfig() error {
 	}
 	c.log.Debugf("system config restored: %+v", c.backup)
 	return nil
+}
+
+func (c *SystemConfigurator) GetFileDescriptors(ctx context.Context, pid int) ([]FD, error) {
+	return c.osConfigurator.GetFileDescriptors(ctx, pid)
 }

@@ -12,11 +12,13 @@ import (
 	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
+	"go.uber.org/atomic"
 )
 
 const (
 	CONNECTION_TIMEOUT = 10 * time.Minute
 	RESPONSE_TIMEOUT   = 30 * time.Second
+	RECONNECT_TIMEOUT  = 3 * time.Second
 )
 
 var (
@@ -27,17 +29,15 @@ var (
 	ErrProxy             = errors.New("proxy error")
 	ErrNotAuthorizedPool = errors.New("not authorized in the pool")
 	ErrChangeDest        = errors.New("destination change error")
+	ErrAutoreadStarted   = errors.New("autoread already started")
 )
 
 type Proxy struct {
 	// config
 	ID                     string
-	destURL                *url.URL // destination URL, TODO: remove, use dest.ID() instead
+	destURL                *atomic.Pointer[url.URL]
 	notPropagateWorkerName bool
-
-	// destWorkerName string
-	// submitErrLimit int
-	// onFault        func(context.Context) // called when proxy becomes faulty (e.g. when submit error limit is reached
+	maxCachedDests         int // maximum number of cached dests
 
 	// state
 	destToSourceStartSignal chan struct{}      // signal to start reading from destination
@@ -49,6 +49,8 @@ type Proxy struct {
 	onSubmit                HashrateCounterFunc        // callback to update contract hashrate
 	onSubmitMutex           sync.RWMutex               // mutex to protect onSubmit
 	destMap                 *lib.Collection[*ConnDest] // map of all available destinations (pools) currently connected to the single source (miner)
+	vettingDoneCh           chan struct{}              // channel to signal that the miner has been vetted
+	vettingShares           int                        // number of shares to vet the miner
 
 	// deps
 	source         *ConnSource           // initiator of the communication, miner
@@ -58,17 +60,19 @@ type Proxy struct {
 	log            gi.ILogger
 }
 
-// TODO: pass connection factory for destURL
-func NewProxy(ID string, source *ConnSource, destFactory DestConnFactory, hashrateFactory HashrateFactory, globalHashrate GlobalHashrateCounter, destURL *url.URL, notPropagateWorkerName bool, log gi.ILogger) *Proxy {
+func NewProxy(ID string, source *ConnSource, destFactory DestConnFactory, hashrateFactory HashrateFactory, globalHashrate GlobalHashrateCounter, destURL *url.URL, notPropagateWorkerName bool, vettingShares int, maxCachedDests int, log gi.ILogger) *Proxy {
 	proxy := &Proxy{
 		ID:                     ID,
-		destURL:                destURL,
+		destURL:                atomic.NewPointer(destURL),
 		notPropagateWorkerName: notPropagateWorkerName,
+		maxCachedDests:         maxCachedDests,
 
-		source:      source,
-		destMap:     lib.NewCollection[*ConnDest](),
-		destFactory: destFactory,
-		log:         log,
+		source:        source,
+		destMap:       lib.NewCollection[*ConnDest](),
+		destFactory:   destFactory,
+		log:           log,
+		vettingDoneCh: make(chan struct{}),
+		vettingShares: vettingShares,
 
 		hashrate:       hashrateFactory(),
 		globalHashrate: globalHashrate,
@@ -95,57 +99,112 @@ func (p *Proxy) Connect(ctx context.Context) error {
 
 func (p *Proxy) Run(ctx context.Context) error {
 	defer p.closeConnections()
-
 	handler := NewHandlerMining(p, p.log)
-
 	p.pipe = NewPipe(p.source, p.dest, handler.sourceInterceptor, handler.destInterceptor, p.log)
+
+	for {
+		p.pipe.StartSourceToDest(ctx)
+		p.pipe.StartDestToSource(ctx)
+
+		ctx, cancel := context.WithCancel(ctx)
+		p.cancelRun = cancel
+
+		err := p.pipe.Run(ctx)
+		p.unansweredMsg.Wait()
+
+		if err != nil {
+			// destination error
+			if errors.Is(err, ErrDest) {
+				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
+					p.log.Warnf("destination closed the connection, dest %s", p.dest.ID())
+				} else {
+					p.log.Errorf("destination error, source %s dest %s: %s", p.source.GetID(), p.dest.ID(), err)
+				}
+				if p.dest != nil {
+					p.dest.conn.Close()
+				}
+
+				select {
+				case <-ctx.Done():
+					cancel()
+					return ctx.Err()
+				case <-time.After(RECONNECT_TIMEOUT):
+				}
+
+				// try to reconnect to the same dest
+				p.destMap.Delete(p.dest.ID())
+				err := p.ConnectDest(ctx, lib.CopyURL(p.destURL.Load()))
+				if err != nil {
+					p.log.Errorf("error reconnecting to dest %s: %s", p.dest.ID(), err)
+					return err
+				}
+				continue
+			}
+
+			// source error
+			if errors.Is(err, ErrSource) {
+				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
+					p.log.Warnf("source closed the connection, source %s, err %s", p.source.GetID(), err)
+				} else {
+					p.log.Errorf("source connection error, source %s: %s", p.source.GetID(), err)
+				}
+				return err
+			}
+
+			if errors.Is(err, context.Canceled) {
+				return err
+			}
+
+			p.log.Errorf("error running pipe: %s", err)
+
+			// other errors
+			return err
+		}
+		return nil
+	}
+}
+
+func (p *Proxy) ConnectDest(ctx context.Context, newDestURL *url.URL) error {
+	p.setDestLock.Lock()
+	defer p.setDestLock.Unlock()
+
+	p.log.Debugf("reconnecting to destination %s", newDestURL.String())
+
+	destChanger := NewHandlerChangeDest(p, p.destFactory, p.log)
+
+	newDest, err := destChanger.connectNewDest(ctx, newDestURL)
+	if err != nil {
+		return err
+	}
+
+	err = destChanger.resendRelevantNotifications(ctx, newDest)
+	if err != nil {
+		return err
+	}
+
+	p.dest = newDest
+	p.destURL.Store(newDestURL)
+	p.destMap.Store(newDest)
+
+	p.pipe.SetDest(newDest)
+
 	p.pipe.StartSourceToDest(ctx)
 	p.pipe.StartDestToSource(ctx)
 
-	ctx, cancel := context.WithCancel(ctx)
-	p.cancelRun = cancel
+	p.log.Infof("destination reconnected %s", newDestURL.String())
 
-	err := p.pipe.Run(ctx)
-	p.unansweredMsg.Wait()
-
-	if err != nil {
-		// destination error
-		if errors.Is(err, ErrDest) {
-			if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
-				p.log.Warnf("destination closed the connection, dest %s", p.dest.GetID())
-			} else {
-				p.log.Errorf("destination error, source %s dest %s: %s", p.source.GetID(), p.dest.GetID(), err)
-			}
-
-			return err
-			// TODO: reconnect to the same dest
-			// return p.SetDest(ctx, p.destURL, p.onSubmit)
-		}
-
-		// source error
-		if errors.Is(err, ErrSource) {
-			if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
-				p.log.Warnf("source closed the connection, source %s", p.source.GetID())
-			} else {
-				p.log.Errorf("source connection error, source %s: %s", p.source.GetID(), err)
-			}
-			return err
-		}
-
-		if errors.Is(err, context.Canceled) {
-			p.log.Warnf("proxy stopped %s", p.ID)
-			return err
-		}
-
-		p.log.Errorf("error running pipe: %s", err)
-
-		// other errors
-		return err
-	}
 	return nil
 }
 
 func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(diff float64)) error {
+	return p.setDest(ctx, newDestURL, onSubmit, true)
+}
+
+func (p *Proxy) SetDestWithoutAutoread(ctx context.Context, newDestURL *url.URL, onSubmit func(diff float64)) error {
+	return p.setDest(ctx, newDestURL, onSubmit, false)
+}
+
+func (p *Proxy) setDest(ctx context.Context, newDestURL *url.URL, onSubmit func(diff float64), autoReadCurrentDest bool) error {
 	p.setDestLock.Lock()
 	defer p.setDestLock.Unlock()
 
@@ -160,7 +219,7 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 	var newDest *ConnDest
 	cachedDest, ok := p.destMap.Load(newDestURL.String())
 	if ok {
-		p.log.Debugf("reusing dest connection %s from cache", newDestURL.String())
+		p.log.Infof("reusing connection from cache %s", newDestURL.String())
 		// limit waiting time, disconnect if not answered in time
 		p.unansweredMsg.Wait()
 		err := cachedDest.AutoReadStop()
@@ -171,7 +230,7 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 		cachedDest.ResetIdleCloseTimers()
 		newDest = cachedDest
 	} else {
-		p.log.Debugf("connecting to new dest %s", newDestURL.String())
+		p.log.Infof("connecting to new dest %s", newDestURL.String())
 		dest, err := destChanger.connectNewDest(ctx, newDestURL)
 		if err != nil {
 			return err
@@ -189,33 +248,44 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 	// TODO: wait to stop?
 
 	// set old dest to autoread mode
-	destUrl := p.destURL.String()
-	dest := p.dest
-	err := dest.AutoReadStart(ctx, func(err error) {
-		if err != nil {
-			if !errors.Is(err, net.ErrClosed) {
-				p.log.Warnf("autoread exited with error %s", err)
-				err := dest.conn.Close()
-				if err != nil {
-					p.log.Warnf("error closing dest %s: %s", destUrl, err)
+	if autoReadCurrentDest {
+		destUrl := p.destURL.String()
+		dest := p.dest
+		ok := dest.AutoReadStart(ctx, func(err error) {
+			if err != nil {
+				if errors.Is(err, net.ErrClosed) {
+					p.log.Infof("cached connection closed: %s %s", destUrl, err.Error())
+				} else {
+					p.log.Warnf("autoread exited with error %s", err)
+					err := dest.conn.Close()
+					if err != nil {
+						p.log.Warnf("error closing dest %s: %s", destUrl, err)
+					}
 				}
 			}
-		}
 
-		p.destMap.Delete(destUrl)
-	})
+			p.destMap.Delete(destUrl)
+		})
+		if !ok {
+			p.destMap.Delete(dest.ID())
+			dest.conn.Close()
+			p.log.Errorf("%s dest ID %s", ErrAutoreadStarted, dest.ID())
+		} else {
+			p.log.Debugf("set old dest to autoread")
+		}
+	}
+
+	err := destChanger.resendRelevantNotifications(ctx, newDest)
 	if err != nil {
 		return err
 	}
-	p.log.Debugf("set old dest to autoread")
 
-	err = destChanger.resendRelevantNotifications(ctx, newDest)
-	if err != nil {
-		return err
+	if p.destMap.Len() >= p.maxCachedDests {
+		p.closeOldestConn()
 	}
 
 	p.dest = newDest
-	p.destURL = newDestURL
+	p.destURL.Store(newDestURL)
 	p.destMap.Store(newDest)
 
 	p.onSubmitMutex.Lock()
@@ -231,15 +301,33 @@ func (p *Proxy) SetDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 	return nil
 }
 
+func (p *Proxy) closeOldestConn() {
+	p.log.Debugf("dest map size %d exceeds max cached dests %d, closing oldest dest", p.destMap.Len(), p.maxCachedDests)
+	var oldestDest *ConnDest
+
+	p.destMap.Range(func(dest *ConnDest) bool {
+		if oldestDest == nil {
+			oldestDest = dest
+			return true
+		}
+
+		if oldestDest.GetIdleCloseAt().After(dest.GetIdleCloseAt()) {
+			oldestDest = dest
+		}
+		return true
+	})
+	oldestDest.conn.Close()
+	p.destMap.Delete(oldestDest.ID())
+}
+
 func (p *Proxy) closeConnections() {
 	if p.dest != nil {
 		p.dest.conn.Close()
 	}
-	p.destMap.Delete(p.destURL.String())
 
 	p.destMap.Range(func(dest *ConnDest) bool {
 		dest.conn.Close()
-		p.destMap.Delete(dest.GetID())
+		p.destMap.Delete(dest.ID())
 		return true
 	})
 }
@@ -268,11 +356,11 @@ func (p *Proxy) GetMinerConnectedAt() time.Time {
 }
 
 func (p *Proxy) GetDest() *url.URL {
-	return p.destURL
+	return p.destURL.Load()
 }
 
 func (p *Proxy) GetDestWorkerName() string {
-	return p.destURL.User.Username()
+	return p.destURL.Load().User.Username()
 }
 
 func (p *Proxy) GetDifficulty() float64 {
@@ -301,8 +389,16 @@ func (p *Proxy) GetStats() map[string]int {
 func (p *Proxy) GetDestConns() *map[string]string {
 	var destConns = make(map[string]string)
 	p.destMap.Range(func(dest *ConnDest) bool {
-		destConns[dest.GetID()] = dest.GetIdleCloseAt().Format(time.RFC3339)
+		destConns[dest.ID()] = dest.GetIdleCloseAt().Sub(time.Now()).Round(time.Second).String()
 		return true
 	})
 	return &destConns
+}
+
+func (p *Proxy) VettingDone() <-chan struct{} {
+	return p.vettingDoneCh
+}
+
+func (p *Proxy) IsVetting() bool {
+	return p.GetHashrate().GetTotalShares() < p.vettingShares
 }

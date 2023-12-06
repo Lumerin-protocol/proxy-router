@@ -1,5 +1,5 @@
 run:
-	go run cmd/main.go
+	GOTRACEBACK=crash go run -race cmd/main.go
 
 build:
 	./build.sh
@@ -19,7 +19,7 @@ lint:
 	gokart scan .
 	gosec ./...
 
-test:
+test-unit:
 	go test -v -p 1 $$(go list ./... | grep -v /test)
 
 test-integration:

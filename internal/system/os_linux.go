@@ -1,7 +1,11 @@
 package system
 
 import (
+	"context"
+	"fmt"
 	"syscall"
+
+	"github.com/shirou/gopsutil/v3/process"
 )
 
 type LinuxConfigurator struct {
@@ -71,4 +75,23 @@ func (c *LinuxConfigurator) ApplyConfig(cfg *Config) error {
 		Max: cfg.RlimitHard,
 	})
 	return err
+}
+
+func (*LinuxConfigurator) GetFileDescriptors(ctx context.Context, pid int) ([]FD, error) {
+	process, err := process.NewProcessWithContext(ctx, int32(pid))
+	if err != nil {
+		return nil, err
+	}
+	files, err := process.OpenFilesWithContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]FD, len(files))
+	for i, f := range files {
+		items[i] = FD{
+			ID:   fmt.Sprint(f.Fd),
+			Path: f.Path,
+		}
+	}
+	return items, nil
 }

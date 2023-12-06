@@ -37,15 +37,15 @@ func (p *HandlerChangeDest) connectNewDest(ctx context.Context, newDestURL *url.
 	p.log.Debugf("new dest created")
 
 	autoReadDone := make(chan error, 1)
-	err = newDest.AutoReadStart(ctx, func(err error) {
+	ok := newDest.AutoReadStart(ctx, func(err error) {
 		if err != nil {
 			p.log.Errorf("error reading from new dest: %s", err)
 		}
 		autoReadDone <- err
 		close(autoReadDone)
 	})
-	if err != nil {
-		return nil, lib.WrapError(ErrConnectDest, err)
+	if !ok {
+		return nil, lib.WrapError(ErrConnectDest, fmt.Errorf("autoread already started"))
 	}
 
 	p.log.Debugf("dest autoread started")
@@ -62,6 +62,7 @@ func (p *HandlerChangeDest) connectNewDest(ctx context.Context, newDestURL *url.
 	select {
 	case err := <-autoReadDone:
 		// if newDestRunTask finished first there was reading error
+		// TODO: fix the case when err == nil
 		return nil, lib.WrapError(ErrConnectDest, err)
 	case <-handshakeTask.Done():
 	}

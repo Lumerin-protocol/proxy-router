@@ -10,7 +10,17 @@ type customError struct {
 }
 
 func (e *customError) Error() string {
-	return fmt.Sprintf("%s: %s", e.err.Error(), e.childErr.Error())
+	var (
+		parentStr = "<nil>"
+		childStr  = "<nil>"
+	)
+	if e.err != nil {
+		parentStr = e.err.Error()
+	}
+	if e.childErr != nil {
+		childStr = e.childErr.Error()
+	}
+	return fmt.Sprintf("%s: %s", parentStr, childStr)
 }
 
 func (e *customError) Unwrap() error {
