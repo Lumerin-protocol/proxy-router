@@ -333,7 +333,7 @@ func (p *ContractWatcherSellerV2) addFullMiners(hashrateGHS float64) (addedGHS f
 		p.stats.addFullMiners(fullMiners...)
 	}
 	p.log.Infof("added %d full miners, addedGHS %.f", len(fullMiners), hashrateGHS-remainderGHS)
-	p.log.Infof("full miners: %v", p.stats.fullMiners)
+	p.log.Infof("full miners: %v", p.stats.fullMiners.ToSlice())
 	return hashrateGHS - remainderGHS
 }
 
@@ -359,7 +359,7 @@ func (p *ContractWatcherSellerV2) removeFullMiners(hrGHS float64) (removedGHS fl
 	}
 
 	p.log.Debugf("removed %d full miners, removedGHS %.f", len(items)-p.stats.fullMiners.Len(), removedGHS)
-	p.log.Debugf("full miners: %v", p.stats.fullMiners)
+	p.log.Debugf("full miners: %v", p.stats.fullMiners.ToSlice())
 	return removedGHS
 }
 
