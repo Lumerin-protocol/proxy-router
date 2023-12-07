@@ -267,6 +267,7 @@ func (p *ContractWatcherSellerV2) onCycleEnd(cycleDuration time.Duration) {
 // if hashrateGHS > 0 the allocation increases, if hashrateGHS < 0 the allocation decreases
 // returns the amount of hashrateGHS that was added or removed (with negative sign)
 func (p *ContractWatcherSellerV2) adjustHashrate(hashrateGHS float64) (adjustedGHS float64) {
+	// TODO: move this function to allocator, optimize to make only one snapshot of miners
 	expectedAdjustmentGHS := hashrateGHS
 	fullMinerThresholdGHS := 1000.0
 	partialMinersThresholdGHS := 100.0

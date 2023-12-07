@@ -5,6 +5,12 @@ import (
 	"sync"
 )
 
+const (
+	KiloByte             = 1024
+	MegaByte             = 1024 * KiloByte
+	DefaultCapacityBytes = 1 * MegaByte
+)
+
 type LogStorage struct {
 	Buffer MyBuf
 	id     string
@@ -12,7 +18,14 @@ type LogStorage struct {
 
 func NewLogStorage(ID string) *LogStorage {
 	return &LogStorage{
-		Buffer: NewMyBuf(),
+		Buffer: NewMyBuf(DefaultCapacityBytes),
+		id:     ID,
+	}
+}
+
+func NewLogStorageWithCapacity(ID string, capBytes uint64) *LogStorage {
+	return &LogStorage{
+		Buffer: NewMyBuf(capBytes),
 		id:     ID,
 	}
 }
@@ -28,11 +41,24 @@ func (l *LogStorage) GetReader() io.Reader {
 type MyBuf interface {
 	io.Writer
 	NewReader() io.Reader
+	Capacity() uint64
 }
 
 type mybuf struct {
 	data [][]byte
+	len  uint64
+	cap  uint64
 	sync.RWMutex
+}
+
+func NewMyBuf(cap uint64) MyBuf {
+	return &mybuf{
+		cap: cap,
+	}
+}
+
+func (mb *mybuf) Capacity() uint64 {
+	return mb.cap
 }
 
 func (mb *mybuf) Write(p []byte) (n int, err error) {
@@ -43,6 +69,23 @@ func (mb *mybuf) Write(p []byte) (n int, err error) {
 	p2 := make([]byte, len(p))
 	copy(p2, p)
 	mb.Lock()
+	for {
+		newLen := mb.len + uint64(len(p2))
+		if newLen >= mb.cap {
+			if len(mb.data) == 0 {
+				break
+			}
+			mb.len -= uint64(len(mb.data[0]))
+			mb.data = mb.data[1:]
+		} else {
+			mb.len = newLen
+			break
+		}
+	}
+	if len(p2) > int(mb.cap) {
+		p2 = p2[len(p2)-int(mb.cap):]
+	}
+
 	mb.data = append(mb.data, p2)
 	mb.Unlock()
 	return len(p), nil
@@ -79,8 +122,4 @@ func (mbr *mybufReader) Read(p []byte) (n int, err error) {
 
 func (mb *mybuf) NewReader() io.Reader {
 	return &mybufReader{mb: mb}
-}
-
-func NewMyBuf() MyBuf {
-	return &mybuf{}
 }

@@ -61,9 +61,3 @@ func TestGlobalHashrate(t *testing.T) {
 	fmt.Printf("exp %d act %.0f\n", expected, actual)
 	assert.InEpsilon(t, expected, actual, 0.01, "should be accurate")
 }
-
-func TestConvert(t *testing.T) {
-	job := 9535809.0
-	hs := JobSubmittedToGHSV2(job, 5*time.Minute)
-	fmt.Println(hs)
-}

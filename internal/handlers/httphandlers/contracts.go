@@ -63,12 +63,22 @@ func (h *HTTPHandler) CreateContract(ctx *gin.Context) {
 
 func (c *HTTPHandler) GetContracts(ctx *gin.Context) {
 	data := []Contract{}
+	var errOuter error
+
 	c.contractManager.GetContracts().Range(func(item resources.Contract) bool {
-		contract := c.mapContract(item)
-		// 		contract.Miners = miners
+		contract, err := c.mapContract(ctx, item)
+		if err != nil {
+			errOuter = err
+			return false
+		}
 		data = append(data, *contract)
 		return true
 	})
+
+	if errOuter != nil {
+		ctx.JSON(500, gin.H{"error": errOuter.Error()})
+		return
+	}
 
 	slices.SortStableFunc(data, func(a Contract, b Contract) bool {
 		return a.ID < b.ID
@@ -84,40 +94,51 @@ func (c *HTTPHandler) GetContractsV2(ctx *gin.Context) {
 		Contracts:   []Contract{},
 	}
 
+	var errOuter error
+
 	c.contractManager.GetContracts().Range(func(item resources.Contract) bool {
-		cnt := c.mapContract(item)
+		cnt, err := c.mapContract(ctx, item)
+		if err != nil {
+			errOuter = err
+			return false
+		}
 		res.Contracts = append(res.Contracts, *cnt)
 
-		if item.Role() == resources.ContractRoleSeller {
+		if item.Role() == resources.ContractRoleSeller { // readonly
 			res.SellerTotal.TotalNumber++
 			res.SellerTotal.TotalBalanceLMR += cnt.BalanceLMR
 
-			if item.BlockchainState() == hashrate.BlockchainStateRunning {
+			if item.BlockchainState() == hashrate.BlockchainStateRunning { // readonly
 				res.SellerTotal.RunningNumber++
-				res.SellerTotal.RunningTargetGHS += int(item.ResourceEstimates()[contract.ResourceEstimateHashrateGHS])
-				res.SellerTotal.RunningActualGHS += int(item.ResourceEstimatesActual()[c.hashrateCounterDefault])
+				res.SellerTotal.RunningTargetGHS += int(item.ResourceEstimates()[contract.ResourceEstimateHashrateGHS]) // readonly
+				res.SellerTotal.RunningActualGHS += int(item.ResourceEstimatesActual()[c.hashrateCounterDefault])       // multiple atomics
 
-				if item.StarvingGHS() > 0 {
+				if item.StarvingGHS() > 0 { // atomic
 					res.SellerTotal.StarvingNumber++
 					res.SellerTotal.StarvingGHS += item.StarvingGHS()
 				}
 			}
 
-			if item.BlockchainState() == hashrate.BlockchainStateAvailable {
+			if item.BlockchainState() == hashrate.BlockchainStateAvailable { // readonly
 				res.SellerTotal.AvailableNumber++
 				res.SellerTotal.AvailableGHS += int(item.ResourceEstimates()[contract.ResourceEstimateHashrateGHS])
 			}
 		}
 
-		if item.Role() == resources.ContractRoleBuyer {
+		if item.Role() == resources.ContractRoleBuyer { // readonly
 			res.BuyerTotal.Number++
 			res.BuyerTotal.HashrateGHS += int(item.ResourceEstimates()[contract.ResourceEstimateHashrateGHS])
-			res.BuyerTotal.ActualHashrateGHS += int(item.ResourceEstimatesActual()[c.hashrateCounterDefault])
-			res.BuyerTotal.StarvingGHS += item.StarvingGHS()
+			res.BuyerTotal.ActualHashrateGHS += int(item.ResourceEstimatesActual()[c.hashrateCounterDefault]) // readonly
+			res.BuyerTotal.StarvingGHS += item.StarvingGHS()                                                  // atomic
 		}
 
 		return true
 	})
+
+	if errOuter != nil {
+		ctx.JSON(500, gin.H{"error": errOuter})
+		return
+	}
 
 	slices.SortStableFunc(res.Contracts, func(a Contract, b Contract) bool {
 		return a.ID < b.ID
@@ -138,7 +159,11 @@ func (c *HTTPHandler) GetContract(ctx *gin.Context) {
 		return
 	}
 
-	contractData := c.mapContract(contract)
+	contractData, err := c.mapContract(ctx, contract)
+	if err != nil {
+		ctx.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
 	ctx.JSON(200, contractData)
 }
 
@@ -195,37 +220,39 @@ func (c *HTTPHandler) GetDeliveryLogs(ctx *gin.Context) {
 	return
 }
 
-func (p *HTTPHandler) mapContract(item resources.Contract) *Contract {
+func (p *HTTPHandler) mapContract(ctx context.Context, item resources.Contract) (*Contract, error) {
+
 	return &Contract{
 		Resource: Resource{
-			Self: p.publicUrl.JoinPath(fmt.Sprintf("/contracts/%s", item.ID())).String(),
+			Self: p.publicUrl.JoinPath(fmt.Sprintf("/contracts/%s", item.ID())).String(), // readonly
 		},
-		Logs:                    p.publicUrl.JoinPath(fmt.Sprintf("/contracts/%s/logs", item.ID())).String(),
-		ConsoleLogs:             p.publicUrl.JoinPath(fmt.Sprintf("/contracts/%s/logs-console", item.ID())).String(),
-		Role:                    item.Role().String(),
-		Stage:                   item.ValidationStage().String(),
-		ID:                      item.ID(),
-		BuyerAddr:               item.Buyer(),
-		SellerAddr:              item.Seller(),
-		ResourceEstimatesTarget: roundResourceEstimates(item.ResourceEstimates()),
-		ResourceEstimatesActual: roundResourceEstimates(item.ResourceEstimatesActual()),
-		StarvingGHS:             item.StarvingGHS(),
-		PriceLMR:                LMRWithDecimalsToLMR(item.Price()),
-		Duration:                formatDuration(item.Duration()),
+		Logs:        p.publicUrl.JoinPath(fmt.Sprintf("/contracts/%s/logs", item.ID())).String(),         // readonly
+		ConsoleLogs: p.publicUrl.JoinPath(fmt.Sprintf("/contracts/%s/logs-console", item.ID())).String(), // readonly
 
-		IsDeleted:      item.IsDeleted(),
-		BalanceLMR:     LMRWithDecimalsToLMR(item.Balance()),
-		HasFutureTerms: item.HasFutureTerms(),
-		Version:        item.Version(),
+		Role:                    item.Role().String(),                                   // readonly
+		Stage:                   item.ValidationStage().String(),                        // atomic
+		ID:                      item.ID(),                                              // readonly
+		BuyerAddr:               item.Buyer(),                                           // readonly
+		SellerAddr:              item.Seller(),                                          // readonly
+		ResourceEstimatesTarget: roundResourceEstimates(item.ResourceEstimates()),       // readonly
+		ResourceEstimatesActual: roundResourceEstimates(item.ResourceEstimatesActual()), // multiple atomics
+		StarvingGHS:             item.StarvingGHS(),                                     // atomic
+		PriceLMR:                LMRWithDecimalsToLMR(item.Price()),                     // readonly
+		Duration:                formatDuration(item.Duration()),                        // readonly
 
-		StartTimestamp:    formatTime(item.StartTime()),
-		EndTimestamp:      formatTime(item.EndTime()),
-		Elapsed:           formatDuration(item.Elapsed()),
-		ApplicationStatus: item.State().String(),
-		BlockchainStatus:  item.BlockchainState().String(),
-		Dest:              item.Dest(),
-		Miners:            p.allocator.GetMinersFulfillingContract(item.ID(), p.cycleDuration),
-	}
+		IsDeleted:      item.IsDeleted(),                     // readonly
+		BalanceLMR:     LMRWithDecimalsToLMR(item.Balance()), // readonly
+		HasFutureTerms: item.HasFutureTerms(),                // readonly
+		Version:        item.Version(),                       // readonly
+
+		StartTimestamp:    formatTime(item.StartTime()),    // readonly
+		EndTimestamp:      formatTime(item.EndTime()),      // readonly
+		Elapsed:           formatDuration(item.Elapsed()),  // readonly
+		ApplicationStatus: item.State().String(),           // rw mutex canceable
+		BlockchainStatus:  item.BlockchainState().String(), // readonly
+		Dest:              item.Dest(),                     // readonly
+		// Miners:            p.allocator.GetMinersFulfillingContract(item.ID(), p.cycleDuration),
+	}, nil
 }
 
 func writeHTML(w io.Writer, logs []hrcontract.DeliveryLogEntry) error {
