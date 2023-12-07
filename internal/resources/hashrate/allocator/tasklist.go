@@ -58,6 +58,7 @@ func (t *MinerTask) Cancel() (firstCancel bool) {
 type TaskList struct {
 	tasks     *deque.Deque[*MinerTask]
 	mutex     sync.RWMutex
+	size      atomic.Int32
 	taskTaken bool
 }
 
@@ -74,6 +75,7 @@ func (p *TaskList) Add(ID string, dest *url.URL, job float64, deadline time.Time
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 	p.tasks.PushBack(task)
+	p.size.Inc()
 
 	return p.tasks.Len()
 }
@@ -109,6 +111,7 @@ func (p *TaskList) UnlockAndRemove() {
 		panic("no tasks in queue, when there should be at least one")
 	}
 	p.tasks.PopFront()
+	p.size.Dec()
 }
 
 func (p *TaskList) Unlock() {
@@ -122,10 +125,7 @@ func (p *TaskList) Unlock() {
 }
 
 func (p *TaskList) Size() int {
-	p.mutex.RLock()
-	defer p.mutex.RUnlock()
-
-	return p.tasks.Len()
+	return int(p.size.Load())
 }
 
 func (p *TaskList) CancelAll() {
@@ -137,6 +137,7 @@ func (p *TaskList) CancelAll() {
 	}
 
 	p.tasks.Clear()
+	p.size.Store(0)
 }
 
 func (p *TaskList) Cancel(contractID string) {
@@ -150,6 +151,7 @@ func (p *TaskList) Cancel(contractID string) {
 				p.tasks.Front().Cancel()
 			} else {
 				p.tasks.Remove(i)
+				p.size.Dec()
 			}
 		}
 	}

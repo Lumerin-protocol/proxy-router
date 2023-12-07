@@ -38,7 +38,6 @@ type ContractWatcherSellerV2 struct {
 	stopCh            chan struct{}
 	doneCh            chan struct{}
 	cycleEndsAt       time.Time
-	minerConnectCh    *lib.ChanRecvStop[allocator.MinerItem]
 	minerDisconnectCh *lib.ChanRecvStop[allocator.MinerItem]
 	deliveryLog       *DeliveryLog
 
@@ -157,17 +156,8 @@ func (p *ContractWatcherSellerV2) run() error {
 		deliveryTargetGHS:      0,
 	}
 
-	p.minerConnectCh = lib.NewChanRecvStop[allocator.MinerItem]()
 	p.minerDisconnectCh = lib.NewChanRecvStop[allocator.MinerItem]()
-	defer p.minerConnectCh.Stop()
 	defer p.minerDisconnectCh.Stop()
-
-	minerListener := p.allocator.AddVettedListener(func(minerID string) {
-		p.minerConnectCh.Send(allocator.MinerItem{
-			ID: minerID,
-		})
-	})
-	defer p.allocator.RemoveVettedListener(minerListener)
 
 	p.stats.actualHRGHS.Reset()
 	p.stats.actualHRGHS.Start()
@@ -200,16 +190,6 @@ CONTRACT_CYCLE:
 	EVENTS_CONTROLLER:
 		for {
 			select {
-			// new miner connected
-			case miner := <-p.minerConnectCh.Receive():
-				p.log.Infof("got miner connect event: %s", miner.ID)
-
-				p.logDeliveryTarget()
-				p.stats.deliveryTargetGHS -= p.adjustHashrate(p.stats.deliveryTargetGHS)
-				p.logDeliveryTarget()
-
-				continue EVENTS_CONTROLLER
-
 			// contract miner disconnected
 			case minerItem := <-p.minerDisconnectCh.Receive():
 				p.log.Infof("got miner disconnect event: %s", minerItem.ID)
@@ -287,6 +267,7 @@ func (p *ContractWatcherSellerV2) onCycleEnd(cycleDuration time.Duration) {
 // if hashrateGHS > 0 the allocation increases, if hashrateGHS < 0 the allocation decreases
 // returns the amount of hashrateGHS that was added or removed (with negative sign)
 func (p *ContractWatcherSellerV2) adjustHashrate(hashrateGHS float64) (adjustedGHS float64) {
+	// TODO: move this function to allocator, optimize to make only one snapshot of miners
 	expectedAdjustmentGHS := hashrateGHS
 	fullMinerThresholdGHS := 1000.0
 	partialMinersThresholdGHS := 100.0
@@ -353,7 +334,7 @@ func (p *ContractWatcherSellerV2) addFullMiners(hashrateGHS float64) (addedGHS f
 		p.stats.addFullMiners(fullMiners...)
 	}
 	p.log.Infof("added %d full miners, addedGHS %.f", len(fullMiners), hashrateGHS-remainderGHS)
-	p.log.Infof("full miners: %v", p.stats.fullMiners)
+	p.log.Infof("full miners: %v", p.stats.fullMiners.ToSlice())
 	return hashrateGHS - remainderGHS
 }
 
@@ -379,7 +360,7 @@ func (p *ContractWatcherSellerV2) removeFullMiners(hrGHS float64) (removedGHS fl
 	}
 
 	p.log.Debugf("removed %d full miners, removedGHS %.f", len(items)-p.stats.fullMiners.Len(), removedGHS)
-	p.log.Debugf("full miners: %v", p.stats.fullMiners)
+	p.log.Debugf("full miners: %v", p.stats.fullMiners.ToSlice())
 	return removedGHS
 }
 

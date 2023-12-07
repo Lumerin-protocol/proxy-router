@@ -1,5 +1,5 @@
 run:
-	GOTRACEBACK=crash go run -race cmd/main.go
+	GOTRACEBACK=crash go run -gcflags '-N -l' -race cmd/main.go
 
 build:
 	./build.sh
