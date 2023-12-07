@@ -327,23 +327,30 @@ func (p *Scheduler) GetTotalScheduledJob() float64 {
 }
 
 func (p *Scheduler) GetJobCouldBeScheduledTill(interval time.Duration) float64 {
+	if interval == 0 {
+		return 0
+	}
 	return p.getExpectedCycleJob(interval) - p.GetTotalScheduledJob()
 }
 
 func (p *Scheduler) GetDestinations(cycleDuration time.Duration) []*DestItem {
-	cycleJob := p.getExpectedCycleJob(cycleDuration)
-	dests := make([]*DestItem, 0)
+	return make([]*DestItem, 0)
+	// Temporary removing current destinations from the response to avoid locking
+	// TODO: reiplement it unsing atomic view to avoid locking
 
-	p.tasks.Range(func(task *MinerTask) bool {
-		dests = append(dests, &DestItem{
-			Dest:     task.Dest.String(),
-			Job:      float64(task.RemainingJobToSubmit.Load()),
-			Fraction: task.Job / cycleJob,
-		})
-		return true
-	})
+	// dests := make([]*DestItem, 0)
+	// cycleJob := p.getExpectedCycleJob(cycleDuration)
 
-	return dests
+	// p.tasks.Range(func(task *MinerTask) bool {
+	// 	dests = append(dests, &DestItem{
+	// 		Dest:     task.Dest.String(),
+	// 		Job:      float64(task.RemainingJobToSubmit.Load()),
+	// 		Fraction: task.Job / cycleJob,
+	// 	})
+	// 	return true
+	// })
+
+	// return dests
 }
 
 // Data from proxy

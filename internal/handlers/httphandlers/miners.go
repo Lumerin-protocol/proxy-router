@@ -83,16 +83,16 @@ func (c *HTTPHandler) MapMiner(m *allocator.Scheduler) *Miner {
 		Resource: Resource{
 			Self: c.publicUrl.JoinPath(fmt.Sprintf("/miners/%s", m.ID())).String(),
 		},
-		ID:                    m.ID(),
-		WorkerName:            m.GetWorkerName(),
-		Status:                m.GetStatus(c.cycleDuration).String(),
-		CurrentDifficulty:     int(m.GetCurrentDifficulty()),
-		HashrateAvgGHS:        mapHRToInt(m),
-		CurrentDestination:    m.GetCurrentDest().String(),
-		ConnectedAt:           m.GetConnectedAt().Format(time.RFC3339),
-		Stats:                 m.GetStats(),
-		Uptime:                formatDuration(m.GetUptime()),
-		ActivePoolConnections: m.GetDestConns(),
-		Destinations:          m.GetDestinations(c.cycleDuration),
+		ID:                    m.ID(),                                  // readonly
+		WorkerName:            m.GetWorkerName(),                       // readonly
+		Status:                m.GetStatus(c.cycleDuration).String(),   // atomic
+		CurrentDifficulty:     int(m.GetCurrentDifficulty()),           // atomic
+		HashrateAvgGHS:        mapHRToInt(m),                           // atomic or single lock
+		CurrentDestination:    m.GetCurrentDest().String(),             // atomic
+		ConnectedAt:           m.GetConnectedAt().Format(time.RFC3339), // readonly
+		Stats:                 m.GetStats(),                            // multiple atomics
+		Uptime:                formatDuration(m.GetUptime()),           // readonly
+		ActivePoolConnections: m.GetDestConns(),                        // sync map range + multiple atomics
+		// Destinations:          m.GetDestinations(c.cycleDuration),      // readonly temporarily
 	}
 }
