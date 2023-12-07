@@ -1,10 +1,8 @@
 package allocator
 
 import (
-	"context"
 	"math"
 	"net/url"
-	"sort"
 	"sync"
 	"time"
 
@@ -16,13 +14,22 @@ import (
 
 const (
 	HashratePredictionAdjustment = 1.0
+	AllocationMinDuration        = 5 * time.Second
+	AllocationMinJob             = 5000.0
 )
 
+type minerSnapshot struct {
+	fullMiners    []MinerItem
+	partialMiners []MinerItem
+	freeMiners    []MinerItem
+}
+
 type MinerItem struct {
-	ID           string
-	HrGHS        float64
-	JobRemaining float64
-	IsFullMiner  bool
+	ID            string
+	HrGHS         float64
+	JobRemaining  float64
+	TimeRemaining time.Duration
+	IsFullMiner   bool
 }
 
 type ListenerHandle int
@@ -33,27 +40,17 @@ type MinerItemJobScheduled struct {
 	Fraction float64
 }
 
-type PartialMinerJobRemaining struct {
-	ID           string
-	JobRemaining float64
-}
-
 type MinerIDJob = map[string]float64
 
-type AllocatorInterface interface {
-	Run(ctx context.Context) error
-	UpsertAllocation(ID string, hashrate float64, dest string, counter func(diff float64)) error
-}
-
 type Allocator struct {
-	proxies    *lib.Collection[*Scheduler]
-	proxyMutex sync.RWMutex
-
+	// read/write
 	lastListenerID  int
 	vettedListeners map[int]func(ID string)
 	vettedMutex     sync.RWMutex
 
-	log gi.ILogger
+	// read only
+	proxies *lib.Collection[*Scheduler]
+	log     gi.ILogger
 }
 
 func NewAllocator(proxies *lib.Collection[*Scheduler], log gi.ILogger) *Allocator {
@@ -62,6 +59,10 @@ func NewAllocator(proxies *lib.Collection[*Scheduler], log gi.ILogger) *Allocato
 		vettedListeners: make(map[int]func(ID string), 0),
 		log:             log,
 	}
+}
+
+func (p *Allocator) GetMiners() *lib.Collection[*Scheduler] {
+	return p.proxies
 }
 
 func (p *Allocator) AllocateFullMinersForHR(
@@ -73,21 +74,14 @@ func (p *Allocator) AllocateFullMinersForHR(
 	onDisconnect OnDisconnectCb,
 	onEnd OnEndCb,
 ) (minerIDs []string, deltaGHS float64) {
-	p.proxyMutex.Lock()
-	defer p.proxyMutex.Unlock()
+	miners := p.getMinersSnapshot(0)
+	p.log.Infof("available free miners %v", miners.freeMiners)
 
-	miners := p.getFreeMiners()
-	p.log.Infof("available free miners %v", miners)
-
-	sort.Slice(miners, func(i, j int) bool {
-		return miners[i].HrGHS < miners[j].HrGHS
-	})
-
-	for _, miner := range miners {
+	for _, miner := range miners.freeMiners {
 		minerGHS := miner.HrGHS
 		if minerGHS <= hrGHS && minerGHS > 0 {
 			proxy, ok := p.proxies.Load(miner.ID)
-			if ok {
+			if ok && !proxy.IsDisconnecting() {
 				proxy.AddTask(ID, dest, hashrate.GHSToJobSubmittedV2(minerGHS, duration), onSubmit, onDisconnect, onEnd, time.Now().Add(duration))
 				minerIDs = append(minerIDs, miner.ID)
 				hrGHS -= minerGHS
@@ -108,26 +102,32 @@ func (p *Allocator) AllocatePartialForJob(
 	onDisconnect func(ID string, hrGHS float64, remainingJob float64),
 	onEnd OnEndCb,
 ) (minerIDJob MinerIDJob, remainderGHS float64) {
-	p.proxyMutex.Lock()
-	defer p.proxyMutex.Unlock()
-
 	p.log.Infof("attempting to partially allocate job %.f", jobNeeded)
 
-	partialMiners := p.getPartialMiners(cycleEndTimeout)
-	p.log.Infof("available partial miners %v", partialMiners)
+	miners := p.getMinersSnapshot(cycleEndTimeout)
+	p.log.Infof("available partial miners %v", miners.partialMiners)
+
 	minerIDJob = MinerIDJob{}
 
-	minJob := 5000.0
-
-	for _, miner := range partialMiners {
-		if jobNeeded <= minJob {
+	for _, miner := range miners.partialMiners {
+		if jobNeeded < AllocationMinJob {
 			return minerIDJob, 0
+		}
+		if miner.JobRemaining < AllocationMinJob {
+			continue
+		}
+		if miner.TimeRemaining < AllocationMinDuration {
+			continue
+		}
+		durationToDoJobWithMiner := time.Duration(jobNeeded / hashrate.GHSToHS(int(miner.HrGHS)) * float64(time.Second))
+		if durationToDoJobWithMiner < AllocationMinDuration {
+			continue
 		}
 
 		// try to add the whole chunk and return
 		if miner.JobRemaining >= jobNeeded {
 			m, ok := p.proxies.Load(miner.ID)
-			if ok {
+			if ok && !m.IsDisconnecting() {
 				m.AddTask(ID, dest, jobNeeded, onSubmit, onDisconnect, onEnd, time.Now().Add(cycleEndTimeout))
 				minerIDJob[miner.ID] = jobNeeded
 				return minerIDJob, 0
@@ -135,9 +135,9 @@ func (p *Allocator) AllocatePartialForJob(
 		}
 
 		// try to add at least a minJob and continue
-		if miner.JobRemaining >= minJob {
+		if miner.JobRemaining >= AllocationMinJob {
 			m, ok := p.proxies.Load(miner.ID)
-			if ok {
+			if ok && !m.IsDisconnecting() {
 				m.AddTask(ID, dest, miner.JobRemaining, onSubmit, onDisconnect, onEnd, time.Now().Add(cycleEndTimeout))
 				minerIDJob[miner.ID] = miner.JobRemaining
 				jobNeeded -= miner.JobRemaining
@@ -147,24 +147,22 @@ func (p *Allocator) AllocatePartialForJob(
 
 	// search in free miners
 	// missing loop cause we already checked full miners
-	freeMiners := p.getFreeMiners()
-	p.log.Infof("available free miners %v", freeMiners)
-
-	for _, miner := range freeMiners {
-		if jobNeeded < minJob {
+	p.log.Infof("available free miners %v", miners.freeMiners)
+	for _, miner := range miners.freeMiners {
+		if jobNeeded < AllocationMinJob {
 			jobNeeded = 0
 			break
 		}
 
 		minerJobRemaining := hashrate.GHSToJobSubmittedV2(miner.HrGHS, cycleEndTimeout)
-		if minerJobRemaining <= minJob {
+		if minerJobRemaining <= AllocationMinJob {
 			continue
 		}
 
 		jobToAllocate := math.Min(minerJobRemaining, jobNeeded)
 
 		m, ok := p.proxies.Load(miner.ID)
-		if !ok {
+		if !ok || m.IsDisconnecting() {
 			continue
 		}
 
@@ -176,96 +174,35 @@ func (p *Allocator) AllocatePartialForJob(
 	return minerIDJob, jobNeeded
 }
 
-func (p *Allocator) getFreeMiners() []MinerItem {
-	freeMiners := []MinerItem{}
-	p.proxies.Range(func(item *Scheduler) bool {
-		if item.IsVetting() {
-			return true
-		}
-		if item.IsDisconnecting() {
-			return true
-		}
-		if item.IsFree() {
-			freeMiners = append(freeMiners, MinerItem{
-				ID:    item.ID(),
-				HrGHS: item.HashrateGHS() * HashratePredictionAdjustment,
-			})
-		}
-		return true
-	})
-
-	slices.SortStableFunc(freeMiners, func(i, j MinerItem) bool {
-		return i.HrGHS > j.HrGHS
-	})
-
-	return freeMiners
-}
-
-func (p *Allocator) getPartialMiners(remainingCycleDuration time.Duration) []PartialMinerJobRemaining {
-	partialMiners := []PartialMinerJobRemaining{}
-
-	p.proxies.Range(func(item *Scheduler) bool {
-		if item.IsVetting() {
-			return true
-		}
-		if item.IsDisconnecting() {
-			return true
-		}
-
-		if item.IsPartialBusy(remainingCycleDuration) {
-			partialMiners = append(partialMiners, PartialMinerJobRemaining{
-				ID:           item.ID(),
-				JobRemaining: item.GetJobCouldBeScheduledTill(remainingCycleDuration),
-			})
-		}
-
-		return true
-	})
-
-	slices.SortStableFunc(partialMiners, func(i, j PartialMinerJobRemaining) bool {
-		return i.JobRemaining < j.JobRemaining
-	})
-
-	return partialMiners
-}
-
-func (p *Allocator) GetMiners() *lib.Collection[*Scheduler] {
-	p.proxyMutex.RLock()
-	defer p.proxyMutex.RUnlock()
-
-	return p.proxies
-}
-
 func (p *Allocator) GetMinersFulfillingContract(contractID string, cycleDuration time.Duration) []*MinerItemJobScheduled {
-	p.proxyMutex.RLock()
-	defer p.proxyMutex.RUnlock()
+	return []*MinerItemJobScheduled{}
+	// Temporary disabling this function to minimize usage of mutexes
+	// TODO: rewrite it to use a view of the collection instead of mutexes
 
-	minerItems := []*MinerItemJobScheduled{}
+	// p.GetMiners().Range(func(item *Scheduler) bool {
+	// 	if item.IsVetting() {
+	// 		return true
+	// 	}
 
-	p.GetMiners().Range(func(item *Scheduler) bool {
-		if item.IsVetting() {
-			return true
-		}
+	// 	if item.IsDisconnecting() {
+	// 		return true
+	// 	}
 
-		if item.IsDisconnecting() {
-			return true
-		}
+	// 	tasks := item.GetTasksByID(contractID)
+	// 	maxJob := item.getExpectedCycleJob(cycleDuration)
 
-		tasks := item.GetTasksByID(contractID)
-		maxJob := item.getExpectedCycleJob(cycleDuration)
+	// 	for _, task := range tasks {
+	// 		job := float64(task.RemainingJobToSubmit.Load())
+	// 		minerItems = append(minerItems, &MinerItemJobScheduled{
+	// 			ID:       item.ID(),
+	// 			Job:      job,
+	// 			Fraction: job / maxJob,
+	// 		})
+	// 	}
+	// 	return true
+	// })
 
-		for _, task := range tasks {
-			job := float64(task.RemainingJobToSubmit.Load())
-			minerItems = append(minerItems, &MinerItemJobScheduled{
-				ID:       item.ID(),
-				Job:      job,
-				Fraction: job / maxJob,
-			})
-		}
-		return true
-	})
-
-	return minerItems
+	// return minerItems
 }
 
 func (p *Allocator) AddVettedListener(f func(ID string)) ListenerHandle {
@@ -293,4 +230,51 @@ func (p *Allocator) InvokeVettedListeners(minerID string) {
 	for _, f := range p.vettedListeners {
 		go f(minerID)
 	}
+}
+
+func (p *Allocator) getMinersSnapshot(remainingCycleDuration time.Duration) minerSnapshot {
+	snap := minerSnapshot{}
+
+	p.proxies.Range(func(item *Scheduler) bool {
+		if item.IsVetting() { // atomic
+			return true
+		}
+		if item.IsDisconnecting() { // atomic
+			return true
+		}
+		if item.IsFree() { // has mutex inside
+			snap.freeMiners = append(snap.freeMiners, MinerItem{
+				ID:            item.ID(),
+				HrGHS:         item.HashrateGHS() * HashratePredictionAdjustment,
+				JobRemaining:  hashrate.GHSToJobSubmittedV2(item.HashrateGHS(), remainingCycleDuration),
+				TimeRemaining: remainingCycleDuration,
+				IsFullMiner:   true,
+			})
+		}
+		if remainingCycleDuration == 0 {
+			return true
+		}
+		if item.IsPartialBusy(remainingCycleDuration) {
+			jobRemaining := item.GetJobCouldBeScheduledTill(remainingCycleDuration)
+			timeRemaining := time.Duration(hashrate.JobSubmittedToGHS(jobRemaining) / item.HashrateGHS() * float64(time.Second))
+			snap.partialMiners = append(snap.partialMiners, MinerItem{
+				ID:            item.ID(),
+				HrGHS:         item.HashrateGHS(),
+				JobRemaining:  jobRemaining,
+				TimeRemaining: timeRemaining,
+				IsFullMiner:   false,
+			})
+		}
+		return true
+	})
+
+	slices.SortStableFunc(snap.freeMiners, func(i, j MinerItem) bool {
+		return i.HrGHS > j.HrGHS
+	})
+
+	slices.SortStableFunc(snap.partialMiners, func(i, j MinerItem) bool {
+		return i.JobRemaining < j.JobRemaining
+	})
+
+	return snap
 }
