@@ -129,6 +129,7 @@ func (c *ControllerSeller) controller(ctx context.Context, event interface{}) er
 func (c *ControllerSeller) handleContractPurchased(ctx context.Context, event *implementation.ImplementationContractPurchased) error {
 	c.log.Debugf("got purchased event for contract")
 	if c.State() == resources.ContractStateRunning {
+		c.log.Infof("contract is running, ignore")
 		return nil
 	}
 
@@ -138,6 +139,7 @@ func (c *ControllerSeller) handleContractPurchased(ctx context.Context, event *i
 	}
 
 	if !c.ShouldBeRunning() {
+		c.log.Infof("contract should not be running, ignore")
 		return nil
 	}
 
@@ -153,6 +155,7 @@ func (c *ControllerSeller) handleContractPurchased(ctx context.Context, event *i
 func (c *ControllerSeller) handleContractClosed(ctx context.Context, event *implementation.ImplementationContractClosed) error {
 	c.log.Warnf("got closed event for contract")
 	if c.IsRunning() {
+		c.log.Infof("contract is running, stopping")
 		c.StopFulfilling()
 		<-c.Done()
 	}
@@ -210,6 +213,7 @@ func (c *ControllerSeller) LoadTermsFromBlockchain(ctx context.Context) error {
 	terms, err := c.GetTermsFromBlockchain(ctx)
 
 	if err != nil {
+		c.log.Errorf("error getting terms from blockchain: %s", err)
 		return err
 	}
 
@@ -228,6 +232,7 @@ func (c *ControllerSeller) GetTermsFromBlockchain(ctx context.Context) (*hashrat
 	terms, err := encryptedTerms.Decrypt(c.privKey)
 
 	if err != nil {
+		c.log.Errorf("error decrypting terms: %s", err)
 		return nil, err
 	}
 

@@ -106,6 +106,7 @@ func (p *ContractWatcherSellerV2) StopFulfilling() {
 	defer p.isRunningMutex.Unlock()
 
 	if !p.isRunning {
+		p.log.Warnf("contract %s is not running, ignore StopFulfilling", p.ID())
 		return
 	}
 
