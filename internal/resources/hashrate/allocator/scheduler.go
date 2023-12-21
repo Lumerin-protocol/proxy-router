@@ -46,7 +46,7 @@ func NewScheduler(proxy StratumProxyInterface, hashrateCounterID string, default
 		primaryDest:        defaultDest,
 		hashrateCounterID:  hashrateCounterID,
 		minerVettingShares: minerVettingShares,
-		newTaskSignal:      make(chan struct{}, 1),
+		newTaskSignal:      make(chan struct{}, 1), // bufferized, so if at the moment of sending there is no one to receive, it will be received later
 		tasks:              NewTaskList(),
 		usedHR:             hashrateFactory(),
 		proxy:              proxy,
@@ -261,7 +261,10 @@ func (p *Scheduler) AddTask(
 	newLength := p.tasks.Add(ID, dest, jobSubmitted, deadline, onSubmit, onDisconnect, onEnd)
 
 	if newLength == 1 {
-		p.newTaskSignal <- struct{}{}
+		select {
+		case p.newTaskSignal <- struct{}{}:
+		default:
+		}
 	}
 
 	taskGHS := hashrate.JobSubmittedToGHSV2(jobSubmitted, time.Until(deadline))
@@ -278,7 +281,10 @@ func (p *Scheduler) RemoveTasksByID(ID string) {
 // SetPrimaryDest is not protected by mutex
 func (p *Scheduler) SetPrimaryDest(dest *url.URL) {
 	p.primaryDest = dest
-	p.newTaskSignal <- struct{}{}
+	select {
+	case p.newTaskSignal <- struct{}{}:
+	default:
+	}
 }
 
 // Scheduler getters protected by mutex

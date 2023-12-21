@@ -298,7 +298,7 @@ func (p *ContractWatcherSellerV2) adjustHashrate(hashrateGHS float64) (adjustedG
 	}
 
 	if hashrateGHS > 0 {
-		p.log.Warnf("not enough hashrate to fulfill contract (lacking %d GHS)", hashrateGHS)
+		p.log.Warnf("not enough hashrate to fulfill contract (lacking %.2f GHS)", hashrateGHS)
 		p.starvingGHS.Store(uint64(hashrateGHS))
 	} else {
 		p.starvingGHS.Store(0)
