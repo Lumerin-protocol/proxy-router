@@ -61,6 +61,7 @@ func (p *HandlerChangeDest) connectNewDest(ctx context.Context, newDestURL *url.
 
 	select {
 	case err := <-autoReadDone:
+		handshakeTask.Stop()
 		// if newDestRunTask finished first there was reading error
 		// TODO: fix the case when err == nil
 		return nil, lib.WrapError(ErrConnectDest, err)
@@ -139,7 +140,12 @@ func (p *HandlerChangeDest) destHandshake(ctx context.Context, newDest *ConnDest
 	if err != nil {
 		return lib.WrapError(ErrConnectDest, err)
 	}
-	<-gotResultCh
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-gotResultCh:
+	}
 
 	// 3. MINING.AUTHORIZE
 	msgID++
@@ -156,7 +162,11 @@ func (p *HandlerChangeDest) destHandshake(ctx context.Context, newDest *ConnDest
 
 	// we need to get a job from the pool before we stop reading
 	// so we use it during handshake
-	<-newDest.GetFirstJobSignal()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-newDest.GetFirstJobSignal():
+	}
 
 	p.log.Debugf("authorize success")
 	return nil
