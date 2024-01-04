@@ -12,6 +12,7 @@ import (
 	"net/http/pprof"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/config"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/contractmanager"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
@@ -45,6 +46,7 @@ type HTTPHandler struct {
 	config                 Sanitizable
 	derivedConfig          *config.DerivedConfig
 	appStartTime           time.Time
+	validator              *validator.Validate
 	logStorage             *lib.Collection[*interfaces.LogStorage]
 	log                    interfaces.ILogger
 }
@@ -61,6 +63,7 @@ func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractman
 		config:                 config,
 		derivedConfig:          derivedConfig,
 		appStartTime:           appStartTime,
+		validator:              validator.New(),
 		logStorage:             logStorage,
 		log:                    log,
 	}
