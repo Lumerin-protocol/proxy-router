@@ -12,6 +12,10 @@ install:
 	go install golang.org/x/vuln/cmd/govulncheck@latest
 	go install github.com/praetorian-inc/gokart@latest
 	go install github.com/securego/gosec/v2/cmd/gosec@latest
+	brew install mockery
+
+generate:
+	mockery 
 	
 lint:
 	golangci-lint run

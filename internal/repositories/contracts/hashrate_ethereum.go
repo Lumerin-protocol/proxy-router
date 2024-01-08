@@ -27,6 +27,7 @@ type HashrateEthereum struct {
 	// config
 	legacyTx         bool // use legacy transaction fee, for local node testing
 	clonefactoryAddr common.Address
+	forcePolling     bool // force polling for events for websocket subscriptions
 
 	// state
 	nonce   uint64
@@ -38,9 +39,18 @@ type HashrateEthereum struct {
 	cloneFactory *clonefactory.Clonefactory
 	client       EthereumClient
 	log          interfaces.ILogger
+	logWatcher   LogWatcher
 }
 
-func NewHashrateEthereum(clonefactoryAddr common.Address, client EthereumClient, log interfaces.ILogger) *HashrateEthereum {
+func HashrateEthereumFactory(clonefactoryAddr common.Address, client EthereumClient, forcePolling bool, maxReconnects int, pollingInterval time.Duration, log interfaces.ILogger) *HashrateEthereum {
+	if client.SupportsSubscriptions() && !forcePolling {
+		return NewHashrateEthereum(clonefactoryAddr, client, NewLogWatcherSubscription(client, maxReconnects, log), log)
+	} else {
+		return NewHashrateEthereum(clonefactoryAddr, client, NewLogWatcherPolling(client, pollingInterval, maxReconnects, log), log)
+	}
+}
+
+func NewHashrateEthereum(clonefactoryAddr common.Address, client EthereumClient, logWatcher LogWatcher, log interfaces.ILogger) *HashrateEthereum {
 	cf, err := clonefactory.NewClonefactory(clonefactoryAddr, client)
 	if err != nil {
 		panic("invalid clonefactory ABI")
@@ -60,8 +70,13 @@ func NewHashrateEthereum(clonefactoryAddr common.Address, client EthereumClient,
 		cfABI:            cfABI,
 		implABI:          implABI,
 		mutex:            lib.NewMutex(),
+		logWatcher:       logWatcher,
 		log:              log,
 	}
+}
+
+func (g *HashrateEthereum) GetClient() EthereumClient {
+	return g.client
 }
 
 func (g *HashrateEthereum) SetLegacyTx(legacyTx bool) {
@@ -143,31 +158,18 @@ func (g *HashrateEthereum) PurchaseContract(ctx context.Context, contractID stri
 		return err
 	}
 
-	_, err = g.cloneFactory.SetPurchaseRentalContract(opts, common.HexToAddress(contractID), "", uint32(version))
+	tx, err := g.cloneFactory.SetPurchaseRentalContract(opts, common.HexToAddress(contractID), "", uint32(version))
 	if err != nil {
 		g.log.Error(err)
 		return err
 	}
 
-	watchOpts := &bind.WatchOpts{
-		Context: ctx,
-	}
-	sink := make(chan *clonefactory.ClonefactoryClonefactoryContractPurchased)
-	sub, err := g.cloneFactory.WatchClonefactoryContractPurchased(watchOpts, sink, []common.Address{})
+	_, err = bind.WaitMined(ctx, g.client, tx)
+
 	if err != nil {
 		return err
 	}
-	defer sub.Unsubscribe()
-
-	select {
-	case <-sink:
-		return nil
-	case err := <-sub.Err():
-		return err
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-
+	return nil
 }
 
 func (g *HashrateEthereum) CloseContract(ctx context.Context, contractID string, closeoutType CloseoutType, privKey string) error {
@@ -197,19 +199,13 @@ func (g *HashrateEthereum) CloseContract(ctx context.Context, contractID string,
 }
 
 func (g *HashrateEthereum) closeContract(ctx context.Context, contractID string, closeoutType CloseoutType, privKey string) error {
-	instance, err := implementation.NewImplementation(common.HexToAddress(contractID), g.client)
-	if err != nil {
-		g.log.Error(err)
-		return err
-	}
-
 	transactOpts, err := g.getTransactOpts(ctx, privKey)
 	if err != nil {
 		g.log.Error(err)
 		return err
 	}
 
-	tx, err := instance.SetContractCloseOut(transactOpts, big.NewInt(int64(closeoutType)))
+	tx, err := g.cloneFactory.SetContractCloseout(transactOpts, common.HexToAddress(contractID), big.NewInt(int64(closeoutType)))
 	if err != nil {
 		return err
 	}
@@ -225,11 +221,11 @@ func (g *HashrateEthereum) closeContract(ctx context.Context, contractID string,
 }
 
 func (s *HashrateEthereum) CreateCloneFactorySubscription(ctx context.Context, clonefactoryAddr common.Address) (*lib.Subscription, error) {
-	return WatchContractEvents(ctx, s.client, clonefactoryAddr, CreateEventMapper(clonefactoryEventFactory, s.cfABI), s.log)
+	return s.logWatcher.Watch(ctx, clonefactoryAddr, CreateEventMapper(clonefactoryEventFactory, s.cfABI), nil)
 }
 
 func (s *HashrateEthereum) CreateImplementationSubscription(ctx context.Context, contractAddr common.Address) (*lib.Subscription, error) {
-	return WatchContractEvents(ctx, s.client, contractAddr, CreateEventMapper(implementationEventFactory, s.implABI), s.log)
+	return s.logWatcher.Watch(ctx, contractAddr, CreateEventMapper(implementationEventFactory, s.implABI), nil)
 }
 
 func (g *HashrateEthereum) getTransactOpts(ctx context.Context, privKey string) (*bind.TransactOpts, error) {
