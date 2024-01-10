@@ -51,27 +51,28 @@ type ConnDest struct {
 	log  gi.ILogger
 }
 
-func NewDestConn(conn *StratumConnection, url *url.URL, log gi.ILogger) *ConnDest {
-	dest := &ConnDest{
+func NewDestConn(conn *StratumConnection, valid *validator.Validator, url *url.URL, log gi.ILogger) *ConnDest {
+	return &ConnDest{
+		conn:           conn,
+		validator:      valid,
 		userName:       url.User.Username(),
 		destUrl:        url,
-		conn:           conn,
 		stats:          &DestStats{},
 		firstJobSignal: make(chan struct{}),
 		log:            log,
 	}
-	dest.validator = validator.NewValidator(log.Named("validator"))
-	return dest
+	// dest.validator = validator.NewValidator(log.Named("validator"))
+	// return dest
 }
 
-func ConnectDest(ctx context.Context, destURL *url.URL, idleReadCloseTimeout, idleWriteCloseTimeout time.Duration, log gi.ILogger) (*ConnDest, error) {
+func ConnectDest(ctx context.Context, destURL *url.URL, valid *validator.Validator, idleReadCloseTimeout, idleWriteCloseTimeout time.Duration, log gi.ILogger) (*ConnDest, error) {
 	destLog := log.Named(fmt.Sprintf("[DST] %s@%s", destURL.User.Username(), destURL.Host))
 	conn, err := Connect(destURL, idleReadCloseTimeout, idleWriteCloseTimeout, destLog)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewDestConn(conn, destURL, destLog), nil
+	return NewDestConn(conn, valid, destURL, destLog), nil
 }
 
 func (c *ConnDest) AutoReadStart(ctx context.Context, cb func(err error)) (ok bool) {
@@ -206,6 +207,7 @@ func (c *ConnDest) readInterceptor(msg i.MiningMessageGeneric) (resMsg i.MiningM
 			c.log.Warn("got notify before extranonce was set")
 		}
 		c.validator.AddNewJob(typed, float64(c.diff.Load()), xn, xnsize)
+		c.log.Infof("new job %s, clean flag %t, dest %s", typed.GetJobID(), typed.GetCleanJobs(), c.destUrl.String())
 		c.firstJobOnce.Do(func() {
 			close(c.firstJobSignal)
 		})

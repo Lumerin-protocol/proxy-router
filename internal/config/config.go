@@ -48,6 +48,7 @@ type Config struct {
 	}
 	Pool struct {
 		Address          string        `env:"POOL_ADDRESS" flag:"pool-address" validate:"required,uri"`
+		CleanJobTimeout  time.Duration `env:"POOL_CLEAN_JOB_TIMEOUT" flag:"pool-clean-job-timeout" validate:"duration" desc:"duration after which jobs are removed from the cache after receiving clean_jobs flag from the pool notify message"`
 		IdleWriteTimeout time.Duration `env:"POOL_IDLE_WRITE_TIMEOUT" flag:"pool-idle-write-timeout" validate:"duration" desc:"if there are no writes for this duration, the connection is going to be closed"`
 	}
 	Proxy struct {
@@ -126,6 +127,9 @@ func (cfg *Config) SetDefaults() {
 	// Pool
 	if cfg.Pool.IdleWriteTimeout == 0 {
 		cfg.Pool.IdleWriteTimeout = 10 * time.Minute
+	}
+	if cfg.Pool.CleanJobTimeout == 0 {
+		cfg.Pool.CleanJobTimeout = 2 * time.Minute
 	}
 
 	// Proxy
