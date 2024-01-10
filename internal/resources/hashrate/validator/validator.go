@@ -3,6 +3,7 @@ package validator
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
@@ -23,15 +24,17 @@ type Validator struct {
 	// state
 	jobs               *lib.BoundStackMap[*MiningJob]
 	versionRollingMask string
+	cleanJobTimeout    time.Duration // duration after which jobs are removed from the cache after calling ScheduleCleanJobs()
 
 	// deps
 	log gi.ILogger
 }
 
-func NewValidator(log gi.ILogger) *Validator {
+func NewValidator(cleanJobTimeout time.Duration, log gi.ILogger) *Validator {
 	return &Validator{
 		jobs:               lib.NewBoundStackMap[*MiningJob](JOB_CACHE_SIZE),
 		versionRollingMask: "00000000",
+		cleanJobTimeout:    cleanJobTimeout,
 		log:                log,
 	}
 }
@@ -42,12 +45,25 @@ func (v *Validator) SetVersionRollingMask(mask string) {
 
 func (v *Validator) AddNewJob(msg *sm.MiningNotify, diff float64, xn1 string, xn2size int) {
 	job := NewMiningJob(msg, diff, xn1, xn2size)
+	if msg.GetCleanJobs() {
+		v.log.Info("clean jobs requested")
+		v.ScheduleCleanJobs()
+	}
 	v.jobs.Push(msg.GetJobID(), job)
 }
 
 func (v *Validator) HasJob(jobID string) bool {
 	_, ok := v.jobs.Get(jobID)
 	return ok
+}
+
+func (v *Validator) ScheduleCleanJobs() {
+	expirationTime := time.Now().Add(v.cleanJobTimeout)
+
+	v.jobs.Range(func(key string, value *MiningJob) bool {
+		value.expirationTime = expirationTime
+		return true
+	})
 }
 
 func (v *Validator) ValidateAndAddShare(msg *sm.MiningSubmit) (float64, error) {
@@ -60,6 +76,10 @@ func (v *Validator) ValidateAndAddShare(msg *sm.MiningSubmit) (float64, error) {
 		return 0, ErrJobNotFound
 	}
 
+	if !job.expirationTime.IsZero() && job.expirationTime.Before(time.Now()) {
+		return 0, ErrJobNotFound
+	}
+
 	if job.CheckDuplicateAndAddShare(msg) {
 		return 0, ErrDuplicateShare
 	}
@@ -68,8 +88,7 @@ func (v *Validator) ValidateAndAddShare(msg *sm.MiningSubmit) (float64, error) {
 	diffFloat := float64(diff)
 	if !ok {
 		err := lib.WrapError(ErrLowDifficulty, fmt.Errorf("expected %.2f actual %d", job.diff, diff))
-		v.log.Warnf(err.Error())
-		v.log.Warnf("xn=%s, xnsize=%d, diff=%d, vrmsk=%s", job.extraNonce1, uint(job.extraNonce2Size), uint64(job.diff), v.versionRollingMask)
+		v.log.Warnf("Error: %s, xn=%s, xnsize=%d, diff=%d, vrmsk=%s", err, job.extraNonce1, uint(job.extraNonce2Size), uint64(job.diff), v.versionRollingMask)
 		return diffFloat, err
 	}
 

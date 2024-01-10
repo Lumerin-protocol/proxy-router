@@ -2,6 +2,7 @@ package validator
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
@@ -10,7 +11,7 @@ import (
 func TestValidatorValidateUniqueShare(t *testing.T) {
 	msg := GetTestMsg()
 
-	validator := NewValidator(&lib.LoggerMock{})
+	validator := NewValidator(time.Minute, &lib.LoggerMock{})
 	validator.SetVersionRollingMask(msg.vmask)
 	validator.AddNewJob(msg.notify, msg.diff, msg.xnonce, msg.xnonce2size)
 
@@ -24,7 +25,7 @@ func TestValidatorValidateUniqueShare(t *testing.T) {
 func TestValidatorValidateDuplicateShare(t *testing.T) {
 	msg := GetTestMsg()
 
-	validator := NewValidator(&lib.LoggerMock{})
+	validator := NewValidator(time.Minute, &lib.LoggerMock{})
 	validator.SetVersionRollingMask(msg.vmask)
 	validator.AddNewJob(msg.notify, msg.diff, msg.xnonce, msg.xnonce2size)
 
@@ -33,4 +34,23 @@ func TestValidatorValidateDuplicateShare(t *testing.T) {
 
 	_, err = validator.ValidateAndAddShare(msg.submit1)
 	require.ErrorIs(t, err, ErrDuplicateShare)
+}
+
+func TestValidatorExpiredJobs(t *testing.T) {
+	msg := GetTestMsg()
+	timeout := 100 * time.Millisecond
+
+	validator := NewValidator(timeout, &lib.LoggerMock{})
+	validator.SetVersionRollingMask(msg.vmask)
+	validator.AddNewJob(msg.notify, msg.diff, msg.xnonce, msg.xnonce2size)
+
+	_, err := validator.ValidateAndAddShare(msg.submit1)
+	require.NoError(t, err)
+
+	validator.ScheduleCleanJobs()
+
+	time.Sleep(2 * timeout)
+
+	_, err = validator.ValidateAndAddShare(msg.submit1)
+	require.ErrorIs(t, err, ErrJobNotFound)
 }
