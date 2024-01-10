@@ -77,12 +77,12 @@ func TestBstackMapRange(t *testing.T) {
 
 func TestBstackMapRangeBreak(t *testing.T) {
 	bsm := makeSampleBSM()
-	var sum int
+	loops := 0
 	bsm.Range(func(key string, value int) bool {
-		sum += value
+		loops++
 		return false
 	})
-	require.Equal(t, 1, sum)
+	require.Equal(t, 1, loops)
 }
 
 func TestBstackMapFilter(t *testing.T) {
