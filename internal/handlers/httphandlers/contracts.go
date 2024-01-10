@@ -87,7 +87,28 @@ func (c *HTTPHandler) GetContracts(ctx *gin.Context) {
 	ctx.JSON(200, data)
 }
 
+type ContractsQP struct {
+	IsDeleted         *bool   `form:"isDeleted"`
+	HasFutureTerms    *bool   `form:"hasFutureTerms"`
+	Role              *string `form:"role" validate:"omitempty,oneof=seller buyer"`
+	BlockchainStatus  *string `form:"blockchainStatus" validate:"omitempty,oneof=available running"`
+	ApplicationStatus *string `form:"applicationStatus" validate:"omitempty,oneof=pending running"`
+}
+
 func (c *HTTPHandler) GetContractsV2(ctx *gin.Context) {
+	qp := ContractsQP{}
+	err := ctx.ShouldBindQuery(&qp)
+	if err != nil {
+		ctx.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	err = c.validator.StructCtx(ctx, qp)
+	if err != nil {
+		ctx.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
 	res := ContractsResponse{
 		SellerTotal: SellerTotal{},
 		BuyerTotal:  BuyerTotal{},
@@ -97,6 +118,30 @@ func (c *HTTPHandler) GetContractsV2(ctx *gin.Context) {
 	var errOuter error
 
 	c.contractManager.GetContracts().Range(func(item resources.Contract) bool {
+		if qp.IsDeleted != nil && *qp.IsDeleted && !item.IsDeleted() {
+			return true
+		}
+
+		if qp.IsDeleted != nil && !*qp.IsDeleted && item.IsDeleted() {
+			return true
+		}
+
+		if qp.HasFutureTerms != nil && !*qp.HasFutureTerms && item.HasFutureTerms() {
+			return true
+		}
+
+		if qp.HasFutureTerms != nil && *qp.HasFutureTerms && !item.HasFutureTerms() {
+			return true
+		}
+
+		if qp.Role != nil && item.Role().String() != *qp.Role {
+			return true
+		}
+
+		if qp.BlockchainStatus != nil && item.BlockchainState().String() != *qp.BlockchainStatus {
+			return true
+		}
+
 		cnt, err := c.mapContract(ctx, item)
 		if err != nil {
 			errOuter = err

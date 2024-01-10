@@ -24,6 +24,7 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/contract"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/validator"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/system"
 	"golang.org/x/sync/errgroup"
 )
@@ -182,7 +183,8 @@ func start() error {
 	}
 
 	destFactory := func(ctx context.Context, url *url.URL, connLogID string) (*proxy.ConnDest, error) {
-		return proxy.ConnectDest(ctx, url, IDLE_READ_CLOSE_TIMEOUT, cfg.Pool.IdleWriteTimeout, connLog.Named(connLogID))
+		validator := validator.NewValidator(cfg.Pool.CleanJobTimeout, connLog.Named("validator."+connLogID))
+		return proxy.ConnectDest(ctx, url, validator, IDLE_READ_CLOSE_TIMEOUT, cfg.Pool.IdleWriteTimeout, connLog.Named(connLogID))
 	}
 
 	globalHashrate := hashrate.NewGlobalHashrate(hashrateFactory)

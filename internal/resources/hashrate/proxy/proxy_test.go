@@ -12,6 +12,7 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 	m "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/validator"
 )
 
 func RunTestProxy() (p *Proxy, s *StratumConnection, d *StratumConnection, cancel func(), done chan error) {
@@ -25,7 +26,8 @@ func RunTestProxy() (p *Proxy, s *StratumConnection, d *StratumConnection, cance
 	log.Warnf("started server")
 
 	sourceConn := NewSourceConn(CreateConnection(sourceClient, "", timeout, timeout, log), log)
-	destConn := NewDestConn(CreateConnection(destClient, destURL.String(), timeout, timeout, log), destURL, log)
+	valid := validator.NewValidator(time.Minute, log)
+	destConn := NewDestConn(CreateConnection(destClient, destURL.String(), timeout, timeout, log), valid, destURL, log)
 
 	destConnFactory := func(ctx context.Context, url *url.URL, logID string) (*ConnDest, error) {
 		return destConn, nil
