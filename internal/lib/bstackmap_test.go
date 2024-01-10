@@ -65,6 +65,38 @@ func TestBstackMapClear(t *testing.T) {
 	require.False(t, ok)
 }
 
+func TestBstackMapRange(t *testing.T) {
+	bsm := makeSampleBSM()
+	var sum int
+	bsm.Range(func(key string, value int) bool {
+		sum += value
+		return true
+	})
+	require.Equal(t, 6, sum)
+}
+
+func TestBstackMapRangeBreak(t *testing.T) {
+	bsm := makeSampleBSM()
+	var sum int
+	bsm.Range(func(key string, value int) bool {
+		sum += value
+		return false
+	})
+	require.Equal(t, 1, sum)
+}
+
+func TestBstackMapFilter(t *testing.T) {
+	bsm := makeSampleBSM()
+	bsm.Filter(func(key string, value int) bool {
+		return value%2 != 0
+	})
+	require.Equal(t, 2, bsm.Count())
+	at0, _ := bsm.At(0)
+	at1, _ := bsm.At(1)
+	require.Equal(t, 1, at0)
+	require.Equal(t, 3, at1)
+}
+
 func makeSampleBSM() *BoundStackMap[int] {
 	bsm := NewBoundStackMap[int](3)
 	bsm.Push("first", 1)

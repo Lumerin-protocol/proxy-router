@@ -3,6 +3,7 @@ package validator
 import (
 	"encoding/hex"
 	"sync"
+	"time"
 
 	sm "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
 )
@@ -17,7 +18,8 @@ type MiningJob struct {
 	// TODO: a quick fix of race condition in CheckDuplicateAndAddShare.
 	// Sync map should not be needed here, because
 	// all methods should be called from single goroutine, but as
-	shares sync.Map // map[shareBytes]bool
+	shares         sync.Map // map[shareBytes]bool
+	expirationTime time.Time
 }
 
 func NewMiningJob(msg *sm.MiningNotify, diff float64, extraNonce1 string, extraNonce2Size int) *MiningJob {

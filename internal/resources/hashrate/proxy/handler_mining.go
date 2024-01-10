@@ -9,12 +9,16 @@ import (
 	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
 	m "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/validator"
+	"go.uber.org/atomic"
 )
+
+const MAX_CONSEQUENT_INVALID_SHARES = 100
 
 type HandlerMining struct {
 	// deps
-	proxy *Proxy
-	log   gi.ILogger
+	proxy                       *Proxy
+	consequentInvalidShareCount atomic.Uint32
+	log                         gi.ILogger
 }
 
 func NewHandlerMining(proxy *Proxy, log gi.ILogger) *HandlerMining {
@@ -95,6 +99,12 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 	}
 
 	if !weAccepted {
+		count := p.consequentInvalidShareCount.Inc()
+		if count > MAX_CONSEQUENT_INVALID_SHARES {
+			p.log.Warnf("too many consequent invalid shares (> %d), canceling run", MAX_CONSEQUENT_INVALID_SHARES)
+			p.proxy.cancelRun()
+			return nil, nil
+		}
 		p.proxy.source.GetStats().IncWeRejectedShares()
 
 		if errors.Is(err, validator.ErrDuplicateShare) {
@@ -105,6 +115,7 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 			res = m.NewMiningResultLowDifficulty(msgTyped.GetID())
 		}
 	} else {
+		p.consequentInvalidShareCount.Store(0)
 		p.proxy.source.GetStats().IncWeAcceptedShares()
 
 		// miner hashrate
