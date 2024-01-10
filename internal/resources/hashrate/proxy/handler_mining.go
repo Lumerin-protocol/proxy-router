@@ -91,6 +91,9 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 			weAccepted = err == nil
 			if weAccepted {
 				dest = d
+			} else {
+				p.log.Warnf("job %s not accepted in other dest %s", msgTyped.GetJobId(), d.ID())
+				res = m.NewMiningResultJobNotFound(msgTyped.GetID())
 			}
 		} else {
 			p.log.Warnf("job %s not found", msgTyped.GetJobId())

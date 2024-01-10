@@ -127,6 +127,8 @@ func (cfg *Config) SetDefaults() {
 	// Pool
 	if cfg.Pool.IdleWriteTimeout == 0 {
 		cfg.Pool.IdleWriteTimeout = 10 * time.Minute
+	}
+	if cfg.Pool.CleanJobTimeout == 0 {
 		cfg.Pool.CleanJobTimeout = 2 * time.Minute
 	}
 
