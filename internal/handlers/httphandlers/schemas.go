@@ -95,6 +95,7 @@ type Contract struct {
 	Elapsed           string
 	ApplicationStatus string
 	BlockchainStatus  string
+	Error             string
 	Dest              string
 	Miners            []*allocator.MinerItemJobScheduled
 }

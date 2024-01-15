@@ -295,6 +295,7 @@ func (p *HTTPHandler) mapContract(ctx context.Context, item resources.Contract) 
 		Elapsed:           formatDuration(item.Elapsed()),  // readonly
 		ApplicationStatus: item.State().String(),           // rw mutex canceable
 		BlockchainStatus:  item.BlockchainState().String(), // readonly
+		Error:             item.Error().Error(),            // atomic
 		Dest:              item.Dest(),                     // readonly
 		// Miners:            p.allocator.GetMinersFulfillingContract(item.ID(), p.cycleDuration),
 	}, nil
