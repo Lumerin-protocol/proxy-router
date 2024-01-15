@@ -17,18 +17,18 @@ var (
 // Terms holds the terms of the contract where destination is decrypted
 type Terms struct {
 	BaseTerms
-	dest *url.URL
+	Destination *url.URL
 }
 
 func (p *Terms) Dest() *url.URL {
-	return lib.CopyURL(p.dest)
+	return lib.CopyURL(p.Destination)
 }
 
 func (t *Terms) Encrypt(privateKey string) (*Terms, error) {
 	var destUrl *url.URL
 
-	if t.dest != nil {
-		dest, err := lib.EncryptString(t.dest.String(), privateKey)
+	if t.Destination != nil {
+		dest, err := lib.EncryptString(t.Destination.String(), privateKey)
 		if err != nil {
 			return nil, err
 		}
@@ -42,8 +42,8 @@ func (t *Terms) Encrypt(privateKey string) (*Terms, error) {
 	}
 
 	return &Terms{
-		BaseTerms: *t.Copy(),
-		dest:      destUrl,
+		BaseTerms:   *t.Copy(),
+		Destination: destUrl,
 	}, nil
 }
 
@@ -80,8 +80,8 @@ func (t *EncryptedTerms) Decrypt(privateKey string) (*Terms, error) {
 	)
 
 	terms := &Terms{
-		BaseTerms: *t.Copy(),
-		dest:      nil,
+		BaseTerms:   *t.Copy(),
+		Destination: nil,
 	}
 
 	if t.DestEncrypted == "" {
@@ -98,7 +98,7 @@ func (t *EncryptedTerms) Decrypt(privateKey string) (*Terms, error) {
 		return terms, lib.WrapError(ErrInvalidDestURL, fmt.Errorf("%s: %s", err, dest))
 	}
 
-	terms.dest = destUrl
+	terms.Destination = destUrl
 	return terms, returnErr
 }
 
