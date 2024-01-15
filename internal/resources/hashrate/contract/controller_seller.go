@@ -42,10 +42,13 @@ func (c *ControllerSeller) Run(ctx context.Context) error {
 	c.log.Infof("started watching contract as seller, address %s", c.ID())
 
 	if c.ShouldBeRunning() {
-		err := c.StartFulfilling()
-		if err != nil {
-			return err
-		}
+		go func() {
+			select {
+			case <-ctx.Done():
+				return
+			case sub.Ch() <- &implementation.ImplementationContractPurchased{}:
+			}
+		}()
 	}
 
 	for {

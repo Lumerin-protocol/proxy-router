@@ -295,10 +295,17 @@ func (p *HTTPHandler) mapContract(ctx context.Context, item resources.Contract) 
 		Elapsed:           formatDuration(item.Elapsed()),  // readonly
 		ApplicationStatus: item.State().String(),           // rw mutex canceable
 		BlockchainStatus:  item.BlockchainState().String(), // readonly
-		Error:             item.Error().Error(),            // atomic
+		Error:             errString(item.Error()),         // atomic
 		Dest:              item.Dest(),                     // readonly
 		// Miners:            p.allocator.GetMinersFulfillingContract(item.ID(), p.cycleDuration),
 	}, nil
+}
+
+func errString(s error) string {
+	if s != nil {
+		return s.Error()
+	}
+	return ""
 }
 
 func writeHTML(w io.Writer, logs []hrcontract.DeliveryLogEntry) error {
