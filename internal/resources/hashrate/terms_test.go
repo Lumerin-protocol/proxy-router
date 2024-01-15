@@ -41,20 +41,7 @@ func TestEncryptDecrypt(t *testing.T) {
 
 func TestDecryptInvalidCypher(t *testing.T) {
 	terms := &EncryptedTerms{
-		BaseTerms: BaseTerms{
-			contractID:     common.HexToAddress("0x1").Hex(),
-			seller:         common.HexToAddress("0x2").Hex(),
-			buyer:          common.HexToAddress("0x3").Hex(),
-			startsAt:       time.Now(),
-			duration:       0,
-			hashrate:       0,
-			price:          big.NewInt(1),
-			state:          BlockchainStateRunning,
-			isDeleted:      false,
-			balance:        big.NewInt(1),
-			hasFutureTerms: false,
-			version:        0,
-		},
+		BaseTerms:     makeTerms(),
 		DestEncrypted: "[object Promise]",
 	}
 
@@ -80,20 +67,7 @@ func TestDecryptInvalidDestURL(t *testing.T) {
 	require.NoError(t, err)
 
 	terms := &EncryptedTerms{
-		BaseTerms: BaseTerms{
-			contractID:     common.HexToAddress("0x1").Hex(),
-			seller:         common.HexToAddress("0x2").Hex(),
-			buyer:          common.HexToAddress("0x3").Hex(),
-			startsAt:       time.Now(),
-			duration:       0,
-			hashrate:       0,
-			price:          big.NewInt(1),
-			state:          BlockchainStateRunning,
-			isDeleted:      false,
-			balance:        big.NewInt(1),
-			hasFutureTerms: false,
-			version:        0,
-		},
+		BaseTerms:     makeTerms(),
 		DestEncrypted: encrypted,
 	}
 
@@ -101,4 +75,21 @@ func TestDecryptInvalidDestURL(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidDestURL)
 
 	require.Equal(t, terms.BaseTerms, decrypted.BaseTerms)
+}
+
+func makeTerms() BaseTerms {
+	return BaseTerms{
+		contractID:     common.HexToAddress("0x1").Hex(),
+		seller:         common.HexToAddress("0x2").Hex(),
+		buyer:          common.HexToAddress("0x3").Hex(),
+		startsAt:       time.Now(),
+		duration:       0,
+		hashrate:       0,
+		price:          big.NewInt(1),
+		state:          BlockchainStateRunning,
+		isDeleted:      false,
+		balance:        big.NewInt(1),
+		hasFutureTerms: false,
+		version:        0,
+	}
 }

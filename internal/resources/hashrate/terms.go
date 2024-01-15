@@ -76,26 +76,30 @@ func NewTerms(contractID, seller, buyer string, startsAt time.Time, duration tim
 // Decrypt decrypts the destination url, if error returns the terms with dest set to nil and error
 func (t *EncryptedTerms) Decrypt(privateKey string) (*Terms, error) {
 	var (
-		destUrl   *url.URL
 		returnErr error
 	)
 
-	if t.DestEncrypted != "" {
-		dest, err := lib.DecryptString(t.DestEncrypted, privateKey)
-		if err != nil {
-			returnErr = lib.WrapError(ErrCannotDecryptDest, fmt.Errorf("%s: %s", err, t.DestEncrypted))
-		}
-
-		destUrl, err = url.Parse(dest)
-		if err != nil {
-			returnErr = lib.WrapError(ErrInvalidDestURL, fmt.Errorf("%s: %s", err, dest))
-		}
+	terms := &Terms{
+		BaseTerms: *t.Copy(),
+		dest:      nil,
 	}
 
-	return &Terms{
-		BaseTerms: *t.Copy(),
-		dest:      destUrl,
-	}, returnErr
+	if t.DestEncrypted == "" {
+		return terms, nil
+	}
+
+	dest, err := lib.DecryptString(t.DestEncrypted, privateKey)
+	if err != nil {
+		return terms, lib.WrapError(ErrCannotDecryptDest, fmt.Errorf("%s: %s", err, t.DestEncrypted))
+	}
+
+	destUrl, err := url.Parse(dest)
+	if err != nil {
+		return terms, lib.WrapError(ErrInvalidDestURL, fmt.Errorf("%s: %s", err, dest))
+	}
+
+	terms.dest = destUrl
+	return terms, returnErr
 }
 
 // BaseTerms holds the terms of the contract with common methods for both encrypted and decrypted terms
