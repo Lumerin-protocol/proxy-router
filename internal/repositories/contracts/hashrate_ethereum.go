@@ -98,7 +98,7 @@ func (g *HashrateEthereum) GetContract(ctx context.Context, contractID string) (
 		return nil, err
 	}
 
-	data, err := instance.GetPublicVariables(&bind.CallOpts{Context: ctx})
+	data, err := instance.GetPublicVariablesV2(&bind.CallOpts{Context: ctx})
 	if err != nil {
 		return nil, err
 	}
@@ -120,14 +120,15 @@ func (g *HashrateEthereum) GetContract(ctx context.Context, contractID string) (
 		data.Seller.Hex(),
 		buyer,
 		startsAt,
-		time.Duration(data.Length.Int64())*time.Second,
-		float64(hr.HSToGHS(float64(data.Speed.Int64()))),
-		data.Price,
+		time.Duration(data.Terms.Length.Int64())*time.Second,
+		float64(hr.HSToGHS(float64(data.Terms.Speed.Int64()))),
+		data.Terms.Price,
+		data.Terms.ProfitTarget,
 		hashrate.BlockchainState(data.State),
 		data.IsDeleted,
 		data.Balance,
 		data.HasFutureTerms,
-		data.Version,
+		data.Terms.Version,
 		destEncrypted,
 	)
 
