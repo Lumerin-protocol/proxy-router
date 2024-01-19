@@ -69,13 +69,7 @@ func (g *HashrateEthereum) SetLegacyTx(legacyTx bool) {
 }
 
 func (g *HashrateEthereum) GetLumerinAddress(ctx context.Context) (common.Address, error) {
-	data, err := g.client.StorageAt(ctx, g.clonefactoryAddr, common.HexToHash("0"), nil)
-	if err != nil {
-		return common.Address{}, err
-	}
-
-	addrHex := common.Bytes2Hex(data[10:30])
-	return common.HexToAddress(addrHex), nil
+	return g.cloneFactory.Lumerin(&bind.CallOpts{Context: ctx})
 }
 
 func (g *HashrateEthereum) GetContractsIDs(ctx context.Context) ([]string, error) {
