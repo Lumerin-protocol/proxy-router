@@ -17,18 +17,18 @@ var (
 // Terms holds the terms of the contract where destination is decrypted
 type Terms struct {
 	BaseTerms
-	dest *url.URL
+	Destination *url.URL
 }
 
 func (p *Terms) Dest() *url.URL {
-	return lib.CopyURL(p.dest)
+	return lib.CopyURL(p.Destination)
 }
 
 func (t *Terms) Encrypt(privateKey string) (*Terms, error) {
 	var destUrl *url.URL
 
-	if t.dest != nil {
-		dest, err := lib.EncryptString(t.dest.String(), privateKey)
+	if t.Destination != nil {
+		dest, err := lib.EncryptString(t.Destination.String(), privateKey)
 		if err != nil {
 			return nil, err
 		}
@@ -42,8 +42,8 @@ func (t *Terms) Encrypt(privateKey string) (*Terms, error) {
 	}
 
 	return &Terms{
-		BaseTerms: *t.Copy(),
-		dest:      destUrl,
+		BaseTerms:   *t.Copy(),
+		Destination: destUrl,
 	}, nil
 }
 
@@ -73,27 +73,33 @@ func NewTerms(contractID, seller, buyer string, startsAt time.Time, duration tim
 	}
 }
 
+// Decrypt decrypts the destination url, if error returns the terms with dest set to nil and error
 func (t *EncryptedTerms) Decrypt(privateKey string) (*Terms, error) {
-	var destUrl *url.URL
+	var (
+		returnErr error
+	)
 
-	if t.DestEncrypted != "" {
-		dest, err := lib.DecryptString(t.DestEncrypted, privateKey)
-		if err != nil {
-			return nil, lib.WrapError(ErrCannotDecryptDest, fmt.Errorf("%s: %s", err, t.DestEncrypted))
-		}
-
-		destUrl, err = url.Parse(dest)
-		if err != nil {
-			return nil, lib.WrapError(ErrInvalidDestURL, fmt.Errorf("%s: %s", err, dest))
-		}
-	} else {
-		destUrl = nil
+	terms := &Terms{
+		BaseTerms:   *t.Copy(),
+		Destination: nil,
 	}
 
-	return &Terms{
-		BaseTerms: *t.Copy(),
-		dest:      destUrl,
-	}, nil
+	if t.DestEncrypted == "" {
+		return terms, nil
+	}
+
+	dest, err := lib.DecryptString(t.DestEncrypted, privateKey)
+	if err != nil {
+		return terms, lib.WrapError(ErrCannotDecryptDest, fmt.Errorf("%s: %s", err, t.DestEncrypted))
+	}
+
+	destUrl, err := url.Parse(dest)
+	if err != nil {
+		return terms, lib.WrapError(ErrInvalidDestURL, fmt.Errorf("%s: %s", err, dest))
+	}
+
+	terms.Destination = destUrl
+	return terms, returnErr
 }
 
 // BaseTerms holds the terms of the contract with common methods for both encrypted and decrypted terms
