@@ -53,7 +53,7 @@ type EncryptedTerms struct {
 	DestEncrypted string
 }
 
-func NewTerms(contractID, seller, buyer string, startsAt time.Time, duration time.Duration, hashrate float64, price *big.Int, state BlockchainState, isDeleted bool, balance *big.Int, hasFutureTerms bool, version uint32, destEncrypted string) *EncryptedTerms {
+func NewTerms(contractID, seller, buyer string, startsAt time.Time, duration time.Duration, hashrate float64, price *big.Int, profitTarget int8, state BlockchainState, isDeleted bool, balance *big.Int, hasFutureTerms bool, version uint32, destEncrypted string) *EncryptedTerms {
 	return &EncryptedTerms{
 		BaseTerms: BaseTerms{
 			contractID:     contractID,
@@ -63,6 +63,7 @@ func NewTerms(contractID, seller, buyer string, startsAt time.Time, duration tim
 			duration:       duration,
 			hashrate:       hashrate,
 			price:          price,
+			profitTarget:   profitTarget,
 			state:          state,
 			isDeleted:      isDeleted,
 			balance:        balance,
@@ -111,6 +112,7 @@ type BaseTerms struct {
 	duration       time.Duration
 	hashrate       float64
 	price          *big.Int
+	profitTarget   int8
 	state          BlockchainState
 	isDeleted      bool
 	balance        *big.Int
@@ -159,6 +161,10 @@ func (b *BaseTerms) HashrateGHS() float64 {
 
 func (b *BaseTerms) Price() *big.Int {
 	return new(big.Int).Set(b.price) // copy
+}
+
+func (b *BaseTerms) ProfitTarget() int8 {
+	return b.profitTarget
 }
 
 // PriceLMR returns price in LMR without decimals

@@ -49,6 +49,7 @@ func (h *HTTPHandler) CreateContract(ctx *gin.Context) {
 		duration,
 		float64(hrGHS)*1e9,
 		big.NewInt(0),
+		0,
 		hashrate.BlockchainStateRunning,
 		false,
 		big.NewInt(0),
@@ -283,6 +284,7 @@ func (p *HTTPHandler) mapContract(ctx context.Context, item resources.Contract) 
 		ResourceEstimatesActual: roundResourceEstimates(item.ResourceEstimatesActual()), // multiple atomics
 		StarvingGHS:             item.StarvingGHS(),                                     // atomic
 		PriceLMR:                LMRWithDecimalsToLMR(item.Price()),                     // readonly
+		ProfitTarget:            item.ProfitTarget(),                                    // readonly
 		Duration:                formatDuration(item.Duration()),                        // readonly
 
 		IsDeleted:      item.IsDeleted(),                     // readonly

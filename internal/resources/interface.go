@@ -26,6 +26,7 @@ type Contract interface {
 	Buyer() string  // ID of the buyer (address of the buyer for smart contract data source)
 	Dest() string   // string representation of the destination of the contract (IP address for hashrate, stream URL for video stream etc)
 	Price() *big.Int
+	ProfitTarget() int8
 
 	Balance() *big.Int
 	IsDeleted() bool
