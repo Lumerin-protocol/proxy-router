@@ -260,27 +260,28 @@ bedrock-02-DEV-seller:
     - *deploy_seller
     - echo "$TGT_ENV seller updated"
 
-# bedrock-02-DEV-validator:
-#   stage: deploy
-#   environment: dev
-#   rules:
-#     - if: $CI_COMMIT_BRANCH == "dev"
-#       when: always
-#     - if: $CI_COMMIT_BRANCH != "dev"
-#       when: manual
-#     - if: $CI_MERGE_REQUEST_ID
-#       when: never
-#   tags:
-#     - devops
-#     - bedrock
-#     - shell
-#     - titanio-dev
-#   variables:
-#     TGT_ACCOUNT: $CI_AWS_ACCOUNT_DEV
-#     TGT_ENV: dev
-#   script:
-#     - *deploy_validator
-#     - echo "$TGT_ENV validator updated"
+bedrock-02-DEV-validator:
+  stage: deploy
+  environment: dev
+  needs: ["bedrock-02-DEV-rawimage"]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+      when: manual
+    - if: $CI_COMMIT_BRANCH != "dev"
+      when: manual
+    - if: $CI_MERGE_REQUEST_ID
+      when: never
+  tags:
+    - devops
+    - bedrock
+    - shell
+    - titanio-dev
+  variables:
+    TGT_ACCOUNT: $CI_AWS_ACCOUNT_DEV
+    TGT_ENV: dev
+  script:
+    - *deploy_validator
+    - echo "$TGT_ENV validator updated"
 
 # bedrock-02-DEV-buyer:
 #   stage: deploy
