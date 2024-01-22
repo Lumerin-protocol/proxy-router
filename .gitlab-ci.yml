@@ -134,6 +134,26 @@ test:
   echo "**************************"
   cat input.json | jq .
 
+.update_validator_task_definition: &update_validator_task_definition |
+  echo "**************************"
+  echo "*** Update Validator Task Definition"
+  echo "**************************"
+  aws ecs describe-task-definition --region $AWS_DEFAULT_REGION --task-definition tsk-$CI_AWS_TASK > input.json
+  echo "**************************"
+  echo "*** Old Task Definition"
+  echo "**************************"
+  cat input.json | jq .
+  echo $(cat input.json | jq '.taskDefinition.containerDefinitions[].image='\"$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG\") > input.json 
+  echo $(cat input.json | jq '.taskDefinition.containerDefinitions[].ulimits=[{"name":"nofile","softLimit":15000,"hardLimit":15000}]') > input.json
+  echo $(cat input.json | jq '.taskDefinition.containerDefinitions[].environment=[{ "name" : "COMMIT", "value" : "$(git rev-parse HEAD)" },{ "name" : "ETH_NODE_ADDRESS", "value" : "$ETH_NODE_ADDRESS" },{ "name" : "ETH_NODE_LEGACY_TX", "value" : "$ETH_NODE_LEGACY_TX" },{ "name" : "ENVIRONMENT", "value" : "$ENVIRONMENT" },{ "name" : "HASHRATE_CYCLE_DURATION", "value" : "$HASHRATE_CYCLE_DURATION" },{ "name" : "HASHRATE_VALIDATION_START_TIMEOUT", "value" : "$HASHRATE_VALIDATION_START_TIMEOUT" },{ "name" : "HASHRATE_SHARE_TIMEOUT", "value" : "$HASHRATE_SHARE_TIMEOUT" },{ "name" : "HASHRATE_ERROR_THRESHOLD", "value" : "$HASHRATE_ERROR_THRESHOLD" },{ "name" : "HASHRATE_ERROR_TIMEOUT", "value" : "$HASHRATE_ERROR_TIMEOUT" },{ "name" : "CLONE_FACTORY_ADDRESS", "value" : "$CLONE_FACTORY_ADDRESS" },{ "name" : "CONTRACT_MNEMONIC", "value" : "$CONTRACT_MNEMONIC" },{ "name" : "WALLET_PRIVATE_KEY", "value" : "$WALLET_PRIVATE_KEY" },{ "name" : "MINER_VETTING_DURATION", "value" : "$MINER_VETTING_DURATION" },{ "name" : "MINER_SHARE_TIMEOUT", "value" : "$MINER_SHARE_TIMEOUT" },{ "name" : "LOG_COLOR", "value" : "$LOG_COLOR" },{ "name" : "LOG_JSON", "value" : "$LOG_JSON" },{ "name" : "LOG_LEVEL_APP", "value" : "$LOG_LEVEL_APP" },{ "name" : "LOG_LEVEL_CONNECTION", "value" : "$LOG_LEVEL_CONNECTION" },{ "name" : "LOG_LEVEL_PROXY", "value" : "$LOG_LEVEL_PROXY" },{ "name" : "LOG_LEVEL_SCHEDULER", "value" : "$LOG_LEVEL_SCHEDULER" },{ "name" : "LOG_LEVEL_CONTRACT", "value" : "$LOG_LEVEL_CONTRACT" },{ "name" : "POOL_ADDRESS", "value" : "$POOL_ADDRESS" },{ "name" : "POOL_CONN_TIMEOUT", "value" : "$POOL_CONN_TIMEOUT" },{ "name" : "PROXY_ADDRESS", "value" : "$PROXY_ADDRESS" },{ "name" : "SYS_ENABLE", "value" : "$SYS_ENABLE" },{ "name" : "SYS_LOCAL_PORT_RANGE", "value" : "$SYS_LOCAL_PORT_RANGE" },{ "name" : "SYS_NET_DEV_MAX_BACKLOG", "value" : "$SYS_NET_DEV_MAX_BACKLOG" },{ "name" : "SYS_RLIMIT_HARD", "value" : "$SYS_RLIMIT_HARD" },{ "name" : "SYS_RLIMIT_SOFT", "value" : "$SYS_RLIMIT_SOFT" },{ "name" : "SYS_SOMAXCONN", "value" : "$SYS_SOMAXCONN" },{ "name" : "SYS_TCP_MAX_SYN_BACKLOG", "value" : "$SYS_TCP_MAX_SYN_BACKLOG" },{ "name" : "WEB_ADDRESS", "value" : "$WEB_ADDRESS" },{ "name" : "WEB_PUBLIC_URL", "value" : "$WEB_PUBLIC_URL" }]') > input.json
+  echo $(cat input.json | jq '.taskDefinition') > input.json  
+  echo $(cat input.json | jq  'del(.taskDefinitionArn)' | jq 'del(.revision)' | jq 'del(.status)' | jq 'del(.requiresAttributes)' | jq 'del(.compatibilities)' | jq 'del(.registeredBy)' | jq 'del(.registeredAt)') > input.json
+  sed -i 's/'$CI_AWS_ACCOUNT_SBX'/'$TGT_ACCOUNT'/g' input.json  
+  echo "**************************"
+  echo "*** New Task Definition"
+  echo "**************************"
+  cat input.json | jq .
+
 .deploy_new_task_definition: &deploy_new_task_definition |
   aws ecs register-task-definition --region $AWS_DEFAULT_REGION --cli-input-json file://input.json
   REVISION=$(aws ecs describe-task-definition --task-definition tsk-$CI_AWS_TASK --region $AWS_DEFAULT_REGION | egrep "revision" | tr "/" " " | awk '{print $2}' | sed 's/"$//' | cut -d "," -f 1)
@@ -168,47 +188,13 @@ test:
   - *deploy_new_task_definition
 
 .deploy_validator: &deploy_validator
-  # OLD BUILD ARGUMENTS - need to modify to use CLEAN image base 
-  # --build-arg COMMIT=$(git rev-parse HEAD) \
-  # --build-arg ETH_NODE_ADDRESS=$ETH_NODE_ADDRESS \
-  # --build-arg ETH_NODE_LEGACY_TX=$ETH_NODE_LEGACY_TX \
-  # --build-arg ENVIRONMENT=$ENVIRONMENT \
-  # --build-arg HASHRATE_CYCLE_DURATION=$HASHRATE_CYCLE_DURATION \
-  # --build-arg HASHRATE_VALIDATION_START_TIMEOUT=$HASHRATE_VALIDATION_START_TIMEOUT \
-  # --build-arg HASHRATE_SHARE_TIMEOUT=$HASHRATE_SHARE_TIMEOUT \
-  # --build-arg HASHRATE_ERROR_THRESHOLD=$HASHRATE_ERROR_THRESHOLD \
-  # --build-arg HASHRATE_ERROR_TIMEOUT=$HASHRATE_ERROR_TIMEOUT \
-  # --build-arg CLONE_FACTORY_ADDRESS=$CLONE_FACTORY_ADDRESS \
-  # --build-arg CONTRACT_MNEMONIC=$CONTRACT_MNEMONIC \
-  # --build-arg WALLET_PRIVATE_KEY=$WALLET_PRIVATE_KEY \
-  # --build-arg MINER_VETTING_DURATION=$MINER_VETTING_DURATION \
-  # --build-arg MINER_SHARE_TIMEOUT=$MINER_SHARE_TIMEOUT \
-  # --build-arg LOG_COLOR=$LOG_COLOR \
-  # --build-arg LOG_JSON=$LOG_JSON \
-  # --build-arg LOG_LEVEL_APP=$LOG_LEVEL_APP \
-  # --build-arg LOG_LEVEL_CONNECTION=$LOG_LEVEL_CONNECTION \
-  # --build-arg LOG_LEVEL_PROXY=$LOG_LEVEL_PROXY \
-  # --build-arg LOG_LEVEL_SCHEDULER=$LOG_LEVEL_SCHEDULER \
-  # --build-arg LOG_LEVEL_CONTRACT=$LOG_LEVEL_CONTRACT \
-  # --build-arg POOL_ADDRESS=$POOL_ADDRESS \
-  # --build-arg POOL_CONN_TIMEOUT=$POOL_CONN_TIMEOUT \
-  # --build-arg PROXY_ADDRESS=$PROXY_ADDRESS \
-  # --build-arg SYS_ENABLE=$SYS_ENABLE \
-  # --build-arg SYS_LOCAL_PORT_RANGE=$SYS_LOCAL_PORT_RANGE \
-  # --build-arg SYS_NET_DEV_MAX_BACKLOG=$SYS_NET_DEV_MAX_BACKLOG \
-  # --build-arg SYS_RLIMIT_HARD=$SYS_RLIMIT_HARD \
-  # --build-arg SYS_RLIMIT_SOFT=$SYS_RLIMIT_SOFT \
-  # --build-arg SYS_SOMAXCONN=$SYS_SOMAXCONN \
-  # --build-arg SYS_TCP_MAX_SYN_BACKLOG=$SYS_TCP_MAX_SYN_BACKLOG \
-  # --build-arg WEB_ADDRESS=$WEB_ADDRESS \
-  # --build-arg WEB_PUBLIC_URL=$WEB_PUBLIC_URL
   # - POOL_ADDRESS=$BUYER_POOL_ADDRESS
   # - WALLET_PRIVATE_KEY=$BUYER_PRIVATEKEY
   - NODE_DEF="raw"
   - IMAGE_TAG="$(echo $CI_COMMIT_SHA | head -c 8)-$TGT_ENV-$NODE_DEF"
   - CI_AWS_TASK="proxy-validator"
   - *ecr_login_script
-  - *update_task_definition
+  - *update_validator_task_definition
   - *deploy_new_task_definition
 
 default:
