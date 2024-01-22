@@ -6,6 +6,7 @@ variables: # keep this list alphabetically sorted
 
 stages:
   - test
+  - build
   - deploy
   - e2e-test
   - release
@@ -103,9 +104,9 @@ test:
   echo "**************************"
   docker push $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG
 
-.build_clean_image_script: &build_clean_image_script |
+.build_raw_image: &build_raw_image |
   echo "**************************"
-  echo "*** Build Clean Image "
+  echo "*** Build RAW Image with no build arguments "
   echo "**************************"
   docker build \
     -t $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG --no-cache .
@@ -203,16 +204,39 @@ test:
   # --build-arg WEB_PUBLIC_URL=$WEB_PUBLIC_URL
   # - POOL_ADDRESS=$BUYER_POOL_ADDRESS
   # - WALLET_PRIVATE_KEY=$BUYER_PRIVATEKEY
-  - NODE_DEF="val"
   - CI_AWS_TASK="proxy-validator"
   - *ecr_login_script
-  - *create_image_tag
-  - *build_clean_image_script
   - *update_task_definition
   - *deploy_new_task_definition
 
 default:
   image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
+
+bedrock-02-DEV-rawimage:
+  stage: build
+  environment: dev
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+      when: always
+    - if: $CI_COMMIT_BRANCH != "dev"
+      when: manual
+    - if: $CI_MERGE_REQUEST_ID
+      when: never
+  tags:
+    - devops
+    - bedrock
+    - shell
+    - titanio-dev
+  variables:
+    TGT_ACCOUNT: $CI_AWS_ACCOUNT_DEV
+    TGT_ENV: dev
+  script:
+    - NODE_DEF="raw"
+    - *ecr_login_script
+    - *create_image_tag
+    - *build_raw_image
+    - echo "$TGT_ENV Raw Image updated"
+
 
 bedrock-02-DEV-seller:
   stage: deploy
@@ -236,27 +260,27 @@ bedrock-02-DEV-seller:
     - *deploy_seller
     - echo "$TGT_ENV seller updated"
 
-bedrock-02-DEV-validator:
-  stage: deploy
-  environment: dev
-  rules:
-    - if: $CI_COMMIT_BRANCH == "dev"
-      when: always
-    - if: $CI_COMMIT_BRANCH != "dev"
-      when: manual
-    - if: $CI_MERGE_REQUEST_ID
-      when: never
-  tags:
-    - devops
-    - bedrock
-    - shell
-    - titanio-dev
-  variables:
-    TGT_ACCOUNT: $CI_AWS_ACCOUNT_DEV
-    TGT_ENV: dev
-  script:
-    - *deploy_validator
-    - echo "$TGT_ENV validator updated"
+# bedrock-02-DEV-validator:
+#   stage: deploy
+#   environment: dev
+#   rules:
+#     - if: $CI_COMMIT_BRANCH == "dev"
+#       when: always
+#     - if: $CI_COMMIT_BRANCH != "dev"
+#       when: manual
+#     - if: $CI_MERGE_REQUEST_ID
+#       when: never
+#   tags:
+#     - devops
+#     - bedrock
+#     - shell
+#     - titanio-dev
+#   variables:
+#     TGT_ACCOUNT: $CI_AWS_ACCOUNT_DEV
+#     TGT_ENV: dev
+#   script:
+#     - *deploy_validator
+#     - echo "$TGT_ENV validator updated"
 
 # bedrock-02-DEV-buyer:
 #   stage: deploy
