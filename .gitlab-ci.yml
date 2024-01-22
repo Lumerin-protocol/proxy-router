@@ -204,6 +204,8 @@ test:
   # --build-arg WEB_PUBLIC_URL=$WEB_PUBLIC_URL
   # - POOL_ADDRESS=$BUYER_POOL_ADDRESS
   # - WALLET_PRIVATE_KEY=$BUYER_PRIVATEKEY
+  - NODE_DEF="raw"
+  - IMAGE_TAG="$(echo $CI_COMMIT_SHA | head -c 8)-$TGT_ENV-$NODE_DEF"
   - CI_AWS_TASK="proxy-validator"
   - *ecr_login_script
   - *update_task_definition
