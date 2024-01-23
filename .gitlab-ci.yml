@@ -138,7 +138,7 @@ test:
   echo "**************************"
   echo "*** Update Validator Task Definition"
   echo "*** Unique elements that should be set in calling module are Wallet Private Key, Pool Address, Web_public_url, "
-  echo "*** CI_WALLET_PRIVATE_KEY, CI_POOL_ADDRESS, CI_WEB_PUBLIC_URL
+  echo "*** CI_WALLET_PRIVATE_KEY, CI_POOL_ADDRESS, CI_WEB_PUBLIC_URL"
   echo "**************************"
   aws ecs describe-task-definition --region $AWS_DEFAULT_REGION --task-definition tsk-$CI_AWS_TASK > output.json
   echo "**************************"
