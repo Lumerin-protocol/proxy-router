@@ -70,7 +70,7 @@ test:
   echo "*** Build RAW Image with no build arguments "
   echo "**************************"
   docker build \
-    -t $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG --no-cache --file Dockerfile_raw .
+    -t $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG --no-cache .
   
   echo "**************************"
   echo "*** Tag Image with $TGT_ENV-latest"
