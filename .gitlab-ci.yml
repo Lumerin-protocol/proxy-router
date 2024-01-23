@@ -67,50 +67,6 @@ test:
 # BUILD STAGE  
 #######################
 
-.build_image_script: &build_image_script |
-  echo "**************************"
-  echo "*** Build Image "
-  echo "**************************"
-  docker build \
-    -t $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG --no-cache . \
-    --build-arg COMMIT=$(git rev-parse HEAD) \
-    --build-arg ETH_NODE_ADDRESS=$ETH_NODE_ADDRESS \
-    --build-arg ETH_NODE_LEGACY_TX=$ETH_NODE_LEGACY_TX \
-    --build-arg ENVIRONMENT=$ENVIRONMENT \
-    --build-arg HASHRATE_CYCLE_DURATION=$HASHRATE_CYCLE_DURATION \
-    --build-arg HASHRATE_VALIDATION_START_TIMEOUT=$HASHRATE_VALIDATION_START_TIMEOUT \
-    --build-arg HASHRATE_SHARE_TIMEOUT=$HASHRATE_SHARE_TIMEOUT \
-    --build-arg HASHRATE_ERROR_THRESHOLD=$HASHRATE_ERROR_THRESHOLD \
-    --build-arg HASHRATE_ERROR_TIMEOUT=$HASHRATE_ERROR_TIMEOUT \
-    --build-arg CLONE_FACTORY_ADDRESS=$CLONE_FACTORY_ADDRESS \
-    --build-arg CONTRACT_MNEMONIC=$CONTRACT_MNEMONIC \
-    --build-arg WALLET_PRIVATE_KEY=$WALLET_PRIVATE_KEY \
-    --build-arg MINER_VETTING_DURATION=$MINER_VETTING_DURATION \
-    --build-arg MINER_SHARE_TIMEOUT=$MINER_SHARE_TIMEOUT \
-    --build-arg LOG_COLOR=$LOG_COLOR \
-    --build-arg LOG_JSON=$LOG_JSON \
-    --build-arg LOG_LEVEL_APP=$LOG_LEVEL_APP \
-    --build-arg LOG_LEVEL_CONNECTION=$LOG_LEVEL_CONNECTION \
-    --build-arg LOG_LEVEL_PROXY=$LOG_LEVEL_PROXY \
-    --build-arg LOG_LEVEL_SCHEDULER=$LOG_LEVEL_SCHEDULER \
-    --build-arg LOG_LEVEL_CONTRACT=$LOG_LEVEL_CONTRACT \
-    --build-arg POOL_ADDRESS=$POOL_ADDRESS \
-    --build-arg POOL_CONN_TIMEOUT=$POOL_CONN_TIMEOUT \
-    --build-arg PROXY_ADDRESS=$PROXY_ADDRESS \
-    --build-arg SYS_ENABLE=$SYS_ENABLE \
-    --build-arg SYS_LOCAL_PORT_RANGE=$SYS_LOCAL_PORT_RANGE \
-    --build-arg SYS_NET_DEV_MAX_BACKLOG=$SYS_NET_DEV_MAX_BACKLOG \
-    --build-arg SYS_RLIMIT_HARD=$SYS_RLIMIT_HARD \
-    --build-arg SYS_RLIMIT_SOFT=$SYS_RLIMIT_SOFT \
-    --build-arg SYS_SOMAXCONN=$SYS_SOMAXCONN \
-    --build-arg SYS_TCP_MAX_SYN_BACKLOG=$SYS_TCP_MAX_SYN_BACKLOG \
-    --build-arg WEB_ADDRESS=$WEB_ADDRESS \
-    --build-arg WEB_PUBLIC_URL=$WEB_PUBLIC_URL
-  echo "**************************"
-  echo "*** Push Image"
-  echo "**************************"
-  docker push $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG
-
 .build_raw_image: &build_raw_image |
   echo "**************************"
   echo "*** Build RAW Image with no build arguments "
@@ -128,7 +84,6 @@ test:
   echo "**************************"
   docker push $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG
   docker push $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$TGT_ENV-latest
-
 
 #######################
 # BUILD DEVELOPMENT 
@@ -165,10 +120,10 @@ bedrock-02-DEV-rawimage:
 #######################
 # BUILD STAGING  
 #######################
-bedrock-02-STG-rawimage:
+bedrock-03-STG-rawimage:
   stage: build
   environment: stg
-  allow_failure: true
+  needs: ["test", "lint"]
   rules:
     - if: $CI_COMMIT_BRANCH == "stg"
       when: always
@@ -194,9 +149,10 @@ bedrock-02-STG-rawimage:
 #######################
 # BUILD PRODUCTION/MAIN/LMN  
 #######################
-bedrock-02-PRD-rawimage:
+bedrock-04-PRD-rawimage:
   stage: build
   environment: lmn
+  needs: ["test", "lint"]
   rules:
     - if: $CI_COMMIT_BRANCH == "lmn"
       when: always
@@ -222,24 +178,6 @@ bedrock-02-PRD-rawimage:
 #######################
 # DEPLOY STAGE  
 #######################
-.update_task_definition: &update_task_definition |
-  echo "**************************"
-  echo "*** Update Task Definition"
-  echo "**************************"
-  aws ecs describe-task-definition --region $AWS_DEFAULT_REGION --task-definition tsk-$CI_AWS_TASK > input.json
-  echo "**************************"
-  echo "*** Old Task Definition"
-  echo "**************************"
-  cat input.json | jq .
-  echo $(cat input.json | jq '.taskDefinition.containerDefinitions[].image='\"$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG\") > input.json 
-  echo $(cat input.json | jq '.taskDefinition.containerDefinitions[].ulimits=[{"name":"nofile","softLimit":15000,"hardLimit":15000}]') > input.json
-  echo $(cat input.json | jq '.taskDefinition') > input.json  
-  echo $(cat input.json | jq  'del(.taskDefinitionArn)' | jq 'del(.revision)' | jq 'del(.status)' | jq 'del(.requiresAttributes)' | jq 'del(.compatibilities)' | jq 'del(.registeredBy)' | jq 'del(.registeredAt)') > input.json
-  sed -i 's/'$CI_AWS_ACCOUNT_SBX'/'$TGT_ACCOUNT'/g' input.json  
-  echo "**************************"
-  echo "*** New Task Definition"
-  echo "**************************"
-  cat input.json | jq .
 
 .update_raw_task_definition: &update_raw_task_definition |
   echo "**************************"
@@ -314,13 +252,6 @@ bedrock-02-PRD-rawimage:
   echo "****************************************************"
   echo "****************************************************"
   aws ecs update-service --region $AWS_DEFAULT_REGION --cluster ecs-$CI_AWS_ECR_REPO-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --service svc-$CI_AWS_TASK-$TGT_ENV-$CI_AWS_ECS_CLUSTER_REGION --task-definition tsk-$CI_AWS_TASK:$REVISION
-
-.deploy_seller: &deploy_seller
-  - *ecr_login_script
-  - *create_image_tag
-  - *build_image_script
-  - *update_task_definition
-  - *deploy_new_task_definition
 
 .deploy_raw_seller: &deploy_raw_seller
   - CI_AWS_TASK="proxy-router"
@@ -397,6 +328,7 @@ bedrock-02-DEV-validator:
 bedrock-03-STG-seller:
   stage: deploy
   environment: stg
+  needs: ["bedrock-03-STG-rawimage"]
   rules:
     - if: $CI_COMMIT_BRANCH == "stg"
       when: always
@@ -413,8 +345,31 @@ bedrock-03-STG-seller:
     TGT_ACCOUNT: $CI_AWS_ACCOUNT_STG
     TGT_ENV: stg
   script:
-    - *deploy_seller
+    - *deploy_raw_seller
     - echo "$TGT_ENV seller updated"
+
+bedrock-03-STG-validator:
+  stage: deploy
+  environment: stg
+  needs: ["bedrock-03-STG-rawimage"]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "stg"
+      when: always
+    - if: $CI_COMMIT_BRANCH != "stg"
+      when: never
+    - if: $CI_MERGE_REQUEST_ID
+      when: never
+  tags:
+    - devops
+    - bedrock
+    - shell
+    - titanio-stg
+  variables:
+    TGT_ACCOUNT: $CI_AWS_ACCOUNT_STG
+    TGT_ENV: stg
+  script:
+    - *deploy_raw_validator
+    - echo "$TGT_ENV validator updated"
 
 #######################
 # DEPLOY PRODUCTION / MAIN / LMN 
@@ -422,6 +377,7 @@ bedrock-03-STG-seller:
 bedrock-04-PRD-seller:
   stage: deploy
   environment: lmn
+  needs: ["bedrock-04-PRD-rawimage"]
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
       when: manual
@@ -439,8 +395,31 @@ bedrock-04-PRD-seller:
     TGT_ENV: lmn
     PROXY_LOG_STRATUM: "false"
   script:
-    - *deploy_seller
+    - *deploy_raw_seller
     - echo "$TGT_ENV seller updated"
+
+bedrock-04-PRD-validator:
+  stage: deploy
+  environment: lmn
+  needs: ["bedrock-04-PRD-rawimage"]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: manual
+    - if: $CI_COMMIT_BRANCH != "main"
+      when: never
+    - if: $CI_MERGE_REQUEST_ID
+      when: never
+  tags:
+    - devops
+    - bedrock
+    - shell
+    - titanio-lmn
+  variables:
+    TGT_ACCOUNT: $CI_AWS_ACCOUNT_LMN
+    TGT_ENV: lmn
+  script:
+    - *deploy_raw_validator
+    - echo "$TGT_ENV validator updated"
 
 #######################
 # E2E TEST STAGE
