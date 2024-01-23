@@ -119,9 +119,9 @@ test:
     -t $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG --no-cache --file Dockerfile_raw .
   
   echo "**************************"
-  echo "*** Tag Image with $TGT_ENV-Latest"
+  echo "*** Tag Image with $TGT_ENV-latest"
   echo "**************************"
-  docker tag $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$TGT_ENV-Latest
+  docker tag $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$TGT_ENV-latest
 
   echo "**************************"
   echo "*** Push Images"
@@ -170,9 +170,6 @@ bedrock-02-STG-rawimage:
   environment: stg
   allow_failure: true
   rules:
-    - changes:
-      - .gitlab-ci.yml
-      when: manual
     - if: $CI_COMMIT_BRANCH == "stg"
       when: always
     - if: $CI_COMMIT_BRANCH != "stg"
@@ -201,9 +198,6 @@ bedrock-02-PRD-rawimage:
   stage: build
   environment: lmn
   rules:
-    - changes:
-      - .gitlab-ci.yml
-      when: manual
     - if: $CI_COMMIT_BRANCH == "lmn"
       when: always
     - if: $CI_COMMIT_BRANCH != "lmn"
@@ -329,7 +323,7 @@ bedrock-02-PRD-rawimage:
   - *deploy_new_task_definition
 
 .deploy_raw_seller: &deploy_raw_seller
-  - NODE_DEF="raw"
+  # - NODE_DEF="raw"
   # - IMAGE_TAG="$(echo $CI_COMMIT_SHA | head -c 8)-$TGT_ENV-$NODE_DEF"
   - CI_AWS_TASK="proxy-router"
   - CI_WALLET_PRIVATE_KEY=$WALLET_PRIVATEKEY
@@ -340,7 +334,7 @@ bedrock-02-PRD-rawimage:
   - *deploy_new_task_definition
 
 .deploy_raw_validator: &deploy_raw_validator
-  - NODE_DEF="raw"
+  # - NODE_DEF="raw"
   # - IMAGE_TAG="$(echo $CI_COMMIT_SHA | head -c 8)-$TGT_ENV-$NODE_DEF"
   - CI_AWS_TASK="proxy-validator"
   - CI_WALLET_PRIVATE_KEY=$VALIDATOR_PRIVATEKEY
