@@ -24,10 +24,12 @@ lint:
     default: false
   image: golangci/golangci-lint:v1.50.1-alpine
   stage: test
-  only:
-    - branches
-    - tags
-    - merge_requests
+  rules:
+      - changes:
+          - .gitlab-ci.yml
+        when: never
+      - if: '$CI_COMMIT_REF_NAME'
+        when: always
   script:
     - golangci-lint run -v
 
@@ -36,10 +38,12 @@ test:
     default: false
   image: golang:1.19.3-alpine
   stage: test
-  only:
-    - branches
-    - tags
-    - merge_requests
+  rules:
+    - changes:
+        - .gitlab-ci.yml
+      when: never
+    - if: '$CI_COMMIT_REF_NAME'
+      when: always
   script:
     - apk add --no-cache git make musl-dev gcc
     - go version
@@ -244,7 +248,7 @@ bedrock-02-DEV-rawimage:
   rules:
     - changes:
       - .gitlab-ci.yml
-      when: manual
+      when: never
     - if: $CI_COMMIT_BRANCH == "dev"
       when: always
     - if: $CI_COMMIT_BRANCH != "dev"
