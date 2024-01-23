@@ -173,7 +173,7 @@ bedrock-02-STG-rawimage:
     - if: $CI_COMMIT_BRANCH == "stg"
       when: always
     - if: $CI_COMMIT_BRANCH != "stg"
-      when: manual
+      when: never
     - if: $CI_MERGE_REQUEST_ID
       when: never
   tags:
@@ -201,7 +201,7 @@ bedrock-02-PRD-rawimage:
     - if: $CI_COMMIT_BRANCH == "lmn"
       when: always
     - if: $CI_COMMIT_BRANCH != "lmn"
-      when: manual
+      when: never
     - if: $CI_MERGE_REQUEST_ID
       when: never
   tags:
