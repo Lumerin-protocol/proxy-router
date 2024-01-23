@@ -28,7 +28,6 @@ default:
   IMAGE_TAG="$(echo $CI_COMMIT_SHA | head -c 8)-$TGT_ENV-$NODE_DEF" 
   echo $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG
 
-
 #######################
 # TEST STAGE 
 #######################
@@ -66,7 +65,6 @@ test:
 #######################
 # BUILD STAGE  
 #######################
-
 .build_raw_image: &build_raw_image |
   echo "**************************"
   echo "*** Build RAW Image with no build arguments "
@@ -178,7 +176,6 @@ bedrock-04-PRD-rawimage:
 #######################
 # DEPLOY STAGE  
 #######################
-
 .update_raw_task_definition: &update_raw_task_definition |
   echo "**************************"
   echo "*** Update Validator Task Definition"
@@ -266,7 +263,7 @@ bedrock-04-PRD-rawimage:
   - CI_AWS_TASK="proxy-validator"
   - CI_WALLET_PRIVATE_KEY=$VALIDATOR_PRIVATEKEY
   - CI_POOL_ADDRESS=$VALIDATOR_POOL_ADDRESS
-  - CI_WEB_PUBLIC_URL=$WEB_PUBLIC_URL
+  - CI_WEB_PUBLIC_URL="http://validatorapi.$TGT_ENV.lumerin.io"
   - *ecr_login_script
   - *update_raw_task_definition
   - *deploy_new_task_definition
@@ -428,7 +425,7 @@ e2e-test:
   stage: e2e-test
   allow_failure: true
   trigger:
-    project: proxy/router-test
+    project: TitanInd/proxy/router-test
     branch: $CI_COMMIT_BRANCH
     strategy: depend
 
@@ -506,5 +503,3 @@ release-external:
     - /.*-lmn$/
   script:
     - goreleaser release --clean
-
-
