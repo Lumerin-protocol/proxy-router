@@ -324,7 +324,7 @@ bedrock-02-PRD-rawimage:
 
 .deploy_raw_seller: &deploy_raw_seller
   - CI_AWS_TASK="proxy-router"
-  - CI_WALLET_PRIVATE_KEY=$WALLET_PRIVATEKEY
+  - CI_WALLET_PRIVATE_KEY=$SELLER_PRIVATEKEY
   - CI_POOL_ADDRESS=$POOL_ADDRESS
   - CI_WEB_PUBLIC_URL=$WEB_PUBLIC_URL
   - *ecr_login_script
