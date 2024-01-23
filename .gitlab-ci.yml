@@ -117,10 +117,18 @@ test:
   echo "**************************"
   docker build \
     -t $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG --no-cache --file Dockerfile_raw .
+  
   echo "**************************"
-  echo "*** Push Image"
+  echo "*** Tag Image with $TGT_ENV-Latest"
+  echo "**************************"
+  docker tag $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$TGT_ENV-Latest
+
+  echo "**************************"
+  echo "*** Push Images"
   echo "**************************"
   docker push $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG
+  docker push $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$TGT_ENV-latest
+
 
 #######################
 # BUILD DEVELOPMENT 
@@ -132,7 +140,7 @@ bedrock-02-DEV-rawimage:
   rules:
     - changes:
       - .gitlab-ci.yml
-      when: never
+      when: manual
     - if: $CI_COMMIT_BRANCH == "dev"
       when: always
     - if: $CI_COMMIT_BRANCH != "dev"
@@ -164,7 +172,7 @@ bedrock-02-STG-rawimage:
   rules:
     - changes:
       - .gitlab-ci.yml
-      when: never
+      when: manual
     - if: $CI_COMMIT_BRANCH == "stg"
       when: always
     - if: $CI_COMMIT_BRANCH != "stg"
@@ -195,7 +203,7 @@ bedrock-02-PRD-rawimage:
   rules:
     - changes:
       - .gitlab-ci.yml
-      when: never
+      when: manual
     - if: $CI_COMMIT_BRANCH == "lmn"
       when: always
     - if: $CI_COMMIT_BRANCH != "lmn"
@@ -251,7 +259,7 @@ bedrock-02-PRD-rawimage:
   echo "**************************"
   jq . output.json 
   # Update the Image, Ulimit and Env Vars 
-  jq '.taskDefinition.containerDefinitions[].image = "'$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG'" |
+  jq '.taskDefinition.containerDefinitions[].image = "'$CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$TGT_ENV-latest'" |
       .taskDefinition.containerDefinitions[].ulimits = [{"name": "nofile", "softLimit": 15000, "hardLimit": 15000}] |
       .taskDefinition.containerDefinitions[].environment = [ 
         { "name": "COMMIT", "value": "'"$(git rev-parse HEAD)"'" }, 
@@ -322,7 +330,7 @@ bedrock-02-PRD-rawimage:
 
 .deploy_raw_seller: &deploy_raw_seller
   - NODE_DEF="raw"
-  - IMAGE_TAG="$(echo $CI_COMMIT_SHA | head -c 8)-$TGT_ENV-$NODE_DEF"
+  # - IMAGE_TAG="$(echo $CI_COMMIT_SHA | head -c 8)-$TGT_ENV-$NODE_DEF"
   - CI_AWS_TASK="proxy-router"
   - CI_WALLET_PRIVATE_KEY=$WALLET_PRIVATEKEY
   - CI_POOL_ADDRESS=$POOL_ADDRESS
@@ -333,7 +341,7 @@ bedrock-02-PRD-rawimage:
 
 .deploy_raw_validator: &deploy_raw_validator
   - NODE_DEF="raw"
-  - IMAGE_TAG="$(echo $CI_COMMIT_SHA | head -c 8)-$TGT_ENV-$NODE_DEF"
+  # - IMAGE_TAG="$(echo $CI_COMMIT_SHA | head -c 8)-$TGT_ENV-$NODE_DEF"
   - CI_AWS_TASK="proxy-validator"
   - CI_WALLET_PRIVATE_KEY=$VALIDATOR_PRIVATEKEY
   - CI_POOL_ADDRESS=$VALIDATOR_POOL_ADDRESS
