@@ -14,8 +14,11 @@ type DerivedConfig struct {
 // Validation tags described here: https://pkg.go.dev/github.com/go-playground/validator/v10
 type Config struct {
 	Blockchain struct {
-		EthNodeAddress string `env:"ETH_NODE_ADDRESS"   flag:"eth-node-address"   validate:"required,url"`
-		EthLegacyTx    bool   `env:"ETH_NODE_LEGACY_TX" flag:"eth-node-legacy-tx" desc:"use it to disable EIP-1559 transactions"`
+		EthNodeAddress  string        `env:"ETH_NODE_ADDRESS"   flag:"eth-node-address"   validate:"required,url"`
+		EthLegacyTx     bool          `env:"ETH_NODE_LEGACY_TX" flag:"eth-node-legacy-tx" desc:"use it to disable EIP-1559 transactions"`
+		ForcePolling    bool          `env:"ETH_NODE_FORCE_POLLING" flag:"eth-node-force-polling" desc:"use it to force polling mode for eth node even when it supports websockets"`
+		PollingInterval time.Duration `env:"ETH_NODE_POLLING_INTERVAL" flag:"eth-node-polling-interval" validate:"omitempty,duration" desc:"interval for polling eth node for new events, applies only when eth node is set to polling mode"`
+		MaxReconnects   int           `env:"ETH_NODE_MAX_RECONNECTS" flag:"eth-node-max-reconnects" validate:"omitempty,gte=0" desc:"max reconnects to eth node, applies only when eth node is set to polling mode"`
 	}
 	Environment string `env:"ENVIRONMENT" flag:"environment"`
 	Hashrate    struct {
@@ -104,6 +107,14 @@ func (cfg *Config) SetDefaults() {
 
 	if cfg.Miner.IdleReadTimeout == 0 {
 		cfg.Miner.IdleReadTimeout = 10 * time.Minute
+	}
+
+	// Blockchain
+	if cfg.Blockchain.MaxReconnects == 0 {
+		cfg.Blockchain.MaxReconnects = 30
+	}
+	if cfg.Blockchain.PollingInterval == 0 {
+		cfg.Blockchain.PollingInterval = 10 * time.Second
 	}
 
 	// Log
