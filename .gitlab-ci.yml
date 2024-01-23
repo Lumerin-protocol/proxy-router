@@ -11,14 +11,27 @@ stages:
   - e2e-test
   - release
 
-e2e-test:
-  stage: e2e-test
-  allow_failure: true
-  trigger:
-    project: proxy/router-test
-    branch: $CI_COMMIT_BRANCH
-    strategy: depend
+default:
+  image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
 
+.ecr_login_script: &ecr_login_script |
+  echo "**************************"
+  echo "*** ECR Login to Shared Titanio-NET Repo in USE-1"
+  echo "**************************"
+  docker system prune -af
+  aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $CI_AWS_TitanIO_NET_ECR
+
+.create_image_tag: &create_image_tag |
+  echo "**************************"
+  echo "*** Tag Image "
+  echo "**************************"
+  IMAGE_TAG="$(echo $CI_COMMIT_SHA | head -c 8)-$TGT_ENV-$NODE_DEF" 
+  echo $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG
+
+
+#######################
+# TEST STAGE 
+#######################
 lint:
   inherit:
     default: false
@@ -50,19 +63,9 @@ test:
     - go mod download
     - make test-unit
 
-.ecr_login_script: &ecr_login_script |
-  echo "**************************"
-  echo "*** ECR Login to Shared Titanio-NET Repo in USE-1"
-  echo "**************************"
-  docker system prune -af
-  aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $CI_AWS_TitanIO_NET_ECR
-
-.create_image_tag: &create_image_tag |
-  echo "**************************"
-  echo "*** Tag Image "
-  echo "**************************"
-  IMAGE_TAG="$(echo $CI_COMMIT_SHA | head -c 8)-$TGT_ENV-$NODE_DEF" 
-  echo $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG
+#######################
+# BUILD STAGE  
+#######################
 
 .build_image_script: &build_image_script |
   echo "**************************"
@@ -108,6 +111,115 @@ test:
   echo "**************************"
   docker push $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG
 
+.build_raw_image: &build_raw_image |
+  echo "**************************"
+  echo "*** Build RAW Image with no build arguments "
+  echo "**************************"
+  docker build \
+    -t $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG --no-cache --file Dockerfile_raw .
+  echo "**************************"
+  echo "*** Push Image"
+  echo "**************************"
+  docker push $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG
+
+#######################
+# BUILD DEVELOPMENT 
+#######################
+bedrock-02-DEV-rawimage:
+  stage: build
+  environment: dev
+  allow_failure: true
+  rules:
+    - changes:
+      - .gitlab-ci.yml
+      when: never
+    - if: $CI_COMMIT_BRANCH == "dev"
+      when: always
+    - if: $CI_COMMIT_BRANCH != "dev"
+      when: manual
+    - if: $CI_MERGE_REQUEST_ID
+      when: never
+  tags:
+    - devops
+    - bedrock
+    - shell
+    - titanio-dev
+  variables:
+    TGT_ACCOUNT: $CI_AWS_ACCOUNT_DEV
+    TGT_ENV: dev
+    NODE_DEF: raw
+  script:
+    - *ecr_login_script
+    - *create_image_tag
+    - *build_raw_image
+    - echo "$TGT_ENV Raw Image updated"
+
+#######################
+# BUILD STAGING  
+#######################
+bedrock-02-STG-rawimage:
+  stage: build
+  environment: stg
+  allow_failure: true
+  rules:
+    - changes:
+      - .gitlab-ci.yml
+      when: never
+    - if: $CI_COMMIT_BRANCH == "stg"
+      when: always
+    - if: $CI_COMMIT_BRANCH != "stg"
+      when: manual
+    - if: $CI_MERGE_REQUEST_ID
+      when: never
+  tags:
+    - devops
+    - bedrock
+    - shell
+    - titanio-stg
+  variables:
+    TGT_ACCOUNT: $CI_AWS_ACCOUNT_STG
+    TGT_ENV: stg
+    NODE_DEF: raw
+  script:
+    - *ecr_login_script
+    - *create_image_tag
+    - *build_raw_image
+    - echo "$TGT_ENV Raw Image updated"
+
+#######################
+# BUILD PRODUCTION/MAIN/LMN  
+#######################
+bedrock-02-PRD-rawimage:
+  stage: build
+  environment: lmn
+  rules:
+    - changes:
+      - .gitlab-ci.yml
+      when: never
+    - if: $CI_COMMIT_BRANCH == "lmn"
+      when: always
+    - if: $CI_COMMIT_BRANCH != "lmn"
+      when: manual
+    - if: $CI_MERGE_REQUEST_ID
+      when: never
+  tags:
+    - devops
+    - bedrock
+    - shell
+    - titanio-lmn
+  variables:
+    TGT_ACCOUNT: $CI_AWS_ACCOUNT_LMN
+    TGT_ENV: lmn
+    NODE_DEF: raw
+  script:
+    - *ecr_login_script
+    - *create_image_tag
+    - *build_raw_image
+    - echo "$TGT_ENV Raw Image updated"
+
+#######################
+# DEPLOY STAGE  
+#######################
 .update_task_definition: &update_task_definition |
   echo "**************************"
   echo "*** Update Task Definition"
@@ -126,17 +238,6 @@ test:
   echo "*** New Task Definition"
   echo "**************************"
   cat input.json | jq .
-
-.build_raw_image: &build_raw_image |
-  echo "**************************"
-  echo "*** Build RAW Image with no build arguments "
-  echo "**************************"
-  docker build \
-    -t $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG --no-cache --file Dockerfile_raw .
-  echo "**************************"
-  echo "*** Push Image"
-  echo "**************************"
-  docker push $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG
 
 .update_raw_task_definition: &update_raw_task_definition |
   echo "**************************"
@@ -239,37 +340,9 @@ test:
   - *update_raw_task_definition
   - *deploy_new_task_definition
 
-default:
-  image: registry.gitlab.com/gitlab-org/cloud-deploy/aws-base:latest
-
-bedrock-02-DEV-rawimage:
-  stage: build
-  environment: dev
-  rules:
-    - changes:
-      - .gitlab-ci.yml
-      when: never
-    - if: $CI_COMMIT_BRANCH == "dev"
-      when: always
-    - if: $CI_COMMIT_BRANCH != "dev"
-      when: manual
-    - if: $CI_MERGE_REQUEST_ID
-      when: never
-  tags:
-    - devops
-    - bedrock
-    - shell
-    - titanio-dev
-  variables:
-    TGT_ACCOUNT: $CI_AWS_ACCOUNT_DEV
-    TGT_ENV: dev
-    NODE_DEF: raw
-  script:
-    - *ecr_login_script
-    - *create_image_tag
-    - *build_raw_image
-    - echo "$TGT_ENV Raw Image updated"
-
+#######################
+# DEPLOY DEVELOPMENT 
+#######################
 bedrock-02-DEV-seller:
   stage: deploy
   environment: dev
@@ -315,6 +388,9 @@ bedrock-02-DEV-validator:
     - *deploy_raw_validator
     - echo "$TGT_ENV validator updated"
 
+#######################
+# DEPLOY STAGING 
+#######################
 bedrock-03-STG-seller:
   stage: deploy
   environment: stg
@@ -337,6 +413,9 @@ bedrock-03-STG-seller:
     - *deploy_seller
     - echo "$TGT_ENV seller updated"
 
+#######################
+# DEPLOY PRODUCTION / MAIN / LMN 
+#######################
 bedrock-04-PRD-seller:
   stage: deploy
   environment: lmn
@@ -360,6 +439,20 @@ bedrock-04-PRD-seller:
     - *deploy_seller
     - echo "$TGT_ENV seller updated"
 
+#######################
+# E2E TEST STAGE
+#######################
+e2e-test:
+  stage: e2e-test
+  allow_failure: true
+  trigger:
+    project: proxy/router-test
+    branch: $CI_COMMIT_BRANCH
+    strategy: depend
+
+#######################
+# RELEASE STAGE
+#######################
 .default-release: &default-release
   inherit:
     default: false
@@ -382,6 +475,9 @@ bedrock-04-PRD-seller:
 create_tag:
   <<: *default-tag
   rules:
+    - changes:
+      - .gitlab-ci.yml
+      when: never
     - if: $CI_COMMIT_BRANCH == "dev"
       when: manual
     - if: $CI_COMMIT_BRANCH == "stg"
@@ -394,6 +490,9 @@ create_tag:
 create_tag_main:
   <<: *default-tag
   rules:
+    - changes:
+      - .gitlab-ci.yml
+      when: never
     - if: $CI_COMMIT_BRANCH == "main"
       when: on_success
   script:
