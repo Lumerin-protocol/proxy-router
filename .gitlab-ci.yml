@@ -288,8 +288,10 @@ bedrock-02-PRD-rawimage:
         { "name": "WEB_ADDRESS", "value": "'"$WEB_ADDRESS"'" },
         { "name": "WEB_PUBLIC_URL", "value": "'"$CI_WEB_PUBLIC_URL"'" }
       ]' output.json > updated.json
+  # Extract JUST Task Definition from the output.json file
+  jq '.taskDefinition' updated.json > extracted.json  
   # Remove sections that are not needed
-  jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredBy, .registeredAt)' updated.json > input.json
+  jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredBy, .registeredAt)' extracted.json > input.json
   sed -i 's/'$CI_AWS_ACCOUNT_SBX'/'$TGT_ACCOUNT'/g' input.json  
   echo "**************************"
   echo "*** New Task Definition"
@@ -370,6 +372,9 @@ bedrock-02-DEV-validator:
   stage: deploy
   environment: dev
   rules:
+    - changes:
+      - .gitlab-ci.yml
+      when: always
     - if: $CI_COMMIT_BRANCH == "dev"
       when: manual
     - if: $CI_COMMIT_BRANCH != "dev"
