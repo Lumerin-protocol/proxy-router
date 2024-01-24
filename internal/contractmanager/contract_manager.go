@@ -112,7 +112,7 @@ func (cm *ContractManager) handleContractPurchased(ctx context.Context, event *c
 	if err != nil {
 		return err
 	}
-	if terms.Buyer() == cm.ownerAddr.String() {
+	if terms.Buyer() == cm.ownerAddr.String() || terms.Validator() == cm.ownerAddr.String() {
 		cm.AddContract(ctx, terms)
 	}
 	return nil
@@ -154,6 +154,10 @@ func (cm *ContractManager) GetContracts() *lib.Collection[resources.Contract] {
 	return cm.contracts
 }
 
+func (cm *ContractManager) GetContract(id string) (resources.Contract, bool) {
+	return cm.contracts.Load(id)
+}
+
 func (cm *ContractManager) isOurContract(terms TermsCommon) bool {
-	return terms.Seller() == cm.ownerAddr.String() || terms.Buyer() == cm.ownerAddr.String()
+	return terms.Seller() == cm.ownerAddr.String() || terms.Buyer() == cm.ownerAddr.String() || terms.Validator() == cm.ownerAddr.String()
 }

@@ -56,6 +56,8 @@ func (h *HTTPHandler) CreateContract(ctx *gin.Context) {
 		false,
 		0,
 		destEnc,
+		"",
+		"",
 	)
 	h.contractManager.AddContract(context.Background(), terms)
 
@@ -171,7 +173,7 @@ func (c *HTTPHandler) GetContractsV2(ctx *gin.Context) {
 			}
 		}
 
-		if item.Role() == resources.ContractRoleBuyer { // readonly
+		if item.Role() == resources.ContractRoleBuyer || item.Role() == resources.ContractRoleValidator { // readonly
 			res.BuyerTotal.Number++
 			res.BuyerTotal.HashrateGHS += int(item.ResourceEstimates()[contract.ResourceEstimateHashrateGHS])
 			res.BuyerTotal.ActualHashrateGHS += int(item.ResourceEstimatesActual()[c.hashrateCounterDefault]) // readonly
@@ -279,6 +281,7 @@ func (p *HTTPHandler) mapContract(ctx context.Context, item resources.Contract) 
 		Stage:                   item.ValidationStage().String(),                        // atomic
 		ID:                      item.ID(),                                              // readonly
 		BuyerAddr:               item.Buyer(),                                           // readonly
+		ValidatorAddr:           item.Validator(),                                       // readonly
 		SellerAddr:              item.Seller(),                                          // readonly
 		ResourceEstimatesTarget: roundResourceEstimates(item.ResourceEstimates()),       // readonly
 		ResourceEstimatesActual: roundResourceEstimates(item.ResourceEstimatesActual()), // multiple atomics
@@ -299,6 +302,7 @@ func (p *HTTPHandler) mapContract(ctx context.Context, item resources.Contract) 
 		BlockchainStatus:  item.BlockchainState().String(), // readonly
 		Error:             errString(item.Error()),         // atomic
 		Dest:              item.Dest(),                     // readonly
+		PoolDest:          item.PoolDest(),                 // readonly
 		// Miners:            p.allocator.GetMinersFulfillingContract(item.ID(), p.cycleDuration),
 	}, nil
 }

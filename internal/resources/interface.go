@@ -3,6 +3,7 @@ package resources
 import (
 	"context"
 	"math/big"
+	"net/url"
 	"time"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
@@ -15,16 +16,19 @@ type GenericContractManager interface {
 type Contract interface {
 	Run(ctx context.Context) error
 
-	Role() ContractRole                        // the role in the contract (buyer or seller)
+	Role() ContractRole                        // the role in the contract (buyer or seller or validator)
 	State() ContractState                      // the state of the contract (pending or running)
 	BlockchainState() hashrate.BlockchainState // the state of the contract in blockchain (pending or running)
 	ValidationStage() hashrate.ValidationStage // the stage of the contract validation (only buyer)
 	Error() error                              // the error that prevents contract from being fulfilled (only seller)
 
-	ID() string     // ID is the unique identifier of the contract, for smart contract data source this is the smart contract address
-	Seller() string // ID of the seller (address of the seller for smart contract data source)
-	Buyer() string  // ID of the buyer (address of the buyer for smart contract data source)
-	Dest() string   // string representation of the destination of the contract (IP address for hashrate, stream URL for video stream etc)
+	ID() string        // ID is the unique identifier of the contract, for smart contract data source this is the smart contract address
+	Seller() string    // ID of the seller (address of the seller for smart contract data source)
+	Buyer() string     // ID of the buyer (address of the buyer for smart contract data source)
+	Validator() string // ID of the buyer (address of the buyer for smart contract data source)
+	Dest() string      // string representation of the destination of the contract (IP address for hashrate, stream URL for video stream etc)
+	PoolDest() *url.URL
+
 	Price() *big.Int
 	ProfitTarget() int8
 
@@ -66,8 +70,9 @@ func (c ContractState) String() string {
 type ContractRole string
 
 const (
-	ContractRoleBuyer  ContractRole = "buyer"
-	ContractRoleSeller ContractRole = "seller"
+	ContractRoleBuyer     ContractRole = "buyer"
+	ContractRoleSeller    ContractRole = "seller"
+	ContractRoleValidator ContractRole = "validator"
 )
 
 func (c ContractRole) String() string {
@@ -76,6 +81,8 @@ func (c ContractRole) String() string {
 		return "buyer"
 	case ContractRoleSeller:
 		return "seller"
+	case ContractRoleValidator:
+		return "validator"
 	default:
 		return "unknown"
 	}

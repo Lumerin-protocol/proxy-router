@@ -125,7 +125,22 @@ func (p *HandlerFirstConnect) handleDest(ctx context.Context, msg i.MiningMessag
 func (p *HandlerFirstConnect) onMiningConfigure(ctx context.Context, msgTyped *m.MiningConfigure) error {
 	p.proxy.source.SetVersionRolling(msgTyped.GetVersionRolling())
 
-	destConn, err := p.proxy.destFactory(ctx, p.proxy.destURL.Load(), p.proxy.ID)
+	var destURL *url.URL
+	contractDest := msgTyped.GetLmrContractAddress()
+	if contractDest != "" {
+		contract, isExist := p.proxy.getContractFromStoreFn(contractDest)
+		if !isExist {
+			return lib.WrapError(ErrHandshakeSource, fmt.Errorf("contract %s not found", contractDest))
+		}
+		poolDestStr := contract.PoolDest()
+		destURL = poolDestStr
+	}
+
+	if destURL == nil {
+		destURL = p.proxy.destURL.Load()
+	}
+
+	destConn, err := p.proxy.destFactory(ctx, destURL, p.proxy.ID) // set dest from contract store
 	if err != nil {
 		return err
 	}

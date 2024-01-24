@@ -23,6 +23,7 @@ type ContractWatcherBuyer struct {
 	hrErrorThreshold         float64       // hashrate relative error threshold for the contract to be considered fulfilling accurately
 	hashrateCounterNameBuyer string
 	hrValidationFlatness     time.Duration
+	role                     resources.ContractRole
 
 	// state
 	state                *lib.AtomicValue[resources.ContractState]
@@ -36,14 +37,14 @@ type ContractWatcherBuyer struct {
 	doneCh chan struct{}
 
 	//deps
-	*hashrateContract.EncryptedTerms
+	*hashrateContract.Terms
 	allocator      *allocator.Allocator
 	globalHashrate *hashrate.GlobalHashrate
 	log            interfaces.ILogger
 }
 
 func NewContractWatcherBuyer(
-	terms *hashrateContract.EncryptedTerms,
+	terms *hashrateContract.Terms,
 	hashrateFactory func() *hashrate.Hashrate,
 	allocator *allocator.Allocator,
 	globalHashrate *hashrate.GlobalHashrate,
@@ -54,6 +55,7 @@ func NewContractWatcherBuyer(
 	hrErrorThreshold float64,
 	hashrateCounterNameBuyer string,
 	hrValidationFlatness time.Duration,
+	role resources.ContractRole,
 ) *ContractWatcherBuyer {
 	return &ContractWatcherBuyer{
 		contractCycleDuration:    cycleDuration,
@@ -61,13 +63,14 @@ func NewContractWatcherBuyer(
 		hrErrorThreshold:         hrErrorThreshold,
 		hrValidationFlatness:     hrValidationFlatness,
 		hashrateCounterNameBuyer: hashrateCounterNameBuyer,
+		role:                     role,
 
 		state:                lib.NewAtomicValue(resources.ContractStatePending),
 		validationStage:      lib.NewAtomicValue(hashrateContract.ValidationStageValidating),
 		fulfillmentStartedAt: atomic.NewTime(time.Time{}),
 		starvingGHS:          atomic.NewUint64(0),
 
-		EncryptedTerms: terms,
+		Terms:          terms,
 		allocator:      allocator,
 		globalHashrate: globalHashrate,
 		log:            log,
@@ -109,8 +112,8 @@ func (p *ContractWatcherBuyer) Err() error {
 	return p.err
 }
 
-func (p *ContractWatcherBuyer) SetData(terms *hashrateContract.EncryptedTerms) {
-	p.EncryptedTerms = terms
+func (p *ContractWatcherBuyer) SetData(terms *hashrateContract.Terms) {
+	p.Terms = terms
 }
 
 func (p *ContractWatcherBuyer) run(ctx context.Context) error {
@@ -247,7 +250,7 @@ func (p *ContractWatcherBuyer) getWorkerName() string {
 // public getters
 
 func (p *ContractWatcherBuyer) Role() resources.ContractRole {
-	return resources.ContractRoleBuyer
+	return p.role
 }
 
 func (p *ContractWatcherBuyer) FulfillmentStartTime() time.Time {
