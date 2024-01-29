@@ -113,6 +113,15 @@ func (p *HandlerFirstConnect) handleDest(ctx context.Context, msg i.MiningMessag
 	return nil, nil
 }
 
+func (p *HandlerFirstConnect) getPoolDest(contractDest string) (*url.URL, error) {
+	contract, isExist := p.proxy.getContractFromStoreFn(contractDest)
+	if !isExist {
+		return nil, lib.WrapError(ErrHandshakeSource, fmt.Errorf("contract %s not found", contractDest))
+	}
+	poolDestStr := contract.PoolDest()
+	return poolDestStr, nil
+}
+
 // The following handlers are responsible for managing the initial connection of the miner to the proxy and destination.
 // This step requires special handling due to the "coupled" interaction between parties, unlike the destination change process,
 // where the pool connection is established first, and then the miner is switched to it. This "coupled" interaction is intentionally
@@ -128,11 +137,10 @@ func (p *HandlerFirstConnect) onMiningConfigure(ctx context.Context, msgTyped *m
 	var destURL *url.URL
 	contractDest := msgTyped.GetLmrContractAddress()
 	if contractDest != "" {
-		contract, isExist := p.proxy.getContractFromStoreFn(contractDest)
-		if !isExist {
-			return lib.WrapError(ErrHandshakeSource, fmt.Errorf("contract %s not found", contractDest))
+		poolDestStr, err := p.getPoolDest(contractDest)
+		if err != nil {
+			return err
 		}
-		poolDestStr := contract.PoolDest()
 		destURL = poolDestStr
 	}
 
@@ -242,24 +250,31 @@ func (p *HandlerFirstConnect) onMiningAuthorize(ctx context.Context, msgTyped *m
 		return lib.WrapError(ErrHandshakeSource, err)
 	}
 
-	if shouldPropagateWorkerName(p.proxy.notPropagateWorkerName, msgTyped.GetUserName(), p.proxy.destURL.Load()) {
+	var destURL *url.URL
+	if p.proxy.dest == nil {
+		destURL = p.proxy.destURL.Load()
+	} else {
+		destURL = p.proxy.dest.destUrl
+	}
+
+	if shouldPropagateWorkerName(p.proxy.notPropagateWorkerName, msgTyped.GetUserName(), destURL) {
 		_, workerName, hasWorkerName := lib.SplitUsername(msgTyped.GetUserName())
 		// if incoming miner was named "accountName.workerName" then we preserve worker name in destination
 		if hasWorkerName {
-			lib.SetWorkerName(p.proxy.destURL.Load(), workerName)
+			lib.SetWorkerName(destURL, workerName)
 		}
 	}
 
-	destWorkerName := getDestUserName(p.proxy.notPropagateWorkerName, msgTyped.GetUserName(), p.proxy.destURL.Load())
+	destWorkerName := getDestUserName(p.proxy.notPropagateWorkerName, msgTyped.GetUserName(), destURL)
 	p.proxy.dest.SetUserName(destWorkerName)
 
 	// otherwise we use the same username as in source
 	// this is the case for the incoming contracts,
 	// where the miner userName is contractID
 
-	userName := p.proxy.destURL.Load().User.Username()
+	userName := destURL.User.Username()
 	p.proxy.dest.SetUserName(userName)
-	pwd, ok := p.proxy.destURL.Load().User.Password()
+	pwd, ok := destURL.User.Password()
 	if !ok {
 		pwd = ""
 	}

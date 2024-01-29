@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/url"
 	"time"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
@@ -283,6 +284,10 @@ func (p *ContractWatcherBuyer) ResourceType() string {
 func (p *ContractWatcherBuyer) Dest() string {
 	// the destination is localhost for the buyer
 	return ""
+}
+
+func (p *ContractWatcherBuyer) PoolDest() *url.URL {
+	return p.Terms.DestinationURL
 }
 
 func (p *ContractWatcherBuyer) StarvingGHS() int {

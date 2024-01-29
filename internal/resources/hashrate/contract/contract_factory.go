@@ -2,6 +2,7 @@ package contract
 
 import (
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -97,9 +98,24 @@ func (c *ContractFactory) CreateContract(contractData *hashrateContract.Encrypte
 		} else {
 			role = resources.ContractRoleValidator
 		}
+
+		var destUrl *url.URL
+		if contractData.DestEncrypted != "" {
+			fmt.Println("contractData.DestEncrypted", contractData.DestEncrypted, c.privateKey)
+			dest, err := lib.DecryptString(contractData.DestEncrypted, c.privateKey)
+			if err != nil {
+				return nil, err
+			}
+
+			destUrl, err = url.Parse(dest)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		terms := &hashrateContract.Terms{
 			BaseTerms:      *contractData.Copy(),
-			DestinationURL: nil,
+			DestinationURL: destUrl,
 			ValidatorURL:   nil,
 		}
 		watcher := NewContractWatcherBuyer(
