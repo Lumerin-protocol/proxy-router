@@ -66,6 +66,8 @@ func NewTCPHandler(
 			var logFunc func(template string, args ...interface{})
 			if errors.Is(err, proxy.ErrNotStratum) {
 				logFunc = connLog.Debugf
+			} else if errors.Is(err, proxy.ErrUnknownContract) {
+				logFunc = connLog.Warnf
 			} else if errors.Is(err, context.Canceled) {
 				logFunc = connLog.Infof
 			} else {

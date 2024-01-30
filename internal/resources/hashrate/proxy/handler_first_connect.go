@@ -17,7 +17,8 @@ import (
 )
 
 var (
-	ErrNotStratum = errors.New("not a stratum protocol") // means that incoming connection is not a stratum protocol
+	ErrNotStratum      = errors.New("not a stratum protocol") // means that incoming connection is not a stratum protocol
+	ErrUnknownContract = errors.New("incoming connection for unknown contract")
 )
 
 type HandlerFirstConnect struct {
@@ -116,7 +117,7 @@ func (p *HandlerFirstConnect) handleDest(ctx context.Context, msg i.MiningMessag
 func (p *HandlerFirstConnect) getPoolDest(contractID string) (*url.URL, error) {
 	contract, isExist := p.proxy.getContractFromStoreFn(contractID)
 	if !isExist {
-		return nil, lib.WrapError(ErrHandshakeSource, fmt.Errorf("got incoming connection for unknown contract %s", contractID))
+		return nil, lib.WrapError(ErrUnknownContract, fmt.Errorf("contract id: %s", contractID))
 	}
 	poolDestStr := contract.PoolDest()
 	return poolDestStr, nil
@@ -251,9 +252,9 @@ func (p *HandlerFirstConnect) onMiningAuthorize(ctx context.Context, msgTyped *m
 	}
 
 	var destURL *url.URL
-	if p.proxy.dest == nil {
+	if p.proxy.dest == nil { // if no dest connection was established yet then use URL from proxy (default destination)
 		destURL = p.proxy.destURL.Load()
-	} else {
+	} else { // if dest connection was established during handshake
 		destURL = p.proxy.dest.destUrl
 	}
 
