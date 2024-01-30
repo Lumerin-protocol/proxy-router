@@ -83,15 +83,12 @@ test:
 bedrock-02-DEV-rawimage:
   stage: build
   environment: dev
-  allow_failure: true
+  needs: ["test", "lint"]
   rules:
-    - changes:
-      - .gitlab-ci.yml
-      when: manual
     - if: $CI_COMMIT_BRANCH == "dev"
       when: always
     - if: $CI_COMMIT_BRANCH != "dev"
-      when: manual
+      when: never
     - if: $CI_MERGE_REQUEST_ID
       when: never
   tags:
@@ -268,9 +265,10 @@ bedrock-04-PRD-rawimage:
 bedrock-02-DEV-seller:
   stage: deploy
   environment: dev
+  needs: ["bedrock-02-DEV-rawimage"]
   rules:
     - if: $CI_COMMIT_BRANCH == "dev"
-      when: manual
+      when: always
     - if: $CI_COMMIT_BRANCH != "dev"
       when: never
     - if: $CI_MERGE_REQUEST_ID
@@ -291,14 +289,12 @@ bedrock-02-DEV-seller:
 bedrock-02-DEV-validator:
   stage: deploy
   environment: dev
+  needs: ["bedrock-02-DEV-rawimage"]
   rules:
-    - changes:
-      - .gitlab-ci.yml
-      when: manual
     - if: $CI_COMMIT_BRANCH == "dev"
-      when: manual
+      when: always
     - if: $CI_COMMIT_BRANCH != "dev"
-      when: manual
+      when: never
     - if: $CI_MERGE_REQUEST_ID
       when: never
   tags:
@@ -448,9 +444,6 @@ e2e-test:
 create_tag:
   <<: *default-tag
   rules:
-    - changes:
-      - .gitlab-ci.yml
-      when: never
     - if: $CI_COMMIT_BRANCH == "dev"
       when: manual
     - if: $CI_COMMIT_BRANCH == "stg"
@@ -463,9 +456,6 @@ create_tag:
 create_tag_main:
   <<: *default-tag
   rules:
-    - changes:
-      - .gitlab-ci.yml
-      when: never
     - if: $CI_COMMIT_BRANCH == "main"
       when: on_success
   script:
