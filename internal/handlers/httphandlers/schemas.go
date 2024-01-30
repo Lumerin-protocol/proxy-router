@@ -21,8 +21,9 @@ type MinersResponse struct {
 }
 
 type ContractsResponse struct {
-	SellerTotal SellerTotal
-	BuyerTotal  BuyerTotal
+	SellerTotal    SellerTotal
+	BuyerTotal     BuyerTotal
+	ValidatorTotal BuyerTotal
 
 	Contracts []Contract
 }
