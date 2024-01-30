@@ -24,7 +24,7 @@ type MiningConfigureExtensionParams struct {
 	MinimumDifficulty         int    `json:"minimum-difficulty.value,omitempty"`
 	VersionRollingMask        string `json:"version-rolling.mask,omitempty"`
 	VersionRollingMinBitCount int    `json:"version-rolling.min-bit-count,omitempty"`
-	LmrContractAddress        string `json:"lmr.contract-address,omitempty"`
+	LMRContractAddress        string `json:"lmr.contract-address,omitempty"`
 }
 
 func NewMiningConfigure(ID int, extensions *MiningConfigureExtensionParams) *MiningConfigure {
@@ -80,12 +80,12 @@ func (m *MiningConfigure) SetMinimumDifficulty(minimumDifficulty int) {
 	m.extParams.MinimumDifficulty = minimumDifficulty
 }
 
-func (m *MiningConfigure) GetLmrContractAddress() string {
-	return m.extParams.LmrContractAddress
+func (m *MiningConfigure) GetLMRContractAddress() string {
+	return m.extParams.LMRContractAddress
 }
 
-func (m *MiningConfigure) SetLmrContractAddress(lmrContractAddress string) {
-	m.extParams.LmrContractAddress = lmrContractAddress
+func (m *MiningConfigure) SetLMRContractAddress(LMRContractAddress string) {
+	m.extParams.LMRContractAddress = LMRContractAddress
 }
 
 func (m *MiningConfigure) Serialize() []byte {
@@ -96,7 +96,7 @@ func (m *MiningConfigure) Serialize() []byte {
 	if m.extParams.MinimumDifficulty != 0 {
 		extensions = append(extensions, "minimum-difficulty")
 	}
-	if m.extParams.LmrContractAddress != "" {
+	if m.extParams.LMRContractAddress != "" {
 		extensions = append(extensions, "lmr")
 	}
 

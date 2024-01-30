@@ -98,9 +98,9 @@ func (g *HashrateEthereum) GetContract(ctx context.Context, contractID string) (
 	}
 
 	var (
-		startsAt         time.Time
-		buyer            string
-		validatorUrlEncr string
+		startsAt              time.Time
+		buyer                 string
+		encryptedValidatorURL string
 
 		encryptedDestURL string
 		validatorAddr    string
@@ -109,7 +109,7 @@ func (g *HashrateEthereum) GetContract(ctx context.Context, contractID string) (
 	if data.State == 1 { // running
 		startsAt = time.Unix(data.StartingBlockTimestamp.Int64(), 0)
 		buyer = data.Buyer.Hex()
-		validatorUrlEncr = data.EncryptedPoolData
+		encryptedValidatorURL = data.EncryptedPoolData
 
 		validator, err := instance.Validator(&bind.CallOpts{Context: ctx})
 		if err != nil {
@@ -140,7 +140,7 @@ func (g *HashrateEthereum) GetContract(ctx context.Context, contractID string) (
 		data.Balance,
 		data.HasFutureTerms,
 		data.Terms.Version,
-		validatorUrlEncr,
+		encryptedValidatorURL,
 		encryptedDestURL,
 		validatorAddr,
 	)

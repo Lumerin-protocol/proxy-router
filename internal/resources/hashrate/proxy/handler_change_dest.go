@@ -94,7 +94,7 @@ func (p *HandlerChangeDest) destHandshake(ctx context.Context, newDest *ConnDest
 		cfgMsg := m.NewMiningConfigure(msgID, nil)
 		_, minBits := p.proxy.source.GetVersionRolling()
 		cfgMsg.SetVersionRolling(p.proxy.source.GetNegotiatedVersionRollingMask(), minBits)
-		cfgMsg.SetLmrContractAddress(user)
+		cfgMsg.SetLMRContractAddress(user)
 
 		res, err := newDest.WriteAwaitRes(ctx, cfgMsg)
 		if err != nil {

@@ -101,7 +101,6 @@ func (c *ContractFactory) CreateContract(contractData *hashrateContract.Encrypte
 
 		var destUrl *url.URL
 		if contractData.DestEncrypted != "" {
-			fmt.Println("contractData.DestEncrypted", contractData.DestEncrypted, c.privateKey)
 			dest, err := lib.DecryptString(contractData.DestEncrypted, c.privateKey)
 			if err != nil {
 				return nil, err

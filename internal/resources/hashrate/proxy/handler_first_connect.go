@@ -113,10 +113,10 @@ func (p *HandlerFirstConnect) handleDest(ctx context.Context, msg i.MiningMessag
 	return nil, nil
 }
 
-func (p *HandlerFirstConnect) getPoolDest(contractDest string) (*url.URL, error) {
-	contract, isExist := p.proxy.getContractFromStoreFn(contractDest)
+func (p *HandlerFirstConnect) getPoolDest(contractID string) (*url.URL, error) {
+	contract, isExist := p.proxy.getContractFromStoreFn(contractID)
 	if !isExist {
-		return nil, lib.WrapError(ErrHandshakeSource, fmt.Errorf("contract %s not found", contractDest))
+		return nil, lib.WrapError(ErrHandshakeSource, fmt.Errorf("got incoming connection for unknown contract %s", contractID))
 	}
 	poolDestStr := contract.PoolDest()
 	return poolDestStr, nil
@@ -135,9 +135,9 @@ func (p *HandlerFirstConnect) onMiningConfigure(ctx context.Context, msgTyped *m
 	p.proxy.source.SetVersionRolling(msgTyped.GetVersionRolling())
 
 	var destURL *url.URL
-	contractDest := msgTyped.GetLmrContractAddress()
-	if contractDest != "" {
-		poolDestStr, err := p.getPoolDest(contractDest)
+	contractID := msgTyped.GetLMRContractAddress()
+	if contractID != "" {
+		poolDestStr, err := p.getPoolDest(contractID)
 		if err != nil {
 			return err
 		}
