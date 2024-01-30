@@ -37,9 +37,6 @@ lint:
   image: golangci/golangci-lint:v1.50.1-alpine
   stage: test
   rules:
-      - changes:
-          - .gitlab-ci.yml
-        when: never
       - if: '$CI_COMMIT_REF_NAME'
         when: always
   script:
@@ -51,9 +48,6 @@ test:
   image: golang:1.19.3-alpine
   stage: test
   rules:
-    - changes:
-        - .gitlab-ci.yml
-      when: never
     - if: '$CI_COMMIT_REF_NAME'
       when: always
   script:
@@ -152,9 +146,9 @@ bedrock-04-PRD-rawimage:
   environment: lmn
   needs: ["test", "lint"]
   rules:
-    - if: $CI_COMMIT_BRANCH == "lmn"
+    - if: $CI_COMMIT_BRANCH == "main"
       when: always
-    - if: $CI_COMMIT_BRANCH != "lmn"
+    - if: $CI_COMMIT_BRANCH != "main"
       when: never
     - if: $CI_MERGE_REQUEST_ID
       when: never
