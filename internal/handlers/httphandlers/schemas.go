@@ -88,10 +88,12 @@ type Contract struct {
 	HasFutureTerms bool
 	Version        uint32
 
-	StartTimestamp    string
-	EndTimestamp      string
-	Duration          string
-	PriceLMR          float64
+	StartTimestamp string
+	EndTimestamp   string
+	Duration       string
+	PriceLMR       float64
+	ProfitTarget   int8
+
 	Elapsed           string
 	ApplicationStatus string
 	BlockchainStatus  string
