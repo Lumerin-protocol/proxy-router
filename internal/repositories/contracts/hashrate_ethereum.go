@@ -117,7 +117,7 @@ func (g *HashrateEthereum) GetContract(ctx context.Context, contractID string) (
 		}
 		validatorAddr = validator.Hex()
 
-		destUrl, err := instance.EncrValidatorURL(&bind.CallOpts{Context: ctx})
+		destUrl, err := instance.EncrDestURL(&bind.CallOpts{Context: ctx})
 		if err != nil {
 			return nil, err
 		}
