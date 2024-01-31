@@ -98,12 +98,18 @@ func (c *ControllerBuyer) controller(ctx context.Context, event interface{}) err
 }
 
 func (c *ControllerBuyer) handleContractPurchased(ctx context.Context, event *implementation.ImplementationContractPurchased) error {
+	c.log.Debugf("got purchaseInfoUpdated event for contract")
+
+	err := c.LoadTermsFromBlockchain(ctx)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
 func (c *ControllerBuyer) handleContractClosed(ctx context.Context, event *implementation.ImplementationContractClosed) error {
 	c.log.Warnf("got closed event for contract")
-	c.EncryptedTerms.SetState(hashrate.BlockchainStateAvailable)
+	c.Terms.SetState(hashrate.BlockchainStateAvailable)
 	if c.State() == resources.ContractStateRunning {
 		c.StopFulfilling()
 	}
@@ -120,4 +126,18 @@ func (c *ControllerBuyer) handlePurchaseInfoUpdated(ctx context.Context, event *
 	// this event is emitted only when contract is closed, so we can ignore it
 	// and pull updated terms on the next purchase
 	return nil
+}
+
+// LoadTermsFromBlockchain loads terms from blockchain and decrypts destination pool if exists
+func (c *ControllerBuyer) LoadTermsFromBlockchain(ctx context.Context) error {
+	encryptedTerms, err := c.store.GetContract(ctx, c.ID())
+
+	if err != nil {
+		return err
+	}
+
+	terms, err := encryptedTerms.DecryptPoolDest(c.privKey)
+	c.SetData(terms)
+
+	return err
 }

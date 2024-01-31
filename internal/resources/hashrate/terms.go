@@ -17,18 +17,23 @@ var (
 // Terms holds the terms of the contract where destination is decrypted
 type Terms struct {
 	BaseTerms
-	Destination *url.URL
+	ValidatorURL   *url.URL
+	DestinationURL *url.URL
 }
 
 func (p *Terms) Dest() *url.URL {
-	return lib.CopyURL(p.Destination)
+	return lib.CopyURL(p.ValidatorURL)
+}
+
+func (p *Terms) PoolDest() *url.URL {
+	return lib.CopyURL(p.DestinationURL)
 }
 
 func (t *Terms) Encrypt(privateKey string) (*Terms, error) {
 	var destUrl *url.URL
 
-	if t.Destination != nil {
-		dest, err := lib.EncryptString(t.Destination.String(), privateKey)
+	if t.ValidatorURL != nil {
+		dest, err := lib.EncryptString(t.ValidatorURL.String(), privateKey)
 		if err != nil {
 			return nil, err
 		}
@@ -42,23 +47,25 @@ func (t *Terms) Encrypt(privateKey string) (*Terms, error) {
 	}
 
 	return &Terms{
-		BaseTerms:   *t.Copy(),
-		Destination: destUrl,
+		BaseTerms:    *t.Copy(),
+		ValidatorURL: destUrl,
 	}, nil
 }
 
 // EncryptedTerms holds the terms of the contract where destination is encrypted
 type EncryptedTerms struct {
 	BaseTerms
-	DestEncrypted string
+	ValidatorUrlEncrypted string
+	DestEncrypted         string
 }
 
-func NewTerms(contractID, seller, buyer string, startsAt time.Time, duration time.Duration, hashrate float64, price *big.Int, profitTarget int8, state BlockchainState, isDeleted bool, balance *big.Int, hasFutureTerms bool, version uint32, destEncrypted string) *EncryptedTerms {
+func NewTerms(contractID, seller, buyer string, startsAt time.Time, duration time.Duration, hashrate float64, price *big.Int, profitTarget int8, state BlockchainState, isDeleted bool, balance *big.Int, hasFutureTerms bool, version uint32, validatorUrlEncrypted string, destEncrypted string, validatorAddress string) *EncryptedTerms {
 	return &EncryptedTerms{
 		BaseTerms: BaseTerms{
 			contractID:     contractID,
 			seller:         seller,
 			buyer:          buyer,
+			validator:      validatorAddress,
 			startsAt:       startsAt,
 			duration:       duration,
 			hashrate:       hashrate,
@@ -70,19 +77,49 @@ func NewTerms(contractID, seller, buyer string, startsAt time.Time, duration tim
 			hasFutureTerms: hasFutureTerms,
 			version:        version,
 		},
-		DestEncrypted: destEncrypted,
+		ValidatorUrlEncrypted: validatorUrlEncrypted,
+		DestEncrypted:         destEncrypted,
 	}
 }
 
-// Decrypt decrypts the destination url, if error returns the terms with dest set to nil and error
+// Decrypt decrypts the validator url, if error returns the terms with dest set to nil and error
 func (t *EncryptedTerms) Decrypt(privateKey string) (*Terms, error) {
 	var (
 		returnErr error
 	)
 
 	terms := &Terms{
-		BaseTerms:   *t.Copy(),
-		Destination: nil,
+		BaseTerms:    *t.Copy(),
+		ValidatorURL: nil,
+	}
+
+	if t.ValidatorUrlEncrypted == "" {
+		return terms, nil
+	}
+
+	dest, err := lib.DecryptString(t.ValidatorUrlEncrypted, privateKey)
+	if err != nil {
+		return terms, lib.WrapError(ErrCannotDecryptDest, fmt.Errorf("%s: %s", err, t.ValidatorUrlEncrypted))
+	}
+
+	destUrl, err := url.Parse(dest)
+	if err != nil {
+		return terms, lib.WrapError(ErrInvalidDestURL, fmt.Errorf("%s: %s", err, dest))
+	}
+
+	terms.ValidatorURL = destUrl
+	return terms, returnErr
+}
+
+// Decrypt decrypts the destination pool url, if error returns the terms with dest set to nil and error
+func (t *EncryptedTerms) DecryptPoolDest(privateKey string) (*Terms, error) {
+	var (
+		returnErr error
+	)
+
+	terms := &Terms{
+		BaseTerms:    *t.Copy(),
+		ValidatorURL: nil,
 	}
 
 	if t.DestEncrypted == "" {
@@ -99,7 +136,7 @@ func (t *EncryptedTerms) Decrypt(privateKey string) (*Terms, error) {
 		return terms, lib.WrapError(ErrInvalidDestURL, fmt.Errorf("%s: %s", err, dest))
 	}
 
-	terms.Destination = destUrl
+	terms.DestinationURL = destUrl
 	return terms, returnErr
 }
 
@@ -108,6 +145,7 @@ type BaseTerms struct {
 	contractID     string
 	seller         string
 	buyer          string
+	validator      string
 	startsAt       time.Time
 	duration       time.Duration
 	hashrate       float64
@@ -130,6 +168,10 @@ func (b *BaseTerms) Seller() string {
 
 func (b *BaseTerms) Buyer() string {
 	return b.buyer
+}
+
+func (b *BaseTerms) Validator() string {
+	return b.validator
 }
 
 func (b *BaseTerms) StartTime() time.Time {
@@ -202,6 +244,7 @@ func (b *BaseTerms) Copy() *BaseTerms {
 		contractID:     b.ID(),
 		seller:         b.Seller(),
 		buyer:          b.Buyer(),
+		validator:      b.Validator(),
 		startsAt:       b.StartTime(),
 		duration:       b.Duration(),
 		hashrate:       b.HashrateGHS(),

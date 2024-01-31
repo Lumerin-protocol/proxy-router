@@ -190,18 +190,6 @@ func start() error {
 	globalHashrate := hashrate.NewGlobalHashrate(hashrateFactory)
 	alloc := allocator.NewAllocator(lib.NewCollection[*allocator.Scheduler](), log.Named("ALC"))
 
-	tcpServer := transport.NewTCPServer(cfg.Proxy.Address, connLog)
-	tcpHandler := tcphandlers.NewTCPHandler(
-		log, connLog, proxyLog, schedulerLogFactory,
-		cfg.Miner.NotPropagateWorkerName, cfg.Miner.IdleReadTimeout, IDLE_WRITE_CLOSE_TIMEOUT,
-		cfg.Miner.VettingShares, cfg.Proxy.MaxCachedDests,
-		destUrl,
-		destFactory, hashrateFactory,
-		globalHashrate, HashrateCounterDefault,
-		alloc,
-	)
-	tcpServer.SetConnectionHandler(tcpHandler)
-
 	ethClient, err := ethclient.DialContext(ctx, cfg.Blockchain.EthNodeAddress)
 	if err != nil {
 		return lib.WrapError(ErrConnectToEthNode, err)
@@ -251,6 +239,19 @@ func start() error {
 	derived.LumerinAddress = lumerinAddr.String()
 
 	cm := contractmanager.NewContractManager(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), walletAddr, hrContractFactory.CreateContract, store, log)
+
+	tcpServer := transport.NewTCPServer(cfg.Proxy.Address, connLog)
+	tcpHandler := tcphandlers.NewTCPHandler(
+		log, connLog, proxyLog, schedulerLogFactory,
+		cfg.Miner.NotPropagateWorkerName, cfg.Miner.IdleReadTimeout, IDLE_WRITE_CLOSE_TIMEOUT,
+		cfg.Miner.VettingShares, cfg.Proxy.MaxCachedDests,
+		destUrl,
+		destFactory, hashrateFactory,
+		globalHashrate, HashrateCounterDefault,
+		alloc,
+		cm.GetContract,
+	)
+	tcpServer.SetConnectionHandler(tcpHandler)
 
 	handl := httphandlers.NewHTTPHandler(alloc, cm, globalHashrate, sysConfig, publicUrl, HashrateCounterDefault, cfg.Hashrate.CycleDuration, &cfg, derived, time.Now(), contractLogStorage, log)
 	httpServer := transport.NewServer(cfg.Web.Address, handl, log)

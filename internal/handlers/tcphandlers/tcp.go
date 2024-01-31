@@ -26,6 +26,7 @@ func NewTCPHandler(
 	globalHashrate *hashrate.GlobalHashrate,
 	hashrateCounterDefault string,
 	alloc *allocator.Allocator,
+	getContractFromStoreFn proxy.GetContractFromStoreFn,
 ) transport.Handler {
 	return func(ctx context.Context, conn net.Conn) {
 		ID := conn.RemoteAddr().String()
@@ -55,6 +56,7 @@ func NewTCPHandler(
 			globalHashrate, url, notPropagateWorkerName,
 			minerVettingShares, maxCachedDests,
 			proxyLog,
+			getContractFromStoreFn,
 		)
 		scheduler := allocator.NewScheduler(prx, hashrateCounterDefault, url, minerVettingShares, hashrateFactory, alloc.InvokeVettedListeners, schedulerLog)
 		alloc.GetMiners().Store(scheduler)
@@ -64,6 +66,8 @@ func NewTCPHandler(
 			var logFunc func(template string, args ...interface{})
 			if errors.Is(err, proxy.ErrNotStratum) {
 				logFunc = connLog.Debugf
+			} else if errors.Is(err, proxy.ErrUnknownContract) {
+				logFunc = connLog.Warnf
 			} else if errors.Is(err, context.Canceled) {
 				logFunc = connLog.Infof
 			} else {

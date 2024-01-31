@@ -98,15 +98,32 @@ func (g *HashrateEthereum) GetContract(ctx context.Context, contractID string) (
 	}
 
 	var (
-		startsAt      time.Time
-		buyer         string
-		destEncrypted string
+		startsAt              time.Time
+		buyer                 string
+		encryptedValidatorURL string
+
+		encryptedDestURL string
+		validatorAddr    string
 	)
 
 	if data.State == 1 { // running
 		startsAt = time.Unix(data.StartingBlockTimestamp.Int64(), 0)
 		buyer = data.Buyer.Hex()
-		destEncrypted = data.EncryptedPoolData
+		encryptedValidatorURL = data.EncryptedPoolData
+
+		validator, err := instance.Validator(&bind.CallOpts{Context: ctx})
+		if err != nil {
+			return nil, err
+		}
+		validatorAddr = validator.Hex()
+
+		destUrl, err := instance.EncrDestURL(&bind.CallOpts{Context: ctx})
+		if err != nil {
+			return nil, err
+		}
+		if destUrl != "" {
+			encryptedDestURL = destUrl
+		}
 	}
 
 	terms := hashrate.NewTerms(
@@ -123,7 +140,9 @@ func (g *HashrateEthereum) GetContract(ctx context.Context, contractID string) (
 		data.Balance,
 		data.HasFutureTerms,
 		data.Terms.Version,
-		destEncrypted,
+		encryptedValidatorURL,
+		encryptedDestURL,
+		validatorAddr,
 	)
 
 	return terms, nil
