@@ -240,7 +240,7 @@ func (c *ControllerSeller) GetTermsFromBlockchain(ctx context.Context) (*hashrat
 
 	if err != nil {
 		c.log.Errorf("error decrypting terms: %s", err)
-		return nil, err
+		return terms, err // return retrieved terms even if error occured during decryption
 	}
 
 	return terms, nil
