@@ -152,7 +152,7 @@ bedrock-04-PRD-rawimage:
     - if: $CI_MERGE_REQUEST_ID
       when: never
   tags:
-    - devops
+    - proxy #devops
     - bedrock
     - shell
     - titanio-lmn
@@ -375,7 +375,7 @@ bedrock-04-PRD-seller:
     - if: $CI_MERGE_REQUEST_ID
       when: never
   tags:
-    - devops
+    - proxy #devops
     - bedrock
     - shell
     - titanio-lmn
