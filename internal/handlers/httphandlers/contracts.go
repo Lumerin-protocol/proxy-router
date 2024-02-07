@@ -49,6 +49,7 @@ func (h *HTTPHandler) CreateContract(ctx *gin.Context) {
 		duration,
 		float64(hrGHS)*1e9,
 		big.NewInt(0),
+		0,
 		hashrate.BlockchainStateRunning,
 		false,
 		big.NewInt(0),
@@ -283,6 +284,7 @@ func (p *HTTPHandler) mapContract(ctx context.Context, item resources.Contract) 
 		ResourceEstimatesActual: roundResourceEstimates(item.ResourceEstimatesActual()), // multiple atomics
 		StarvingGHS:             item.StarvingGHS(),                                     // atomic
 		PriceLMR:                LMRWithDecimalsToLMR(item.Price()),                     // readonly
+		ProfitTarget:            item.ProfitTarget(),                                    // readonly
 		Duration:                formatDuration(item.Duration()),                        // readonly
 
 		IsDeleted:      item.IsDeleted(),                     // readonly
@@ -295,9 +297,17 @@ func (p *HTTPHandler) mapContract(ctx context.Context, item resources.Contract) 
 		Elapsed:           formatDuration(item.Elapsed()),  // readonly
 		ApplicationStatus: item.State().String(),           // rw mutex canceable
 		BlockchainStatus:  item.BlockchainState().String(), // readonly
+		Error:             errString(item.Error()),         // atomic
 		Dest:              item.Dest(),                     // readonly
 		// Miners:            p.allocator.GetMinersFulfillingContract(item.ID(), p.cycleDuration),
 	}, nil
+}
+
+func errString(s error) string {
+	if s != nil {
+		return s.Error()
+	}
+	return ""
 }
 
 func writeHTML(w io.Writer, logs []hrcontract.DeliveryLogEntry) error {

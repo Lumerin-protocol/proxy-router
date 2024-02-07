@@ -42,10 +42,13 @@ func (c *ControllerSeller) Run(ctx context.Context) error {
 	c.log.Infof("started watching contract as seller, address %s", c.ID())
 
 	if c.ShouldBeRunning() {
-		err := c.StartFulfilling()
-		if err != nil {
-			return err
-		}
+		go func() {
+			select {
+			case <-ctx.Done():
+				return
+			case sub.Ch() <- &implementation.ImplementationContractPurchased{}:
+			}
+		}()
 	}
 
 	for {
@@ -53,13 +56,10 @@ func (c *ControllerSeller) Run(ctx context.Context) error {
 		case event := <-sub.Events():
 			err := c.controller(ctx, event)
 			if err != nil {
-				if c.IsRunning() {
-					c.ContractWatcherSellerV2.StopFulfilling()
-					c.log.Infof("waiting for contract watcher to stop")
-					<-c.ContractWatcherSellerV2.Done()
-					c.log.Infof("contract watcher stopped")
-				}
-				return err
+				c.log.Errorf("error handling event %T: %s", event, err)
+				c.contractErr.Store(err)
+			} else {
+				c.contractErr.Store(nil)
 			}
 		case err := <-sub.Err():
 			if c.IsRunning() {
@@ -154,6 +154,7 @@ func (c *ControllerSeller) handleContractPurchased(ctx context.Context, event *i
 
 func (c *ControllerSeller) handleContractClosed(ctx context.Context, event *implementation.ImplementationContractClosed) error {
 	c.log.Warnf("got closed event for contract")
+
 	if c.IsRunning() {
 		c.log.Infof("contract is running, stopping")
 		c.StopFulfilling()
@@ -161,7 +162,6 @@ func (c *ControllerSeller) handleContractClosed(ctx context.Context, event *impl
 	}
 
 	err := c.LoadTermsFromBlockchain(ctx)
-
 	if err != nil {
 		return err
 	}
@@ -175,8 +175,14 @@ func (c *ControllerSeller) handleCipherTextUpdated(ctx context.Context, event *i
 	currentDest := c.Dest()
 
 	terms, err := c.GetTermsFromBlockchain(ctx)
-
 	if err != nil {
+		// if we cannot decrypt dest, we still update terms with nil dest
+		// and stop fulfilling
+		if c.IsRunning() {
+			c.ContractWatcherSellerV2.StopFulfilling()
+			<-c.ContractWatcherSellerV2.Done()
+		}
+		c.SetTerms(terms)
 		return err
 	}
 
@@ -209,17 +215,18 @@ func (c *ControllerSeller) handlePurchaseInfoUpdated(ctx context.Context, event 
 	return nil
 }
 
+// LoadTermsFromBlockchain loads terms from blockchain and decrypts them, if decryption fails, still updates terms with nil dest
 func (c *ControllerSeller) LoadTermsFromBlockchain(ctx context.Context) error {
-	terms, err := c.GetTermsFromBlockchain(ctx)
+	encryptedTerms, err := c.store.GetContract(ctx, c.ID())
 
 	if err != nil {
-		c.log.Errorf("error getting terms from blockchain: %s", err)
 		return err
 	}
 
+	terms, err := encryptedTerms.Decrypt(c.privKey)
 	c.SetTerms(terms)
 
-	return nil
+	return err
 }
 
 func (c *ControllerSeller) GetTermsFromBlockchain(ctx context.Context) (*hashrateContract.Terms, error) {

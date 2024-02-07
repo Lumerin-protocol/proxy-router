@@ -19,12 +19,14 @@ type Contract interface {
 	State() ContractState                      // the state of the contract (pending or running)
 	BlockchainState() hashrate.BlockchainState // the state of the contract in blockchain (pending or running)
 	ValidationStage() hashrate.ValidationStage // the stage of the contract validation (only buyer)
+	Error() error                              // the error that prevents contract from being fulfilled (only seller)
 
 	ID() string     // ID is the unique identifier of the contract, for smart contract data source this is the smart contract address
 	Seller() string // ID of the seller (address of the seller for smart contract data source)
 	Buyer() string  // ID of the buyer (address of the buyer for smart contract data source)
 	Dest() string   // string representation of the destination of the contract (IP address for hashrate, stream URL for video stream etc)
 	Price() *big.Int
+	ProfitTarget() int8
 
 	Balance() *big.Int
 	IsDeleted() bool

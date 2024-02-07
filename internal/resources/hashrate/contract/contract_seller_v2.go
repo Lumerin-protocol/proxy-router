@@ -48,6 +48,7 @@ type ContractWatcherSellerV2 struct {
 
 	isRunning      bool
 	isRunningMutex sync.RWMutex
+	contractErr    atomic.Error // keeps the last error that happened in the contract that prevents it from fulfilling correctly, like invalid destination
 
 	// deps
 	*hashrate.Terms
@@ -620,6 +621,10 @@ func (p *ContractWatcherSellerV2) SetTerms(terms *hashrate.Terms) {
 
 	p.Terms = terms
 	p.log.Infof("contract terms updated: price %.f LMR, hashrate %.f GHS, duration %s, state %s", terms.PriceLMR(), terms.HashrateGHS(), terms.Duration().Round(time.Second), terms.BlockchainState().String())
+}
+
+func (p *ContractWatcherSellerV2) Error() error {
+	return p.contractErr.Load()
 }
 
 func (p *ContractWatcherSellerV2) logDeliveryTarget() {

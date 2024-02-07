@@ -285,3 +285,7 @@ func (p *ContractWatcherBuyer) Dest() string {
 func (p *ContractWatcherBuyer) StarvingGHS() int {
 	return int(p.starvingGHS.Load())
 }
+
+func (p *ContractWatcherBuyer) Error() error {
+	return nil
+}

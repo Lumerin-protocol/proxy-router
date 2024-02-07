@@ -25,3 +25,7 @@ func (s *Subscription) Err() <-chan error {
 func (s *Subscription) Events() <-chan interface{} {
 	return s.ch
 }
+
+func (s *Subscription) Ch() chan interface{} {
+	return s.ch
+}

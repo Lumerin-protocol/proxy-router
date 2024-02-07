@@ -80,13 +80,15 @@ func (c *ContractFactory) CreateContract(contractData *hashrateContract.Encrypte
 	logNamed := log.Named(fmt.Sprintf("CTR %s", lib.AddrShort(contractData.ID())))
 
 	if contractData.Seller() == c.address.String() {
-		terms, err := contractData.Decrypt(c.privateKey)
-		if err != nil {
-			return nil, err
+		terms := &hashrateContract.Terms{
+			BaseTerms:   *contractData.Copy(),
+			Destination: nil,
 		}
+
 		watcher := NewContractWatcherSellerV2(terms, c.cycleDuration, c.hashrateFactory, c.allocator, logNamed)
 		return NewControllerSeller(watcher, c.store, c.privateKey), nil
 	}
+
 	if contractData.Buyer() == c.address.String() {
 		watcher := NewContractWatcherBuyer(
 			contractData,
