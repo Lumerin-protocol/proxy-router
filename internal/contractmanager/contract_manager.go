@@ -119,8 +119,14 @@ func (cm *ContractManager) handleContractPurchased(ctx context.Context, event *c
 }
 
 func (cm *ContractManager) handleContractDeleteUpdated(ctx context.Context, event *clonefactory.ClonefactoryContractDeleteUpdated) error {
-	// TODO: handle contract delete / undelete
-	// as of now all contracts are tracked regardless of delete status
+	ctr, ok := cm.contracts.Load(event.Address.Hex())
+	if !ok {
+		return nil
+	}
+	err := ctr.SyncState(ctx)
+	if err != nil {
+		cm.log.Errorf("contract sync state error %s", err)
+	}
 	return nil
 }
 

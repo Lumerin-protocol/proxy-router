@@ -147,3 +147,7 @@ func (c *ControllerBuyer) LoadTermsFromBlockchain(ctx context.Context) error {
 
 	return err
 }
+
+func (c *ControllerBuyer) SyncState(ctx context.Context) error {
+	return nil
+}
