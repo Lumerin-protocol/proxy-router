@@ -16,12 +16,14 @@ import (
 type ControllerSeller struct {
 	*ContractWatcherSellerV2
 
-	store   *contracts.HashrateEthereum
-	privKey string
+	syncStateCh chan struct{}
+	store       *contracts.HashrateEthereum
+	privKey     string
 }
 
 func NewControllerSeller(contract *ContractWatcherSellerV2, store *contracts.HashrateEthereum, privKey string) *ControllerSeller {
 	return &ControllerSeller{
+		syncStateCh:             make(chan struct{}, 1),
 		ContractWatcherSellerV2: contract,
 		store:                   store,
 		privKey:                 privKey,
@@ -53,6 +55,15 @@ func (c *ControllerSeller) Run(ctx context.Context) error {
 
 	for {
 		select {
+		case <-c.syncStateCh:
+			err := c.LoadTermsFromBlockchain(ctx)
+			if err != nil {
+				c.log.Errorf("error loading terms: %s", err)
+				c.contractErr.Store(err)
+			} else {
+				c.contractErr.Store(nil)
+			}
+
 		case event := <-sub.Events():
 			err := c.controller(ctx, event)
 			if err != nil {
@@ -244,4 +255,13 @@ func (c *ControllerSeller) GetTermsFromBlockchain(ctx context.Context) (*hashrat
 	}
 
 	return terms, nil
+}
+
+func (c *ControllerSeller) SyncState(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case c.syncStateCh <- struct{}{}:
+	}
+	return nil
 }

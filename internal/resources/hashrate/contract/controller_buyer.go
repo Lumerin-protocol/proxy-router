@@ -68,7 +68,13 @@ func (c *ControllerBuyer) Run(ctx context.Context) error {
 				if err != nil {
 					c.log.Errorf("error closing contract: %s", err)
 					c.log.Info("sleeping for 10 seconds")
-					time.Sleep(10 * time.Second)
+
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case <-time.After(10 * time.Second):
+					}
+
 					continue
 				}
 
@@ -140,4 +146,8 @@ func (c *ControllerBuyer) LoadTermsFromBlockchain(ctx context.Context) error {
 	c.SetData(terms)
 
 	return err
+}
+
+func (c *ControllerBuyer) SyncState(ctx context.Context) error {
+	return nil
 }
