@@ -104,7 +104,7 @@ func (c *ControllerBuyer) controller(ctx context.Context, event interface{}) err
 }
 
 func (c *ControllerBuyer) handleContractPurchased(ctx context.Context, event *implementation.ImplementationContractPurchased) error {
-	c.log.Debugf("got purchaseInfoUpdated event for contract")
+	c.log.Debugf("implementation contract purchased event, address %s", c.Terms.ID())
 
 	err := c.LoadTermsFromBlockchain(ctx)
 	if err != nil {

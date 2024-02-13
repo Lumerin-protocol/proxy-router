@@ -108,6 +108,7 @@ func (cm *ContractManager) handleContractCreated(ctx context.Context, event *clo
 }
 
 func (cm *ContractManager) handleContractPurchased(ctx context.Context, event *clonefactory.ClonefactoryClonefactoryContractPurchased) error {
+	cm.log.Debugf("clonefactory contract purchased event, address %s", event.Address.Hex())
 	terms, err := cm.store.GetContract(ctx, event.Address.Hex())
 	if err != nil {
 		return err
