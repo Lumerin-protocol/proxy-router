@@ -185,7 +185,7 @@ bedrock-04-PRD-rawimage:
       .taskDefinition.containerDefinitions[].ulimits = [{"name": "nofile", "softLimit": 15000, "hardLimit": 15000}] |
       .taskDefinition.containerDefinitions[].environment = [ 
         { "name": "COMMIT", "value": "'"$(git rev-parse HEAD)"'" }, 
-        { "name": "ETH_NODE_ADDRESS", "value": "'"$ETH_NODE_ADDRESS"'" },
+        { "name": "ETH_NODE_ADDRESS", "value": "'"$CI_ETH_NODE_ADDRESS"'" },
         { "name": "ETH_NODE_LEGACY_TX", "value": "'"$ETH_NODE_LEGACY_TX"'" },
         { "name": "ENVIRONMENT", "value": "'"$ENVIRONMENT"'" },
         { "name": "HASHRATE_CYCLE_DURATION", "value": "'"$HASHRATE_CYCLE_DURATION"'" },
@@ -248,6 +248,7 @@ bedrock-04-PRD-rawimage:
   - CI_WALLET_PRIVATE_KEY=$SELLER_PRIVATEKEY
   - CI_POOL_ADDRESS=$POOL_ADDRESS
   - CI_WEB_PUBLIC_URL=$WEB_PUBLIC_URL
+  - CI_ETH_NODE_ADDRESS=$PROXY_ROUTER_ETH_NODE_ADDRESS
   - *ecr_login_script
   - *update_raw_task_definition
   - *deploy_new_task_definition
@@ -257,6 +258,7 @@ bedrock-04-PRD-rawimage:
   - CI_WALLET_PRIVATE_KEY=$VALIDATOR_PRIVATEKEY
   - CI_POOL_ADDRESS=$VALIDATOR_POOL_ADDRESS
   - CI_WEB_PUBLIC_URL="http://validatorapi.$TGT_ENV.lumerin.io"
+  - CI_ETH_NODE_ADDRESS=$VALIDATOR_ETH_NODE_ADDRESS
   - *ecr_login_script
   - *update_raw_task_definition
   - *deploy_new_task_definition
@@ -284,7 +286,6 @@ bedrock-02-DEV-seller:
     TGT_ACCOUNT: $CI_AWS_ACCOUNT_DEV
     TGT_ENV: dev
   script:
-    # - *deploy_seller
     - *deploy_raw_seller
     - echo "$TGT_ENV seller updated"
 
