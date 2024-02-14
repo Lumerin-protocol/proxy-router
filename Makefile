@@ -13,6 +13,9 @@ install:
 	go install github.com/praetorian-inc/gokart@latest
 	go install github.com/securego/gosec/v2/cmd/gosec@latest
 	
+format:
+	gofmt -s -w .
+	
 lint:
 	golangci-lint run
 	govulncheck ./...

@@ -136,6 +136,10 @@ func (c *ContractFactory) CreateContract(contractData *hashrateContract.Encrypte
 }
 
 func (c *ContractFactory) getDestURL(destEncrypted string) (*url.URL, error) {
+	if destEncrypted == "" {
+		return nil, nil
+	}
+
 	dest, err := lib.DecryptString(destEncrypted, c.privateKey)
 	if err != nil {
 		return nil, err
