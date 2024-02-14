@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"net/url"
 	"time"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
@@ -287,8 +286,12 @@ func (p *ContractWatcherBuyer) Dest() string {
 	return ""
 }
 
-func (p *ContractWatcherBuyer) PoolDest() *url.URL {
-	return p.Terms.DestinationURL
+func (p *ContractWatcherBuyer) PoolDest() string {
+	url := p.Terms.DestinationURL
+	if url == nil {
+		return ""
+	}
+	return url.String()
 }
 
 func (p *ContractWatcherBuyer) StarvingGHS() int {

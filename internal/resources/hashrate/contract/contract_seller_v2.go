@@ -600,8 +600,8 @@ func (p *ContractWatcherSellerV2) Dest() string {
 	}
 	return ""
 }
-func (p *ContractWatcherSellerV2) PoolDest() *url.URL {
-	return nil
+func (p *ContractWatcherSellerV2) PoolDest() string {
+	return ""
 }
 func (p *ContractWatcherSellerV2) ResourceEstimates() map[string]float64 {
 	return map[string]float64{
