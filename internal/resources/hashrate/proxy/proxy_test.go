@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 	m "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/validator"
@@ -38,7 +39,9 @@ func RunTestProxy() (p *Proxy, s *StratumConnection, d *StratumConnection, cance
 
 	globalHashrate := hashrate.NewGlobalHashrate(hashrateFactory)
 
-	proxy := NewProxy("test", sourceConn, destConnFactory, hashrateFactory, globalHashrate, destURL, true, 1, 5, log)
+	proxy := NewProxy("test", sourceConn, destConnFactory, hashrateFactory, globalHashrate, destURL, true, 1, 5, log, func(id string) (resources.Contract, bool) {
+		return nil, false
+	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	runErrorCh := make(chan error)

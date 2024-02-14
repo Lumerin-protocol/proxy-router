@@ -11,6 +11,7 @@ type TermsCommon interface {
 	BlockchainState() hashrate.BlockchainState
 	Seller() string
 	Buyer() string
+	Validator() string
 	StartTime() time.Time
 	Duration() time.Duration
 	HashrateGHS() float64

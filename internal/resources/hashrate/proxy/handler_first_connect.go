@@ -17,7 +17,8 @@ import (
 )
 
 var (
-	ErrNotStratum = errors.New("not a stratum protocol") // means that incoming connection is not a stratum protocol
+	ErrNotStratum      = errors.New("not a stratum protocol") // means that incoming connection is not a stratum protocol
+	ErrUnknownContract = errors.New("incoming connection for unknown contract")
 )
 
 type HandlerFirstConnect struct {
@@ -113,6 +114,15 @@ func (p *HandlerFirstConnect) handleDest(ctx context.Context, msg i.MiningMessag
 	return nil, nil
 }
 
+func (p *HandlerFirstConnect) getPoolDest(contractID string) (*url.URL, error) {
+	contract, isExist := p.proxy.getContractFromStoreFn(contractID)
+	if !isExist {
+		return nil, lib.WrapError(ErrUnknownContract, fmt.Errorf("contract id: %s", contractID))
+	}
+	poolDestStr := contract.PoolDest()
+	return url.Parse(poolDestStr)
+}
+
 // The following handlers are responsible for managing the initial connection of the miner to the proxy and destination.
 // This step requires special handling due to the "coupled" interaction between parties, unlike the destination change process,
 // where the pool connection is established first, and then the miner is switched to it. This "coupled" interaction is intentionally
@@ -125,7 +135,21 @@ func (p *HandlerFirstConnect) handleDest(ctx context.Context, msg i.MiningMessag
 func (p *HandlerFirstConnect) onMiningConfigure(ctx context.Context, msgTyped *m.MiningConfigure) error {
 	p.proxy.source.SetVersionRolling(msgTyped.GetVersionRolling())
 
-	destConn, err := p.proxy.destFactory(ctx, p.proxy.destURL.Load(), p.proxy.ID)
+	var destURL *url.URL
+	contractID := msgTyped.GetLMRContractAddress()
+	if contractID != "" {
+		poolDestStr, err := p.getPoolDest(contractID)
+		if err != nil {
+			return err
+		}
+		destURL = poolDestStr
+	}
+
+	if destURL == nil {
+		destURL = p.proxy.destURL.Load()
+	}
+
+	destConn, err := p.proxy.destFactory(ctx, destURL, p.proxy.ID) // set dest from contract store
 	if err != nil {
 		return err
 	}
@@ -227,24 +251,31 @@ func (p *HandlerFirstConnect) onMiningAuthorize(ctx context.Context, msgTyped *m
 		return lib.WrapError(ErrHandshakeSource, err)
 	}
 
-	if shouldPropagateWorkerName(p.proxy.notPropagateWorkerName, msgTyped.GetUserName(), p.proxy.destURL.Load()) {
+	var destURL *url.URL
+	if p.proxy.dest == nil { // if no dest connection was established yet then use URL from proxy (default destination)
+		destURL = p.proxy.destURL.Load()
+	} else { // if dest connection was established during handshake
+		destURL = p.proxy.dest.destUrl
+	}
+
+	if shouldPropagateWorkerName(p.proxy.notPropagateWorkerName, msgTyped.GetUserName(), destURL) {
 		_, workerName, hasWorkerName := lib.SplitUsername(msgTyped.GetUserName())
 		// if incoming miner was named "accountName.workerName" then we preserve worker name in destination
 		if hasWorkerName {
-			lib.SetWorkerName(p.proxy.destURL.Load(), workerName)
+			lib.SetWorkerName(destURL, workerName)
 		}
 	}
 
-	destWorkerName := getDestUserName(p.proxy.notPropagateWorkerName, msgTyped.GetUserName(), p.proxy.destURL.Load())
+	destWorkerName := getDestUserName(p.proxy.notPropagateWorkerName, msgTyped.GetUserName(), destURL)
 	p.proxy.dest.SetUserName(destWorkerName)
 
 	// otherwise we use the same username as in source
 	// this is the case for the incoming contracts,
 	// where the miner userName is contractID
 
-	userName := p.proxy.destURL.Load().User.Username()
+	userName := destURL.User.Username()
 	p.proxy.dest.SetUserName(userName)
-	pwd, ok := p.proxy.destURL.Load().User.Password()
+	pwd, ok := destURL.User.Password()
 	if !ok {
 		pwd = ""
 	}

@@ -1,6 +1,8 @@
 package httphandlers
 
-import "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
+import (
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
+)
 
 type MinersResponse struct {
 	TotalHashrateGHS     int
@@ -17,8 +19,9 @@ type MinersResponse struct {
 }
 
 type ContractsResponse struct {
-	SellerTotal SellerTotal
-	BuyerTotal  BuyerTotal
+	SellerTotal    SellerTotal
+	BuyerTotal     BuyerTotal
+	ValidatorTotal BuyerTotal
 
 	Contracts []Contract
 }
@@ -79,6 +82,7 @@ type Contract struct {
 	ID                      string
 	BuyerAddr               string
 	SellerAddr              string
+	ValidatorAddr           string
 	ResourceEstimatesTarget map[string]int
 	ResourceEstimatesActual map[string]int
 	StarvingGHS             int
@@ -99,6 +103,7 @@ type Contract struct {
 	BlockchainStatus  string
 	Error             string
 	Dest              string
+	PoolDest          string
 	Miners            []*allocator.MinerItemJobScheduled
 }
 

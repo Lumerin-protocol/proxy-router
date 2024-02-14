@@ -56,6 +56,8 @@ func (h *HTTPHandler) CreateContract(ctx *gin.Context) {
 		false,
 		0,
 		destEnc,
+		"",
+		"",
 	)
 	h.contractManager.AddContract(context.Background(), terms)
 
@@ -94,6 +96,9 @@ type ContractsQP struct {
 	Role              *string `form:"role" validate:"omitempty,oneof=seller buyer"`
 	BlockchainStatus  *string `form:"blockchainStatus" validate:"omitempty,oneof=available running"`
 	ApplicationStatus *string `form:"applicationStatus" validate:"omitempty,oneof=pending running"`
+	BuyerAddr         *string `form:"buyerAddr" validate:"omitempty,eth_addr"`
+	SellerAddr        *string `form:"sellerAddr" validate:"omitempty,eth_addr"`
+	ValidatorAddr     *string `form:"validatorAddr" validate:"omitempty,eth_addr"`
 }
 
 func (c *HTTPHandler) GetContractsV2(ctx *gin.Context) {
@@ -111,9 +116,10 @@ func (c *HTTPHandler) GetContractsV2(ctx *gin.Context) {
 	}
 
 	res := ContractsResponse{
-		SellerTotal: SellerTotal{},
-		BuyerTotal:  BuyerTotal{},
-		Contracts:   []Contract{},
+		SellerTotal:    SellerTotal{},
+		BuyerTotal:     BuyerTotal{},
+		ValidatorTotal: BuyerTotal{},
+		Contracts:      []Contract{},
 	}
 
 	var errOuter error
@@ -140,6 +146,18 @@ func (c *HTTPHandler) GetContractsV2(ctx *gin.Context) {
 		}
 
 		if qp.BlockchainStatus != nil && item.BlockchainState().String() != *qp.BlockchainStatus {
+			return true
+		}
+
+		if qp.BuyerAddr != nil && item.Buyer() != *qp.BuyerAddr {
+			return true
+		}
+
+		if qp.SellerAddr != nil && item.Seller() != *qp.SellerAddr {
+			return true
+		}
+
+		if qp.ValidatorAddr != nil && item.Validator() != *qp.ValidatorAddr {
 			return true
 		}
 
@@ -176,6 +194,12 @@ func (c *HTTPHandler) GetContractsV2(ctx *gin.Context) {
 			res.BuyerTotal.HashrateGHS += int(item.ResourceEstimates()[contract.ResourceEstimateHashrateGHS])
 			res.BuyerTotal.ActualHashrateGHS += int(item.ResourceEstimatesActual()[c.hashrateCounterDefault]) // readonly
 			res.BuyerTotal.StarvingGHS += item.StarvingGHS()                                                  // atomic
+		}
+
+		if item.Role() == resources.ContractRoleValidator { // readonly
+			res.ValidatorTotal.Number++
+			res.ValidatorTotal.HashrateGHS += int(item.ResourceEstimates()[contract.ResourceEstimateHashrateGHS])
+			res.ValidatorTotal.ActualHashrateGHS += int(item.ResourceEstimatesActual()[c.hashrateCounterDefault]) // readonly
 		}
 
 		return true
@@ -279,6 +303,7 @@ func (p *HTTPHandler) mapContract(ctx context.Context, item resources.Contract) 
 		Stage:                   item.ValidationStage().String(),                        // atomic
 		ID:                      item.ID(),                                              // readonly
 		BuyerAddr:               item.Buyer(),                                           // readonly
+		ValidatorAddr:           item.Validator(),                                       // readonly
 		SellerAddr:              item.Seller(),                                          // readonly
 		ResourceEstimatesTarget: roundResourceEstimates(item.ResourceEstimates()),       // readonly
 		ResourceEstimatesActual: roundResourceEstimates(item.ResourceEstimatesActual()), // multiple atomics
@@ -299,6 +324,7 @@ func (p *HTTPHandler) mapContract(ctx context.Context, item resources.Contract) 
 		BlockchainStatus:  item.BlockchainState().String(), // readonly
 		Error:             errString(item.Error()),         // atomic
 		Dest:              item.Dest(),                     // readonly
+		PoolDest:          item.PoolDest(),                 // readonly
 		// Miners:            p.allocator.GetMinersFulfillingContract(item.ID(), p.cycleDuration),
 	}, nil
 }

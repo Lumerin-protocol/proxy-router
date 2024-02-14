@@ -53,14 +53,15 @@ type Proxy struct {
 	vettingShares           int                        // number of shares to vet the miner
 
 	// deps
-	source         *ConnSource           // initiator of the communication, miner
-	dest           *ConnDest             // receiver of the communication, pool
-	globalHashrate GlobalHashrateCounter // callback to update global hashrate per worker
-	destFactory    DestConnFactory       // factory to create new destination connections
-	log            gi.ILogger
+	source                 *ConnSource           // initiator of the communication, miner
+	dest                   *ConnDest             // receiver of the communication, pool
+	globalHashrate         GlobalHashrateCounter // callback to update global hashrate per worker
+	destFactory            DestConnFactory       // factory to create new destination connections
+	log                    gi.ILogger
+	getContractFromStoreFn GetContractFromStoreFn
 }
 
-func NewProxy(ID string, source *ConnSource, destFactory DestConnFactory, hashrateFactory HashrateFactory, globalHashrate GlobalHashrateCounter, destURL *url.URL, notPropagateWorkerName bool, vettingShares int, maxCachedDests int, log gi.ILogger) *Proxy {
+func NewProxy(ID string, source *ConnSource, destFactory DestConnFactory, hashrateFactory HashrateFactory, globalHashrate GlobalHashrateCounter, destURL *url.URL, notPropagateWorkerName bool, vettingShares int, maxCachedDests int, log gi.ILogger, getContractFromStoreFn GetContractFromStoreFn) *Proxy {
 	proxy := &Proxy{
 		ID:                     ID,
 		destURL:                atomic.NewPointer(destURL),
@@ -74,9 +75,10 @@ func NewProxy(ID string, source *ConnSource, destFactory DestConnFactory, hashra
 		vettingDoneCh: make(chan struct{}),
 		vettingShares: vettingShares,
 
-		hashrate:       hashrateFactory(),
-		globalHashrate: globalHashrate,
-		onSubmit:       nil,
+		hashrate:               hashrateFactory(),
+		globalHashrate:         globalHashrate,
+		onSubmit:               nil,
+		getContractFromStoreFn: getContractFromStoreFn,
 	}
 
 	return proxy

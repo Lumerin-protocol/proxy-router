@@ -20,22 +20,22 @@ type ContractManager struct {
 	contracts   *lib.Collection[resources.Contract]
 	contractsWG sync.WaitGroup
 
-	contractFactory ContractFactory
-	store           *contracts.HashrateEthereum
-	log             interfaces.ILogger
+	createContract CreateContractFn
+	store          *contracts.HashrateEthereum
+	log            interfaces.ILogger
 }
 
-type ContractFactory func(terms *hashrate.EncryptedTerms) (resources.Contract, error)
+type CreateContractFn func(terms *hashrate.EncryptedTerms) (resources.Contract, error)
 
-func NewContractManager(clonefactoryAddr, ownerAddr common.Address, contractFactory ContractFactory, store *contracts.HashrateEthereum, log interfaces.ILogger) *ContractManager {
+func NewContractManager(clonefactoryAddr, ownerAddr common.Address, createContractFn CreateContractFn, store *contracts.HashrateEthereum, log interfaces.ILogger) *ContractManager {
 	return &ContractManager{
-		cfAddr:          clonefactoryAddr,
-		ownerAddr:       ownerAddr,
-		contracts:       lib.NewCollection[resources.Contract](),
-		contractFactory: contractFactory,
-		store:           store,
-		contractsWG:     sync.WaitGroup{},
-		log:             log,
+		cfAddr:         clonefactoryAddr,
+		ownerAddr:      ownerAddr,
+		contracts:      lib.NewCollection[resources.Contract](),
+		createContract: createContractFn,
+		store:          store,
+		contractsWG:    sync.WaitGroup{},
+		log:            log,
 	}
 }
 
@@ -108,19 +108,26 @@ func (cm *ContractManager) handleContractCreated(ctx context.Context, event *clo
 }
 
 func (cm *ContractManager) handleContractPurchased(ctx context.Context, event *clonefactory.ClonefactoryClonefactoryContractPurchased) error {
+	cm.log.Debugf("clonefactory contract purchased event, address %s", event.Address.Hex())
 	terms, err := cm.store.GetContract(ctx, event.Address.Hex())
 	if err != nil {
 		return err
 	}
-	if terms.Buyer() == cm.ownerAddr.String() {
+	if terms.Buyer() == cm.ownerAddr.String() || terms.Validator() == cm.ownerAddr.String() {
 		cm.AddContract(ctx, terms)
 	}
 	return nil
 }
 
 func (cm *ContractManager) handleContractDeleteUpdated(ctx context.Context, event *clonefactory.ClonefactoryContractDeleteUpdated) error {
-	// TODO: handle contract delete / undelete
-	// as of now all contracts are tracked regardless of delete status
+	ctr, ok := cm.contracts.Load(event.Address.Hex())
+	if !ok {
+		return nil
+	}
+	err := ctr.SyncState(ctx)
+	if err != nil {
+		cm.log.Errorf("contract sync state error %s", err)
+	}
 	return nil
 }
 
@@ -131,7 +138,7 @@ func (cm *ContractManager) AddContract(ctx context.Context, data *hashrate.Encry
 		return
 	}
 
-	cntr, err := cm.contractFactory(data)
+	cntr, err := cm.createContract(data)
 	if err != nil {
 		cm.log.Errorf("contract factory error %s", err)
 		return
@@ -154,6 +161,10 @@ func (cm *ContractManager) GetContracts() *lib.Collection[resources.Contract] {
 	return cm.contracts
 }
 
+func (cm *ContractManager) GetContract(id string) (resources.Contract, bool) {
+	return cm.contracts.Load(id)
+}
+
 func (cm *ContractManager) isOurContract(terms TermsCommon) bool {
-	return terms.Seller() == cm.ownerAddr.String() || terms.Buyer() == cm.ownerAddr.String()
+	return terms.Seller() == cm.ownerAddr.String() || terms.Buyer() == cm.ownerAddr.String() || terms.Validator() == cm.ownerAddr.String()
 }
