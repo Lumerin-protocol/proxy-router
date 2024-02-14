@@ -49,8 +49,12 @@ func (c *ControllerBuyer) Run(ctx context.Context) error {
 		case event := <-sub.Events():
 			err := c.controller(ctx, event)
 			if err != nil {
-				return err
+				c.log.Errorf("error loading terms: %s", err)
+				c.contractErr.Store(err)
+			} else {
+				c.contractErr.Store(nil)
 			}
+
 		case err := <-sub.Err():
 			return err
 		case <-c.ContractWatcherBuyer.Done():

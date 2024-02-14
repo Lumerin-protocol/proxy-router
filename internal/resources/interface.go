@@ -3,7 +3,6 @@ package resources
 import (
 	"context"
 	"math/big"
-	"net/url"
 	"time"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
@@ -27,8 +26,8 @@ type Contract interface {
 	Seller() string    // ID of the seller (address of the seller for smart contract data source)
 	Buyer() string     // ID of the buyer (address of the buyer for smart contract data source)
 	Validator() string // ID of the buyer (address of the buyer for smart contract data source)
-	Dest() string      // string representation of the destination of the contract (IP address for hashrate, stream URL for video stream etc)
-	PoolDest() *url.URL
+	Dest() string      // immediate destination of the contract resource (for example the validator address for hashrate contract)
+	PoolDest() string  // destination to redirect hashrate after validation (for example the pool address for hashrate contract)
 
 	Price() *big.Int
 	ProfitTarget() int8

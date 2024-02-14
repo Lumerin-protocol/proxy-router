@@ -20,22 +20,22 @@ type ContractManager struct {
 	contracts   *lib.Collection[resources.Contract]
 	contractsWG sync.WaitGroup
 
-	contractFactory ContractFactory
-	store           *contracts.HashrateEthereum
-	log             interfaces.ILogger
+	createContract CreateContractFn
+	store          *contracts.HashrateEthereum
+	log            interfaces.ILogger
 }
 
-type ContractFactory func(terms *hashrate.EncryptedTerms) (resources.Contract, error)
+type CreateContractFn func(terms *hashrate.EncryptedTerms) (resources.Contract, error)
 
-func NewContractManager(clonefactoryAddr, ownerAddr common.Address, contractFactory ContractFactory, store *contracts.HashrateEthereum, log interfaces.ILogger) *ContractManager {
+func NewContractManager(clonefactoryAddr, ownerAddr common.Address, createContractFn CreateContractFn, store *contracts.HashrateEthereum, log interfaces.ILogger) *ContractManager {
 	return &ContractManager{
-		cfAddr:          clonefactoryAddr,
-		ownerAddr:       ownerAddr,
-		contracts:       lib.NewCollection[resources.Contract](),
-		contractFactory: contractFactory,
-		store:           store,
-		contractsWG:     sync.WaitGroup{},
-		log:             log,
+		cfAddr:         clonefactoryAddr,
+		ownerAddr:      ownerAddr,
+		contracts:      lib.NewCollection[resources.Contract](),
+		createContract: createContractFn,
+		store:          store,
+		contractsWG:    sync.WaitGroup{},
+		log:            log,
 	}
 }
 
@@ -138,7 +138,7 @@ func (cm *ContractManager) AddContract(ctx context.Context, data *hashrate.Encry
 		return
 	}
 
-	cntr, err := cm.contractFactory(data)
+	cntr, err := cm.createContract(data)
 	if err != nil {
 		cm.log.Errorf("contract factory error %s", err)
 		return

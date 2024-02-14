@@ -1,8 +1,6 @@
 package httphandlers
 
 import (
-	"net/url"
-
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
 )
 
@@ -105,7 +103,7 @@ type Contract struct {
 	BlockchainStatus  string
 	Error             string
 	Dest              string
-	PoolDest          *url.URL
+	PoolDest          string
 	Miners            []*allocator.MinerItemJobScheduled
 }
 

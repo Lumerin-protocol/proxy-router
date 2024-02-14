@@ -120,7 +120,7 @@ func (p *HandlerFirstConnect) getPoolDest(contractID string) (*url.URL, error) {
 		return nil, lib.WrapError(ErrUnknownContract, fmt.Errorf("contract id: %s", contractID))
 	}
 	poolDestStr := contract.PoolDest()
-	return poolDestStr, nil
+	return url.Parse(poolDestStr)
 }
 
 // The following handlers are responsible for managing the initial connection of the miner to the proxy and destination.

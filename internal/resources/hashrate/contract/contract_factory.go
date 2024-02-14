@@ -99,17 +99,12 @@ func (c *ContractFactory) CreateContract(contractData *hashrateContract.Encrypte
 			role = resources.ContractRoleValidator
 		}
 
-		var destUrl *url.URL
+		var (
+			destUrl *url.URL
+			destErr error
+		)
 		if contractData.DestEncrypted != "" {
-			dest, err := lib.DecryptString(contractData.DestEncrypted, c.privateKey)
-			if err != nil {
-				return nil, err
-			}
-
-			destUrl, err = url.Parse(dest)
-			if err != nil {
-				return nil, err
-			}
+			destUrl, destErr = c.getDestURL(contractData.DestEncrypted)
 		}
 
 		terms := &hashrateContract.Terms{
@@ -131,9 +126,26 @@ func (c *ContractFactory) CreateContract(contractData *hashrateContract.Encrypte
 			c.validatorFlatness,
 			role,
 		)
+
+		if destErr != nil {
+			watcher.contractErr.Store(destErr)
+		}
 		return NewControllerBuyer(watcher, c.store, c.privateKey), nil
 	}
 	return nil, fmt.Errorf("invalid terms %+v", contractData)
+}
+
+func (c *ContractFactory) getDestURL(destEncrypted string) (*url.URL, error) {
+	if destEncrypted == "" {
+		return nil, nil
+	}
+
+	dest, err := lib.DecryptString(destEncrypted, c.privateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return url.Parse(dest)
 }
 
 func (c *ContractFactory) GetType() resources.ResourceType {
