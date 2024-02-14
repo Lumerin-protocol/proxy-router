@@ -31,6 +31,7 @@ type ContractWatcherBuyer struct {
 	validationStage      *lib.AtomicValue[hashrateContract.ValidationStage]
 	fulfillmentStartedAt *atomic.Time
 	starvingGHS          *atomic.Uint64
+	contractErr          atomic.Error // keeps the last error that happened in the contract that prevents it from fulfilling correctly, like invalid destination
 
 	tsk    *lib.Task
 	cancel context.CancelFunc
@@ -295,5 +296,5 @@ func (p *ContractWatcherBuyer) StarvingGHS() int {
 }
 
 func (p *ContractWatcherBuyer) Error() error {
-	return nil
+	return p.contractErr.Load()
 }
