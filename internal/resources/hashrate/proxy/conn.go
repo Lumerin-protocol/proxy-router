@@ -71,7 +71,10 @@ func CreateConnection(conn net.Conn, address string, idleReadTimeout, idleWriteT
 		closedCh:      make(chan struct{}),
 
 		conn: conn,
-		log:  log,
+		log: log.With(
+			"DstAddr", address,
+			"DstPort", lib.ParsePort(conn.LocalAddr().String()),
+		),
 	}
 
 	err := conn.SetDeadline(time.Time{})
@@ -91,6 +94,10 @@ func Connect(address *url.URL, idleReadCloseTimeout, idleWriteCloseTimeout time.
 	}
 
 	return CreateConnection(conn, address.String(), idleReadCloseTimeout, idleWriteCloseTimeout, log), nil
+}
+
+func (c *StratumConnection) LocalPort() string {
+	return lib.ParsePort(c.conn.LocalAddr().String())
 }
 
 func (c *StratumConnection) Read(ctx context.Context) (interfaces.MiningMessageGeneric, error) {

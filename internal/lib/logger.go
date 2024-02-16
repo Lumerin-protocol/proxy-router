@@ -153,6 +153,11 @@ func (l *Logger) With(args ...interface{}) interfaces.ILogger {
 	}
 }
 
+func (l *Logger) Log(lvl zapcore.Level, msg string, fields ...zapcore.Field) {
+	l2 := l.SugaredLogger.Desugar()
+	l2.Log(lvl, msg, fields...)
+}
+
 func (l *Logger) Close() error {
 	return multierr.Combine(
 		l.Sync(),

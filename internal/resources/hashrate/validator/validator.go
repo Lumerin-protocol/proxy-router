@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	sm "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
 )
@@ -25,17 +24,13 @@ type Validator struct {
 	jobs               *lib.BoundStackMap[*MiningJob]
 	versionRollingMask string
 	cleanJobTimeout    time.Duration // duration after which jobs are removed from the cache after calling ScheduleCleanJobs()
-
-	// deps
-	log gi.ILogger
 }
 
-func NewValidator(cleanJobTimeout time.Duration, log gi.ILogger) *Validator {
+func NewValidator(cleanJobTimeout time.Duration) *Validator {
 	return &Validator{
 		jobs:               lib.NewBoundStackMap[*MiningJob](JOB_CACHE_SIZE),
 		versionRollingMask: "00000000",
 		cleanJobTimeout:    cleanJobTimeout,
-		log:                log,
 	}
 }
 
@@ -46,7 +41,6 @@ func (v *Validator) SetVersionRollingMask(mask string) {
 func (v *Validator) AddNewJob(msg *sm.MiningNotify, diff float64, xn1 string, xn2size int) {
 	job := NewMiningJob(msg, diff, xn1, xn2size)
 	if msg.GetCleanJobs() {
-		v.log.Info("clean jobs requested")
 		v.ScheduleCleanJobs()
 	}
 	v.jobs.Push(msg.GetJobID(), job)
@@ -87,8 +81,7 @@ func (v *Validator) ValidateAndAddShare(msg *sm.MiningSubmit) (float64, error) {
 	diff, ok := ValidateDiff(job.extraNonce1, uint(job.extraNonce2Size), uint64(job.diff), v.versionRollingMask, job.notify, msg)
 	diffFloat := float64(diff)
 	if !ok {
-		err := lib.WrapError(ErrLowDifficulty, fmt.Errorf("expected %.2f actual %d", job.diff, diff))
-		v.log.Warnf("Error: %s, xn=%s, xnsize=%d, diff=%d, vrmsk=%s", err, job.extraNonce1, uint(job.extraNonce2Size), uint64(job.diff), v.versionRollingMask)
+		err := lib.WrapError(ErrLowDifficulty, fmt.Errorf("expected %.2f actual %d xn=%s, xnsize=%d, diff=%d, vrmsk=%s", job.diff, diff, job.extraNonce1, uint(job.extraNonce2Size), uint64(job.diff), v.versionRollingMask))
 		return diffFloat, err
 	}
 
