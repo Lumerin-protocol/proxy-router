@@ -146,7 +146,7 @@ func (p *HandlerFirstConnect) onMiningConfigure(ctx context.Context, msgTyped *m
 		destURL = p.proxy.destURL.Load()
 	}
 
-	destConn, err := p.proxy.destFactory(ctx, destURL, p.proxy.ID) // set dest from contract store
+	destConn, err := p.proxy.destFactory(ctx, destURL, p.proxy.GetSourceWorkerName(), p.proxy.source.conn.conn.RemoteAddr().String()) // set dest from contract store
 	if err != nil {
 		return err
 	}
@@ -195,7 +195,7 @@ func (p *HandlerFirstConnect) onMiningSubscribe(ctx context.Context, msgTyped *m
 	minerSubscribeReceived = true
 
 	if p.proxy.dest == nil {
-		destConn, err := p.proxy.destFactory(ctx, p.proxy.destURL.Load(), p.proxy.ID)
+		destConn, err := p.proxy.destFactory(ctx, p.proxy.destURL.Load(), p.proxy.GetSourceWorkerName(), p.proxy.source.conn.conn.RemoteAddr().String())
 		if err != nil {
 			return err
 		}
