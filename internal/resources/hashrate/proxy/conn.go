@@ -93,6 +93,10 @@ func Connect(address *url.URL, idleReadCloseTimeout, idleWriteCloseTimeout time.
 	return CreateConnection(conn, address.String(), idleReadCloseTimeout, idleWriteCloseTimeout, log), nil
 }
 
+func (c *StratumConnection) LocalPort() string {
+	return lib.ParsePort(c.conn.LocalAddr().String())
+}
+
 func (c *StratumConnection) Read(ctx context.Context) (interfaces.MiningMessageGeneric, error) {
 	c.readSync.Lock()
 	defer c.readSync.Unlock()

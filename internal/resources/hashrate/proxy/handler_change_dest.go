@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/url"
 
-	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
 	m "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
@@ -16,15 +15,12 @@ import (
 type HandlerChangeDest struct {
 	proxy       *Proxy
 	destFactory DestConnFactory // factory to create new destination connections
-
-	log gi.ILogger
 }
 
-func NewHandlerChangeDest(proxy *Proxy, destFactory DestConnFactory, log gi.ILogger) *HandlerChangeDest {
+func NewHandlerChangeDest(proxy *Proxy, destFactory DestConnFactory) *HandlerChangeDest {
 	return &HandlerChangeDest{
 		proxy:       proxy,
 		destFactory: destFactory,
-		log:         log,
 	}
 }
 
@@ -34,12 +30,12 @@ func (p *HandlerChangeDest) connectNewDest(ctx context.Context, newDestURL *url.
 		return nil, lib.WrapError(ErrConnectDest, err)
 	}
 
-	p.log.Debugf("new dest created")
+	p.proxy.log.Debugf("new dest created")
 
 	autoReadDone := make(chan error, 1)
 	ok := newDest.AutoReadStart(ctx, func(err error) {
 		if err != nil {
-			p.log.Errorf("error reading from new dest: %s", err)
+			p.proxy.logErrorf("error reading from new dest: %s", err)
 		}
 		autoReadDone <- err
 		close(autoReadDone)
@@ -48,7 +44,7 @@ func (p *HandlerChangeDest) connectNewDest(ctx context.Context, newDestURL *url.
 		return nil, lib.WrapError(ErrConnectDest, fmt.Errorf("autoread already started"))
 	}
 
-	p.log.Debugf("dest autoread started")
+	p.proxy.log.Debugf("dest autoread started")
 
 	user := newDestURL.User.Username()
 	pwd, _ := newDestURL.User.Password()
@@ -71,7 +67,7 @@ func (p *HandlerChangeDest) connectNewDest(ctx context.Context, newDestURL *url.
 	if handshakeTask.Err() != nil {
 		return nil, lib.WrapError(ErrConnectDest, handshakeTask.Err())
 	}
-	p.log.Debugf("new dest connected")
+	p.proxy.logInfof("new destination connected url %s, localPort %s", newDestURL.String(), newDest.conn.LocalPort())
 
 	// stops temporary reading from newDest
 	err = newDest.AutoReadStop()
@@ -79,7 +75,7 @@ func (p *HandlerChangeDest) connectNewDest(ctx context.Context, newDestURL *url.
 		return nil, err
 	}
 	<-autoReadDone
-	p.log.Debugf("stopped new dest")
+	p.proxy.log.Debugf("stopped new dest")
 	return newDest, nil
 }
 
@@ -116,7 +112,7 @@ func (p *HandlerChangeDest) destHandshake(ctx context.Context, newDest *ConnDest
 		}
 
 		newDest.SetVersionRolling(true, cfgRes.GetVersionRollingMask())
-		p.log.Debugf("configure result received")
+		p.proxy.log.Debugf("configure result received")
 	}
 
 	// 2. MINING.SUBSCRIBE
@@ -132,7 +128,7 @@ func (p *HandlerChangeDest) destHandshake(ctx context.Context, newDest *ConnDest
 		}
 
 		newDest.SetExtraNonce(subRes.GetExtranonce())
-		p.log.Debugf("subscribe result received")
+		p.proxy.log.Debugf("subscribe result received")
 		close(gotResultCh)
 		return nil, nil
 	})
@@ -169,7 +165,7 @@ func (p *HandlerChangeDest) destHandshake(ctx context.Context, newDest *ConnDest
 	case <-newDest.GetFirstJobSignal():
 	}
 
-	p.log.Debugf("authorize success")
+	p.proxy.log.Debugf("authorize success")
 	return nil
 }
 
@@ -181,7 +177,7 @@ func (p *HandlerChangeDest) resendRelevantNotifications(ctx context.Context, new
 	if err != nil {
 		return lib.WrapError(ErrChangeDest, err)
 	}
-	p.log.Debugf("set version mask sent")
+	p.proxy.log.Debugf("set version mask sent")
 
 	job, ok := newDest.GetLatestJob()
 	if !ok {
@@ -194,14 +190,14 @@ func (p *HandlerChangeDest) resendRelevantNotifications(ctx context.Context, new
 		return lib.WrapError(ErrChangeDest, err)
 	}
 	p.proxy.source.SetExtraNonce(job.GetExtraNonce1(), job.GetExtraNonce2Size())
-	p.log.Debugf("extranonce sent")
+	p.proxy.log.Debugf("extranonce sent")
 
 	// 3. SET_DIFFICULTY
 	err = p.proxy.source.Write(ctx, m.NewMiningSetDifficulty(job.GetDiff()))
 	if err != nil {
 		return lib.WrapError(ErrChangeDest, err)
 	}
-	p.log.Debugf("set difficulty sent")
+	p.proxy.log.Debugf("set difficulty sent")
 
 	// 4. NOTIFY
 	msg := job.GetNotify()
@@ -211,7 +207,7 @@ func (p *HandlerChangeDest) resendRelevantNotifications(ctx context.Context, new
 	if err != nil {
 		return lib.WrapError(ErrChangeDest, err)
 	}
-	p.log.Debugf("notify sent")
+	p.proxy.log.Debugf("notify sent")
 
 	return nil
 }

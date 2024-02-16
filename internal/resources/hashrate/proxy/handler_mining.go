@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
 	m "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/validator"
@@ -18,13 +17,11 @@ type HandlerMining struct {
 	// deps
 	proxy                       *Proxy
 	consequentInvalidShareCount atomic.Uint32
-	log                         gi.ILogger
 }
 
-func NewHandlerMining(proxy *Proxy, log gi.ILogger) *HandlerMining {
+func NewHandlerMining(proxy *Proxy) *HandlerMining {
 	return &HandlerMining{
 		proxy: proxy,
-		log:   log,
 	}
 }
 
@@ -41,7 +38,7 @@ func (p *HandlerMining) sourceInterceptor(ctx context.Context, msg i.MiningMessa
 	case *m.MiningAuthorize:
 		return nil, fmt.Errorf("unexpected message from source after handshake: %s", string(msg.Serialize()))
 	default:
-		p.log.Warn("unknown message from source: %s", string(msg.Serialize()))
+		p.proxy.logWarnf("unknown message from source: %s", string(msg.Serialize()))
 		return msg, nil
 	}
 }
@@ -50,21 +47,21 @@ func (p *HandlerMining) sourceInterceptor(ctx context.Context, msg i.MiningMessa
 func (p *HandlerMining) destInterceptor(ctx context.Context, msg i.MiningMessageGeneric) (i.MiningMessageGeneric, error) {
 	switch msgTyped := msg.(type) {
 	case *m.MiningSetDifficulty:
-		p.log.Debugf("new diff: %.0f", msgTyped.GetDifficulty())
+		p.proxy.logDebugf("new diff: %.0f", msgTyped.GetDifficulty())
 		return msg, nil
 	case *m.MiningSetVersionMask:
-		p.log.Debugf("got version mask: %s", msgTyped.GetVersionMask())
+		p.proxy.logDebugf("got version mask: %s", msgTyped.GetVersionMask())
 		return msg, nil
 	case *m.MiningSetExtranonce:
 		xn, xn2size := msgTyped.GetExtranonce()
-		p.log.Debugf("got extranonce: %s %s", xn, xn2size)
+		p.proxy.logDebugf("got extranonce: %s %d", xn, xn2size)
 		return msg, nil
 	case *m.MiningNotify:
 		return msg, nil
 	case *m.MiningResult:
 		return msg, nil
 	default:
-		p.log.Warn("unknown message from dest: %s", string(msg.Serialize()))
+		p.proxy.logWarnf("unknown message from dest: %s", string(msg.Serialize()))
 		return msg, nil
 	}
 }
@@ -86,17 +83,17 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 
 		d := p.proxy.GetDestByJobID(msgTyped.GetJobId())
 		if d != nil {
-			p.log.Warnf("job %s found in different dest %s", msgTyped.GetJobId(), d.ID())
+			p.proxy.logWarnf("job %s found in different dest %s", msgTyped.GetJobId(), d.ID())
 			diff, err = d.ValidateAndAddShare(msgTyped)
 			weAccepted = err == nil
 			if weAccepted {
 				dest = d
 			} else {
-				p.log.Warnf("job %s not accepted in other dest %s", msgTyped.GetJobId(), d.ID())
+				p.proxy.logWarnf("job %s not accepted in other dest %s local port %s", msgTyped.GetJobId(), d.ID(), d.conn.LocalPort())
 				res = m.NewMiningResultJobNotFound(msgTyped.GetID())
 			}
 		} else {
-			p.log.Warnf("job %s not found", msgTyped.GetJobId())
+			p.proxy.logWarnf("job %s not found", msgTyped.GetJobId())
 			res = m.NewMiningResultJobNotFound(msgTyped.GetID())
 		}
 	}
@@ -104,17 +101,17 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 	if !weAccepted {
 		count := p.consequentInvalidShareCount.Inc()
 		if count > MAX_CONSEQUENT_INVALID_SHARES {
-			p.log.Warnf("too many consequent invalid shares (> %d), canceling run", MAX_CONSEQUENT_INVALID_SHARES)
+			p.proxy.logWarnf("too many consequent invalid shares (> %d), canceling run", MAX_CONSEQUENT_INVALID_SHARES)
 			p.proxy.cancelRun()
 			return nil, nil
 		}
 		p.proxy.source.GetStats().IncWeRejectedShares()
 
 		if errors.Is(err, validator.ErrDuplicateShare) {
-			p.log.Warnf("duplicate share, jobID %s, msg id: %d", msgTyped.GetJobId(), msgTyped.GetID())
+			p.proxy.logWarnf("duplicate share, jobID %s, msg id: %d", msgTyped.GetJobId(), msgTyped.GetID())
 			res = m.NewMiningResultDuplicatedShare(msgTyped.GetID())
 		} else if errors.Is(err, validator.ErrLowDifficulty) {
-			p.log.Warnf("low difficulty share jobID %s, msg id: %d, diff %.f", msgTyped.GetJobId(), msgTyped.GetID(), diff)
+			p.proxy.logWarnf("low difficulty share jobID %s, msg id: %d, diff %.f", msgTyped.GetJobId(), msgTyped.GetID(), diff)
 			res = m.NewMiningResultLowDifficulty(msgTyped.GetID())
 		}
 	} else {
@@ -152,7 +149,7 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 
 		err = p.proxy.source.Write(ctx, res1)
 		if err != nil {
-			p.log.Errorf("cannot write response (%s) to miner: %s", res1.ID, err)
+			p.proxy.logErrorf("cannot write response (%d) to miner: %s", res1.ID, err)
 			p.proxy.cancelRun()
 			return
 		}
@@ -161,7 +158,7 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 		msgTyped.SetUserName(dest.GetUserName())
 		res, err := dest.WriteAwaitRes(ctx, msgTyped)
 		if err != nil {
-			p.log.Error("cannot write response to pool: ", err)
+			p.proxy.logErrorf("cannot write response to pool: %s", err)
 			p.proxy.cancelRun()
 			return
 		}
@@ -170,9 +167,9 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 			if weAccepted {
 				p.proxy.source.GetStats().IncWeAcceptedTheyRejected()
 				dest.GetStats().IncWeAcceptedTheyAccepted()
-				p.log.Warnf("we accepted share, they rejected with err %s", res.(*m.MiningResult).GetError())
+				p.proxy.logWarnf("we accepted share, they rejected with err %s", res.(*m.MiningResult).GetError())
 			} else {
-				p.log.Warnf("we rejected share, and they rejected with err %s", res.(*m.MiningResult).GetError())
+				p.proxy.logWarnf("we rejected share, and they rejected with err %s", res.(*m.MiningResult).GetError())
 			}
 		} else {
 			if weAccepted {
@@ -180,7 +177,7 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 			} else {
 				dest.GetStats().IncWeRejectedTheyAccepted()
 				p.proxy.source.GetStats().IncWeRejectedTheyAccepted()
-				p.log.Warnf("we rejected share, but dest accepted, diff: %.f", diff)
+				p.proxy.logWarnf("we rejected share, but dest accepted, diff: %.f", diff)
 			}
 		}
 	}(res)

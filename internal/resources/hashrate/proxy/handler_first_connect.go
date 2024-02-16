@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/common"
-	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
 	m "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
@@ -29,13 +28,11 @@ type HandlerFirstConnect struct {
 	isStratum           atomic.Bool
 	// deps
 	proxy *Proxy
-	log   gi.ILogger
 }
 
-func NewHandlerFirstConnect(proxy *Proxy, log gi.ILogger) *HandlerFirstConnect {
+func NewHandlerFirstConnect(proxy *Proxy) *HandlerFirstConnect {
 	return &HandlerFirstConnect{
 		proxy: proxy,
-		log:   log,
 	}
 }
 
@@ -75,7 +72,7 @@ func (p *HandlerFirstConnect) handleSource(ctx context.Context, msg i.MiningMess
 		return nil, fmt.Errorf("unexpected handshake message from source: %s", string(msg.Serialize()))
 
 	default:
-		p.log.Warnf("unknown handshake message from source: %s", string(msg.Serialize()))
+		p.proxy.logWarnf("unknown handshake message from source: %s", string(msg.Serialize()))
 		// todo: maybe just return message, so pipe will write it
 		return nil, p.proxy.dest.Write(context.Background(), msgTyped)
 	}
@@ -102,7 +99,7 @@ func (p *HandlerFirstConnect) handleDest(ctx context.Context, msg i.MiningMessag
 		msgOut = typed
 
 	default:
-		p.log.Warnf("unknown message from dest: %s", string(typed.Serialize()))
+		p.proxy.logWarnf("unknown message from dest: %s", string(typed.Serialize()))
 		msgOut = typed
 	}
 
@@ -161,7 +158,7 @@ func (p *HandlerFirstConnect) onMiningConfigure(ctx context.Context, msgTyped *m
 	p.proxy.dest.onceResult(ctx, msgTyped.GetID(), func(res *sm.MiningResult) (msg i.MiningMessageWithID, err error) {
 		configureResult, err := m.ToMiningConfigureResult(res)
 		if err != nil {
-			p.log.Errorf("expected MiningConfigureResult message, got %s", res.Serialize())
+			p.proxy.logErrorf("expected MiningConfigureResult message, got %s", res.Serialize())
 			return nil, err
 		}
 
@@ -237,8 +234,7 @@ func (p *HandlerFirstConnect) onMiningSubscribe(ctx context.Context, msgTyped *m
 func (p *HandlerFirstConnect) onMiningAuthorize(ctx context.Context, msgTyped *m.MiningAuthorize) error {
 	p.proxy.globalHashrate.OnConnect(msgTyped.GetUserName())
 	p.proxy.source.SetUserName(msgTyped.GetUserName())
-	p.log = p.log.Named(fmt.Sprintf("PRX %s %s", msgTyped.GetUserName(), lib.ParsePort(p.proxy.GetID())))
-	p.proxy.log = p.log
+	p.proxy.log = p.proxy.log.With("SrcWorker", msgTyped.GetUserName())
 
 	msgID := msgTyped.GetID()
 	if !minerSubscribeReceived {
@@ -285,8 +281,7 @@ func (p *HandlerFirstConnect) onMiningAuthorize(ctx context.Context, msgTyped *m
 		if res.IsError() {
 			return nil, lib.WrapError(ErrHandshakeDest, fmt.Errorf("cannot authorize in dest pool: %s", res.GetError()))
 		}
-		p.log.Infof("handshake completed: %s", p.proxy.destURL.String())
-
+		p.proxy.logInfof("handshake completed: %s", p.proxy.destURL.String())
 		p.proxy.destMap.Store(p.proxy.dest)
 
 		// close
