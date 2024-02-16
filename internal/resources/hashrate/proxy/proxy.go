@@ -13,6 +13,8 @@ import (
 	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/validator"
 	"go.uber.org/atomic"
 )
 
@@ -348,6 +350,29 @@ func (p *Proxy) GetDestByJobID(jobID string) *ConnDest {
 	})
 
 	return dest
+}
+
+func (p *Proxy) GetDestByJobIDAndValidate(msg *stratumv1_message.MiningSubmit) (*ConnDest, float64, error) {
+	var dest *ConnDest
+	var diff float64
+	var err error
+
+	p.destMap.Range(func(d *ConnDest) bool {
+		if d.HasJob(msg.GetJobId()) {
+			diff, err = d.ValidateAndAddShare(msg)
+			if err == nil {
+				dest = d
+				return false
+			}
+		}
+		return true
+	})
+
+	if err == nil {
+		return dest, diff, nil
+	}
+
+	return nil, 0, validator.ErrJobNotFound
 }
 
 // Getters

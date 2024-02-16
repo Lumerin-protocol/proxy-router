@@ -5,13 +5,12 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 )
 
 func TestValidatorValidateUniqueShare(t *testing.T) {
 	msg := GetTestMsg()
 
-	validator := NewValidator(time.Minute, &lib.LoggerMock{})
+	validator := NewValidator(time.Minute)
 	validator.SetVersionRollingMask(msg.vmask)
 	validator.AddNewJob(msg.notify, msg.diff, msg.xnonce, msg.xnonce2size)
 
@@ -25,7 +24,7 @@ func TestValidatorValidateUniqueShare(t *testing.T) {
 func TestValidatorValidateDuplicateShare(t *testing.T) {
 	msg := GetTestMsg()
 
-	validator := NewValidator(time.Minute, &lib.LoggerMock{})
+	validator := NewValidator(time.Minute)
 	validator.SetVersionRollingMask(msg.vmask)
 	validator.AddNewJob(msg.notify, msg.diff, msg.xnonce, msg.xnonce2size)
 
@@ -40,7 +39,7 @@ func TestValidatorExpiredJobs(t *testing.T) {
 	msg := GetTestMsg()
 	timeout := 100 * time.Millisecond
 
-	validator := NewValidator(timeout, &lib.LoggerMock{})
+	validator := NewValidator(timeout)
 	validator.SetVersionRollingMask(msg.vmask)
 	validator.AddNewJob(msg.notify, msg.diff, msg.xnonce, msg.xnonce2size)
 

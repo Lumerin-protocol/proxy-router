@@ -27,7 +27,7 @@ func RunTestProxy() (p *Proxy, s *StratumConnection, d *StratumConnection, cance
 	log.Warnf("started server")
 
 	sourceConn := NewSourceConn(CreateConnection(sourceClient, "", timeout, timeout, log), log)
-	valid := validator.NewValidator(time.Minute, log)
+	valid := validator.NewValidator(time.Minute)
 	destConn := NewDestConn(CreateConnection(destClient, destURL.String(), timeout, timeout, log), valid, destURL, log)
 
 	destConnFactory := func(ctx context.Context, url *url.URL, srcWorker string, srcAddr string) (*ConnDest, error) {
