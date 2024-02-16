@@ -134,13 +134,13 @@ func (cm *ContractManager) handleContractDeleteUpdated(ctx context.Context, even
 func (cm *ContractManager) AddContract(ctx context.Context, data *hashrate.EncryptedTerms) {
 	_, ok := cm.contracts.Load(data.ID())
 	if ok {
-		cm.log.Error("contract already exists in store")
+		cm.log.Errorw("contract already exists in store", "contractID", data.ID())
 		return
 	}
 
 	cntr, err := cm.createContract(data)
 	if err != nil {
-		cm.log.Errorf("contract factory error %s", err)
+		cm.log.Errorw("contract factory error", "err", err, "contractID", data.ID())
 		return
 	}
 
@@ -151,7 +151,7 @@ func (cm *ContractManager) AddContract(ctx context.Context, data *hashrate.Encry
 		defer cm.contractsWG.Done()
 
 		err := cntr.Run(ctx)
-		cm.log.Warnf("exited from contract %s, err %s", data.ID(), err)
+		cm.log.Warnf("exited from contract", "contractID", data.ID(), "err", err)
 
 		cm.contracts.Delete(cntr.ID())
 	}()

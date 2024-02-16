@@ -1,6 +1,9 @@
 package lib
 
-import i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
+import (
+	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
+	"go.uber.org/zap/zapcore"
+)
 
 type LoggerMock struct{}
 
@@ -19,6 +22,16 @@ func (l *LoggerMock) Errorf(template string, args ...interface{})  {}
 func (l *LoggerMock) DPanicf(template string, args ...interface{}) {}
 func (l *LoggerMock) Panicf(template string, args ...interface{})  {}
 func (l *LoggerMock) Fatalf(template string, args ...interface{})  {}
+
+func (l *LoggerMock) Debugw(template string, args ...interface{})  {}
+func (l *LoggerMock) Infow(template string, args ...interface{})   {}
+func (l *LoggerMock) Warnw(template string, args ...interface{})   {}
+func (l *LoggerMock) Errorw(template string, args ...interface{})  {}
+func (l *LoggerMock) DPanicw(template string, args ...interface{}) {}
+func (l *LoggerMock) Panicw(template string, args ...interface{})  {}
+func (l *LoggerMock) Fatalw(template string, args ...interface{})  {}
+
+func (l *LoggerMock) Log(lvl zapcore.Level, msg string, fields ...zapcore.Field) {}
 
 func (l *LoggerMock) Sync() error                        { return nil }
 func (l *LoggerMock) Close() error                       { return nil }
