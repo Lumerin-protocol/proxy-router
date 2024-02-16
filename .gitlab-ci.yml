@@ -66,6 +66,7 @@ test:
   echo "*** Build RAW Image with no build arguments "
   echo "**************************"
   docker build \
+    --build-arg $COMMIT=$CI_COMMIT_SHORT_SHA \
     -t $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG --no-cache .
   
   echo "**************************"
