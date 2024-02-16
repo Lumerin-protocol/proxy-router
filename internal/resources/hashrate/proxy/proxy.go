@@ -355,20 +355,20 @@ func (p *Proxy) GetDestByJobID(jobID string) *ConnDest {
 func (p *Proxy) GetDestByJobIDAndValidate(msg *stratumv1_message.MiningSubmit) (*ConnDest, float64, error) {
 	var dest *ConnDest
 	var diff float64
-	var err error
 
 	p.destMap.Range(func(d *ConnDest) bool {
 		if d.HasJob(msg.GetJobId()) {
-			diff, err = d.ValidateAndAddShare(msg)
+			difficulty, err := d.ValidateAndAddShare(msg)
 			if err == nil {
 				dest = d
+				diff = difficulty
 				return false
 			}
 		}
 		return true
 	})
 
-	if err == nil {
+	if dest != nil {
 		return dest, diff, nil
 	}
 
