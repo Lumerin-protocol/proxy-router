@@ -74,27 +74,24 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 	dest := p.proxy.dest
 	var res *m.MiningResult
 
+	// searching for a job in main destination
 	diff, err := dest.ValidateAndAddShare(msgTyped)
 	weAccepted := err == nil
 
-	// if job not found, try searching across all of the connection
-	// and replace dest with the one that has the job
-	if !weAccepted && errors.Is(err, validator.ErrJobNotFound) {
-
-		d := p.proxy.GetDestByJobID(msgTyped.GetJobId())
-		if d != nil {
-			p.proxy.logWarnf("job %s found in different dest %s", msgTyped.GetJobId(), d.ID())
-			diff, err = d.ValidateAndAddShare(msgTyped)
-			weAccepted = err == nil
-			if weAccepted {
-				dest = d
-			} else {
-				res = m.NewMiningResultJobNotFound(msgTyped.GetID())
-			}
+	// if share has old destination the error is job not found
+	// or low difficulty (in case of job ID collision)
+	if errors.Is(err, validator.ErrJobNotFound) || errors.Is(err, validator.ErrLowDifficulty) {
+		// searching for a job in previous destination
+		d, _, err := p.proxy.GetDestByJobIDAndValidate(msgTyped)
+		if err != nil {
+			weAccepted = false
+			p.proxy.logWarnf("job %s not found in previous destinations", msgTyped.GetJobId())
 		} else {
-			p.proxy.logWarnf("job %s not found", msgTyped.GetJobId())
-			res = m.NewMiningResultJobNotFound(msgTyped.GetID())
+			weAccepted = true
+			p.proxy.logWarnf("job %s found in different dest %s", msgTyped.GetJobId(), d.ID())
+			dest = d
 		}
+
 	}
 
 	if !weAccepted {
@@ -112,6 +109,9 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 		} else if errors.Is(err, validator.ErrLowDifficulty) {
 			p.proxy.logWarnf("low difficulty share jobID %s, msg id: %d, diff %.f, err %s", msgTyped.GetJobId(), msgTyped.GetID(), diff, err)
 			res = m.NewMiningResultLowDifficulty(msgTyped.GetID())
+		} else {
+			p.proxy.logWarnf("job %s not found", msgTyped.GetJobId())
+			res = m.NewMiningResultJobNotFound(msgTyped.GetID())
 		}
 	} else {
 		p.consequentInvalidShareCount.Store(0)

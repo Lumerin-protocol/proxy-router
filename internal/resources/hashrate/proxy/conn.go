@@ -71,9 +71,9 @@ func CreateConnection(conn net.Conn, address string, idleReadTimeout, idleWriteT
 		closedCh:      make(chan struct{}),
 
 		conn: conn,
-		log:  log.With(
-			"DstAddr", address, 
-			"DstPort", lib.ParsePort(conn.LocalAddr().String())
+		log: log.With(
+			"DstAddr", address,
+			"DstPort", lib.ParsePort(conn.LocalAddr().String()),
 		),
 	}
 
