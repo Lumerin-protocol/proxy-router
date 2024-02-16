@@ -25,7 +25,7 @@ func NewHandlerChangeDest(proxy *Proxy, destFactory DestConnFactory) *HandlerCha
 }
 
 func (p *HandlerChangeDest) connectNewDest(ctx context.Context, newDestURL *url.URL) (*ConnDest, error) {
-	newDest, err := p.destFactory(ctx, newDestURL, p.proxy.ID)
+	newDest, err := p.destFactory(ctx, newDestURL, p.proxy.GetSourceWorkerName(), p.proxy.source.conn.conn.RemoteAddr().String())
 	if err != nil {
 		return nil, lib.WrapError(ErrConnectDest, err)
 	}

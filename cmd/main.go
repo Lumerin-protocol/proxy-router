@@ -184,9 +184,9 @@ func start() error {
 		)
 	}
 
-	destFactory := func(ctx context.Context, url *url.URL, connLogID string) (*proxy.ConnDest, error) {
+	destFactory := func(ctx context.Context, url *url.URL, srcWorker string, srcAddr string) (*proxy.ConnDest, error) {
 		validator := validator.NewValidator(cfg.Pool.CleanJobTimeout, connLog.Named("VLD"))
-		return proxy.ConnectDest(ctx, url, validator, IDLE_READ_CLOSE_TIMEOUT, cfg.Pool.IdleWriteTimeout, connLog.Named(connLogID))
+		return proxy.ConnectDest(ctx, url, validator, IDLE_READ_CLOSE_TIMEOUT, cfg.Pool.IdleWriteTimeout, connLog.With("SrcWorker", srcWorker, "SrcAddr", srcAddr))
 	}
 
 	globalHashrate := hashrate.NewGlobalHashrate(hashrateFactory)

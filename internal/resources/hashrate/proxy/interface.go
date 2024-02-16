@@ -31,7 +31,7 @@ type Hashrate interface {
 	GetTotalShares() int
 }
 
-type DestConnFactory = func(ctx context.Context, url *url.URL, logID string) (*ConnDest, error)
+type DestConnFactory = func(ctx context.Context, url *url.URL, srcWorker, srcAddr string) (*ConnDest, error)
 
 type Interceptor = func(context.Context, i.MiningMessageGeneric) (i.MiningMessageGeneric, error)
 

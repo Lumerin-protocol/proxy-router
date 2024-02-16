@@ -30,7 +30,7 @@ func RunTestProxy() (p *Proxy, s *StratumConnection, d *StratumConnection, cance
 	valid := validator.NewValidator(time.Minute, log)
 	destConn := NewDestConn(CreateConnection(destClient, destURL.String(), timeout, timeout, log), valid, destURL, log)
 
-	destConnFactory := func(ctx context.Context, url *url.URL, logID string) (*ConnDest, error) {
+	destConnFactory := func(ctx context.Context, url *url.URL, srcWorker string, srcAddr string) (*ConnDest, error) {
 		return destConn, nil
 	}
 	hashrateFactory := func() *hashrate.Hashrate {
