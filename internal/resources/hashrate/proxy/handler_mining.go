@@ -89,7 +89,6 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 			if weAccepted {
 				dest = d
 			} else {
-				p.proxy.logWarnf("job %s not accepted in other dest %s local port %s", msgTyped.GetJobId(), d.ID(), d.conn.LocalPort())
 				res = m.NewMiningResultJobNotFound(msgTyped.GetID())
 			}
 		} else {
@@ -111,7 +110,7 @@ func (p *HandlerMining) onMiningSubmit(ctx context.Context, msgTyped *m.MiningSu
 			p.proxy.logWarnf("duplicate share, jobID %s, msg id: %d", msgTyped.GetJobId(), msgTyped.GetID())
 			res = m.NewMiningResultDuplicatedShare(msgTyped.GetID())
 		} else if errors.Is(err, validator.ErrLowDifficulty) {
-			p.proxy.logWarnf("low difficulty share jobID %s, msg id: %d, diff %.f", msgTyped.GetJobId(), msgTyped.GetID(), diff)
+			p.proxy.logWarnf("low difficulty share jobID %s, msg id: %d, diff %.f, err %s", msgTyped.GetJobId(), msgTyped.GetID(), diff, err)
 			res = m.NewMiningResultLowDifficulty(msgTyped.GetID())
 		}
 	} else {
