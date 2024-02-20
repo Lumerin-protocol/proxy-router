@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-const timeLayout = "2006-01-02T15:04:05"
+const timeLayout = "2006-01-02T15:04:05.999999999"
 
 func NewLogger(level string, color, isProd bool, isJSON bool, filepath string) (*Logger, error) {
 	log, file, err := newLogger(level, color, isProd, isJSON, filepath, nil)
