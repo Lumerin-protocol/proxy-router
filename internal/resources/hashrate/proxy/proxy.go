@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/url"
@@ -12,6 +13,8 @@ import (
 	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/validator"
 	"go.uber.org/atomic"
 )
 
@@ -53,14 +56,15 @@ type Proxy struct {
 	vettingShares           int                        // number of shares to vet the miner
 
 	// deps
-	source         *ConnSource           // initiator of the communication, miner
-	dest           *ConnDest             // receiver of the communication, pool
-	globalHashrate GlobalHashrateCounter // callback to update global hashrate per worker
-	destFactory    DestConnFactory       // factory to create new destination connections
-	log            gi.ILogger
+	source                 *ConnSource           // initiator of the communication, miner
+	dest                   *ConnDest             // receiver of the communication, pool
+	globalHashrate         GlobalHashrateCounter // callback to update global hashrate per worker
+	destFactory            DestConnFactory       // factory to create new destination connections
+	log                    gi.ILogger
+	getContractFromStoreFn GetContractFromStoreFn
 }
 
-func NewProxy(ID string, source *ConnSource, destFactory DestConnFactory, hashrateFactory HashrateFactory, globalHashrate GlobalHashrateCounter, destURL *url.URL, notPropagateWorkerName bool, vettingShares int, maxCachedDests int, log gi.ILogger) *Proxy {
+func NewProxy(ID string, source *ConnSource, destFactory DestConnFactory, hashrateFactory HashrateFactory, globalHashrate GlobalHashrateCounter, destURL *url.URL, notPropagateWorkerName bool, vettingShares int, maxCachedDests int, log gi.ILogger, getContractFromStoreFn GetContractFromStoreFn) *Proxy {
 	proxy := &Proxy{
 		ID:                     ID,
 		destURL:                atomic.NewPointer(destURL),
@@ -74,9 +78,10 @@ func NewProxy(ID string, source *ConnSource, destFactory DestConnFactory, hashra
 		vettingDoneCh: make(chan struct{}),
 		vettingShares: vettingShares,
 
-		hashrate:       hashrateFactory(),
-		globalHashrate: globalHashrate,
-		onSubmit:       nil,
+		hashrate:               hashrateFactory(),
+		globalHashrate:         globalHashrate,
+		onSubmit:               nil,
+		getContractFromStoreFn: getContractFromStoreFn,
 	}
 
 	return proxy
@@ -89,7 +94,7 @@ var (
 
 // runs proxy until handshake is done
 func (p *Proxy) Connect(ctx context.Context) error {
-	err := NewHandlerFirstConnect(p, p.log).Connect(ctx)
+	err := NewHandlerFirstConnect(p).Connect(ctx)
 	if err != nil {
 		p.closeConnections()
 		return err
@@ -99,7 +104,7 @@ func (p *Proxy) Connect(ctx context.Context) error {
 
 func (p *Proxy) Run(ctx context.Context) error {
 	defer p.closeConnections()
-	handler := NewHandlerMining(p, p.log)
+	handler := NewHandlerMining(p)
 	p.pipe = NewPipe(p.source, p.dest, handler.sourceInterceptor, handler.destInterceptor, p.log)
 
 	for {
@@ -110,15 +115,16 @@ func (p *Proxy) Run(ctx context.Context) error {
 		p.cancelRun = cancel
 
 		err := p.pipe.Run(ctx)
-		p.unansweredMsg.Wait()
+		p.logWarnf("pipe exited with error: %s", err)
+		// p.unansweredMsg.Wait() ignore waiting because on error it doesn't matter, we will drop the connection anyway
 
 		if err != nil {
 			// destination error
 			if errors.Is(err, ErrDest) {
 				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
-					p.log.Warnf("destination closed the connection, dest %s", p.dest.ID())
+					p.logWarnf("destination closed the connection, dest %s", p.dest.ID())
 				} else {
-					p.log.Errorf("destination error, source %s dest %s: %s", p.source.GetID(), p.dest.ID(), err)
+					p.logErrorf("destination error, source %s dest %s: %s", p.source.GetID(), p.dest.ID(), err)
 				}
 				if p.dest != nil {
 					p.dest.conn.Close()
@@ -135,7 +141,7 @@ func (p *Proxy) Run(ctx context.Context) error {
 				p.destMap.Delete(p.dest.ID())
 				err := p.ConnectDest(ctx, lib.CopyURL(p.destURL.Load()))
 				if err != nil {
-					p.log.Errorf("error reconnecting to dest %s: %s", p.dest.ID(), err)
+					p.logErrorf("error reconnecting to dest %s: %s", p.dest.ID(), err)
 					return err
 				}
 				continue
@@ -144,9 +150,9 @@ func (p *Proxy) Run(ctx context.Context) error {
 			// source error
 			if errors.Is(err, ErrSource) {
 				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
-					p.log.Warnf("source closed the connection, source %s, err %s", p.source.GetID(), err)
+					p.logWarnf("source closed the connection, source %s, err %s", p.source.GetID(), err)
 				} else {
-					p.log.Errorf("source connection error, source %s: %s", p.source.GetID(), err)
+					p.logErrorf("source connection error, source %s: %s", p.source.GetID(), err)
 				}
 				return err
 			}
@@ -155,7 +161,7 @@ func (p *Proxy) Run(ctx context.Context) error {
 				return err
 			}
 
-			p.log.Errorf("error running pipe: %s", err)
+			p.logErrorf("error running pipe: %s", err)
 
 			// other errors
 			return err
@@ -168,9 +174,9 @@ func (p *Proxy) ConnectDest(ctx context.Context, newDestURL *url.URL) error {
 	p.setDestLock.Lock()
 	defer p.setDestLock.Unlock()
 
-	p.log.Debugf("reconnecting to destination %s", newDestURL.String())
+	p.logDebugf("reconnecting to destination %s", newDestURL.String())
 
-	destChanger := NewHandlerChangeDest(p, p.destFactory, p.log)
+	destChanger := NewHandlerChangeDest(p, p.destFactory)
 
 	newDest, err := destChanger.connectNewDest(ctx, newDestURL)
 	if err != nil {
@@ -191,7 +197,7 @@ func (p *Proxy) ConnectDest(ctx context.Context, newDestURL *url.URL) error {
 	p.pipe.StartSourceToDest(ctx)
 	p.pipe.StartDestToSource(ctx)
 
-	p.log.Infof("destination reconnected %s", newDestURL.String())
+	p.logInfof("destination reconnected %s", newDestURL.String())
 
 	return nil
 }
@@ -209,28 +215,28 @@ func (p *Proxy) setDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 	defer p.setDestLock.Unlock()
 
 	if p.destURL.String() == newDestURL.String() {
-		p.log.Debugf("changing destination skipped, because it is the same as current")
+		p.logDebugf("changing destination skipped, because it is the same as current")
 		return nil
 	}
 
-	p.log.Debugf("changing destination to %s", newDestURL.String())
-	destChanger := NewHandlerChangeDest(p, p.destFactory, p.log)
+	p.logDebugf("changing destination to %s", newDestURL.String())
+	destChanger := NewHandlerChangeDest(p, p.destFactory)
 
 	var newDest *ConnDest
 	cachedDest, ok := p.destMap.Load(newDestURL.String())
 	if ok {
-		p.log.Infof("reusing connection from cache %s", newDestURL.String())
+		p.logInfof("reusing connection from cache %s", newDestURL.String())
 		// limit waiting time, disconnect if not answered in time
 		p.unansweredMsg.Wait()
 		err := cachedDest.AutoReadStop()
 		if err != nil {
-			p.log.Errorf("error stopping autoread for cached dest %s: %s", newDestURL.String(), err)
+			p.logErrorf("error stopping autoread for cached dest %s: %s", newDestURL.String(), err)
 			return err
 		}
 		cachedDest.ResetIdleCloseTimers()
 		newDest = cachedDest
 	} else {
-		p.log.Infof("connecting to new dest %s", newDestURL.String())
+		p.logInfof("connecting to new dest %s", newDestURL.String())
 		dest, err := destChanger.connectNewDest(ctx, newDestURL)
 		if err != nil {
 			return err
@@ -243,7 +249,7 @@ func (p *Proxy) setDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 	// stop source and old dest
 	<-p.pipe.StopDestToSource()
 	<-p.pipe.StopSourceToDest()
-	p.log.Debugf("stopped source and old dest")
+	p.logDebugf("stopped source and old dest")
 
 	// TODO: wait to stop?
 
@@ -254,12 +260,12 @@ func (p *Proxy) setDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 		ok := dest.AutoReadStart(ctx, func(err error) {
 			if err != nil {
 				if errors.Is(err, net.ErrClosed) {
-					p.log.Infof("cached connection closed: %s %s", destUrl, err.Error())
+					p.logInfof("cached connection closed: %s %s", destUrl, err.Error())
 				} else {
-					p.log.Warnf("autoread exited with error %s", err)
+					p.logWarnf("autoread exited with error %s", err)
 					err := dest.conn.Close()
 					if err != nil {
-						p.log.Warnf("error closing dest %s: %s", destUrl, err)
+						p.logWarnf("error closing dest %s: %s", destUrl, err)
 					}
 				}
 			}
@@ -269,9 +275,9 @@ func (p *Proxy) setDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 		if !ok {
 			p.destMap.Delete(dest.ID())
 			dest.conn.Close()
-			p.log.Errorf("%s dest ID %s", ErrAutoreadStarted, dest.ID())
+			p.logErrorf("%s dest ID %s", ErrAutoreadStarted, dest.ID())
 		} else {
-			p.log.Debugf("set old dest to autoread")
+			p.logDebugf("set old dest to autoread")
 		}
 	}
 
@@ -297,12 +303,12 @@ func (p *Proxy) setDest(ctx context.Context, newDestURL *url.URL, onSubmit func(
 	p.pipe.StartSourceToDest(ctx)
 	p.pipe.StartDestToSource(ctx)
 
-	p.log.Infof("destination changed to %s", newDestURL.String())
+	p.logInfof("destination changed to %s", newDestURL.String())
 	return nil
 }
 
 func (p *Proxy) closeOldestConn() {
-	p.log.Debugf("dest map size %d exceeds max cached dests %d, closing oldest dest", p.destMap.Len(), p.maxCachedDests)
+	p.logDebugf("dest map size %d exceeds max cached dests %d, closing oldest dest", p.destMap.Len(), p.maxCachedDests)
 	var oldestDest *ConnDest
 
 	p.destMap.Range(func(dest *ConnDest) bool {
@@ -344,6 +350,29 @@ func (p *Proxy) GetDestByJobID(jobID string) *ConnDest {
 	})
 
 	return dest
+}
+
+func (p *Proxy) GetDestByJobIDAndValidate(msg *stratumv1_message.MiningSubmit) (*ConnDest, float64, error) {
+	var dest *ConnDest
+	var diff float64
+
+	p.destMap.Range(func(d *ConnDest) bool {
+		if d.HasJob(msg.GetJobId()) {
+			difficulty, err := d.ValidateAndAddShare(msg)
+			if err == nil {
+				dest = d
+				diff = difficulty
+				return false
+			}
+		}
+		return true
+	})
+
+	if dest != nil {
+		return dest, diff, nil
+	}
+
+	return nil, 0, validator.ErrJobNotFound
 }
 
 // Getters
@@ -389,7 +418,7 @@ func (p *Proxy) GetStats() map[string]int {
 func (p *Proxy) GetDestConns() *map[string]string {
 	var destConns = make(map[string]string)
 	p.destMap.Range(func(dest *ConnDest) bool {
-		destConns[dest.ID()] = dest.GetIdleCloseAt().Sub(time.Now()).Round(time.Second).String()
+		destConns[dest.ID()+"-localport-"+dest.conn.LocalPort()] = dest.GetIdleCloseAt().Sub(time.Now()).Round(time.Second).String()
 		return true
 	})
 	return &destConns
@@ -401,4 +430,20 @@ func (p *Proxy) VettingDone() <-chan struct{} {
 
 func (p *Proxy) IsVetting() bool {
 	return p.GetHashrate().GetTotalShares() < p.vettingShares
+}
+
+func (p *Proxy) logDebugf(template string, args ...interface{}) {
+	p.logWithContext(p.log.Debugw, template, args...)
+}
+func (p *Proxy) logInfof(template string, args ...interface{}) {
+	p.logWithContext(p.log.Infow, template, args...)
+}
+func (p *Proxy) logWarnf(template string, args ...interface{}) {
+	p.logWithContext(p.log.Warnw, template, args...)
+}
+func (p *Proxy) logErrorf(template string, args ...interface{}) {
+	p.logWithContext(p.log.Errorw, template, args...)
+}
+func (p *Proxy) logWithContext(logFn func(t string, a ...interface{}), t string, a ...interface{}) {
+	logFn(fmt.Sprintf(t, a...), "DstAddr", p.dest.ID(), "DstPort", lib.ParsePort(p.dest.conn.conn.LocalAddr().String()))
 }

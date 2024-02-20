@@ -1,6 +1,7 @@
 package allocator
 
 import (
+	"fmt"
 	"math"
 	"net/url"
 	"sync"
@@ -75,7 +76,7 @@ func (p *Allocator) AllocateFullMinersForHR(
 	onEnd OnEndCb,
 ) (minerIDs []string, deltaGHS float64) {
 	miners := p.getMinersSnapshot(0)
-	p.log.Infof("available free miners %v", miners.freeMiners)
+	p.log.Infow(fmt.Sprintf("available free miners %v", miners.freeMiners), "CtrAddr", lib.AddrShort(ID))
 
 	for _, miner := range miners.freeMiners {
 		minerGHS := miner.HrGHS
@@ -85,7 +86,7 @@ func (p *Allocator) AllocateFullMinersForHR(
 				proxy.AddTask(ID, dest, hashrate.GHSToJobSubmittedV2(minerGHS, duration), onSubmit, onDisconnect, onEnd, time.Now().Add(duration))
 				minerIDs = append(minerIDs, miner.ID)
 				hrGHS -= minerGHS
-				p.log.Infof("full miner %s allocated for %.0f GHS", miner.ID, minerGHS)
+				p.log.Infow(fmt.Sprintf("full miner %s allocated for %.0f GHS", miner.ID, minerGHS), "CtrAddr", lib.AddrShort(ID))
 			}
 		}
 	}

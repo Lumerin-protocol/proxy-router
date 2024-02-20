@@ -41,8 +41,8 @@ func TestEncryptDecrypt(t *testing.T) {
 
 func TestDecryptInvalidCypher(t *testing.T) {
 	terms := &EncryptedTerms{
-		BaseTerms:     makeTerms(),
-		DestEncrypted: "[object Promise]",
+		BaseTerms:             makeTerms(),
+		ValidatorUrlEncrypted: "[object Promise]",
 	}
 
 	decrypted, err := terms.Decrypt(privateKey)
@@ -67,8 +67,8 @@ func TestDecryptInvalidDestURL(t *testing.T) {
 	require.NoError(t, err)
 
 	terms := &EncryptedTerms{
-		BaseTerms:     makeTerms(),
-		DestEncrypted: encrypted,
+		BaseTerms:             makeTerms(),
+		ValidatorUrlEncrypted: encrypted,
 	}
 
 	decrypted, err := terms.Decrypt(privateKey)

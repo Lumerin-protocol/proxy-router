@@ -26,17 +26,18 @@ func NewTCPHandler(
 	globalHashrate *hashrate.GlobalHashrate,
 	hashrateCounterDefault string,
 	alloc *allocator.Allocator,
+	getContractFromStoreFn proxy.GetContractFromStoreFn,
 ) transport.Handler {
 	return func(ctx context.Context, conn net.Conn) {
-		ID := conn.RemoteAddr().String()
-		sourceLog := connLog.Named("[SRC] " + ID)
+		addr := conn.RemoteAddr().String()
+		sourceLog := connLog.Named("SRC").With("SrcAddr", addr)
 
-		stratumConn := proxy.CreateConnection(conn, ID, idleReadTimeout, idleWriteTimeout, sourceLog)
+		stratumConn := proxy.CreateConnection(conn, addr, idleReadTimeout, idleWriteTimeout, sourceLog)
 		defer stratumConn.Close()
 
 		sourceConn := proxy.NewSourceConn(stratumConn, sourceLog)
 
-		schedulerLog, err := schedulerLogFactory(ID)
+		schedulerLog, err := schedulerLogFactory(addr)
 		defer func() {
 			_ = schedulerLog.Close()
 		}()
@@ -50,13 +51,22 @@ func NewTCPHandler(
 
 		url := lib.CopyURL(defaultDestUrl) // clones url
 		prx := proxy.NewProxy(
-			ID, sourceConn,
+			addr, sourceConn,
 			destFactory, hashrateFactory,
 			globalHashrate, url, notPropagateWorkerName,
 			minerVettingShares, maxCachedDests,
-			proxyLog,
+			proxyLog.Named("PRX").With("SrcAddr", addr),
+			getContractFromStoreFn,
 		)
-		scheduler := allocator.NewScheduler(prx, hashrateCounterDefault, url, minerVettingShares, hashrateFactory, alloc.InvokeVettedListeners, schedulerLog)
+		scheduler := allocator.NewScheduler(
+			prx,
+			hashrateCounterDefault,
+			url,
+			minerVettingShares,
+			hashrateFactory,
+			alloc.InvokeVettedListeners,
+			schedulerLog.With("SrcAddr", addr),
+		)
 		alloc.GetMiners().Store(scheduler)
 
 		err = scheduler.Run(ctx)
@@ -64,15 +74,17 @@ func NewTCPHandler(
 			var logFunc func(template string, args ...interface{})
 			if errors.Is(err, proxy.ErrNotStratum) {
 				logFunc = connLog.Debugf
+			} else if errors.Is(err, proxy.ErrUnknownContract) {
+				logFunc = connLog.Warnf
 			} else if errors.Is(err, context.Canceled) {
 				logFunc = connLog.Infof
 			} else {
 				logFunc = connLog.Warnf
 			}
-			logFunc("proxy disconnected: %s %s", err, ID)
+			logFunc("proxy disconnected: %s %s", err, addr)
 		}
 
-		alloc.GetMiners().Delete(ID)
+		alloc.GetMiners().Delete(addr)
 		return
 	}
 }

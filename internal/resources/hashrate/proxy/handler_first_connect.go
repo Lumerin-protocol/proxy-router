@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/common"
-	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
 	m "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
@@ -17,7 +16,8 @@ import (
 )
 
 var (
-	ErrNotStratum = errors.New("not a stratum protocol") // means that incoming connection is not a stratum protocol
+	ErrNotStratum      = errors.New("not a stratum protocol") // means that incoming connection is not a stratum protocol
+	ErrUnknownContract = errors.New("incoming connection for unknown contract")
 )
 
 type HandlerFirstConnect struct {
@@ -28,13 +28,11 @@ type HandlerFirstConnect struct {
 	isStratum           atomic.Bool
 	// deps
 	proxy *Proxy
-	log   gi.ILogger
 }
 
-func NewHandlerFirstConnect(proxy *Proxy, log gi.ILogger) *HandlerFirstConnect {
+func NewHandlerFirstConnect(proxy *Proxy) *HandlerFirstConnect {
 	return &HandlerFirstConnect{
 		proxy: proxy,
-		log:   log,
 	}
 }
 
@@ -74,7 +72,7 @@ func (p *HandlerFirstConnect) handleSource(ctx context.Context, msg i.MiningMess
 		return nil, fmt.Errorf("unexpected handshake message from source: %s", string(msg.Serialize()))
 
 	default:
-		p.log.Warnf("unknown handshake message from source: %s", string(msg.Serialize()))
+		p.proxy.logWarnf("unknown handshake message from source: %s", string(msg.Serialize()))
 		// todo: maybe just return message, so pipe will write it
 		return nil, p.proxy.dest.Write(context.Background(), msgTyped)
 	}
@@ -101,7 +99,7 @@ func (p *HandlerFirstConnect) handleDest(ctx context.Context, msg i.MiningMessag
 		msgOut = typed
 
 	default:
-		p.log.Warnf("unknown message from dest: %s", string(typed.Serialize()))
+		p.proxy.logWarnf("unknown message from dest: %s", string(typed.Serialize()))
 		msgOut = typed
 	}
 
@@ -111,6 +109,15 @@ func (p *HandlerFirstConnect) handleDest(ctx context.Context, msg i.MiningMessag
 	}
 
 	return nil, nil
+}
+
+func (p *HandlerFirstConnect) getPoolDest(contractID string) (*url.URL, error) {
+	contract, isExist := p.proxy.getContractFromStoreFn(contractID)
+	if !isExist {
+		return nil, lib.WrapError(ErrUnknownContract, fmt.Errorf("contract id: %s", contractID))
+	}
+	poolDestStr := contract.PoolDest()
+	return url.Parse(poolDestStr)
 }
 
 // The following handlers are responsible for managing the initial connection of the miner to the proxy and destination.
@@ -125,7 +132,21 @@ func (p *HandlerFirstConnect) handleDest(ctx context.Context, msg i.MiningMessag
 func (p *HandlerFirstConnect) onMiningConfigure(ctx context.Context, msgTyped *m.MiningConfigure) error {
 	p.proxy.source.SetVersionRolling(msgTyped.GetVersionRolling())
 
-	destConn, err := p.proxy.destFactory(ctx, p.proxy.destURL.Load(), p.proxy.ID)
+	var destURL *url.URL
+	contractID := msgTyped.GetLMRContractAddress()
+	if contractID != "" {
+		poolDestStr, err := p.getPoolDest(contractID)
+		if err != nil {
+			return err
+		}
+		destURL = poolDestStr
+	}
+
+	if destURL == nil {
+		destURL = p.proxy.destURL.Load()
+	}
+
+	destConn, err := p.proxy.destFactory(ctx, destURL, p.proxy.GetSourceWorkerName(), p.proxy.source.conn.conn.RemoteAddr().String()) // set dest from contract store
 	if err != nil {
 		return err
 	}
@@ -137,7 +158,7 @@ func (p *HandlerFirstConnect) onMiningConfigure(ctx context.Context, msgTyped *m
 	p.proxy.dest.onceResult(ctx, msgTyped.GetID(), func(res *sm.MiningResult) (msg i.MiningMessageWithID, err error) {
 		configureResult, err := m.ToMiningConfigureResult(res)
 		if err != nil {
-			p.log.Errorf("expected MiningConfigureResult message, got %s", res.Serialize())
+			p.proxy.logErrorf("expected MiningConfigureResult message, got %s", res.Serialize())
 			return nil, err
 		}
 
@@ -174,7 +195,7 @@ func (p *HandlerFirstConnect) onMiningSubscribe(ctx context.Context, msgTyped *m
 	minerSubscribeReceived = true
 
 	if p.proxy.dest == nil {
-		destConn, err := p.proxy.destFactory(ctx, p.proxy.destURL.Load(), p.proxy.ID)
+		destConn, err := p.proxy.destFactory(ctx, p.proxy.destURL.Load(), p.proxy.GetSourceWorkerName(), p.proxy.source.conn.conn.RemoteAddr().String())
 		if err != nil {
 			return err
 		}
@@ -213,8 +234,7 @@ func (p *HandlerFirstConnect) onMiningSubscribe(ctx context.Context, msgTyped *m
 func (p *HandlerFirstConnect) onMiningAuthorize(ctx context.Context, msgTyped *m.MiningAuthorize) error {
 	p.proxy.globalHashrate.OnConnect(msgTyped.GetUserName())
 	p.proxy.source.SetUserName(msgTyped.GetUserName())
-	p.log = p.log.Named(fmt.Sprintf("PRX %s %s", msgTyped.GetUserName(), lib.ParsePort(p.proxy.GetID())))
-	p.proxy.log = p.log
+	p.proxy.log = p.proxy.log.With("SrcWorker", msgTyped.GetUserName())
 
 	msgID := msgTyped.GetID()
 	if !minerSubscribeReceived {
@@ -227,24 +247,31 @@ func (p *HandlerFirstConnect) onMiningAuthorize(ctx context.Context, msgTyped *m
 		return lib.WrapError(ErrHandshakeSource, err)
 	}
 
-	if shouldPropagateWorkerName(p.proxy.notPropagateWorkerName, msgTyped.GetUserName(), p.proxy.destURL.Load()) {
+	var destURL *url.URL
+	if p.proxy.dest == nil { // if no dest connection was established yet then use URL from proxy (default destination)
+		destURL = p.proxy.destURL.Load()
+	} else { // if dest connection was established during handshake
+		destURL = p.proxy.dest.destUrl
+	}
+
+	if shouldPropagateWorkerName(p.proxy.notPropagateWorkerName, msgTyped.GetUserName(), destURL) {
 		_, workerName, hasWorkerName := lib.SplitUsername(msgTyped.GetUserName())
 		// if incoming miner was named "accountName.workerName" then we preserve worker name in destination
 		if hasWorkerName {
-			lib.SetWorkerName(p.proxy.destURL.Load(), workerName)
+			lib.SetWorkerName(destURL, workerName)
 		}
 	}
 
-	destWorkerName := getDestUserName(p.proxy.notPropagateWorkerName, msgTyped.GetUserName(), p.proxy.destURL.Load())
+	destWorkerName := getDestUserName(p.proxy.notPropagateWorkerName, msgTyped.GetUserName(), destURL)
 	p.proxy.dest.SetUserName(destWorkerName)
 
 	// otherwise we use the same username as in source
 	// this is the case for the incoming contracts,
 	// where the miner userName is contractID
 
-	userName := p.proxy.destURL.Load().User.Username()
+	userName := destURL.User.Username()
 	p.proxy.dest.SetUserName(userName)
-	pwd, ok := p.proxy.destURL.Load().User.Password()
+	pwd, ok := destURL.User.Password()
 	if !ok {
 		pwd = ""
 	}
@@ -254,8 +281,7 @@ func (p *HandlerFirstConnect) onMiningAuthorize(ctx context.Context, msgTyped *m
 		if res.IsError() {
 			return nil, lib.WrapError(ErrHandshakeDest, fmt.Errorf("cannot authorize in dest pool: %s", res.GetError()))
 		}
-		p.log.Infof("handshake completed: %s", p.proxy.destURL.String())
-
+		p.proxy.logInfof("handshake completed: %s", p.proxy.destURL.String())
 		p.proxy.destMap.Store(p.proxy.dest)
 
 		// close

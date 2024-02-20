@@ -2,6 +2,7 @@ package contract
 
 import (
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -77,21 +78,42 @@ func (c *ContractFactory) CreateContract(contractData *hashrateContract.Encrypte
 		return nil, err
 	}
 
-	logNamed := log.Named(fmt.Sprintf("CTR %s", lib.AddrShort(contractData.ID())))
+	logNamed := log.Named("CTR").With("CtrAddr", lib.AddrShort(contractData.ID()))
 
 	if contractData.Seller() == c.address.String() {
 		terms := &hashrateContract.Terms{
-			BaseTerms:   *contractData.Copy(),
-			Destination: nil,
+			BaseTerms:      *contractData.Copy(),
+			DestinationURL: nil,
+			ValidatorURL:   nil,
 		}
 
 		watcher := NewContractWatcherSellerV2(terms, c.cycleDuration, c.hashrateFactory, c.allocator, logNamed)
 		return NewControllerSeller(watcher, c.store, c.privateKey), nil
 	}
 
-	if contractData.Buyer() == c.address.String() {
+	if contractData.Buyer() == c.address.String() || contractData.Validator() == c.address.String() {
+		var role resources.ContractRole
+		if contractData.Buyer() == c.address.String() {
+			role = resources.ContractRoleBuyer
+		} else {
+			role = resources.ContractRoleValidator
+		}
+
+		var (
+			destUrl *url.URL
+			destErr error
+		)
+		if contractData.DestEncrypted != "" {
+			destUrl, destErr = c.getDestURL(contractData.DestEncrypted)
+		}
+
+		terms := &hashrateContract.Terms{
+			BaseTerms:      *contractData.Copy(),
+			DestinationURL: destUrl,
+			ValidatorURL:   nil,
+		}
 		watcher := NewContractWatcherBuyer(
-			contractData,
+			terms,
 			c.hashrateFactory,
 			c.allocator,
 			c.globalHashrate,
@@ -102,10 +124,28 @@ func (c *ContractFactory) CreateContract(contractData *hashrateContract.Encrypte
 			c.hrErrorThreshold,
 			c.hashrateCounterNameBuyer,
 			c.validatorFlatness,
+			role,
 		)
+
+		if destErr != nil {
+			watcher.contractErr.Store(destErr)
+		}
 		return NewControllerBuyer(watcher, c.store, c.privateKey), nil
 	}
 	return nil, fmt.Errorf("invalid terms %+v", contractData)
+}
+
+func (c *ContractFactory) getDestURL(destEncrypted string) (*url.URL, error) {
+	if destEncrypted == "" {
+		return nil, nil
+	}
+
+	dest, err := lib.DecryptString(destEncrypted, c.privateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return url.Parse(dest)
 }
 
 func (c *ContractFactory) GetType() resources.ResourceType {

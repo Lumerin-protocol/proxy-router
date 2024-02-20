@@ -80,6 +80,8 @@ func start() error {
 		return err
 	}
 
+	appLog := log.Named("APP")
+
 	proxyLog, err := lib.NewLogger(cfg.Log.LevelProxy, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, mainLogFilePath)
 	if err != nil {
 		return err
@@ -90,10 +92,10 @@ func start() error {
 		return err
 	}
 
-	schedulerLogFactory := func(minerID string) (interfaces.ILogger, error) {
+	schedulerLogFactory := func(remoteAddr string) (interfaces.ILogger, error) {
 		fp := ""
 		if logFolderPath != "" {
-			fp = filepath.Join(logFolderPath, fmt.Sprintf("scheduler-%s.log", lib.SanitizeFilename(minerID)))
+			fp = filepath.Join(logFolderPath, fmt.Sprintf("scheduler-%s.log", lib.SanitizeFilename(remoteAddr)))
 		}
 		return lib.NewLogger(cfg.Log.LevelScheduler, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, fp)
 	}
@@ -116,7 +118,7 @@ func start() error {
 		_ = log.Close()
 	}()
 
-	log.Infof("proxy-router %s", config.BuildVersion)
+	appLog.Infof("proxy-router %s", config.BuildVersion)
 
 	sysConfig := system.CreateConfigurator(log)
 
@@ -134,14 +136,14 @@ func start() error {
 			RlimitHard:       cfg.System.RlimitHard,
 		})
 		if err != nil {
-			log.Warnf("failed to apply system config, try using sudo or set SYS_ENABLE to false to disable\n%s", err)
+			appLog.Warnf("failed to apply system config, try using sudo or set SYS_ENABLE to false to disable\n%s", err)
 			return err
 		}
 
 		defer func() {
 			err = sysConfig.RestoreConfig()
 			if err != nil {
-				log.Warnf("failed to restore system config\n%s", err)
+				appLog.Warnf("failed to restore system config\n%s", err)
 				return
 			}
 		}()
@@ -155,14 +157,14 @@ func start() error {
 	signal.Notify(shutdownChan, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		s := <-shutdownChan
-		log.Warnf("Received signal: %s", s)
+		appLog.Warnf("Received signal: %s", s)
 		cancel()
 
 		s = <-shutdownChan
 
-		log.Warnf("Received signal: %s. \n", s)
+		appLog.Warnf("Received signal: %s. \n", s)
 
-		log.Warnf("Forcing exit...")
+		appLog.Warnf("Forcing exit...")
 		os.Exit(1)
 	}()
 
@@ -182,25 +184,13 @@ func start() error {
 		)
 	}
 
-	destFactory := func(ctx context.Context, url *url.URL, connLogID string) (*proxy.ConnDest, error) {
-		validator := validator.NewValidator(cfg.Pool.CleanJobTimeout, connLog.Named("validator."+connLogID))
-		return proxy.ConnectDest(ctx, url, validator, IDLE_READ_CLOSE_TIMEOUT, cfg.Pool.IdleWriteTimeout, connLog.Named(connLogID))
+	destFactory := func(ctx context.Context, url *url.URL, srcWorker string, srcAddr string) (*proxy.ConnDest, error) {
+		validator := validator.NewValidator(cfg.Pool.CleanJobTimeout)
+		return proxy.ConnectDest(ctx, url, validator, IDLE_READ_CLOSE_TIMEOUT, cfg.Pool.IdleWriteTimeout, connLog.With("SrcWorker", srcWorker, "SrcAddr", srcAddr))
 	}
 
 	globalHashrate := hashrate.NewGlobalHashrate(hashrateFactory)
 	alloc := allocator.NewAllocator(lib.NewCollection[*allocator.Scheduler](), log.Named("ALC"))
-
-	tcpServer := transport.NewTCPServer(cfg.Proxy.Address, connLog)
-	tcpHandler := tcphandlers.NewTCPHandler(
-		log, connLog, proxyLog, schedulerLogFactory,
-		cfg.Miner.NotPropagateWorkerName, cfg.Miner.IdleReadTimeout, IDLE_WRITE_CLOSE_TIMEOUT,
-		cfg.Miner.VettingShares, cfg.Proxy.MaxCachedDests,
-		destUrl,
-		destFactory, hashrateFactory,
-		globalHashrate, HashrateCounterDefault,
-		alloc,
-	)
-	tcpServer.SetConnectionHandler(tcpHandler)
 
 	ethClient, err := ethclient.DialContext(ctx, cfg.Blockchain.EthNodeAddress)
 	if err != nil {
@@ -243,17 +233,30 @@ func start() error {
 		return err
 	}
 
-	log.Infof("wallet address: %s", walletAddr.String())
-	log.Infof("lumerin address: %s", lumerinAddr.String())
+	appLog.Infof("wallet address: %s", walletAddr.String())
+	appLog.Infof("lumerin address: %s", lumerinAddr.String())
 
 	derived := new(config.DerivedConfig)
 	derived.WalletAddress = walletAddr.String()
 	derived.LumerinAddress = lumerinAddr.String()
 
-	cm := contractmanager.NewContractManager(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), walletAddr, hrContractFactory.CreateContract, store, log)
+	cm := contractmanager.NewContractManager(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), walletAddr, hrContractFactory.CreateContract, store, log.Named("MNG"))
+
+	tcpServer := transport.NewTCPServer(cfg.Proxy.Address, connLog.Named("TCP"))
+	tcpHandler := tcphandlers.NewTCPHandler(
+		log, connLog, proxyLog, schedulerLogFactory,
+		cfg.Miner.NotPropagateWorkerName, cfg.Miner.IdleReadTimeout, IDLE_WRITE_CLOSE_TIMEOUT,
+		cfg.Miner.VettingShares, cfg.Proxy.MaxCachedDests,
+		destUrl,
+		destFactory, hashrateFactory,
+		globalHashrate, HashrateCounterDefault,
+		alloc,
+		cm.GetContract,
+	)
+	tcpServer.SetConnectionHandler(tcpHandler)
 
 	handl := httphandlers.NewHTTPHandler(alloc, cm, globalHashrate, sysConfig, publicUrl, HashrateCounterDefault, cfg.Hashrate.CycleDuration, &cfg, derived, time.Now(), contractLogStorage, log)
-	httpServer := transport.NewServer(cfg.Web.Address, handl, log)
+	httpServer := transport.NewServer(cfg.Web.Address, handl, log.Named("HTP"))
 
 	ctx, cancel = context.WithCancel(ctx)
 	g, errCtx := errgroup.WithContext(ctx)
@@ -273,9 +276,9 @@ func start() error {
 			case <-time.After(5 * time.Minute):
 				fd, err := sysConfig.GetFileDescriptors(errCtx, os.Getpid())
 				if err != nil {
-					log.Errorf("failed to get open files: %s", err)
+					appLog.Errorf("failed to get open files: %s", err)
 				} else {
-					log.Infof("open files: %d", len(fd))
+					appLog.Infof("open files: %d", len(fd))
 				}
 			}
 		}
@@ -295,6 +298,6 @@ func start() error {
 	cancelServer()
 	<-serverErrCh
 
-	log.Warnf("App exited due to %s", err)
+	appLog.Warnf("App exited due to %s", err)
 	return err
 }

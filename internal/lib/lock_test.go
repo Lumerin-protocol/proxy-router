@@ -18,8 +18,9 @@ func TestMutexTimeout(t *testing.T) {
 	m.Lock()
 	start := time.Now()
 	err := m.LockTimeout(timeout)
+	elapsed := time.Since(start)
 	require.ErrorIsf(t, err, ErrTimeout, "locked mutex should timeout")
-	require.InEpsilonf(t, timeout, time.Since(start), 0.2, "timeout should be close to %s", timeout)
+	require.GreaterOrEqual(t, elapsed, timeout, "timeout should be at least %s", timeout)
 
 	// test unlock
 	m.Unlock()

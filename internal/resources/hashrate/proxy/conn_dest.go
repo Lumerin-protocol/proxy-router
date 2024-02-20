@@ -61,17 +61,15 @@ func NewDestConn(conn *StratumConnection, valid *validator.Validator, url *url.U
 		firstJobSignal: make(chan struct{}),
 		log:            log,
 	}
-	// dest.validator = validator.NewValidator(log.Named("validator"))
-	// return dest
 }
 
 func ConnectDest(ctx context.Context, destURL *url.URL, valid *validator.Validator, idleReadCloseTimeout, idleWriteCloseTimeout time.Duration, log gi.ILogger) (*ConnDest, error) {
-	destLog := log.Named(fmt.Sprintf("[DST] %s@%s", destURL.User.Username(), destURL.Host))
+	destLog := log.Named("DST").With("DstAddr", fmt.Sprintf("%s@%s", destURL.User.Username(), destURL.Host))
 	conn, err := Connect(destURL, idleReadCloseTimeout, idleWriteCloseTimeout, destLog)
 	if err != nil {
 		return nil, err
 	}
-
+	destLog = destLog.With("DstPort", conn.LocalPort())
 	return NewDestConn(conn, valid, destURL, destLog), nil
 }
 
@@ -207,7 +205,6 @@ func (c *ConnDest) readInterceptor(msg i.MiningMessageGeneric) (resMsg i.MiningM
 			c.log.Warn("got notify before extranonce was set")
 		}
 		c.validator.AddNewJob(typed, float64(c.diff.Load()), xn, xnsize)
-		c.log.Infof("new job %s, clean flag %t, dest %s", typed.GetJobID(), typed.GetCleanJobs(), c.destUrl.String())
 		c.firstJobOnce.Do(func() {
 			close(c.firstJobSignal)
 		})

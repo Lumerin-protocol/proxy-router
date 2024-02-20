@@ -145,6 +145,15 @@ func (p *ContractWatcherSellerV2) Reset() {
 }
 
 func (p *ContractWatcherSellerV2) run() error {
+	// delay fulfillment for validator to pull the latest state
+	// TODO: replace this with multiple attempts to changeDest for already connected miners
+	// currently failure to change dest leads to delay to the next cycle
+	select {
+	case <-p.stopCh:
+		return ErrStopped
+	case <-time.After(10 * time.Second):
+	}
+
 	fullMiners := lib.NewSet()
 	p.stats = &stats{
 		jobFullMiners:          atomic.NewUint64(0),
@@ -600,6 +609,9 @@ func (p *ContractWatcherSellerV2) Dest() string {
 	}
 	return ""
 }
+func (p *ContractWatcherSellerV2) PoolDest() string {
+	return ""
+}
 func (p *ContractWatcherSellerV2) ResourceEstimates() map[string]float64 {
 	return map[string]float64{
 		ResourceEstimateHashrateGHS: p.Terms.HashrateGHS(),
@@ -620,7 +632,13 @@ func (p *ContractWatcherSellerV2) SetTerms(terms *hashrate.Terms) {
 	}
 
 	p.Terms = terms
-	p.log.Infof("contract terms updated: price %.f LMR, hashrate %.f GHS, duration %s, state %s", terms.PriceLMR(), terms.HashrateGHS(), terms.Duration().Round(time.Second), terms.BlockchainState().String())
+	p.log.Infof(
+		"contract terms updated: price %.f LMR, hashrate %.f GHS, duration %s, state %s",
+		terms.PriceLMR(),
+		terms.HashrateGHS(),
+		terms.Duration().Round(time.Second),
+		terms.BlockchainState().String(),
+	)
 }
 
 func (p *ContractWatcherSellerV2) Error() error {

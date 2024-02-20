@@ -67,9 +67,9 @@ func (p *Scheduler) Run(ctx context.Context) error {
 	}
 
 	p.primaryDest = p.proxy.GetDest()
-	p.log = p.log.Named(fmt.Sprintf("SCH %s %s", p.proxy.GetSourceWorkerName(), lib.ParsePort(p.proxy.GetID())))
+	p.log = p.log.Named("SCH").With("SrcWorker", p.proxy.GetSourceWorkerName(), "SrcAddr", p.proxy.GetID())
 
-	p.log.Infof("proxy connected")
+	p.logInfof("proxy connected")
 
 	for {
 		if p.proxy.GetDest().String() != p.primaryDest.String() {
@@ -77,7 +77,7 @@ func (p *Scheduler) Run(ctx context.Context) error {
 
 			if err != nil {
 				err := lib.WrapError(ErrConnPrimary, err)
-				p.log.Warnf("%s: %s", err, p.primaryDest)
+				p.logWarnf("%s: %s", err, p.primaryDest)
 				p.onDisconnect()
 				return err
 			}
@@ -93,7 +93,7 @@ func (p *Scheduler) Run(ctx context.Context) error {
 		// 	case <-p.proxy.VettingDone():
 		// 	}
 
-		// 	p.log.Infof("vetting done")
+		// 	p.logInfof("vetting done")
 		// 	if p.onVetted != nil {
 		// 		p.onVetted(p.proxy.GetID())
 		// 		p.onVetted = nil
@@ -114,8 +114,8 @@ func (p *Scheduler) Run(ctx context.Context) error {
 			if p.tasks.taskTaken {
 				p.tasks.UnlockAndRemove()
 			}
-			p.log.Warnf("dest error: %v", err)
-			p.log.Debugf("reconnecting to primary dest %s", p.primaryDest)
+			p.logWarnf("dest error: %v", err)
+			p.logDebugf("reconnecting to primary dest %s", p.primaryDest)
 			continue
 		} else {
 			p.onDisconnect()
@@ -134,7 +134,7 @@ func (p *Scheduler) mainLoop(ctx context.Context, proxyTask *lib.Task) error {
 
 		select {
 		case <-proxyTask.Done():
-			p.log.Infof("proxy exited: %v", proxyTask.Err())
+			p.logInfof("proxy exited: %v", proxyTask.Err())
 			return proxyTask.Err()
 		case <-p.newTaskSignal:
 			continue
@@ -150,7 +150,7 @@ func (p *Scheduler) mainLoop(ctx context.Context, proxyTask *lib.Task) error {
 
 		select {
 		case <-proxyTask.Done():
-			p.log.Infof("proxy exited: %v", proxyTask.Err())
+			p.logInfof("proxy exited: %v", proxyTask.Err())
 			return proxyTask.Err()
 		case <-p.newTaskSignal:
 		}
@@ -167,7 +167,7 @@ func (p *Scheduler) taskLoop(ctx context.Context, proxyTask *lib.Task) (proxyExi
 
 		deadlineCh := time.After(time.Until(task.Deadline))
 
-		p.log.Debugf("start doing task for job ID %s, for job amount %.f", lib.StrShort(task.ID), task.Job)
+		p.logDebugf("start doing task for job ID %s, for job amount %.f", lib.StrShort(task.ID), task.Job)
 
 		select {
 		case <-proxyTask.Done():
@@ -175,13 +175,13 @@ func (p *Scheduler) taskLoop(ctx context.Context, proxyTask *lib.Task) (proxyExi
 			task.OnEnd(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()), err)
 			return true, err
 		case <-task.cancelCh:
-			p.log.Debugf("task cancelled %s", lib.StrShort(task.ID))
+			p.logDebugf("task cancelled %s", lib.StrShort(task.ID))
 			task.OnEnd(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()), nil)
 			p.tasks.UnlockAndRemove()
 			continue
 		case <-deadlineCh:
 			err := lib.WrapError(ErrTaskDeadlineExceeded, fmt.Errorf("%s", lib.StrShort(task.ID)))
-			p.log.Debugf(err.Error())
+			p.logDebugf(err.Error())
 			task.OnEnd(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()), err)
 			p.tasks.UnlockAndRemove()
 			continue
@@ -195,7 +195,7 @@ func (p *Scheduler) taskLoop(ctx context.Context, proxyTask *lib.Task) (proxyExi
 			if remainingJob <= 0 {
 				ok := task.Cancel()
 				if ok {
-					p.log.Debugf("miner %s finished doing task for job %s", p.ID(), lib.StrShort(task.ID))
+					p.logDebugf("miner %s finished doing task for job %s", p.ID(), lib.StrShort(task.ID))
 				}
 			}
 		}
@@ -213,13 +213,13 @@ func (p *Scheduler) taskLoop(ctx context.Context, proxyTask *lib.Task) (proxyExi
 			task.OnEnd(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()), err)
 			return true, err
 		case <-task.cancelCh:
-			p.log.Debugf("task cancelled %s", lib.StrShort(task.ID))
+			p.logDebugf("task cancelled %s", lib.StrShort(task.ID))
 			task.OnEnd(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()), nil)
 			p.tasks.UnlockAndRemove()
 			continue
 		case <-deadlineCh:
 			err := lib.WrapError(ErrTaskDeadlineExceeded, fmt.Errorf("%s", lib.StrShort(task.ID)))
-			p.log.Debugf(err.Error())
+			p.logDebugf(err.Error())
 			task.OnEnd(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()), err)
 			p.tasks.UnlockAndRemove()
 			continue
@@ -231,7 +231,7 @@ func (p *Scheduler) onDisconnect() {
 	p.isDisconnecting.Store(true)
 
 	p.tasks.Range(func(task *MinerTask) bool {
-		p.log.Debugf("signalling task %s on disconnect", lib.StrShort(task.ID))
+		p.logDebugf("signalling task %s on disconnect", lib.StrShort(task.ID))
 		task.OnDisconnect(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()))
 		task.OnEnd(p.ID(), p.HashrateGHS(), float64(task.RemainingJobToSubmit.Load()), ErrTaskMinerDisconnected)
 		return true
@@ -268,7 +268,7 @@ func (p *Scheduler) AddTask(
 	}
 
 	taskGHS := hashrate.JobSubmittedToGHSV2(jobSubmitted, time.Until(deadline))
-	p.log.Debugf(`added new task, 
+	p.logDebugf(`added new task, 
 	contractID: %s, for jobSubmitted: %.0f, and duration: %s,
 	hashrate %0.f, where miners hashrate is %0.f`,
 		lib.StrShort(ID), jobSubmitted, time.Until(deadline), taskGHS, p.HashrateGHS())
@@ -439,4 +439,24 @@ func (p *Scheduler) GetHashrate() proxy.Hashrate {
 
 func (p *Scheduler) GetUsedHashrate() proxy.Hashrate {
 	return p.usedHR
+}
+
+func (p *Scheduler) GetID() string {
+	return p.proxy.GetID()
+}
+
+func (p *Scheduler) logDebugf(template string, args ...interface{}) {
+	p.logWithContext(p.log.Debugw, template, args...)
+}
+func (p *Scheduler) logInfof(template string, args ...interface{}) {
+	p.logWithContext(p.log.Infow, template, args...)
+}
+func (p *Scheduler) logWarnf(template string, args ...interface{}) {
+	p.logWithContext(p.log.Warnw, template, args...)
+}
+func (p *Scheduler) logErrorf(template string, args ...interface{}) {
+	p.logWithContext(p.log.Errorw, template, args...)
+}
+func (p *Scheduler) logWithContext(logFn func(t string, a ...interface{}), t string, a ...interface{}) {
+	logFn(fmt.Sprintf(t, a...), "DstAddr", p.proxy.GetDest())
 }
