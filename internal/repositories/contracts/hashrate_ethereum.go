@@ -94,7 +94,7 @@ func (g *HashrateEthereum) GetContract(ctx context.Context, contractID string) (
 
 	data, err := instance.GetPublicVariablesV2(&bind.CallOpts{Context: ctx})
 	if err != nil {
-		return nil, err
+		return nil, lib.WrapError(fmt.Errorf("can't get public variables"), err)
 	}
 
 	var (
