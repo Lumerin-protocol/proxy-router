@@ -645,6 +645,11 @@ func (p *ContractWatcherSellerV2) Error() error {
 	return p.contractErr.Load()
 }
 
+func (p *ContractWatcherSellerV2) SetError(err error) {
+	p.contractErr.Store(err)
+	p.log.Infof("contract error was set: %s", err)
+}
+
 func (p *ContractWatcherSellerV2) logDeliveryTarget() {
 	p.log.Debugf("deliveryTarget %.0f GHS", p.stats.deliveryTargetGHS)
 }
