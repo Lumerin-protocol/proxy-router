@@ -29,6 +29,7 @@ type StratumProxyInterface interface {
 	GetDestConns() *map[string]string
 	IsVetting() bool
 	VettingDone() <-chan struct{}
+	GetIncomingContractID() *string
 }
 
 type HashrateFactory = func() *hashrate.Hashrate

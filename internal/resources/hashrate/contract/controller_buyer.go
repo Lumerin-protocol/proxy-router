@@ -66,7 +66,7 @@ func (c *ControllerBuyer) Run(ctx context.Context) error {
 					return nil
 				}
 
-				// underdelivery, buyer closes the contract
+				// underdelivery or destination unreachable, buyer closes the contract
 				c.log.Warnf("buyer contract ended with error: %s", err)
 				err = c.store.CloseContract(ctx, c.ID(), contracts.CloseoutTypeCancel, c.privKey)
 				if err != nil {

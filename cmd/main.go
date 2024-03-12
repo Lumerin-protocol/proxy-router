@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -298,6 +299,11 @@ func start() error {
 	cancelServer()
 	<-serverErrCh
 
-	appLog.Warnf("App exited due to %s", err)
+	logFn := log.Errorf
+	if errors.Is(err, context.Canceled) {
+		logFn = log.Warnf
+	}
+
+	logFn("App exited due to %s", err)
 	return err
 }

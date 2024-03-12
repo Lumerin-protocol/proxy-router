@@ -36,12 +36,13 @@ type Scheduler struct {
 	isDisconnecting *atomic.Bool
 
 	// deps
-	proxy    StratumProxyInterface
-	onVetted func(ID string)
-	log      interfaces.ILogger
+	proxy     StratumProxyInterface
+	onVetted  func(ID string)
+	onDestErr func(contractID *string, err error)
+	log       interfaces.ILogger
 }
 
-func NewScheduler(proxy StratumProxyInterface, hashrateCounterID string, defaultDest *url.URL, minerVettingShares int, hashrateFactory HashrateFactory, onVetted func(ID string), log interfaces.ILogger) *Scheduler {
+func NewScheduler(proxy StratumProxyInterface, hashrateCounterID string, defaultDest *url.URL, minerVettingShares int, hashrateFactory HashrateFactory, onVetted func(ID string), onDestErr func(contractID *string, err error), log interfaces.ILogger) *Scheduler {
 	return &Scheduler{
 		primaryDest:        defaultDest,
 		hashrateCounterID:  hashrateCounterID,
@@ -51,6 +52,7 @@ func NewScheduler(proxy StratumProxyInterface, hashrateCounterID string, default
 		usedHR:             hashrateFactory(),
 		proxy:              proxy,
 		onVetted:           onVetted,
+		onDestErr:          onDestErr,
 		isDisconnecting:    atomic.NewBool(false),
 		log:                log,
 	}
@@ -115,6 +117,9 @@ func (p *Scheduler) Run(ctx context.Context) error {
 				p.tasks.UnlockAndRemove()
 			}
 			p.logWarnf("dest error: %v", err)
+			if p.onDestErr != nil {
+				p.onDestErr(p.proxy.GetIncomingContractID(), err)
+			}
 			p.logDebugf("reconnecting to primary dest %s", p.primaryDest)
 			continue
 		} else {
@@ -144,8 +149,7 @@ func (p *Scheduler) mainLoop(ctx context.Context, proxyTask *lib.Task) error {
 		// all tasks are done, switch to default destination
 		err = p.proxy.SetDest(ctx, p.primaryDest, nil)
 		if err != nil {
-			err = lib.WrapError(ErrConnPrimary, err)
-			return err
+			return lib.WrapError(ErrConnPrimary, err)
 		}
 
 		select {
