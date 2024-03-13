@@ -15,6 +15,7 @@ type GenericContractManager interface {
 type Contract interface {
 	Run(ctx context.Context) error
 	SyncState(ctx context.Context) error
+	SetError(err error)
 
 	Role() ContractRole                        // the role in the contract (buyer or seller or validator)
 	State() ContractState                      // the state of the contract (pending or running)

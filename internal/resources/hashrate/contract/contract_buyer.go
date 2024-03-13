@@ -31,6 +31,7 @@ type ContractWatcherBuyer struct {
 	fulfillmentStartedAt *atomic.Time
 	starvingGHS          *atomic.Uint64
 	contractErr          atomic.Error // keeps the last error that happened in the contract that prevents it from fulfilling correctly, like invalid destination
+	contractErrCh        chan struct{}
 
 	tsk    *lib.Task
 	cancel context.CancelFunc
@@ -43,6 +44,10 @@ type ContractWatcherBuyer struct {
 	globalHashrate *hashrate.GlobalHashrate
 	log            interfaces.ILogger
 }
+
+var (
+	ErrContractDest = errors.New("contract destination error")
+)
 
 func NewContractWatcherBuyer(
 	terms *hashrateContract.Terms,
@@ -154,6 +159,10 @@ func (p *ContractWatcherBuyer) run(ctx context.Context) error {
 			return ctx.Err()
 		case <-endTimer.C:
 			return nil
+		case <-p.contractErrCh:
+			err := p.contractErr.Load()
+			p.contractErrCh = make(chan struct{})
+			return lib.WrapError(ErrContractDest, err)
 		case <-ticker.C:
 			if !endTimer.Stop() {
 				<-endTimer.C
@@ -246,6 +255,12 @@ func (p *ContractWatcherBuyer) isContractExpired() bool {
 
 func (p *ContractWatcherBuyer) getWorkerName() string {
 	return p.ID()
+}
+
+func (p *ContractWatcherBuyer) SetError(err error) {
+	p.contractErr.Store(err)
+	close(p.contractErrCh)
+	p.log.Infof("contract error was set: %s", err)
 }
 
 // public getters

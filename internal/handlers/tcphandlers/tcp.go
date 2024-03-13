@@ -65,6 +65,17 @@ func NewTCPHandler(
 			minerVettingShares,
 			hashrateFactory,
 			alloc.InvokeVettedListeners,
+			func(contractID *string, err error) {
+				if contractID == nil {
+					log.Errorf("unset contractID in onDisconnect callback: %s", err)
+					return
+				}
+				ctr, ok := getContractFromStoreFn(*contractID)
+				if !ok {
+					log.Errorf("failed to get contract from store: %s", *contractID)
+				}
+				ctr.SetError(err)
+			},
 			schedulerLog.With("SrcAddr", addr),
 		)
 		alloc.GetMiners().Store(scheduler)

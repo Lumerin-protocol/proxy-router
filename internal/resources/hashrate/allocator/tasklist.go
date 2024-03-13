@@ -24,6 +24,7 @@ type MinerTask struct {
 
 	RemainingJobToSubmit *atomic.Int64
 	cancelCh             chan struct{}
+	isCancelled          atomic.Bool
 }
 
 func NewTask(ID string, dest *url.URL, job float64, deadline time.Time, onSubmit OnSubmitCb, onDisconnect OnDisconnectCb, onEnd OnEndCb) *MinerTask {
@@ -46,13 +47,11 @@ func (t *MinerTask) RemainingJob() float64 {
 }
 
 func (t *MinerTask) Cancel() (firstCancel bool) {
-	select {
-	case <-t.cancelCh:
-		return false
-	default:
+	if t.isCancelled.CompareAndSwap(false, true) {
 		close(t.cancelCh)
 		return true
 	}
+	return false
 }
 
 type TaskList struct {

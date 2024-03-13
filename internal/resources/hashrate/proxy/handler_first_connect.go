@@ -116,6 +116,7 @@ func (p *HandlerFirstConnect) getPoolDest(contractID string) (*url.URL, error) {
 	if !isExist {
 		return nil, lib.WrapError(ErrUnknownContract, fmt.Errorf("contract id: %s", contractID))
 	}
+	p.proxy.contractID = &contractID
 	poolDestStr := contract.PoolDest()
 	return url.Parse(poolDestStr)
 }
