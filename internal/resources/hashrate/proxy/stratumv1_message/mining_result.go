@@ -61,6 +61,13 @@ func NewMiningResultDuplicatedShare(ID int) *MiningResult {
 	}
 }
 
+func NewMiningResultFalse(ID int) *MiningResult {
+	return &MiningResult{
+		ID:     ID,
+		Result: []byte("false"),
+	}
+}
+
 func (m *MiningResult) GetID() int {
 	return m.ID
 }
@@ -70,7 +77,17 @@ func (m *MiningResult) SetID(ID int) {
 }
 
 func (m *MiningResult) IsError() bool {
-	return m.Error != nil
+	if m.Error != nil {
+		return true
+	}
+
+	resultBool := false
+	err := json.Unmarshal(m.Result, &resultBool)
+	if err != nil {
+		// if cannot unmarshal to bool then there is some other value that should be treated as a success
+		return false
+	}
+	return !resultBool
 }
 
 // Returns unparsed error field (json)
