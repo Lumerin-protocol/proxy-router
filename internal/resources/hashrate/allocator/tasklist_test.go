@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/testlib"
+	"go.uber.org/atomic"
 )
 
 func TestTasklistAdd(t *testing.T) {
@@ -43,4 +44,25 @@ func TestTasklistRemove(t *testing.T) {
 	})
 
 	require.Equal(t, tl.Size(), 0)
+}
+
+func TestConditionalChannelCloseConcurrency(t *testing.T) {
+	ch := make(chan struct{})
+	var isCancelled atomic.Bool
+
+	f := func() bool {
+		if isCancelled.CompareAndSwap(false, true) {
+			close(ch)
+			return true
+		}
+		return false
+	}
+
+	times := 50000
+	testlib.Repeat(t, times, func(t *testing.T) {
+		ch = make(chan struct{})
+		testlib.RepeatConcurrent(t, 4, func(t *testing.T) {
+			f()
+		})
+	})
 }
