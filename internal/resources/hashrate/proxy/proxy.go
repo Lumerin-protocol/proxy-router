@@ -54,6 +54,7 @@ type Proxy struct {
 	destMap                 *lib.Collection[*ConnDest] // map of all available destinations (pools) currently connected to the single source (miner)
 	vettingDoneCh           chan struct{}              // channel to signal that the miner has been vetted
 	vettingShares           int                        // number of shares to vet the miner
+	contractID              *string                    // is set if incoming connection is a hashrate contract
 
 	// deps
 	source                 *ConnSource           // initiator of the communication, miner
@@ -422,6 +423,10 @@ func (p *Proxy) GetDestConns() *map[string]string {
 		return true
 	})
 	return &destConns
+}
+
+func (p *Proxy) GetIncomingContractID() *string {
+	return p.contractID
 }
 
 func (p *Proxy) VettingDone() <-chan struct{} {

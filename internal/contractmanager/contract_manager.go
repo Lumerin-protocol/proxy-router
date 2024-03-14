@@ -49,13 +49,13 @@ func (cm *ContractManager) Run(ctx context.Context) error {
 
 	contractIDs, err := cm.store.GetContractsIDs(ctx)
 	if err != nil {
-		return err
+		return lib.WrapError(fmt.Errorf("can't get contract ids"), err)
 	}
 
 	for _, id := range contractIDs {
 		terms, err := cm.store.GetContract(ctx, id)
 		if err != nil {
-			return err
+			return lib.WrapError(fmt.Errorf("can't get contract"), err)
 		}
 		if cm.isOurContract(terms) {
 			cm.AddContract(ctx, terms)
