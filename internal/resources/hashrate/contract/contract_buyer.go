@@ -258,9 +258,13 @@ func (p *ContractWatcherBuyer) getWorkerName() string {
 }
 
 func (p *ContractWatcherBuyer) SetError(err error) {
-	p.contractErr.Store(err)
-	close(p.contractErrCh)
-	p.log.Infof("contract error was set: %s", err)
+	swapped := p.contractErr.CompareAndSwap(nil, err)
+	if swapped {
+		close(p.contractErrCh)
+		p.log.Infof("contract error was set: %s", err)
+	} else {
+		p.log.Infof("contract error is already set: %s", err)
+	}
 }
 
 // public getters
