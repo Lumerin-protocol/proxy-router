@@ -23,6 +23,7 @@ type ContractFactory struct {
 	hrErrorThreshold         float64
 	hashrateCounterNameBuyer string
 	validatorFlatness        time.Duration
+	validatorStartTime       time.Time
 
 	// state
 	address common.Address // derived from private key
@@ -48,6 +49,7 @@ func NewContractFactory(
 	hrErrorThreshold float64,
 	hashrateCounterNameBuyer string,
 	validatorFlatness time.Duration,
+	validatorStartTime time.Time,
 ) (*ContractFactory, error) {
 	address, err := lib.PrivKeyStringToAddr(privateKey)
 	if err != nil {
@@ -69,6 +71,7 @@ func NewContractFactory(
 		hrErrorThreshold:         hrErrorThreshold,
 		hashrateCounterNameBuyer: hashrateCounterNameBuyer,
 		validatorFlatness:        validatorFlatness,
+		validatorStartTime:       validatorStartTime,
 	}, nil
 }
 
@@ -124,6 +127,7 @@ func (c *ContractFactory) CreateContract(contractData *hashrateContract.Encrypte
 			c.hrErrorThreshold,
 			c.hashrateCounterNameBuyer,
 			c.validatorFlatness,
+			c.validatorStartTime,
 			role,
 		)
 
