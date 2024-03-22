@@ -49,6 +49,8 @@ func main() {
 }
 
 func start() error {
+	appStartTime := time.Now()
+
 	var cfg config.Config
 	err := config.LoadConfig(&cfg, &os.Args)
 	if err != nil {
@@ -66,7 +68,7 @@ func start() error {
 	logFolderPath := ""
 
 	if cfg.Log.FolderPath != "" {
-		folderName := lib.SanitizeFilename(time.Now().Format("2006-01-02T15-04-05Z07:00"))
+		folderName := lib.SanitizeFilename(appStartTime.Format("2006-01-02T15-04-05Z07:00"))
 		logFolderPath = filepath.Join(cfg.Log.FolderPath, folderName)
 		err = os.MkdirAll(logFolderPath, os.ModePerm)
 		if err != nil {
@@ -220,6 +222,7 @@ func start() error {
 		cfg.Hashrate.ErrorThreshold,
 		HashrateCounterBuyer,
 		cfg.Hashrate.ValidatorFlatness,
+		appStartTime.Add(cfg.Hashrate.ValidationTimeoutAppStart),
 	)
 	if err != nil {
 		return err
@@ -256,7 +259,7 @@ func start() error {
 	)
 	tcpServer.SetConnectionHandler(tcpHandler)
 
-	handl := httphandlers.NewHTTPHandler(alloc, cm, globalHashrate, sysConfig, publicUrl, HashrateCounterDefault, cfg.Hashrate.CycleDuration, &cfg, derived, time.Now(), contractLogStorage, log)
+	handl := httphandlers.NewHTTPHandler(alloc, cm, globalHashrate, sysConfig, publicUrl, HashrateCounterDefault, cfg.Hashrate.CycleDuration, &cfg, derived, appStartTime, contractLogStorage, log)
 	httpServer := transport.NewServer(cfg.Web.Address, handl, log.Named("HTP"))
 
 	ctx, cancel = context.WithCancel(ctx)

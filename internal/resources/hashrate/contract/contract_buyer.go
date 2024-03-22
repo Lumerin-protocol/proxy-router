@@ -24,6 +24,7 @@ type ContractWatcherBuyer struct {
 	hashrateCounterNameBuyer string
 	hrValidationFlatness     time.Duration
 	role                     resources.ContractRole
+	validatorStartTime       time.Time
 
 	// state
 	state                *lib.AtomicValue[resources.ContractState]
@@ -61,6 +62,7 @@ func NewContractWatcherBuyer(
 	hrErrorThreshold float64,
 	hashrateCounterNameBuyer string,
 	hrValidationFlatness time.Duration,
+	validatorStartTime time.Time,
 	role resources.ContractRole,
 ) *ContractWatcherBuyer {
 	return &ContractWatcherBuyer{
@@ -70,6 +72,7 @@ func NewContractWatcherBuyer(
 		hrValidationFlatness:     hrValidationFlatness,
 		hashrateCounterNameBuyer: hashrateCounterNameBuyer,
 		role:                     role,
+		validatorStartTime:       validatorStartTime,
 
 		state:                lib.NewAtomicValue(resources.ContractStatePending),
 		validationStage:      lib.NewAtomicValue(hashrateContract.ValidationStageValidating),
@@ -184,6 +187,10 @@ func (p *ContractWatcherBuyer) checkIncomingHashrate(ctx context.Context) error 
 
 	isHashrateOK := p.isReceivingAcceptableHashrate()
 
+	if !p.isValidationStarted() {
+		return nil
+	}
+
 	switch p.validationStage.Load() {
 	case hashrateContract.ValidationStageValidating:
 		lastShareTime, ok := p.globalHashrate.GetLastSubmitTime(p.getWorkerName())
@@ -253,14 +260,22 @@ func (p *ContractWatcherBuyer) isContractExpired() bool {
 	return time.Now().After(p.EndTime())
 }
 
+func (p *ContractWatcherBuyer) isValidationStarted() bool {
+	return time.Now().After(p.validatorStartTime)
+}
+
 func (p *ContractWatcherBuyer) getWorkerName() string {
 	return p.ID()
 }
 
 func (p *ContractWatcherBuyer) SetError(err error) {
-	p.contractErr.Store(err)
-	close(p.contractErrCh)
-	p.log.Infof("contract error was set: %s", err)
+	swapped := p.contractErr.CompareAndSwap(nil, err)
+	if swapped {
+		close(p.contractErrCh)
+		p.log.Infof("contract error was set: %s", err)
+	} else {
+		p.log.Infof("contract error is already set: %s", err)
+	}
 }
 
 // public getters
