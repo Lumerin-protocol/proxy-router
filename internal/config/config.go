@@ -19,11 +19,11 @@ type Config struct {
 	}
 	Environment string `env:"ENVIRONMENT" flag:"environment"`
 	Hashrate    struct {
-		CycleDuration     time.Duration `env:"HASHRATE_CYCLE_DURATION"           flag:"hashrate-cycle-duration"           validate:"omitempty,duration" desc:"duration of the hashrate cycle, after which the hashrate is evaluated, applies to both seller and buyer"`
-		ErrorThreshold    float64       `env:"HASHRATE_ERROR_THRESHOLD"          flag:"hashrate-error-threshold"                                        desc:"hashrate relative error threshold for the contract to be considered fulfilling accurately, applies for buyer"`
-		ErrorTimeout      time.Duration `env:"HASHRATE_ERROR_TIMEOUT"            flag:"hashrate-error-timeout"            validate:"omitempty,duration" desc:"time to wait for for the hashrate to fall within acceptable limits, otherwise close contract, applies for buyer"`
-		ShareTimeout      time.Duration `env:"HASHRATE_SHARE_TIMEOUT"            flag:"hashrate-share-timeout"            validate:"omitempty,duration" desc:"time to wait for the share to arrive, otherwise close contract, applies for buyer"`
-		ValidatorFlatness time.Duration `env:"HASHRATE_VALIDATION_FLATNESS"      flag:"hashrate-validation-flatness"      validate:"omitempty,duration" desc:"artificial parameter of validation function, applies for buyer"`
+		CycleDuration             time.Duration `env:"HASHRATE_CYCLE_DURATION"               flag:"hashrate-cycle-duration"               validate:"omitempty,duration"  desc:"duration of the hashrate cycle, after which the hashrate is evaluated, applies to both seller and buyer"`
+		ErrorThreshold            float64       `env:"HASHRATE_ERROR_THRESHOLD"              flag:"hashrate-error-threshold"                                             desc:"hashrate relative error threshold for the contract to be considered fulfilling accurately, applies for buyer"`
+		ShareTimeout              time.Duration `env:"HASHRATE_SHARE_TIMEOUT"                flag:"hashrate-share-timeout"                validate:"omitempty,duration"  desc:"time to wait for the share to arrive, otherwise close contract, applies for buyer"`
+		ValidatorFlatness         time.Duration `env:"HASHRATE_VALIDATION_FLATNESS"          flag:"hashrate-validation-flatness"          validate:"omitempty,duration"  desc:"artificial parameter of validation function, applies for buyer"`
+		ValidationTimeoutAppStart time.Duration `env:"HASHRATE_VALIDATION_TIMEOUT_APP_START" flag:"hashrate-validation-timeout-app-start" validate:"omitempty,duration"  desc:"disables validation of the incoming hashrate for specified amount of time right after application startup"`
 	}
 	Marketplace struct {
 		CloneFactoryAddress string `env:"CLONE_FACTORY_ADDRESS" flag:"contract-address"   validate:"required_if=Disable false,omitempty,eth_addr"`
@@ -88,6 +88,15 @@ func (cfg *Config) SetDefaults() {
 	}
 	if cfg.Hashrate.ValidatorFlatness == 0 {
 		cfg.Hashrate.ValidatorFlatness = 20 * time.Minute
+	}
+
+	// If validator is down, the next attempt to connect is going to be performed after "CycleDuration".
+	// So simplest fix to avoid closeout due to no share is to delay starting validation when application has
+	// just started.
+	// TODO:
+	// - decrease timeout to reconnect if destination is down on the seller side and remove this var
+	if cfg.Hashrate.ValidationTimeoutAppStart == 0 {
+		cfg.Hashrate.ValidationTimeoutAppStart = time.Duration(1.5 * float64(cfg.Hashrate.CycleDuration))
 	}
 
 	// Marketplace
@@ -189,9 +198,9 @@ func (cfg *Config) GetSanitized() interface{} {
 
 	publicCfg.Hashrate.CycleDuration = cfg.Hashrate.CycleDuration
 	publicCfg.Hashrate.ErrorThreshold = cfg.Hashrate.ErrorThreshold
-	publicCfg.Hashrate.ErrorTimeout = cfg.Hashrate.ErrorTimeout
 	publicCfg.Hashrate.ShareTimeout = cfg.Hashrate.ShareTimeout
 	publicCfg.Hashrate.ValidatorFlatness = cfg.Hashrate.ValidatorFlatness
+	publicCfg.Hashrate.ValidationTimeoutAppStart = cfg.Hashrate.ValidationTimeoutAppStart
 
 	publicCfg.Marketplace.CloneFactoryAddress = cfg.Marketplace.CloneFactoryAddress
 
