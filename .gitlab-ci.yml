@@ -262,6 +262,7 @@ bedrock-04-PRD-rawimage:
   - CI_ETH_NODE_ADDRESS=$VALIDATOR_ETH_NODE_ADDRESS
   - *ecr_login_script
   - *update_raw_task_definition
+  - sleep 300
   - *deploy_new_task_definition
 
 #######################
@@ -293,7 +294,7 @@ bedrock-02-DEV-seller:
 bedrock-02-DEV-validator:
   stage: deploy
   environment: dev
-  needs: ["bedrock-02-DEV-rawimage"]
+  needs: ["bedrock-02-DEV-rawimage", "bedrock-02-DEV-seller"]
   rules:
     - if: $CI_COMMIT_BRANCH == "dev"
       when: always
@@ -342,7 +343,7 @@ bedrock-03-STG-seller:
 bedrock-03-STG-validator:
   stage: deploy
   environment: stg
-  needs: ["bedrock-03-STG-rawimage"]
+  needs: ["bedrock-03-STG-rawimage","bedrock-03-STG-seller"]
   rules:
     - if: $CI_COMMIT_BRANCH == "stg"
       when: always
@@ -392,7 +393,7 @@ bedrock-04-PRD-seller:
 bedrock-04-PRD-validator:
   stage: deploy
   environment: lmn
-  needs: ["bedrock-04-PRD-rawimage"]
+  needs: ["bedrock-04-PRD-rawimage","bedrock-04-PRD-seller"]
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
       when: manual
