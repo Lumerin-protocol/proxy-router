@@ -273,7 +273,7 @@ bedrock-02-DEV-seller:
   needs: ["bedrock-02-DEV-rawimage"]
   rules:
     - if: $CI_COMMIT_BRANCH == "dev"
-      when: manual
+      when: always
     - if: $CI_COMMIT_BRANCH != "dev"
       when: never
     - if: $CI_MERGE_REQUEST_ID
@@ -296,7 +296,7 @@ bedrock-02-DEV-validator:
   needs: ["bedrock-02-DEV-rawimage"]
   rules:
     - if: $CI_COMMIT_BRANCH == "dev"
-      when: manual
+      when: always
     - if: $CI_COMMIT_BRANCH != "dev"
       when: never
     - if: $CI_MERGE_REQUEST_ID
