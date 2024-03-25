@@ -78,6 +78,7 @@ func NewContractWatcherBuyer(
 		validationStage:      lib.NewAtomicValue(hashrateContract.ValidationStageValidating),
 		fulfillmentStartedAt: atomic.NewTime(time.Time{}),
 		starvingGHS:          atomic.NewUint64(0),
+		contractErrCh:        make(chan struct{}),
 
 		Terms:          terms,
 		allocator:      allocator,
