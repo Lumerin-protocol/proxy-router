@@ -129,6 +129,7 @@ func (c *ControllerBuyer) handleContractPurchased(ctx context.Context, event *im
 
 func (c *ControllerBuyer) handleContractClosed(ctx context.Context, event *implementation.ImplementationContractClosed) error {
 	c.log.Warnf("got closed event for contract")
+	c.Terms.ResetStartTime()
 	if c.State() == resources.ContractStateRunning {
 		c.StopFulfilling()
 	}

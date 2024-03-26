@@ -176,6 +176,12 @@ func (b *BaseTerms) StartTime() time.Time {
 	return b.startsAt
 }
 
+// ResetStartTime needed to change internal state after closeout event so contract will be considered not running
+// TODO: refactor for better state handling
+func (b *BaseTerms) ResetStartTime() {
+	b.startsAt = time.Time{}
+}
+
 func (p *BaseTerms) EndTime() time.Time {
 	if p.startsAt.IsZero() {
 		return time.Time{}
