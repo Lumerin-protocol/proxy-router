@@ -3,7 +3,7 @@ module gitlab.com/TitanInd/proxy/proxy-router-v3
 go 1.19
 
 require (
-	github.com/Lumerin-protocol/contracts-go v0.2.0
+	github.com/Lumerin-protocol/contracts-go v1.0.1
 	github.com/ethereum/go-ethereum v1.12.0
 	github.com/gammazero/deque v0.2.1
 	github.com/gin-gonic/gin v1.9.1

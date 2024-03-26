@@ -86,7 +86,6 @@ func makeTerms() BaseTerms {
 		duration:       0,
 		hashrate:       0,
 		price:          big.NewInt(1),
-		state:          BlockchainStateRunning,
 		isDeleted:      false,
 		balance:        big.NewInt(1),
 		hasFutureTerms: false,
