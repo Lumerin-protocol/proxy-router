@@ -68,7 +68,17 @@ func (c *ControllerBuyer) Run(ctx context.Context) error {
 
 				// underdelivery or destination unreachable, buyer closes the contract
 				c.log.Warnf("buyer contract ended with error: %s", err)
-				err = c.store.CloseContract(ctx, c.ID(), contracts.CloseoutTypeCancel, c.privKey)
+
+				reason := contracts.CloseReasonUnspecified
+				if errors.Is(err, ErrContractDest) {
+					reason = contracts.CloseReasonDestinationUnavailable
+				} else if errors.Is(err, ErrShareTimeout) {
+					reason = contracts.CloseReasonShareTimeout
+				} else if errors.Is(err, ErrUnderdelivery) {
+					reason = contracts.CloseReasonUnderdelivery
+				}
+
+				err = c.store.EarlyClose(ctx, c.ID(), reason, c.privKey)
 				if err != nil {
 					c.log.Errorf("error closing contract: %s", err)
 					c.log.Info("sleeping for 10 seconds")
@@ -119,7 +129,6 @@ func (c *ControllerBuyer) handleContractPurchased(ctx context.Context, event *im
 
 func (c *ControllerBuyer) handleContractClosed(ctx context.Context, event *implementation.ImplementationContractClosed) error {
 	c.log.Warnf("got closed event for contract")
-	c.Terms.SetState(hashrate.BlockchainStateAvailable)
 	if c.State() == resources.ContractStateRunning {
 		c.StopFulfilling()
 	}

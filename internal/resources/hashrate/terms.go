@@ -71,7 +71,6 @@ func NewTerms(contractID, seller, buyer string, startsAt time.Time, duration tim
 			hashrate:       hashrate,
 			price:          price,
 			profitTarget:   profitTarget,
-			state:          state,
 			isDeleted:      isDeleted,
 			balance:        balance,
 			hasFutureTerms: hasFutureTerms,
@@ -151,7 +150,6 @@ type BaseTerms struct {
 	hashrate       float64
 	price          *big.Int
 	profitTarget   int8
-	state          BlockchainState
 	isDeleted      bool
 	balance        *big.Int
 	hasFutureTerms bool
@@ -216,7 +214,11 @@ func (b *BaseTerms) PriceLMR() float64 {
 }
 
 func (p *BaseTerms) BlockchainState() BlockchainState {
-	return p.state
+	if p.isRunning() {
+		return BlockchainStateRunning
+	}
+
+	return BlockchainStateAvailable
 }
 
 func (b *BaseTerms) IsDeleted() bool {
@@ -235,10 +237,6 @@ func (b *BaseTerms) Version() uint32 {
 	return b.version
 }
 
-func (b *BaseTerms) SetState(state BlockchainState) {
-	b.state = state
-}
-
 func (b *BaseTerms) Copy() *BaseTerms {
 	return &BaseTerms{
 		contractID:     b.ID(),
@@ -248,11 +246,14 @@ func (b *BaseTerms) Copy() *BaseTerms {
 		startsAt:       b.StartTime(),
 		duration:       b.Duration(),
 		hashrate:       b.HashrateGHS(),
-		state:          b.BlockchainState(),
 		price:          b.Price(),
 		isDeleted:      b.IsDeleted(),
 		balance:        b.Balance(),
 		hasFutureTerms: b.HasFutureTerms(),
 		version:        b.Version(),
 	}
+}
+
+func (b *BaseTerms) isRunning() bool {
+	return b.EndTime().After(time.Now())
 }
