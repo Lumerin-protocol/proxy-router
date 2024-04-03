@@ -47,7 +47,9 @@ type ContractWatcherBuyer struct {
 }
 
 var (
-	ErrContractDest = errors.New("contract destination error")
+	ErrContractDest  = errors.New("contract destination error")
+	ErrShareTimeout  = errors.New("share timeout")
+	ErrUnderdelivery = errors.New("contract is not delivering enough hashrate")
 )
 
 func NewContractWatcherBuyer(
@@ -199,11 +201,12 @@ func (p *ContractWatcherBuyer) checkIncomingHashrate(ctx context.Context) error 
 			lastShareTime = p.fulfillmentStartedAt.Load()
 		}
 		if time.Since(lastShareTime) > p.shareTimeout {
-			return fmt.Errorf("no share submitted within shareTimeout (%s), lastShare at (%s)", p.shareTimeout, lastShareTime.Format(time.RFC3339))
+			err := fmt.Errorf("no share submitted within shareTimeout (%s), lastShare at (%s)", p.shareTimeout, lastShareTime.Format(time.RFC3339))
+			return lib.WrapError(ErrShareTimeout, err)
 		}
 
 		if !isHashrateOK {
-			return fmt.Errorf("contract is not delivering accurate hashrate")
+			return ErrUnderdelivery
 		}
 		return nil
 	case hashrateContract.ValidationStageFinished:
