@@ -8,3 +8,12 @@ const (
 	CloseoutTypeWithoutClaim CloseoutType = 2 // closeout without claiming funds
 	CloseoutTypeWithClaim    CloseoutType = 3 // closeout with claiming funds
 )
+
+type CloseReason uint8
+
+const (
+	CloseReasonUnspecified            CloseReason = 0
+	CloseReasonUnderdelivery          CloseReason = 1
+	CloseReasonDestinationUnavailable CloseReason = 2
+	CloseReasonShareTimeout           CloseReason = 3
+)

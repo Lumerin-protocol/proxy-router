@@ -238,6 +238,60 @@ func (g *HashrateEthereum) closeContract(ctx context.Context, contractID string,
 	return nil
 }
 
+func (g *HashrateEthereum) EarlyClose(ctx context.Context, contractID string, reason CloseReason, privKey string) error {
+	timeout := 2 * time.Minute
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	l := lib.NewMutex()
+
+	err := l.LockCtx(ctx)
+	if err != nil {
+		err = lib.WrapError(err, fmt.Errorf("close contract lock error %s", timeout))
+		g.log.Error(err)
+		return err
+	}
+	defer l.Unlock()
+
+	err = g.earlyClose(ctx, contractID, reason, privKey)
+	if err != nil {
+		if strings.Contains(err.Error(), "the contract is not in the running state") {
+			return ErrNotRunning
+		}
+		return lib.WrapError(fmt.Errorf("close contract error"), err)
+	}
+
+	return err
+}
+
+func (g *HashrateEthereum) earlyClose(ctx context.Context, contractID string, reason CloseReason, privKey string) error {
+	instance, err := implementation.NewImplementation(common.HexToAddress(contractID), g.client)
+	if err != nil {
+		g.log.Error(err)
+		return err
+	}
+
+	transactOpts, err := g.getTransactOpts(ctx, privKey)
+	if err != nil {
+		g.log.Error(err)
+		return err
+	}
+
+	tx, err := instance.CloseEarly(transactOpts, uint8(reason))
+	if err != nil {
+		return err
+	}
+	g.log.Debugf("closed contract id %s, reason %d nonce %d", contractID, reason, tx.Nonce())
+
+	_, err = bind.WaitMined(ctx, g.client, tx)
+	if err != nil {
+		g.log.Error(err)
+		return err
+	}
+
+	return nil
+}
+
 func (s *HashrateEthereum) CreateCloneFactorySubscription(ctx context.Context, clonefactoryAddr common.Address) (*lib.Subscription, error) {
 	return WatchContractEvents(ctx, s.client, clonefactoryAddr, CreateEventMapper(clonefactoryEventFactory, s.cfABI), s.log)
 }
