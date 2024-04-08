@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/url"
 	"time"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
@@ -25,6 +26,7 @@ type ContractWatcherBuyer struct {
 	hrValidationFlatness     time.Duration
 	role                     resources.ContractRole
 	validatorStartTime       time.Time
+	defaultDest              *url.URL
 
 	// state
 	state                *lib.AtomicValue[resources.ContractState]
@@ -66,6 +68,7 @@ func NewContractWatcherBuyer(
 	hrValidationFlatness time.Duration,
 	validatorStartTime time.Time,
 	role resources.ContractRole,
+	defaultDest *url.URL,
 ) *ContractWatcherBuyer {
 	return &ContractWatcherBuyer{
 		contractCycleDuration:    cycleDuration,
@@ -75,6 +78,7 @@ func NewContractWatcherBuyer(
 		hashrateCounterNameBuyer: hashrateCounterNameBuyer,
 		role:                     role,
 		validatorStartTime:       validatorStartTime,
+		defaultDest:              defaultDest,
 
 		state:                lib.NewAtomicValue(resources.ContractStatePending),
 		validationStage:      lib.NewAtomicValue(hashrateContract.ValidationStageValidating),
@@ -323,7 +327,7 @@ func (p *ContractWatcherBuyer) Dest() string {
 func (p *ContractWatcherBuyer) PoolDest() string {
 	url := p.Terms.DestinationURL
 	if url == nil {
-		return ""
+		return p.defaultDest.String()
 	}
 	return url.String()
 }

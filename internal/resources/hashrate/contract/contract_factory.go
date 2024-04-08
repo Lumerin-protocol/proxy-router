@@ -24,6 +24,7 @@ type ContractFactory struct {
 	hashrateCounterNameBuyer string
 	validatorFlatness        time.Duration
 	validatorStartTime       time.Time
+	defaultDest              *url.URL
 
 	// state
 	address common.Address // derived from private key
@@ -50,6 +51,7 @@ func NewContractFactory(
 	hashrateCounterNameBuyer string,
 	validatorFlatness time.Duration,
 	validatorStartTime time.Time,
+	defaultDest *url.URL,
 ) (*ContractFactory, error) {
 	address, err := lib.PrivKeyStringToAddr(privateKey)
 	if err != nil {
@@ -72,6 +74,7 @@ func NewContractFactory(
 		hashrateCounterNameBuyer: hashrateCounterNameBuyer,
 		validatorFlatness:        validatorFlatness,
 		validatorStartTime:       validatorStartTime,
+		defaultDest:              defaultDest,
 	}, nil
 }
 
@@ -129,6 +132,7 @@ func (c *ContractFactory) CreateContract(contractData *hashrateContract.Encrypte
 			c.validatorFlatness,
 			c.validatorStartTime,
 			role,
+			c.defaultDest,
 		)
 
 		if destErr != nil {
