@@ -223,6 +223,7 @@ func start() error {
 		HashrateCounterBuyer,
 		cfg.Hashrate.ValidatorFlatness,
 		appStartTime.Add(cfg.Hashrate.ValidationTimeoutAppStart),
+		destUrl,
 	)
 	if err != nil {
 		return err
