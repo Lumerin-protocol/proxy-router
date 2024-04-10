@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/url"
 	"time"
 
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
@@ -25,6 +26,7 @@ type ContractWatcherBuyer struct {
 	hrValidationFlatness     time.Duration
 	role                     resources.ContractRole
 	validatorStartTime       time.Time
+	defaultDest              *url.URL
 
 	// state
 	state                *lib.AtomicValue[resources.ContractState]
@@ -47,7 +49,9 @@ type ContractWatcherBuyer struct {
 }
 
 var (
-	ErrContractDest = errors.New("contract destination error")
+	ErrContractDest  = errors.New("contract destination error")
+	ErrShareTimeout  = errors.New("share timeout")
+	ErrUnderdelivery = errors.New("contract is not delivering enough hashrate")
 )
 
 func NewContractWatcherBuyer(
@@ -64,6 +68,7 @@ func NewContractWatcherBuyer(
 	hrValidationFlatness time.Duration,
 	validatorStartTime time.Time,
 	role resources.ContractRole,
+	defaultDest *url.URL,
 ) *ContractWatcherBuyer {
 	return &ContractWatcherBuyer{
 		contractCycleDuration:    cycleDuration,
@@ -73,6 +78,7 @@ func NewContractWatcherBuyer(
 		hashrateCounterNameBuyer: hashrateCounterNameBuyer,
 		role:                     role,
 		validatorStartTime:       validatorStartTime,
+		defaultDest:              defaultDest,
 
 		state:                lib.NewAtomicValue(resources.ContractStatePending),
 		validationStage:      lib.NewAtomicValue(hashrateContract.ValidationStageValidating),
@@ -199,11 +205,12 @@ func (p *ContractWatcherBuyer) checkIncomingHashrate(ctx context.Context) error 
 			lastShareTime = p.fulfillmentStartedAt.Load()
 		}
 		if time.Since(lastShareTime) > p.shareTimeout {
-			return fmt.Errorf("no share submitted within shareTimeout (%s), lastShare at (%s)", p.shareTimeout, lastShareTime.Format(time.RFC3339))
+			err := fmt.Errorf("no share submitted within shareTimeout (%s), lastShare at (%s)", p.shareTimeout, lastShareTime.Format(time.RFC3339))
+			return lib.WrapError(ErrShareTimeout, err)
 		}
 
 		if !isHashrateOK {
-			return fmt.Errorf("contract is not delivering accurate hashrate")
+			return ErrUnderdelivery
 		}
 		return nil
 	case hashrateContract.ValidationStageFinished:
@@ -320,7 +327,7 @@ func (p *ContractWatcherBuyer) Dest() string {
 func (p *ContractWatcherBuyer) PoolDest() string {
 	url := p.Terms.DestinationURL
 	if url == nil {
-		return ""
+		return p.defaultDest.String()
 	}
 	return url.String()
 }
