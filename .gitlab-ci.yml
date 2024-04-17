@@ -425,17 +425,8 @@ bedrock-04-PRD-validator:
 #     strategy: depend
 
 #######################
-# RELEASE STAGE
+# TAG STAGE
 #######################
-.default-release: &default-release
-  inherit:
-    default: false
-  stage: release
-  needs: ["test", "lint"]
-  image:
-    name: goreleaser/goreleaser:v1.19.2
-    entrypoint: [""]
-
 .default-tag: &default-tag
   stage: release
   needs: ["test", "lint"]
@@ -467,6 +458,18 @@ create_tag_main:
     - git fetch origin -f --prune --prune-tags
     - git tag "$VERSION-lmn"
     - git push origin --tags
+
+#######################
+# RELEASE STAGE
+#######################
+.default-release: &default-release
+  inherit:
+    default: false
+  stage: release
+  needs: ["test", "lint"]
+  image:
+    name: goreleaser/goreleaser:v1.19.2
+    entrypoint: [""]
 
 release-internal:
   <<: *default-release
