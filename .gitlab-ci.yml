@@ -254,6 +254,16 @@ bedrock-04-PRD-rawimage:
   - *update_raw_task_definition
   - *deploy_new_task_definition
 
+.deploy_raw_sellertwo: &deploy_raw_sellertwo
+  - CI_AWS_TASK="proxy-routertwo"
+  - CI_WALLET_PRIVATE_KEY=$SELLER_PRIVATEKEY
+  - CI_POOL_ADDRESS=$POOL_ADDRESS
+  - CI_WEB_PUBLIC_URL=$WEB_PUBLIC_URL
+  - CI_ETH_NODE_ADDRESS=$PROXY_ROUTER_ETH_NODE_ADDRESS
+  - *ecr_login_script
+  - *update_raw_task_definition
+  - *deploy_new_task_definition
+
 .deploy_raw_validator: &deploy_raw_validator
   - CI_AWS_TASK="proxy-validator"
   - CI_WALLET_PRIVATE_KEY=$VALIDATOR_PRIVATEKEY
@@ -411,7 +421,7 @@ bedrock-04-PRD-seller2:
     TGT_ENV: lmn
     PROXY_LOG_STRATUM: "false"
   script:
-    - *deploy_raw_seller
+    - *deploy_raw_sellertwo
     - echo "$TGT_ENV seller updated"
 
 bedrock-04-PRD-validator:
