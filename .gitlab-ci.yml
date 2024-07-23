@@ -400,7 +400,7 @@ bedrock-04-PRD-seller:
     - *deploy_raw_seller
     - echo "$TGT_ENV seller updated"
 
-bedrock-04-PRD-seller2:
+bedrock-04-PRD-sellertwo:
   stage: deploy
   environment: lmn2
   needs: ["bedrock-04-PRD-rawimage"]
