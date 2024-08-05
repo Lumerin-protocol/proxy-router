@@ -10,6 +10,7 @@ import (
 const MethodMiningSetDifficulty = "mining.set_difficulty"
 
 type MiningSetDifficulty struct {
+	ID     *int                       `json:"id"` // LuxOS firmware expects it to be set to null
 	Method string                     `json:"method,omitempty"`
 	Params *miningSetDifficultyParams `json:"params"`
 }
