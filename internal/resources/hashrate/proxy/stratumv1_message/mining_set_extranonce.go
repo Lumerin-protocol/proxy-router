@@ -10,6 +10,7 @@ import (
 const MethodMiningSetExtranonce = "mining.set_extranonce"
 
 type MiningSetExtranonce struct {
+	ID     *int                       `json:"id"` // LuxOS firmware expects it to be set to null
 	Method string                     `json:"method,omitempty"`
 	Params *miningSetExtranonceParams `json:"params"`
 }
