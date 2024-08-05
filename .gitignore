@@ -2,9 +2,11 @@
 logs
 .env
 *.log
-
+output
 
 # binary folders
 dist
 bin 
+
+
 

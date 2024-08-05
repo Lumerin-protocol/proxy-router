@@ -11,6 +11,7 @@ import (
 const MethodMiningSetVersionMask = "mining.set_version_mask"
 
 type MiningSetVersionMask struct {
+	ID     *int                        `json:"id"` // LuxOS firmware expects it to be set to null
 	Method string                      `json:"method,omitempty"`
 	Params *miningSetVersionMaskParams `json:"params"`
 }

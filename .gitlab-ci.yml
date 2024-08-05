@@ -382,7 +382,7 @@ bedrock-04-PRD-seller:
   needs: ["bedrock-04-PRD-rawimage"]
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
-      when: manual
+      when: always
     - if: $CI_COMMIT_BRANCH != "main"
       when: never
     - if: $CI_MERGE_REQUEST_ID
@@ -400,29 +400,29 @@ bedrock-04-PRD-seller:
     - *deploy_raw_seller
     - echo "$TGT_ENV seller updated"
 
-bedrock-04-PRD-sellertwo:
-  stage: deploy
-  environment: lmn2
-  needs: ["bedrock-04-PRD-rawimage"]
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-      when: manual
-    - if: $CI_COMMIT_BRANCH != "main"
-      when: never
-    - if: $CI_MERGE_REQUEST_ID
-      when: never
-  tags:
-    - proxy #devops
-    - bedrock
-    - shell
-    - titanio-lmn
-  variables:
-    TGT_ACCOUNT: $CI_AWS_ACCOUNT_LMN
-    TGT_ENV: lmn
-    PROXY_LOG_STRATUM: "false"
-  script:
-    - *deploy_raw_sellertwo
-    - echo "$TGT_ENV seller updated"
+# bedrock-04-PRD-sellertwo:
+#   stage: deploy
+#   environment: lmn2
+#   needs: ["bedrock-04-PRD-rawimage"]
+#   rules:
+#     - if: $CI_COMMIT_BRANCH == "main"
+#       when: manual
+#     - if: $CI_COMMIT_BRANCH != "main"
+#       when: never
+#     - if: $CI_MERGE_REQUEST_ID
+#       when: never
+#   tags:
+#     - proxy #devops
+#     - bedrock
+#     - shell
+#     - titanio-lmn
+#   variables:
+#     TGT_ACCOUNT: $CI_AWS_ACCOUNT_LMN
+#     TGT_ENV: lmn
+#     PROXY_LOG_STRATUM: "false"
+#   script:
+#     - *deploy_raw_sellertwo
+#     - echo "$TGT_ENV seller updated"
 
 bedrock-04-PRD-validator:
   stage: deploy
@@ -430,7 +430,7 @@ bedrock-04-PRD-validator:
   needs: ["bedrock-04-PRD-rawimage","bedrock-04-PRD-seller"]
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
-      when: manual
+      when: always
     - if: $CI_COMMIT_BRANCH != "main"
       when: never
     - if: $CI_MERGE_REQUEST_ID
