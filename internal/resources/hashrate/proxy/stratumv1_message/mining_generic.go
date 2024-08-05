@@ -7,7 +7,7 @@ import (
 )
 
 type MiningGeneric struct {
-	ID     int             `json:"id,omitempty"`
+	ID     *int            `json:"id"`
 	Method string          `json:"method,omitempty"`
 	Params json.RawMessage `json:"params,omitempty"`
 	Result json.RawMessage `json:"result,omitempty"`

@@ -12,7 +12,7 @@ import (
 const MethodMiningNotify = "mining.notify"
 
 type MiningNotify struct {
-	ID     *int               `json:"id"` // always null
+	ID     *int               `json:"id"` // LuxOS firmware expects it to be set to null
 	Method string             `json:"method"`
 	Params [9]json.RawMessage `json:"params"`
 }

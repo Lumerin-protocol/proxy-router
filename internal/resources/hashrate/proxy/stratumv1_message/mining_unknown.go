@@ -7,7 +7,7 @@ import (
 )
 
 type MiningUnknown struct {
-	ID     int             `json:"id"`
+	ID     *int            `json:"id"`
 	Method string          `json:"method,omitempty"`
 	Params json.RawMessage `json:"params"`
 }
@@ -17,11 +17,11 @@ func ParseMiningUnknown(b []byte) (*MiningUnknown, error) {
 	return m, json.Unmarshal(b, m)
 }
 
-func (m *MiningUnknown) GetID() int {
+func (m *MiningUnknown) GetID() *int {
 	return m.ID
 }
 
-func (m *MiningUnknown) SetID(ID int) {
+func (m *MiningUnknown) SetID(ID *int) {
 	m.ID = ID
 }
 
