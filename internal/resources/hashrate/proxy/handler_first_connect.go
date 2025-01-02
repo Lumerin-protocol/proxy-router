@@ -18,6 +18,7 @@ import (
 var (
 	ErrNotStratum      = errors.New("not a stratum protocol") // means that incoming connection is not a stratum protocol
 	ErrUnknownContract = errors.New("incoming connection for unknown contract")
+	ErrNotAValidator   = errors.New("not a validator for this contract")
 )
 
 type HandlerFirstConnect struct {
@@ -74,7 +75,7 @@ func (p *HandlerFirstConnect) handleSource(ctx context.Context, msg i.MiningMess
 	default:
 		p.proxy.logWarnf("unknown handshake message from source: %s", string(msg.Serialize()))
 		// todo: maybe just return message, so pipe will write it
-		return nil, p.proxy.dest.Write(context.Background(), msgTyped)
+		return nil, p.proxy.dest.Write(ctx, msgTyped)
 	}
 }
 
@@ -115,6 +116,9 @@ func (p *HandlerFirstConnect) getPoolDest(contractID string) (*url.URL, error) {
 	contract, isExist := p.proxy.getContractFromStoreFn(contractID)
 	if !isExist {
 		return nil, lib.WrapError(ErrUnknownContract, fmt.Errorf("contract id: %s", contractID))
+	}
+	if contract.Validator() == contractID {
+		return nil, lib.WrapError(ErrNotAValidator, fmt.Errorf("contract id: %s", contract))
 	}
 	p.proxy.contractID = &contractID
 	poolDestStr := contract.PoolDest()

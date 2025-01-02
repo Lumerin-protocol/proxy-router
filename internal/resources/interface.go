@@ -26,7 +26,7 @@ type Contract interface {
 	ID() string        // ID is the unique identifier of the contract, for smart contract data source this is the smart contract address
 	Seller() string    // ID of the seller (address of the seller for smart contract data source)
 	Buyer() string     // ID of the buyer (address of the buyer for smart contract data source)
-	Validator() string // ID of the buyer (address of the buyer for smart contract data source)
+	Validator() string // ID of the validator (address of the validator for smart contract data source)
 	Dest() string      // immediate destination of the contract resource (for example the validator address for hashrate contract)
 	PoolDest() string  // destination to redirect hashrate after validation (for example the pool address for hashrate contract)
 

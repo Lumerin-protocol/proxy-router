@@ -24,6 +24,7 @@ import (
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/contract"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
+	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/peervalidator"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/validator"
 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/system"
@@ -263,6 +264,11 @@ func start() error {
 	handl := httphandlers.NewHTTPHandler(alloc, cm, globalHashrate, sysConfig, publicUrl, HashrateCounterDefault, cfg.Hashrate.CycleDuration, &cfg, derived, appStartTime, contractLogStorage, log)
 	httpServer := transport.NewServer(cfg.Web.Address, handl, log.Named("HTP"))
 
+	peerValidator, err := peervalidator.NewPeerValidator(common.HexToAddress(cfg.Marketplace.ValidatorRegistryAddress), walletAddr, ethClient, cfg.Hashrate.PeerValidationInterval, log)
+	if err != nil {
+		return err
+	}
+
 	ctx, cancel = context.WithCancel(ctx)
 	g, errCtx := errgroup.WithContext(ctx)
 	g.Go(func() error {
@@ -272,6 +278,12 @@ func start() error {
 	g.Go(func() error {
 		return cm.Run(errCtx)
 	})
+
+	if cfg.Marketplace.ValidatorRegistryAddress != "" {
+		g.Go(func() error {
+			return peerValidator.Run(errCtx)
+		})
+	}
 
 	g.Go(func() error {
 		for {

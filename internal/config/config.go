@@ -21,14 +21,17 @@ type Config struct {
 	Hashrate    struct {
 		CycleDuration             time.Duration `env:"HASHRATE_CYCLE_DURATION"               flag:"hashrate-cycle-duration"               validate:"omitempty,duration"  desc:"duration of the hashrate cycle, after which the hashrate is evaluated, applies to both seller and buyer"`
 		ErrorThreshold            float64       `env:"HASHRATE_ERROR_THRESHOLD"              flag:"hashrate-error-threshold"                                             desc:"hashrate relative error threshold for the contract to be considered fulfilling accurately, applies for buyer"`
+		PeerValidationInterval    time.Duration `env:"HASHRATE_PEER_VALIDATION_INTERVAL"     flag:"hashrate-peer-validation-interval"     validate:"duration,gt=0"  desc:"interval between peer validation attempts, applies for validator"`
 		ShareTimeout              time.Duration `env:"HASHRATE_SHARE_TIMEOUT"                flag:"hashrate-share-timeout"                validate:"omitempty,duration"  desc:"time to wait for the share to arrive, otherwise close contract, applies for buyer"`
 		ValidatorFlatness         time.Duration `env:"HASHRATE_VALIDATION_FLATNESS"          flag:"hashrate-validation-flatness"          validate:"omitempty,duration"  desc:"artificial parameter of validation function, applies for buyer"`
 		ValidationTimeoutAppStart time.Duration `env:"HASHRATE_VALIDATION_TIMEOUT_APP_START" flag:"hashrate-validation-timeout-app-start" validate:"omitempty,duration"  desc:"disables validation of the incoming hashrate for specified amount of time right after application startup"`
+		ValidationAutoClaimReward bool          `env:"HASHRATE_VALIDATION_AUTO_CLAIM_REWARD" flag:"hashrate-validation-auto-claim-reward" validate:"omitempty"           desc:"automatically claim reward if the hashrate is validated successfully"`
 	}
 	Marketplace struct {
-		CloneFactoryAddress string `env:"CLONE_FACTORY_ADDRESS" flag:"contract-address"   validate:"required_if=Disable false,omitempty,eth_addr"`
-		Mnemonic            string `env:"CONTRACT_MNEMONIC"     flag:"contract-mnemonic"  validate:"required_without=WalletPrivateKey|required_if=Disable false"`
-		WalletPrivateKey    string `env:"WALLET_PRIVATE_KEY"    flag:"wallet-private-key" validate:"required_without=Mnemonic|required_if=Disable false"`
+		CloneFactoryAddress      string `env:"CLONE_FACTORY_ADDRESS" flag:"contract-address"   validate:"required_if=Disable false,omitempty,eth_addr"`
+		ValidatorRegistryAddress string `env:"VALIDATOR_REGISTRY_ADDRESS" flag:"validator-registry-address" validate:"omitempty,eth_addr"`
+		Mnemonic                 string `env:"CONTRACT_MNEMONIC"     flag:"contract-mnemonic"  validate:"required_without=WalletPrivateKey|required_if=Disable false"`
+		WalletPrivateKey         string `env:"WALLET_PRIVATE_KEY"    flag:"wallet-private-key" validate:"required_without=Mnemonic|required_if=Disable false"`
 	}
 	Miner struct {
 		NotPropagateWorkerName bool          `env:"MINER_NOT_PROPAGATE_WORKER_NAME" flag:"miner-not-propagate-worker-name"     validate:""                      desc:"not preserve worker name from the source in the destination pool. Preserving works only if the source miner worker name is defined as 'accountName.workerName'. Does not apply for contracts"`
