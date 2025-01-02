@@ -21,7 +21,7 @@ type Config struct {
 	Hashrate    struct {
 		CycleDuration             time.Duration `env:"HASHRATE_CYCLE_DURATION"               flag:"hashrate-cycle-duration"               validate:"omitempty,duration"  desc:"duration of the hashrate cycle, after which the hashrate is evaluated, applies to both seller and buyer"`
 		ErrorThreshold            float64       `env:"HASHRATE_ERROR_THRESHOLD"              flag:"hashrate-error-threshold"                                             desc:"hashrate relative error threshold for the contract to be considered fulfilling accurately, applies for buyer"`
-		PeerValidationInterval    time.Duration `env:"HASHRATE_PEER_VALIDATION_INTERVAL"     flag:"hashrate-peer-validation-interval"     validate:"duration,gt=0"  desc:"interval between peer validation attempts, applies for validator"`
+		PeerValidationInterval    time.Duration `env:"HASHRATE_PEER_VALIDATION_INTERVAL"     flag:"hashrate-peer-validation-interval"     validate:"omitempty,duration"  desc:"interval between peer validation attempts, applies for validator"`
 		ShareTimeout              time.Duration `env:"HASHRATE_SHARE_TIMEOUT"                flag:"hashrate-share-timeout"                validate:"omitempty,duration"  desc:"time to wait for the share to arrive, otherwise close contract, applies for buyer"`
 		ValidatorFlatness         time.Duration `env:"HASHRATE_VALIDATION_FLATNESS"          flag:"hashrate-validation-flatness"          validate:"omitempty,duration"  desc:"artificial parameter of validation function, applies for buyer"`
 		ValidationTimeoutAppStart time.Duration `env:"HASHRATE_VALIDATION_TIMEOUT_APP_START" flag:"hashrate-validation-timeout-app-start" validate:"omitempty,duration"  desc:"disables validation of the incoming hashrate for specified amount of time right after application startup"`
@@ -91,6 +91,9 @@ func (cfg *Config) SetDefaults() {
 	}
 	if cfg.Hashrate.ValidatorFlatness == 0 {
 		cfg.Hashrate.ValidatorFlatness = 20 * time.Minute
+	}
+	if cfg.Hashrate.PeerValidationInterval == 0 {
+		cfg.Hashrate.PeerValidationInterval = 5 * time.Minute
 	}
 
 	// If validator is down, the next attempt to connect is going to be performed after "CycleDuration".
