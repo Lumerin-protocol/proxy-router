@@ -91,6 +91,7 @@ func LoadConfig(cfg ConfigInterface, osArgs *[]string) error {
 		// skipping keys that are not flags
 		// or values for flags that are not defined
 		if args[0][0] != '-' {
+			args = args[1:]
 			continue
 		}
 
