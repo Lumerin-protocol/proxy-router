@@ -1,6 +1,6 @@
 github.com/DataDog/zstd v1.5.2 h1:vUG4lAyuPCXO0TLbXvPv7EB7cNK1QV/luu55UHLrrn8=
-github.com/Lumerin-protocol/contracts-go v1.1.0 h1:07UNRvGl7/7DDr3Tr1IJ61NSlhiBuZ/nWfCyjtTs5nI=
-github.com/Lumerin-protocol/contracts-go v1.1.0/go.mod h1:uatk0ssY1T08ZbhanwY9NX++fZSK33bmxY/fMwH9g7c=
+github.com/Lumerin-protocol/contracts-go v1.2.0 h1:B5/nV5CqwSPPuX661beLymAvTYPy/C7+kvNYKQgiM/s=
+github.com/Lumerin-protocol/contracts-go v1.2.0/go.mod h1:uatk0ssY1T08ZbhanwY9NX++fZSK33bmxY/fMwH9g7c=
 github.com/StackExchange/wmi v1.2.1 h1:VIkavFPXSjcnS+O8yTq7NI32k0R5Aj+v39y29VYDOSA=
 github.com/StackExchange/wmi v1.2.1/go.mod h1:rcmrprowKIVzvc+NUiLncP2uuArMWLCbu9SBzvHz7e8=
 github.com/VictoriaMetrics/fastcache v1.6.0 h1:C/3Oi3EiBCqufydp1neRZkqcwmEiuRT9c3fqvvgKm5o=

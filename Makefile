@@ -1,5 +1,5 @@
 run:
-	go run cmd/main.go
+	go run ./cmd
 
 race:
 	go run -gcflags '-N -l' -race cmd/main.go

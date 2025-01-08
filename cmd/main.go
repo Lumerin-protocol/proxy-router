@@ -41,6 +41,15 @@ var (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "pubkey" {
+		err := logCompressedPublicKey()
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+
 	err := start()
 	if err != nil {
 		fmt.Println(err)
