@@ -30,6 +30,7 @@ func NewPeerValidator(registryAddress common.Address, walletAddr common.Address,
 
 	return &PeerValidator{
 		registryAddr: registryAddress,
+		walletAddr:   walletAddr,
 		interval:     interval,
 		registry:     registry,
 		log:          log.Named("PEER_VAL"),
