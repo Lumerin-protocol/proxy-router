@@ -64,7 +64,9 @@ func SerializeShare(enonce2, ntime, nonce, vmask string) shareBytes {
 	nonceBytes, _ := hex.DecodeString(nonce)
 	vmaskBytes, _ := hex.DecodeString(vmask)
 
-	copy(hash[:8], enonce2Bytes[:8])
+	// enonce2Bytes could be less than 8 bytes, for example "f50600000000"
+	// {"id":12402,"method":"mining.submit","params":["0x811A97ae6Ce981f5586CD4F3DFFBd09916daB987","02","f50600000000","6781849b","556b8f23","00e00000"]}
+	copy(hash[:8], enonce2Bytes[:])
 	copy(hash[8:12], ntimeBytes[:4])
 	copy(hash[12:16], nonceBytes[:4])
 	copy(hash[16:20], vmaskBytes[:4])
