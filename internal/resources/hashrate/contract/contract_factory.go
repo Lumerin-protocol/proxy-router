@@ -138,7 +138,7 @@ func (c *ContractFactory) CreateContract(contractData *hashrateContract.Encrypte
 		if destErr != nil {
 			watcher.contractErr.Store(destErr)
 		}
-		return NewControllerBuyer(watcher, c.store, c.privateKey), nil
+		return NewControllerBuyer(watcher, c.store, c.privateKey, false), nil
 	}
 	return nil, fmt.Errorf("invalid terms %+v", contractData)
 }

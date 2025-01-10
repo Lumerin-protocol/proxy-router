@@ -15,16 +15,18 @@ import (
 
 type ControllerBuyer struct {
 	*ContractWatcherBuyer
-	store   *contracts.HashrateEthereum
-	tsk     *lib.Task
-	privKey string
+	store           *contracts.HashrateEthereum
+	tsk             *lib.Task
+	privKey         string
+	autoClaimReward bool
 }
 
-func NewControllerBuyer(contract *ContractWatcherBuyer, store *contracts.HashrateEthereum, privKey string) *ControllerBuyer {
+func NewControllerBuyer(contract *ContractWatcherBuyer, store *contracts.HashrateEthereum, privKey string, autoClaimReward bool) *ControllerBuyer {
 	return &ControllerBuyer{
 		ContractWatcherBuyer: contract,
 		store:                store,
 		privKey:              privKey,
+		autoClaimReward:      autoClaimReward,
 	}
 }
 
@@ -97,6 +99,14 @@ func (c *ControllerBuyer) Run(ctx context.Context) error {
 			} else {
 				// delivery ok, seller will close the contract
 				c.log.Infof("buyer contract ended without an error")
+				if c.isValidator() && c.autoClaimReward {
+					c.log.Infof("auto claiming reward")
+
+					err := c.store.ClaimValidatorReward(ctx, c.ID(), c.privKey)
+					if err != nil {
+						c.log.Errorf("error during auto claiming reward: %s", err)
+					}
+				}
 				return nil
 			}
 		}
@@ -164,4 +174,8 @@ func (c *ControllerBuyer) LoadTermsFromBlockchain(ctx context.Context) error {
 
 func (c *ControllerBuyer) SyncState(ctx context.Context) error {
 	return nil
+}
+
+func (c *ControllerBuyer) isValidator() bool {
+	return common.HexToAddress(c.Validator()) == lib.MustPrivKeyStringToAddr(c.privKey)
 }

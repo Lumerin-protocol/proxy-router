@@ -29,7 +29,7 @@ default:
   echo $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG
 
 #######################
-# TEST STAGE 
+# TEST STAGE
 #######################
 lint:
   inherit:
@@ -59,7 +59,7 @@ test:
     - make test-unit
 
 #######################
-# BUILD STAGE  
+# BUILD STAGE
 #######################
 .build_raw_image: &build_raw_image |
   echo "**************************"
@@ -68,7 +68,7 @@ test:
   docker build \
     --build-arg COMMIT=$CI_COMMIT_SHORT_SHA \
     -t $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$IMAGE_TAG --no-cache .
-  
+
   echo "**************************"
   echo "*** Tag Image with $TGT_ENV-latest"
   echo "**************************"
@@ -81,7 +81,7 @@ test:
   docker push $CI_AWS_TitanIO_NET_ECR/$CI_AWS_ECR_REPO:$TGT_ENV-latest
 
 #######################
-# BUILD DEVELOPMENT 
+# BUILD DEVELOPMENT
 #######################
 bedrock-02-DEV-rawimage:
   stage: build
@@ -110,7 +110,7 @@ bedrock-02-DEV-rawimage:
     - echo "$TGT_ENV Raw Image updated"
 
 #######################
-# BUILD STAGING  
+# BUILD STAGING
 #######################
 bedrock-03-STG-rawimage:
   stage: build
@@ -139,7 +139,7 @@ bedrock-03-STG-rawimage:
     - echo "$TGT_ENV Raw Image updated"
 
 #######################
-# BUILD PRODUCTION/MAIN/LMN  
+# BUILD PRODUCTION/MAIN/LMN
 #######################
 bedrock-04-PRD-rawimage:
   stage: build
@@ -168,7 +168,7 @@ bedrock-04-PRD-rawimage:
     - echo "$TGT_ENV Raw Image updated"
 
 #######################
-# DEPLOY STAGE  
+# DEPLOY STAGE
 #######################
 .update_raw_task_definition: &update_raw_task_definition |
   echo "**************************"
@@ -194,7 +194,10 @@ bedrock-04-PRD-rawimage:
         { "name": "HASHRATE_SHARE_TIMEOUT", "value": "'"$HASHRATE_SHARE_TIMEOUT"'" },
         { "name": "HASHRATE_ERROR_THRESHOLD", "value": "'"$HASHRATE_ERROR_THRESHOLD"'" },
         { "name": "HASHRATE_ERROR_TIMEOUT", "value": "'"$HASHRATE_ERROR_TIMEOUT"'" },
+        { "name": "HASHRATE_PEER_VALIDATION_INTERVAL", "value": "'"$HASHRATE_PEER_VALIDATION_INTERVAL"'" },
+        { "name": "HASHRATE_VALIDATION_AUTO_CLAIM_REWARD", "value": "'"$HASHRATE_VALIDATION_AUTO_CLAIM_REWARD"'" },
         { "name": "CLONE_FACTORY_ADDRESS", "value": "'"$CLONE_FACTORY_ADDRESS"'" },
+        { "name": "VALIDATOR_REGISTRY_ADDRESS", "value": "'"$VALIDATOR_REGISTRY_ADDRESS"'" },
         { "name": "CONTRACT_MNEMONIC", "value": "'"$CONTRACT_MNEMONIC"'" },
         { "name": "WALLET_PRIVATE_KEY", "value": "'"$CI_WALLET_PRIVATE_KEY"'" },
         { "name": "MINER_VETTING_DURATION", "value": "'"$MINER_VETTING_DURATION"'" },
@@ -276,7 +279,7 @@ bedrock-04-PRD-rawimage:
   - *deploy_new_task_definition
 
 #######################
-# DEPLOY DEVELOPMENT 
+# DEPLOY DEVELOPMENT
 #######################
 bedrock-02-DEV-seller:
   stage: deploy
@@ -325,7 +328,7 @@ bedrock-02-DEV-validator:
     - echo "$TGT_ENV validator updated"
 
 #######################
-# DEPLOY STAGING 
+# DEPLOY STAGING
 #######################
 bedrock-03-STG-seller:
   stage: deploy
@@ -353,7 +356,7 @@ bedrock-03-STG-seller:
 bedrock-03-STG-validator:
   stage: deploy
   environment: stg
-  needs: ["bedrock-03-STG-rawimage","bedrock-03-STG-seller"]
+  needs: ["bedrock-03-STG-rawimage", "bedrock-03-STG-seller"]
   rules:
     - if: $CI_COMMIT_BRANCH == "stg"
       when: always
@@ -374,7 +377,7 @@ bedrock-03-STG-validator:
     - echo "$TGT_ENV validator updated"
 
 #######################
-# DEPLOY PRODUCTION / MAIN / LMN 
+# DEPLOY PRODUCTION / MAIN / LMN
 #######################
 bedrock-04-PRD-seller:
   stage: deploy
@@ -427,7 +430,7 @@ bedrock-04-PRD-seller:
 bedrock-04-PRD-validator:
   stage: deploy
   environment: lmn
-  needs: ["bedrock-04-PRD-rawimage","bedrock-04-PRD-seller"]
+  needs: ["bedrock-04-PRD-rawimage", "bedrock-04-PRD-seller"]
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
       when: always

@@ -167,7 +167,7 @@ func (g *HashrateEthereum) PurchaseContract(ctx context.Context, contractID stri
 		Context: ctx,
 	}
 	sink := make(chan *clonefactory.ClonefactoryClonefactoryContractPurchased)
-	sub, err := g.cloneFactory.WatchClonefactoryContractPurchased(watchOpts, sink, []common.Address{})
+	sub, err := g.cloneFactory.WatchClonefactoryContractPurchased(watchOpts, sink, []common.Address{}, []common.Address{})
 	if err != nil {
 		return err
 	}
@@ -282,6 +282,57 @@ func (g *HashrateEthereum) earlyClose(ctx context.Context, contractID string, re
 		return err
 	}
 	g.log.Debugf("closed contract id %s, reason %d nonce %d", contractID, reason, tx.Nonce())
+
+	_, err = bind.WaitMined(ctx, g.client, tx)
+	if err != nil {
+		g.log.Error(err)
+		return err
+	}
+
+	return nil
+}
+
+func (g *HashrateEthereum) ClaimValidatorReward(ctx context.Context, contractID string, privKey string) error {
+	timeout := 2 * time.Minute
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	l := lib.NewMutex()
+
+	err := l.LockCtx(ctx)
+	if err != nil {
+		err = lib.WrapError(err, fmt.Errorf("claim validator reward lock error %s", timeout))
+		g.log.Error(err)
+		return err
+	}
+	defer l.Unlock()
+
+	err = g.claimValidatorReward(ctx, contractID, privKey)
+	if err != nil {
+		return lib.WrapError(fmt.Errorf("claim validator reward error"), err)
+	}
+
+	return err
+}
+
+func (g *HashrateEthereum) claimValidatorReward(ctx context.Context, contractID string, privKey string) error {
+	instance, err := implementation.NewImplementation(common.HexToAddress(contractID), g.client)
+	if err != nil {
+		g.log.Error(err)
+		return err
+	}
+
+	transactOpts, err := g.getTransactOpts(ctx, privKey)
+	if err != nil {
+		g.log.Error(err)
+		return err
+	}
+
+	tx, err := instance.ClaimFundsValidator(transactOpts)
+	if err != nil {
+		return err
+	}
+	g.log.Debugf("claim reward contract id %s, nonce %d", contractID, tx.Nonce())
 
 	_, err = bind.WaitMined(ctx, g.client, tx)
 	if err != nil {
