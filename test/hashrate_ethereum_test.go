@@ -220,7 +220,7 @@ func PurchaseContract(ctx context.Context, client contracts.EthereumClient, cont
 		Context: ctx,
 	}
 	sink := make(chan *clonefactory.ClonefactoryClonefactoryContractPurchased)
-	sub, err := cloneFactory.WatchClonefactoryContractPurchased(watchOpts, sink, []common.Address{})
+	sub, err := cloneFactory.WatchClonefactoryContractPurchased(watchOpts, sink, []common.Address{}, []common.Address{})
 	if err != nil {
 		return err
 	}

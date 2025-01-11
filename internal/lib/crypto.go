@@ -97,3 +97,31 @@ func MustPrivKeyStringToAddr(privateKey string) common.Address {
 	}
 	return addr
 }
+
+type PubKey struct {
+	X       common.Hash
+	YParity bool
+}
+
+func (p *PubKey) String() string {
+	return fmt.Sprintf("x: %s, yParity: %t", p.X.String(), p.YParity)
+}
+
+func (p *PubKey) Compressed() []byte {
+	prefix := byte(0x02)
+	if p.YParity { // If the least significant bit of y is 1, it's odd
+		prefix = 0x03
+	}
+
+	// Append the prefix and the x-coordinate
+	compressed := append([]byte{prefix}, p.X.Bytes()...)
+	return compressed
+}
+
+// PrKeyToCompressedPubKey converts a private key to a compressed public key (yParity, x) for use with validator registry
+func PrKeyToCompressedPubKey(prkey *ecdsa.PrivateKey) (yParity bool, x common.Hash, err error) {
+	pub := prkey.PublicKey
+
+	x.SetBytes(pub.X.Bytes())
+	return pub.Y.Bit(0) == 1, x, nil
+}

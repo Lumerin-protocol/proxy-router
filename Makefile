@@ -1,4 +1,7 @@
 run:
+	go run ./cmd
+
+race:
 	go run -gcflags '-N -l' -race cmd/main.go
 
 build:
