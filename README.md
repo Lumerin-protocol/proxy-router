@@ -11,7 +11,7 @@ The Proxy-Router can be utilized in three different modes:
 ## Validator Node
 
 ### How to register as a validator node
-
+#### For full details, visit the [Lumerin Gitbook](https://gitbook.lumerin.io/lumerin-hashpower-marketplace/validator/)
 1. Download the latest version of the Proxy-Router from the [Lumerin Github](https://github.com/Lumerin-protocol/proxy-router/releases)
 1. Enter your validator node wallet private key as WALLET_PRIVATE_KEY environment variable
 1. Run the Proxy-Router with the following command to generate compressed public key
@@ -27,3 +27,4 @@ The Proxy-Router can be utilized in three different modes:
 1. Enter your stake, pubKeyYparity, pubKeyX (generated in previous steps) and the host where the validator is running as `hostname:port` (example: `my-validator.com:8080` or `165.122.1.1:3333`)
 1. Make sure you have enough ETH to pay tx fees, enough LMR to stake and LMR is approved for the contract for the stake amount
 1. Click on "Write" and confirm the transaction
+
