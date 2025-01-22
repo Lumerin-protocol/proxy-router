@@ -187,9 +187,7 @@ jobs:
             --build-arg TAG_NAME=${{ env.TAG_NAME }} \
             --build-arg COMMIT=${{ github.sha }} \
             --push \
-            -t $IMAGE_NAME \
-            -f Dockerfile \
-            proxy-router
+            -t $IMAGE_NAME
 
       - name: Optionally Push Latest Tag
         if: ${{ github.ref == 'refs/heads/main' }}
@@ -200,9 +198,7 @@ jobs:
             --build-arg TAG_NAME=${{ env.TAG_NAME }} \
             --build-arg COMMIT=${{ github.sha }} \
             --push \
-            -t $LATEST_IMAGE \
-            -f Dockerfile \
-            proxy-router
+            -t $LATEST_IMAGE
 
   GitLab-Deploy:
     needs:
