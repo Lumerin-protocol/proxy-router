@@ -1,6 +1,11 @@
 services:
   proxy-router:
-    build: .
+    build:
+      context: .
+      args:
+        COMMIT: ${COMMIT:-unknown}
+        TAG_NAME: ${TAG_NAME:-latest}
+    image: proxy-router:${TAG_NAME}
     env_file:
       - .env
     ports:

@@ -1,0 +1,271 @@
+name: CI-CD
+
+on:
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create new release'
+        required: true
+        type: boolean
+        
+  push:
+    branches:
+      - main
+      - stg
+      - dev
+
+    paths:
+      - 'build.sh'             
+      - 'docker-compose.yml'   
+      - 'Dockerfile'           
+      - '**/*.go'              
+      - '**/*.ts'              
+      - '**/*.js'              
+      - '.github/workflows/**' 
+  
+
+  pull_request:
+    types: [opened, reopened, synchronize]
+    paths:
+      - 'build.sh'             
+      - 'docker-compose.yml'   
+      - 'Dockerfile'           
+      - '**/*.go'              
+      - '**/*.ts'              
+      - '**/*.js'              
+      - '.github/workflows/**' 
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  Ubuntu-22-x64:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Clone
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+                
+      - name: Generate Tag Name
+        uses: ./.github/actions/gen_tag_name
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'
+          cache-dependency-path: |
+            go.sum
+
+      - name: Install dependencies
+        run: |
+          go mod download
+
+      # - name: Copy Environment Files
+      #   uses: ./.github/actions/copy_env_files
+
+      - name: Build
+        id: build
+        run: |
+          make build
+
+      - name: Pack artifacts
+        id: pack_artifacts
+        run: |
+          VFULL=${VFULL:-0.0.1}
+          echo "VFULL: $VFULL"
+          ARTIFACT="proxy-router-$TAG_NAME-ubuntu-x64.zip"
+          echo "Artifact: $ARTIFACT"
+          zip -j $ARTIFACT ./LICENSE proxy-router .env
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          path: proxy-router-${{ env.TAG_NAME }}-ubuntu-x64.zip
+          name: proxy-router-ubuntu-x64.zip
+
+  release:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stg' || github.ref == 'refs/heads/dev' ) || github.event.inputs.create_release == 'true' }}
+    needs:
+      - Ubuntu-22-x64
+      # - macOS-13-x64
+      # - macOS-14-arm64
+      # - Windows-avx2-x64
+    steps:
+      - name: Clone
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Generate Tag Name
+        uses: ./.github/actions/gen_tag_name
+
+      - name: Download artifacts
+        id: download-artifact
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifact
+
+      - name: Move artifacts
+        id: move_artifacts
+        run: |
+          mkdir -p ./artifact/release
+          mv ./artifact/*/*.zip ./artifact/release
+
+      - name: Create release
+        id: create_release
+        uses: anzz1/action-create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          prerelease: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Upload release
+        id: upload_release
+        uses: actions/github-script@v3
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const path = require('path');
+            const fs = require('fs');
+            const release_id = '${{ steps.create_release.outputs.id }}';
+            for (let file of await fs.readdirSync('./artifact/release')) {
+              if (path.extname(file) === '.zip') {
+                console.log('uploadReleaseAsset', file);
+                await github.repos.uploadReleaseAsset({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  release_id: release_id,
+                  name: file,
+                  data: await fs.readFileSync(`./artifact/release/${file}`)
+                });
+              }
+            }
+
+  GHCR-Build-and-Push:
+    env:
+      IMAGE_NAME_BASE: ghcr.io/lumerin-protocol/proxy-router
+    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stg' || github.ref == 'refs/heads/dev' || github.ref =='refs/heads/fix-proxyrouterbuild' ) }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Generate Tag Name
+        uses: ./.github/actions/gen_tag_name
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Multi-Platform Docker Image
+        run: |
+          IMAGE_NAME=${{ env.IMAGE_NAME_BASE }}:${{ env.TAG_NAME }}
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --build-arg TAG_NAME=${{ env.TAG_NAME }} \
+            --build-arg COMMIT=${{ github.sha }} \
+            --push \
+            -t $IMAGE_NAME \
+            -f Dockerfile \
+            proxy-router
+
+      - name: Optionally Push Latest Tag
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: |
+          LATEST_IMAGE=${{ env.IMAGE_NAME_BASE }}:latest
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --build-arg TAG_NAME=${{ env.TAG_NAME }} \
+            --build-arg COMMIT=${{ github.sha }} \
+            --push \
+            -t $LATEST_IMAGE \
+            -f Dockerfile \
+            proxy-router
+
+  GitLab-Deploy:
+    needs:
+      - GHCR-Build-and-Push
+    if: ${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/test' || github.ref == 'refs/heads/dev')) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Generate Tag Name
+        uses: ./.github/actions/gen_tag_name
+
+      - name: Determine GitLab Target Branch
+        id: set_target_branch
+        run: |
+          if [ "${{ github.ref_name }}" == "dev" ]; then
+            echo "gitlab_branch=dev" >> $GITHUB_ENV
+          elif [ "${{ github.ref_name }}" == "stg" ]; then
+            echo "gitlab_branch=stg" >> $GITHUB_ENV
+          elif [ "${{ github.ref_name }}" == "main" ]; then
+            echo "gitlab_branch=main" >> $GITHUB_ENV
+          else
+            echo "This branch is not configured to trigger GitLab pipelines."
+            exit 1
+          fi
+
+      - name: Trigger GitLab Pipeline
+        run: |
+          echo "Triggering GitLab Build and Deploy for branch ${{ github.ref_name }} with tag ${{ env.TAG_NAME }}"
+      
+          # Send request to GitLab
+          response=$(curl --silent \
+            --request POST \
+            --url "${{ secrets.GITLAB_TRIGGER_URL }}" \
+            --form "token=${{ secrets.GITLAB_TRIGGER_TOKEN }}" \
+            --form "ref=${{ env.gitlab_branch }}" \
+            --form "variables[SOURCE_REPO]=${{ github.repository }}" \
+            --form "variables[SOURCE_BRANCH]=${{ github.ref_name }}" \
+            --form "variables[GITHUB_VFULL]=${{ env.VFULL }}" \
+            --form "variables[GITHUB_TAG]=${{ env.TAG_NAME }}")
+      
+          # Parse JSON response using jq
+          gitlab_status=$(echo "$response" | jq -r '.status // "unknown"')
+          gitlab_web_url=$(echo "$response" | jq -r '.web_url // "N/A"')
+      
+          # Log the response
+          echo "GitLab Response: $response"
+      
+          # Validate the status field
+          if [[ "$gitlab_status" =~ ^(created|preparing|success|running|scheduled)$ ]]; then
+            echo "GitLab pipeline triggered successfully! Status: $gitlab_status"
+            echo "Pipeline details: $gitlab_web_url"
+          else
+            echo "GitLab pipeline FAILED. Invalid status: $gitlab_status"
+            echo "Pipeline details: $gitlab_web_url"
+            exit 1
+          fi
