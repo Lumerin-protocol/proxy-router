@@ -1,20 +1,28 @@
-FROM golang:1.19.3-alpine as builder
+FROM golang:1.23-bullseye as builder
 
+# Capture the Git tag, commit hash, and architecture
+ARG TAG_NAME
 ARG COMMIT
+ARG TARGETOS
+ARG TARGETARCH
+ENV TAG_NAME=$TAG_NAME
 ENV COMMIT=$COMMIT
 
 WORKDIR /app 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 ./build.sh && \
-  cp /bin/sh /app/sh && chmod +x /app/sh
+# Build the Go binary for the target platform
+RUN GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 \
+    TAG_NAME=$TAG_NAME COMMIT=$COMMIT ./build.sh && \
+    cp /bin/sh /app/sh && chmod +x /app/sh
 
 FROM scratch
 WORKDIR /app
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=builder /app/bin/hashrouter /usr/bin/
+COPY --from=builder /app/proxy-router /usr/bin/
 COPY --from=builder /app/sh /bin/sh
 
 SHELL ["/bin/sh", "-c"]
 EXPOSE 3333 8081
-ENTRYPOINT ["hashrouter"]
+
+ENTRYPOINT ["proxy-router"]
