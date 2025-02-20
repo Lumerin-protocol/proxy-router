@@ -2,30 +2,12 @@ name: CI-CD
 
 on:
   push:
-    branches:
-      - main
-      - dev
-      - cicd/*
-
-    paths:
-      - 'build.sh'             
-      - 'docker-compose.yml'   
-      - 'Dockerfile'           
-      - '**/*.go'              
-      - '**/*.ts'              
-      - '**/*.js'              
-      - '.github/workflows/**' 
+    branches: [ main, dev, cicd/* ]
+    paths: [ 'build.sh', 'docker-compose.yml', 'Dockerfile', '**/*.go', '**/*.ts', '**/*.js', '.github/workflows/**' ]
   
   pull_request:
     types: [opened, reopened, synchronize]
-    paths:
-      - 'build.sh'             
-      - 'docker-compose.yml'   
-      - 'Dockerfile'           
-      - '**/*.go'              
-      - '**/*.ts'              
-      - '**/*.js'              
-      - '.github/workflows/**' 
+    paths: [ 'build.sh', 'docker-compose.yml', 'Dockerfile', '**/*.go', '**/*.ts', '**/*.js', '.github/workflows/**' ]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -40,7 +22,6 @@ jobs:
     if: |
       (github.event_name == 'pull_request' && (github.base_ref == 'main' || github.base_ref == 'dev')) ||
       (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/cicd/') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
-
     runs-on: ubuntu-22.04
     steps:
       - name: Clone
@@ -92,10 +73,10 @@ jobs:
           name: proxy-router-ubuntu-x64.zip
 
   Release:
-    runs-on: ubuntu-latest
     if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' )}}
     needs:
       - Ubuntu-22-x64
+    runs-on: ubuntu-latest
     steps:
       - name: Clone
         id: checkout
@@ -162,9 +143,7 @@ jobs:
     if: |
         (github.event_name == 'pull_request' && (github.base_ref == 'main' || github.base_ref == 'dev')) ||
         (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/cicd/') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
-
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -197,8 +176,9 @@ jobs:
 
   GHCR-Build-and-Push:
     if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' ) }}
+    needs: 
+      - GHCR-Test
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -255,13 +235,10 @@ jobs:
           echo "✅ Proxy-Router Push Latest Tag Successful!"
 
   GitLab-Deploy:
+    if: ${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')) }}
     needs:
       - GHCR-Build-and-Push
-
-    if: ${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')) }}
-
     runs-on: ubuntu-latest
-    
     steps:
       - name: Clone
         id: checkout
