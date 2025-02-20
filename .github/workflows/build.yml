@@ -91,7 +91,7 @@ jobs:
           path: proxy-router-${{ env.TAG_NAME }}-ubuntu-x64.zip
           name: proxy-router-ubuntu-x64.zip
 
-  release:
+  Release:
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' )}}
     needs:
@@ -257,8 +257,11 @@ jobs:
   GitLab-Deploy:
     needs:
       - GHCR-Build-and-Push
+
     if: ${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')) }}
+
     runs-on: ubuntu-latest
+    
     steps:
       - name: Clone
         id: checkout
