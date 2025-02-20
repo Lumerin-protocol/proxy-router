@@ -11,8 +11,9 @@ on:
   push:
     branches:
       - main
-      - stg
       - dev
+      - cicd/*
+      - fix-proxyrouterbuild
 
     paths:
       - 'build.sh'             
@@ -57,6 +58,14 @@ jobs:
       - name: Generate Tag Name
         uses: ./.github/actions/gen_tag_name
 
+      - name: Verify environment variables
+        run: |
+          echo "TAG_NAME=${{ env.TAG_NAME }}"
+          echo "VTAG=${{ env.VTAG }}"
+          echo "VFULL=${{ env.VFULL }}" 
+          echo "IMAGE_NAME_BASE=${{ env.IMAGE_NAME_BASE }}"
+          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}"      
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -68,9 +77,6 @@ jobs:
         run: |
           go mod download
 
-      # - name: Copy Environment Files
-      #   uses: ./.github/actions/copy_env_files
-
       - name: Build
         id: build
         run: |
@@ -79,9 +85,8 @@ jobs:
       - name: Pack artifacts
         id: pack_artifacts
         run: |
-          VFULL=${VFULL:-0.0.1}
-          echo "VFULL: $VFULL"
-          ARTIFACT="proxy-router-$TAG_NAME-ubuntu-x64.zip"
+          echo "VFULL: ${{ env.VFULL }}"
+          ARTIFACT="proxy-router-${{ env.TAG_NAME }}-ubuntu-x64.zip"
           echo "Artifact: $ARTIFACT"
           zip -j $ARTIFACT ./LICENSE proxy-router .env
 
@@ -93,7 +98,7 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stg' || github.ref == 'refs/heads/dev' ) || github.event.inputs.create_release == 'true' }}
+    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' ) || github.event.inputs.create_release == 'true' }}
     needs:
       - Ubuntu-22-x64
       # - macOS-13-x64
@@ -109,7 +114,15 @@ jobs:
 
       - name: Generate Tag Name
         uses: ./.github/actions/gen_tag_name
-
+  
+      - name: Verify environment variables
+        run: |
+          echo "TAG_NAME=${{ env.TAG_NAME }}"
+          echo "VTAG=${{ env.VTAG }}"
+          echo "VFULL=${{ env.VFULL }}" 
+          echo "IMAGE_NAME_BASE=${{ env.IMAGE_NAME_BASE }}"
+          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}"      
+  
       - name: Download artifacts
         id: download-artifact
         uses: actions/download-artifact@v4
@@ -154,9 +167,7 @@ jobs:
             }
 
   GHCR-Build-and-Push:
-    env:
-      IMAGE_NAME_BASE: ghcr.io/lumerin-protocol/proxy-router
-    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stg' || github.ref == 'refs/heads/dev' || github.ref =='refs/heads/fix-proxyrouterbuild' ) }}
+    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.ref =='refs/heads/fix-proxyrouterbuild' ) }}
     runs-on: ubuntu-latest
 
     steps:
@@ -168,7 +179,15 @@ jobs:
 
       - name: Generate Tag Name
         uses: ./.github/actions/gen_tag_name
-
+  
+      - name: Verify environment variables
+        run: |
+          echo "TAG_NAME=${{ env.TAG_NAME }}"
+          echo "VTAG=${{ env.VTAG }}"
+          echo "VFULL=${{ env.VFULL }}" 
+          echo "IMAGE_NAME_BASE=${{ env.IMAGE_NAME_BASE }}"
+          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}"      
+  
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
@@ -188,24 +207,26 @@ jobs:
             --build-arg COMMIT=${{ github.sha }} \
             --push \
             -t $IMAGE_NAME \
-            .
+            . || (echo "Failed to push image with tag: $IMAGE_NAME" && exit 1)
 
       - name: Optionally Push Latest Tag
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
+          IMAGE_NAME=${{ env.IMAGE_NAME_BASE }}:${{ env.TAG_NAME }}
+          echo "Pulling image before tagging as :latest"
+          docker pull $IMAGE_NAME || (echo "Failed to pull image: $IMAGE_NAME" && exit 1)
+          
+          echo "Tagging image as :latest"
           LATEST_IMAGE=${{ env.IMAGE_NAME_BASE }}:latest
-          docker buildx build \
-            --platform linux/amd64,linux/arm64 \
-            --build-arg TAG_NAME=${{ env.TAG_NAME }} \
-            --build-arg COMMIT=${{ github.sha }} \
-            --push \
-            -t $LATEST_IMAGE \
-            .
+          docker tag $IMAGE_NAME $LATEST_IMAGE
+          
+          echo "Pushing image as :latest"
+          docker push $LATEST_IMAGE || (echo "Failed to push image as :latest" && exit 1)
 
   GitLab-Deploy:
     needs:
       - GHCR-Build-and-Push
-    if: ${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/test' || github.ref == 'refs/heads/dev')) }}
+    if: ${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')) }}
     runs-on: ubuntu-latest
     steps:
       - name: Clone
@@ -221,14 +242,20 @@ jobs:
 
       - name: Generate Tag Name
         uses: ./.github/actions/gen_tag_name
+  
+      - name: Verify environment variables
+        run: |
+          echo "TAG_NAME=${{ env.TAG_NAME }}"
+          echo "VTAG=${{ env.VTAG }}"
+          echo "VFULL=${{ env.VFULL }}" 
+          echo "IMAGE_NAME_BASE=${{ env.IMAGE_NAME_BASE }}"
+          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}"      
 
       - name: Determine GitLab Target Branch
         id: set_target_branch
         run: |
           if [ "${{ github.ref_name }}" == "dev" ]; then
             echo "gitlab_branch=dev" >> $GITHUB_ENV
-          elif [ "${{ github.ref_name }}" == "stg" ]; then
-            echo "gitlab_branch=stg" >> $GITHUB_ENV
           elif [ "${{ github.ref_name }}" == "main" ]; then
             echo "gitlab_branch=main" >> $GITHUB_ENV
           else
