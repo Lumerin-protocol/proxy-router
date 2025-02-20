@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Lumerin-protocol/proxy-router/internal/lib"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/core/types"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 )
 
 var (

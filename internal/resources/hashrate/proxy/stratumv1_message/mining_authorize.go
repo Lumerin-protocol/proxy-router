@@ -3,7 +3,7 @@ package stratumv1_message
 import (
 	"encoding/json"
 
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/proxy/interfaces"
 )
 
 // Message: {"id": 2, "method": "mining.authorize", "params": ["workername", "password"]}

@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
-	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
+	gi "github.com/Lumerin-protocol/proxy-router/internal/interfaces"
+	"github.com/Lumerin-protocol/proxy-router/internal/lib"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/proxy/interfaces"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/proxy/stratumv1_message"
 	"go.uber.org/atomic"
 )
 

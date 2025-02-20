@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Lumerin-protocol/proxy-router/internal/lib"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 )
 
 const (

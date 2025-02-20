@@ -5,7 +5,7 @@ import (
 	"path"
 	"testing"
 
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
+	"github.com/Lumerin-protocol/proxy-router/internal/lib"
 )
 
 func TestSanitizeFilenameFilesystem(t *testing.T) {

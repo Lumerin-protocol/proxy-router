@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Lumerin-protocol/proxy-router/internal/lib"
 	"github.com/joho/godotenv"
 	"github.com/omeid/uconfig/flat"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 )
 
 const (

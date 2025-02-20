@@ -5,10 +5,10 @@ import (
 	"net/url"
 	"time"
 
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
-	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
-	m "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/hashrate"
+	i "github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/proxy/interfaces"
+	m "github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/proxy/stratumv1_message"
 )
 
 type HashrateCounter interface {

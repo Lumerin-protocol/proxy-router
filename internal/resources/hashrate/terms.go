@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"time"
 
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
+	"github.com/Lumerin-protocol/proxy-router/internal/lib"
 )
 
 var (

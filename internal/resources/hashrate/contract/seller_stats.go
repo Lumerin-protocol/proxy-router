@@ -1,8 +1,8 @@
 package contract
 
 import (
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
-	hr "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
+	"github.com/Lumerin-protocol/proxy-router/internal/lib"
+	hr "github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/hashrate"
 	"go.uber.org/atomic"
 )
 

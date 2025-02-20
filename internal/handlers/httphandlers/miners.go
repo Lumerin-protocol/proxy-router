@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/allocator"
 	"github.com/gin-gonic/gin"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
 	"golang.org/x/exp/slices"
 )
 

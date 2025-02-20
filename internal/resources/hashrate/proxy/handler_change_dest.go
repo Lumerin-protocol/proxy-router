@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"net/url"
 
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
-	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
-	m "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
+	"github.com/Lumerin-protocol/proxy-router/internal/lib"
+	i "github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/proxy/interfaces"
+	m "github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/proxy/stratumv1_message"
 )
 
 // HandlerChangeDest is the collection of functions that are used when the destination connection is changed

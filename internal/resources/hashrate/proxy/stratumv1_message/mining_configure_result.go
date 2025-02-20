@@ -3,7 +3,7 @@ package stratumv1_message
 import (
 	"encoding/json"
 
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/proxy/interfaces"
 )
 
 // {"id":151769,"jsonrpc":"2.0","result":{ "version-rolling": true, "version-rolling.mask": "1fffe000" },"error":null}

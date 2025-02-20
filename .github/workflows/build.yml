@@ -18,124 +18,26 @@ defaults:
     shell: bash
 
 jobs:
-  Ubuntu-22-x64:
-    if: |
-      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Clone
-        id: checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-                
-      - name: Generate Tag Name
-        uses: ./.github/actions/gen_tag_name
-
-      - name: Verify environment variables
-        run: |
-          echo "TAG_NAME=${{ env.TAG_NAME }}"
-          echo "VTAG=${{ env.VTAG }}"
-          echo "VFULL=${{ env.VFULL }}" 
-          echo "IMAGE_NAME_BASE=${{ env.IMAGE_NAME_BASE }}"
-          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}"      
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.22.x'
-          cache-dependency-path: |
-            go.sum
-
-      - name: Install dependencies
-        run: |
-          go mod download
-
-      - name: Build
-        id: build
-        run: |
-          make build
-
-      - name: Pack artifacts
-        id: pack_artifacts
-        run: |
-          echo "VFULL: ${{ env.VFULL }}"
-          ARTIFACT="proxy-router-${{ env.TAG_NAME }}-ubuntu-x64.zip"
-          echo "Artifact: $ARTIFACT"
-          zip -j $ARTIFACT ./LICENSE proxy-router .env
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          path: proxy-router-${{ env.TAG_NAME }}-ubuntu-x64.zip
-          name: proxy-router-ubuntu-x64.zip
-
-  macOS-13-x64:
-    if: |
-      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
-    runs-on: macos-13
-    steps:
-      - name: Clone
-        id: checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-                
-      - name: Generate Tag Name
-        uses: ./.github/actions/gen_tag_name
-
-      - name: Verify environment variables
-        run: |
-          echo "TAG_NAME=${{ env.TAG_NAME }}"
-          echo "VTAG=${{ env.VTAG }}"
-          echo "VFULL=${{ env.VFULL }}" 
-          echo "IMAGE_NAME_BASE=${{ env.IMAGE_NAME_BASE }}"
-          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}"      
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.22.x'
-          cache-dependency-path: |
-            go.sum
-
-      - name: Install dependencies
-        run: |
-          go mod download
-
-      - name: Build
-        id: build
-        run: |
-          make build
-
-      - name: Pack artifacts
-        id: pack_artifacts
-        run: |
-          echo "VFULL: ${{ env.VFULL }}"
-          ARTIFACT="proxy-router-${{ env.TAG_NAME }}-macos-x64.zip"
-          echo "Artifact: $ARTIFACT"
-          zip -j $ARTIFACT ./LICENSE proxy-router .env
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          path: proxy-router-${{ env.TAG_NAME }}-macos-x64.zip
-          name: proxy-router-macos-x64.zip
-
-  macOS-14-arm4:
+  OS-Build:
     if: |
       (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/cicd/') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
-    runs-on: macos-14
+    runs-on: ubuntu-latest  # Updated to use ubuntu-latest instead of ubuntu-22.04
+    strategy:
+      matrix:
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
+        exclude:
+          - goos: windows
+            goarch: arm64  # Exclude windows/arm64
+      fail-fast: false
+
     steps:
-      - name: Clone
-        id: checkout
+      - name: Clone repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           fetch-tags: true
-                
+
       - name: Generate Tag Name
         uses: ./.github/actions/gen_tag_name
 
@@ -143,9 +45,9 @@ jobs:
         run: |
           echo "TAG_NAME=${{ env.TAG_NAME }}"
           echo "VTAG=${{ env.VTAG }}"
-          echo "VFULL=${{ env.VFULL }}" 
+          echo "VFULL=${{ env.VFULL }}"
           echo "IMAGE_NAME_BASE=${{ env.IMAGE_NAME_BASE }}"
-          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}"      
+          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}"
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -158,95 +60,41 @@ jobs:
         run: |
           go mod download
 
+      - name: Set GOOS and GOARCH for cross-compilation
+        run: |
+          echo "GOOS=${{ matrix.goos }}" >> $GITHUB_ENV
+          echo "GOARCH=${{ matrix.goarch }}" >> $GITHUB_ENV
+
       - name: Build
-        id: build
         run: |
           make build
 
       - name: Pack artifacts
-        id: pack_artifacts
         run: |
           echo "VFULL: ${{ env.VFULL }}"
-          ARTIFACT="proxy-router-${{ env.TAG_NAME }}-macos-arm64.zip"
+          # Adjust artifact extension based on GOOS
+          if [ "${{ matrix.goos }}" == "windows" ]; then
+            ARTIFACT="proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}.exe"
+          else
+            ARTIFACT="proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}"
+          fi
           echo "Artifact: $ARTIFACT"
-          zip -j $ARTIFACT ./LICENSE proxy-router .env
-
+          mv ./proxy-router $ARTIFACT  # Rename to match OS/arch
+          
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          path: proxy-router-${{ env.TAG_NAME }}-macos-arm64.zip
-          name: proxy-router-macos-arm64.zip
-        
-  Windows-x64:
-    if: |
-      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
-    runs-on: windows-latest
-    steps:
-      - name: Clone
-        id: checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-                
-      - name: Generate Tag Name
-        uses: ./.github/actions/gen_tag_name
-
-      - name: Verify environment variables
-        run: |
-          echo "TAG_NAME=${{ env.TAG_NAME }}"
-          echo "VTAG=${{ env.VTAG }}"
-          echo "VFULL=${{ env.VFULL }}" 
-          echo "IMAGE_NAME_BASE=${{ env.IMAGE_NAME_BASE }}"
-          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}"      
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.22.x'
-          cache-dependency-path: |
-            go.sum
-
-      - name: Install wget and sed
-        run: |
-          choco install wget --no-progress
-          choco install sed --no-progress
-
-      - name: Install dependencies
-        run: |
-          go mod download
-
-      - name: Build
-        id: build
-        run: |
-          make build
-
-      - name: Pack artifacts
-        id: pack_artifacts
-        run: |
-          echo "VFULL: ${{ env.VFULL }}"
-          ARTIFACT="proxy-router-${{ env.TAG_NAME }}-win-x64.zip"
-          echo "Artifact: $ARTIFACT"
-          zip -j $ARTIFACT ./LICENSE proxy-router .env
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          path: proxy-router-${{ env.TAG_NAME }}-win-x64.zip
-          name: proxy-router-win-x64.zip
-      
+          path: ./proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
+          name: proxy-router-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
+          
   Release:
     if: |
       (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
     needs:
-      - Ubuntu-22-x64
-      - macOS-13-x64
-      - macOS-14-arm4
-      - Windows-x64
+      - OS-Build
     runs-on: ubuntu-latest
     steps:
-      - name: Clone
-        id: checkout
+      - name: Clone repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -254,26 +102,24 @@ jobs:
 
       - name: Generate Tag Name
         uses: ./.github/actions/gen_tag_name
-  
+
       - name: Verify environment variables
         run: |
           echo "TAG_NAME=${{ env.TAG_NAME }}"
           echo "VTAG=${{ env.VTAG }}"
-          echo "VFULL=${{ env.VFULL }}" 
+          echo "VFULL=${{ env.VFULL }}"
           echo "IMAGE_NAME_BASE=${{ env.IMAGE_NAME_BASE }}"
-          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}"      
-  
+          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}"
+          
       - name: Download artifacts
-        id: download-artifact
         uses: actions/download-artifact@v4
         with:
           path: ./artifact
 
       - name: Move artifacts
-        id: move_artifacts
         run: |
           mkdir -p ./artifact/release
-          mv ./artifact/*/*.zip ./artifact/release
+          mv ./artifact/*/* ./artifact/release
 
       - name: Create release
         id: create_release
@@ -284,7 +130,7 @@ jobs:
           tag_name: ${{ env.TAG_NAME }}
           prerelease: ${{ github.ref != 'refs/heads/main' }}
 
-      - name: Upload release
+      - name: Upload release assets
         id: upload_release
         uses: actions/github-script@v3
         with:
@@ -293,15 +139,16 @@ jobs:
             const path = require('path');
             const fs = require('fs');
             const release_id = '${{ steps.create_release.outputs.id }}';
-            for (let file of await fs.readdirSync('./artifact/release')) {
-              if (path.extname(file) === '.zip') {
-                console.log('uploadReleaseAsset', file);
+            const files = fs.readdirSync('./artifact/release');
+            for (let file of files) {
+              if (path.extname(file) === '.exe' || path.extname(file) === '') {
+                console.log('Uploading release asset:', file);
                 await github.repos.uploadReleaseAsset({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   release_id: release_id,
                   name: file,
-                  data: await fs.readFileSync(`./artifact/release/${file}`)
+                  data: fs.createReadStream(`./artifact/release/${file}`)
                 });
               }
             }

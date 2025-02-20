@@ -4,11 +4,11 @@ import (
 	"context"
 
 	"github.com/Lumerin-protocol/contracts-go/implementation"
+	"github.com/Lumerin-protocol/proxy-router/internal/repositories/contracts"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources"
 	"github.com/ethereum/go-ethereum/common"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/repositories/contracts"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources"
 
-	hashrateContract "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
+	hashrateContract "github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate"
 )
 
 type ControllerSeller struct {

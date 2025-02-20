@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
-	m "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/validator"
+	i "github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/proxy/interfaces"
+	m "github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/proxy/stratumv1_message"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/validator"
 	"go.uber.org/atomic"
 )
 

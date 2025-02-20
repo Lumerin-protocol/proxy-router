@@ -3,7 +3,7 @@ package stratumv1_message
 import (
 	"encoding/json"
 
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/proxy/interfaces"
 )
 
 // Message: {"id": 1, "method": "mining.subscribe", "params": ["cpuminer/2.5.1", "1"]}

@@ -9,13 +9,13 @@ import (
 	"github.com/Lumerin-protocol/contracts-go/clonefactory"
 	"github.com/Lumerin-protocol/contracts-go/implementation"
 	"github.com/Lumerin-protocol/contracts-go/lumerintoken"
+	"github.com/Lumerin-protocol/proxy-router/internal/lib"
+	"github.com/Lumerin-protocol/proxy-router/internal/repositories/contracts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/repositories/contracts"
 )
 
 const (

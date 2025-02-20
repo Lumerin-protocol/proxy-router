@@ -3,7 +3,7 @@ package stratumv1_message
 import (
 	"encoding/json"
 
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/proxy/interfaces"
 )
 
 // To enable multi-version needs to be >1, the number being how many bits of the version number you're allowing it to modify for ASICBOOST

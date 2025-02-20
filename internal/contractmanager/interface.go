@@ -3,7 +3,7 @@ package contractmanager
 import (
 	"time"
 
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate"
 )
 
 type TermsCommon interface {

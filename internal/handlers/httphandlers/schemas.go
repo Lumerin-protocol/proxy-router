@@ -1,7 +1,7 @@
 package httphandlers
 
 import (
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/allocator"
 )
 
 type MinersResponse struct {

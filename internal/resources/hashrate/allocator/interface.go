@@ -5,8 +5,8 @@ import (
 	"net/url"
 	"time"
 
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/hashrate"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/proxy"
 )
 
 type StratumProxyInterface interface {

@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
+	"github.com/Lumerin-protocol/proxy-router/internal/interfaces"
 )
 
 type Server struct {

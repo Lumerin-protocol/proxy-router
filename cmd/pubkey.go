@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/Lumerin-protocol/proxy-router/internal/config"
+	"github.com/Lumerin-protocol/proxy-router/internal/lib"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/config"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 )
 
 type Config struct {

@@ -5,14 +5,14 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/Lumerin-protocol/proxy-router/internal/interfaces"
+	"github.com/Lumerin-protocol/proxy-router/internal/lib"
+	"github.com/Lumerin-protocol/proxy-router/internal/repositories/contracts"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources"
+	hashrateContract "github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/allocator"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/hashrate"
 	"github.com/ethereum/go-ethereum/common"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/repositories/contracts"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources"
-	hashrateContract "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 )
 
 type ContractFactory struct {
