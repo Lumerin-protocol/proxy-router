@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
+	"github.com/Lumerin-protocol/proxy-router/internal/lib"
 )
 
 var (

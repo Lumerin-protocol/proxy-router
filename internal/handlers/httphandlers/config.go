@@ -1,8 +1,8 @@
 package httphandlers
 
 import (
+	"github.com/Lumerin-protocol/proxy-router/internal/config"
 	"github.com/gin-gonic/gin"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/config"
 )
 
 func (h *HTTPHandler) GetConfig(ctx *gin.Context) {

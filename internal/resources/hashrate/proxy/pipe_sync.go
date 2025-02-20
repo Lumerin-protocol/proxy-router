@@ -3,7 +3,7 @@ package proxy
 import (
 	"context"
 
-	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
+	i "github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/proxy/interfaces"
 )
 
 type pipeSync struct {

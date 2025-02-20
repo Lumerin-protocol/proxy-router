@@ -7,11 +7,11 @@ import (
 
 	"github.com/Lumerin-protocol/contracts-go/clonefactory"
 	"github.com/Lumerin-protocol/contracts-go/implementation"
+	"github.com/Lumerin-protocol/proxy-router/internal/interfaces"
+	"github.com/Lumerin-protocol/proxy-router/internal/lib"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
 )
 
 const RECONNECT_TIMEOUT = 2 * time.Second

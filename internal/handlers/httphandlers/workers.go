@@ -1,8 +1,8 @@
 package httphandlers
 
 import (
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/hashrate"
 	"github.com/gin-gonic/gin"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
 	"golang.org/x/exp/slices"
 )
 

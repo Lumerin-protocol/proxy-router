@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
+	gi "github.com/Lumerin-protocol/proxy-router/internal/interfaces"
+	"github.com/Lumerin-protocol/proxy-router/internal/lib"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/hashrate"
 	"golang.org/x/exp/slices"
 )
 

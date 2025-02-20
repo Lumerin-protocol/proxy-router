@@ -21,7 +21,7 @@ echo COMMIT=$COMMIT
 go mod tidy
 go build \
   -ldflags="-s -w \
-    -X 'gitlab.com/TitanInd/proxy/proxy-router-v3/internal/config.BuildVersion=$VERSION' \
-    -X 'gitlab.com/TitanInd/proxy/proxy-router-v3/internal/config.Commit=$COMMIT' \
+    -X 'github.com/Lumerin-protocol/proxy-router/internal/config.BuildVersion=$VERSION' \
+    -X 'github.com/Lumerin-protocol/proxy-router/internal/config.Commit=$COMMIT' \
   " \
   -o ./proxy-router ./cmd 

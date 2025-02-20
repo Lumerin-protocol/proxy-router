@@ -4,8 +4,8 @@ import (
 	"math/big"
 	"time"
 
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
+	"github.com/Lumerin-protocol/proxy-router/internal/lib"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/allocator"
 )
 
 // TimePtrToStringPtr converts nullable time to nullable string
