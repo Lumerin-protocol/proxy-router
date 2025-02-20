@@ -18,7 +18,7 @@ defaults:
     shell: bash
 
 jobs:
-  Matrix-OS-Build:
+  OS-Build:
     if: |
       (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
     runs-on: ubuntu-latest  # Updated to use ubuntu-latest instead of ubuntu-22.04
@@ -91,7 +91,7 @@ jobs:
     if: |
       (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
     needs:
-      - Matrix-OS-Build
+      - OS-Build
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
