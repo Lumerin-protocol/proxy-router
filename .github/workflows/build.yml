@@ -1,19 +1,11 @@
 name: CI-CD
 
 on:
-  workflow_dispatch:
-    inputs:
-      create_release:
-        description: 'Create new release'
-        required: true
-        type: boolean
-        
   push:
     branches:
       - main
       - dev
       - cicd/*
-      - fix-proxyrouterbuild
 
     paths:
       - 'build.sh'             
@@ -24,7 +16,6 @@ on:
       - '**/*.js'              
       - '.github/workflows/**' 
   
-
   pull_request:
     types: [opened, reopened, synchronize]
     paths:
@@ -46,6 +37,10 @@ defaults:
 
 jobs:
   Ubuntu-22-x64:
+    if: |
+      (github.event_name == 'pull_request' && (github.base_ref == 'main' || github.base_ref == 'dev')) ||
+      (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/cicd/') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
+
     runs-on: ubuntu-22.04
     steps:
       - name: Clone
@@ -98,12 +93,9 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' ) || github.event.inputs.create_release == 'true' }}
+    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' )}}
     needs:
       - Ubuntu-22-x64
-      # - macOS-13-x64
-      # - macOS-14-arm64
-      # - Windows-avx2-x64
     steps:
       - name: Clone
         id: checkout
@@ -166,8 +158,45 @@ jobs:
               }
             }
 
+  GHCR-Test:
+    if: |
+        (github.event_name == 'pull_request' && (github.base_ref == 'main' || github.base_ref == 'dev')) ||
+        (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/cicd/') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Generate Tag Name
+        uses: ./.github/actions/gen_tag_name
+  
+      - name: Verify environment variables
+        run: |
+          echo "TAG_NAME=${{ env.TAG_NAME }}"
+          echo "VTAG=${{ env.VTAG }}"
+          echo "VFULL=${{ env.VFULL }}" 
+          echo "IMAGE_NAME_BASE=${{ env.IMAGE_NAME_BASE }}"
+          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}"      
+  
+      - name: Build Docker Image to Test
+        run: |
+          IMAGE_NAME=${{ env.IMAGE_NAME_BASE }}:${{ env.TAG_NAME }}
+          docker build \
+            --platform linux/amd64 \
+            --build-arg TAG_NAME=${{ env.TAG_NAME }} \
+            --build-arg COMMIT=${{ github.sha }} \
+            --load \
+            -t ${{ env.IMAGE_NAME }} \
+            . || (echo "❌ Failed to build image with tag: $IMAGE_NAME" && exit 1)
+          echo "✅ Proxy-Router Build TEST Successful!"
+
   GHCR-Build-and-Push:
-    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' || github.ref =='refs/heads/fix-proxyrouterbuild' ) }}
+    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' ) }}
     runs-on: ubuntu-latest
 
     steps:
@@ -207,21 +236,23 @@ jobs:
             --build-arg COMMIT=${{ github.sha }} \
             --push \
             -t $IMAGE_NAME \
-            . || (echo "Failed to push image with tag: $IMAGE_NAME" && exit 1)
+            . || (echo "❌ Failed to push image with tag: $IMAGE_NAME" && exit 1)
+          echo "✅ Proxy-Router Build and Push Successful!"
 
       - name: Optionally Push Latest Tag
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
           IMAGE_NAME=${{ env.IMAGE_NAME_BASE }}:${{ env.TAG_NAME }}
           echo "Pulling image before tagging as :latest"
-          docker pull $IMAGE_NAME || (echo "Failed to pull image: $IMAGE_NAME" && exit 1)
+          docker pull $IMAGE_NAME || (echo "❌ Failed to pull image: $IMAGE_NAME" && exit 1)
           
           echo "Tagging image as :latest"
           LATEST_IMAGE=${{ env.IMAGE_NAME_BASE }}:latest
           docker tag $IMAGE_NAME $LATEST_IMAGE
           
           echo "Pushing image as :latest"
-          docker push $LATEST_IMAGE || (echo "Failed to push image as :latest" && exit 1)
+          docker push $LATEST_IMAGE || (echo "❌ Failed to push image as :latest" && exit 1)
+          echo "✅ Proxy-Router Push Latest Tag Successful!"
 
   GitLab-Deploy:
     needs:
@@ -287,10 +318,10 @@ jobs:
       
           # Validate the status field
           if [[ "$gitlab_status" =~ ^(created|preparing|success|running|scheduled)$ ]]; then
-            echo "GitLab pipeline triggered successfully! Status: $gitlab_status"
+            echo "✅ GitLab pipeline triggered successfully! Status: $gitlab_status"
             echo "Pipeline details: $gitlab_web_url"
           else
-            echo "GitLab pipeline FAILED. Invalid status: $gitlab_status"
+            echo "❌ GitLab pipeline FAILED. Invalid status: $gitlab_status"
             echo "Pipeline details: $gitlab_web_url"
             exit 1
           fi
