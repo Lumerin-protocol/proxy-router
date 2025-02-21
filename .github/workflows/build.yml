@@ -309,9 +309,9 @@ jobs:
           BUILDIMAGE=${{ needs.Generate-Tag.outputs.image_name }}
           BUILDTAG=${{ needs.Generate-Tag.outputs.tag_name }}
           docker pull $BUILDIMAGE:$BUILDTAG || (echo "❌ Failed to pull image: $BUILDIMAGE:$BUILDTAG" && exit 1)
-          docker tag $BUILDIMAGE:$BUILDTAG $BUILDBASE:latest || (echo "❌ Failed to tag image as :latest" && exit 1)
+          docker tag $BUILDIMAGE:$BUILDTAG $BUILDIMAGE:latest || (echo "❌ Failed to tag image as :latest" && exit 1)
           docker push $BUILDIMAGE:latest || (echo "❌ Failed to push image as :latest" && exit 1)
-          echo "✅ Proxy-Router Push $BUILDBASE:latest Tag Successful!"
+          echo "✅ Proxy-Router Push $BUILDIMAGE:latest Tag Successful!"
 
   GitLab-Deploy:
     if: |
