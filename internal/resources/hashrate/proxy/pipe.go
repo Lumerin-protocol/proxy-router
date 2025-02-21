@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
-	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
+	gi "github.com/Lumerin-protocol/proxy-router/internal/interfaces"
+	"github.com/Lumerin-protocol/proxy-router/internal/lib"
+	i "github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/proxy/interfaces"
 )
 
 type Pipe struct {

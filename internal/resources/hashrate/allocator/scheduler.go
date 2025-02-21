@@ -7,10 +7,10 @@ import (
 	"net/url"
 	"time"
 
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy"
+	"github.com/Lumerin-protocol/proxy-router/internal/interfaces"
+	"github.com/Lumerin-protocol/proxy-router/internal/lib"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/hashrate"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/proxy"
 	"go.uber.org/atomic"
 )
 

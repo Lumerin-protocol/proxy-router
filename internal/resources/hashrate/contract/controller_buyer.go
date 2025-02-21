@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/Lumerin-protocol/contracts-go/implementation"
+	"github.com/Lumerin-protocol/proxy-router/internal/lib"
+	"github.com/Lumerin-protocol/proxy-router/internal/repositories/contracts"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate"
 	"github.com/ethereum/go-ethereum/common"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/repositories/contracts"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
 )
 
 type ControllerBuyer struct {

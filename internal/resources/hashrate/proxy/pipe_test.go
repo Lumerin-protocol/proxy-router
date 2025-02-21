@@ -7,9 +7,9 @@ package proxy
 // 	"time"
 
 // 	"github.com/stretchr/testify/require"
-// 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
-// 	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
-// 	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
+// 	"github.com/Lumerin-protocol/proxy-router/internal/lib"
+// 	i "github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/proxy/interfaces"
+// 	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/proxy/stratumv1_message"
 // )
 
 // func TestPipeAsync(t *testing.T) {

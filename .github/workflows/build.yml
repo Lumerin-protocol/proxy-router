@@ -18,19 +18,26 @@ defaults:
     shell: bash
 
 jobs:
-  Ubuntu-22-x64:
+  OS-Build:
     if: |
-      (github.event_name == 'pull_request' && (github.base_ref == 'main' || github.base_ref == 'dev')) ||
       (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/cicd/') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest  # Updated to use ubuntu-latest instead of ubuntu-22.04
+    strategy:
+      matrix:
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
+        exclude:
+          - goos: windows
+            goarch: arm64  # Exclude windows/arm64
+      fail-fast: false
+
     steps:
-      - name: Clone
-        id: checkout
+      - name: Clone repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           fetch-tags: true
-                
+
       - name: Generate Tag Name
         uses: ./.github/actions/gen_tag_name
 
@@ -38,9 +45,9 @@ jobs:
         run: |
           echo "TAG_NAME=${{ env.TAG_NAME }}"
           echo "VTAG=${{ env.VTAG }}"
-          echo "VFULL=${{ env.VFULL }}" 
+          echo "VFULL=${{ env.VFULL }}"
           echo "IMAGE_NAME_BASE=${{ env.IMAGE_NAME_BASE }}"
-          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}"      
+          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}"
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -53,33 +60,42 @@ jobs:
         run: |
           go mod download
 
+      - name: Set GOOS and GOARCH for cross-compilation
+        run: |
+          echo "GOOS=${{ matrix.goos }}" >> $GITHUB_ENV
+          echo "GOARCH=${{ matrix.goarch }}" >> $GITHUB_ENV
+
       - name: Build
-        id: build
         run: |
           make build
 
       - name: Pack artifacts
-        id: pack_artifacts
         run: |
           echo "VFULL: ${{ env.VFULL }}"
-          ARTIFACT="proxy-router-${{ env.TAG_NAME }}-ubuntu-x64.zip"
+          # Adjust artifact extension based on GOOS
+          if [ "${{ matrix.goos }}" == "windows" ]; then
+            ARTIFACT="proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}.exe"
+          else
+            ARTIFACT="proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}"
+          fi
           echo "Artifact: $ARTIFACT"
-          zip -j $ARTIFACT ./LICENSE proxy-router .env
-
+          mv ./proxy-router $ARTIFACT  # Rename to match OS/arch
+          chmod +x $ARTIFACT  # Ensure it's executable
+          
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          path: proxy-router-${{ env.TAG_NAME }}-ubuntu-x64.zip
-          name: proxy-router-ubuntu-x64.zip
-
+          path: ./proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
+          name: proxy-router-${{ matrix.goos }}-${{ matrix.goarch }}
+          
   Release:
-    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' )}}
+    if: |
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))  
     needs:
-      - Ubuntu-22-x64
+      - OS-Build
     runs-on: ubuntu-latest
     steps:
-      - name: Clone
-        id: checkout
+      - name: Clone repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -87,26 +103,24 @@ jobs:
 
       - name: Generate Tag Name
         uses: ./.github/actions/gen_tag_name
-  
+
       - name: Verify environment variables
         run: |
           echo "TAG_NAME=${{ env.TAG_NAME }}"
           echo "VTAG=${{ env.VTAG }}"
-          echo "VFULL=${{ env.VFULL }}" 
+          echo "VFULL=${{ env.VFULL }}"
           echo "IMAGE_NAME_BASE=${{ env.IMAGE_NAME_BASE }}"
-          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}"      
-  
+          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}"
+          
       - name: Download artifacts
-        id: download-artifact
         uses: actions/download-artifact@v4
         with:
           path: ./artifact
 
       - name: Move artifacts
-        id: move_artifacts
         run: |
           mkdir -p ./artifact/release
-          mv ./artifact/*/*.zip ./artifact/release
+          mv ./artifact/*/* ./artifact/release
 
       - name: Create release
         id: create_release
@@ -117,27 +131,13 @@ jobs:
           tag_name: ${{ env.TAG_NAME }}
           prerelease: ${{ github.ref != 'refs/heads/main' }}
 
-      - name: Upload release
-        id: upload_release
-        uses: actions/github-script@v3
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v1
         with:
-          github-token: ${{secrets.GITHUB_TOKEN}}
-          script: |
-            const path = require('path');
-            const fs = require('fs');
-            const release_id = '${{ steps.create_release.outputs.id }}';
-            for (let file of await fs.readdirSync('./artifact/release')) {
-              if (path.extname(file) === '.zip') {
-                console.log('uploadReleaseAsset', file);
-                await github.repos.uploadReleaseAsset({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  release_id: release_id,
-                  name: file,
-                  data: await fs.readFileSync(`./artifact/release/${file}`)
-                });
-              }
-            }
+          tag_name: ${{ env.TAG_NAME }} 
+          files: ./artifact/release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   GHCR-Test:
     if: |
@@ -175,7 +175,8 @@ jobs:
           echo "✅ Proxy-Router Build TEST Successful!"
 
   GHCR-Build-and-Push:
-    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev' ) }}
+    if: |
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
     needs: 
       - GHCR-Test
     runs-on: ubuntu-latest
@@ -235,7 +236,8 @@ jobs:
           echo "✅ Proxy-Router Push Latest Tag Successful!"
 
   GitLab-Deploy:
-    if: ${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')) }}
+    if: |
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
     needs:
       - GHCR-Build-and-Push
     runs-on: ubuntu-latest

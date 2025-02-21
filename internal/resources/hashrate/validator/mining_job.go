@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	sm "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
+	sm "github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/proxy/stratumv1_message"
 )
 
 type shareBytes = [20]byte

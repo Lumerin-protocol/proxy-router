@@ -4,7 +4,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
+	"github.com/Lumerin-protocol/proxy-router/internal/lib"
 )
 
 type GlobalHashrate struct {

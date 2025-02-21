@@ -10,12 +10,12 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Lumerin-protocol/proxy-router/internal/lib"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/contract"
+	hrcontract "github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/contract"
 	"github.com/gin-gonic/gin"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/contract"
-	hrcontract "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/contract"
 	"golang.org/x/exp/slices"
 )
 

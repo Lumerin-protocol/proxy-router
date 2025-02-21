@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Lumerin-protocol/proxy-router/internal/lib"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/hashrate"
+	m "github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/proxy/stratumv1_message"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/validator"
 	"github.com/stretchr/testify/require"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
-	m "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/validator"
 )
 
 func RunTestProxy() (p *Proxy, s *StratumConnection, d *StratumConnection, cancel func(), done chan error) {

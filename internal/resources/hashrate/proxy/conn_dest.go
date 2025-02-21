@@ -9,11 +9,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	gi "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
-	i "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/interfaces"
-	sm "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/proxy/stratumv1_message"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/validator"
+	gi "github.com/Lumerin-protocol/proxy-router/internal/interfaces"
+	"github.com/Lumerin-protocol/proxy-router/internal/lib"
+	i "github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/proxy/interfaces"
+	sm "github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/proxy/stratumv1_message"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/validator"
 )
 
 // ConnDest is a destination connection, a wrapper around StratumConnection,

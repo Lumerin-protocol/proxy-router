@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Lumerin-protocol/proxy-router/internal/testlib"
 	"github.com/stretchr/testify/require"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/testlib"
 	"go.uber.org/atomic"
 )
 

@@ -8,9 +8,9 @@ import (
 	"time"
 
 	vr "github.com/Lumerin-protocol/contracts-go/validatorregistry"
+	"github.com/Lumerin-protocol/proxy-router/internal/interfaces"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
 	"golang.org/x/exp/rand"
 )
 

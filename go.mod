@@ -1,4 +1,4 @@
-module gitlab.com/TitanInd/proxy/proxy-router-v3
+module github.com/Lumerin-protocol/proxy-router
 
 go 1.19
 

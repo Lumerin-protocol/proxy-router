@@ -11,17 +11,17 @@ import (
 
 	"net/http/pprof"
 
+	"github.com/Lumerin-protocol/proxy-router/internal/config"
+	"github.com/Lumerin-protocol/proxy-router/internal/contractmanager"
+	"github.com/Lumerin-protocol/proxy-router/internal/interfaces"
+	"github.com/Lumerin-protocol/proxy-router/internal/lib"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/allocator"
+	hr "github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/hashrate"
+	"github.com/Lumerin-protocol/proxy-router/internal/system"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/config"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/contractmanager"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/interfaces"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/lib"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/allocator"
-	hr "gitlab.com/TitanInd/proxy/proxy-router-v3/internal/resources/hashrate/hashrate"
-	"gitlab.com/TitanInd/proxy/proxy-router-v3/internal/system"
 )
 
 type Proxy interface {
