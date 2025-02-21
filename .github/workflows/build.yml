@@ -121,13 +121,11 @@ jobs:
               -p 8888:8888 \
               --name proxy-router-test \
               $BUILDIMAGE:$BUILDTAG || (echo "❌ Failed to start image with tag: $BUILDIMAGE:$BUILDTAG" && exit 1)
+            echo "✅ Proxy-Router $BUILDIMAGE:$BUILDTAG started successfully!"
+            curl localhost:8888/healthcheck || (echo "❌ Failed to fetch healthcheck" && exit 0)
 
-        - name: Perform Version Check
-          run: |
-            BUILDTAG=${{ needs.Generate-Tag.outputs.tag_name }}
-            BUILDIMAGE=${{ needs.Generate-Tag.outputs.image_name }}
             timeout=20
-            while ! curl -s http://localhost:8888/healthcheck >/dev/null; do
+            while ! curl -s localhost:8888/healthcheck >/dev/null; do
               ((timeout--))
               if ((timeout <= 0)); then
                 echo "📜 Fetching container logs:"
@@ -140,6 +138,7 @@ jobs:
               sleep 1
             done
             echo "✅ Proxy-Router $BUILDIMAGE:$BUILDTAG started successfully!"
+            
             VERSION_TAG=$(curl --silent http://localhost:8888/healthcheck | jq -r '.version')
             echo "📜 Fetching container logs:"
             docker logs proxy-router-test
