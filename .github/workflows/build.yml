@@ -22,6 +22,12 @@ jobs:
     runs-on: ubuntu-latest
     name: Generate Tag Name
     steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          
       - name: Determine tag name
         id: gen_tag_name
         shell: bash
