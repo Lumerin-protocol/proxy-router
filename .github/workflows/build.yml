@@ -80,6 +80,7 @@ jobs:
           fi
           echo "Artifact: $ARTIFACT"
           mv ./proxy-router $ARTIFACT  # Rename to match OS/arch
+          chmod +x $ARTIFACT  # Ensure it's executable
           
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
