@@ -72,21 +72,23 @@ jobs:
       - name: Pack artifacts
         run: |
           echo "VFULL: ${{ env.VFULL }}"
-          # Adjust artifact extension based on GOOS
-          if [ "${{ matrix.goos }}" == "windows" ]; then
-            ARTIFACT="proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}.exe"
-          else
-            ARTIFACT="proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}"
-          fi
+          # # Adjust artifact extension based on GOOS
+          # if [ "${{ matrix.goos }}" == "windows" ]; then
+          #   ARTIFACT="proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}.exe"
+          # else
+          #   ARTIFACT="proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}"
+          # fi
+          ARTIFACT="proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}"
           echo "Artifact: $ARTIFACT"
           mv ./proxy-router $ARTIFACT  # Rename to match OS/arch
           
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          path: ./proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
-          name: proxy-router-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
-          
+          # path: ./proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
+          # name: proxy-router-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
+          path: ./proxy-router-${{ matrix.goos }}-${{ matrix.goarch }}
+          name: proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}
   Release:
     if: |
       (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
