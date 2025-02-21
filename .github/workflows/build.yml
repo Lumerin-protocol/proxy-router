@@ -81,11 +81,85 @@ jobs:
           echo "✅ Docker Image: ${IMAGE_NAME}:${VTAG}" >> $GITHUB_STEP_SUMMARY
           echo "❌ Old Major Tag: $VLAST"  >> $GITHUB_STEP_SUMMARY
 
+  Build-Test:
+      if: |
+          (github.event_name == 'pull_request' && (github.base_ref == 'main' || github.base_ref == 'dev')) ||
+          (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/cicd/') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
+      runs-on: ubuntu-latest
+      needs: Generate-Tag
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+          with:
+            fetch-depth: 0
+            fetch-tags: true
+
+        - name: Build Docker Image to Test
+          run: |
+            BUILDTAG=${{ needs.Generate-Tag.outputs.tag_name }}
+            BUILDIMAGE=${{ needs.Generate-Tag.outputs.image_name }}
+            BUILDCOMMIT=${{ github.sha }}
+            docker build \
+              --platform linux/amd64 \
+              --build-arg TAG_NAME=$BUILDTAG \
+              --build-arg COMMIT=$BUILDCOMMIT \
+              --load \
+              -t $BUILDIMAGE:$BUILDTAG \
+              . || (echo "❌ Failed to build image with tag: $BUILDIMAGE:$BUILDTAG" && exit 1)
+            echo "✅ Proxy-Router Test Build of $BUILDIMAGE:$BUILDTAG Successful!"
+
+        - name: Run Docker Image to Test
+          run: |
+            BUILDTAG=${{ needs.Generate-Tag.outputs.tag_name }}
+            BUILDIMAGE=${{ needs.Generate-Tag.outputs.image_name }}
+            docker run -d \
+              -e CLONE_FACTORY_ADDRESS=${{ vars.CLONE_FACTORY_ADDRESS }} \
+              -e ETH_NODE_ADDRESS=${{ vars.ETH_NODE_ADDRESS }} \
+              -e POOL_ADDRESS=${{ vars.POOL_ADDRESS }} \
+              -e WEB_ADDRESS=${{ vars.WEB_ADDRESS }} \
+              -e WALLET_PRIVATE_KEY=${{ secrets.WALLET_PRIVATE_KEY }} \
+              -p 8888:8888 \
+              --name proxy-router-test \
+              $BUILDIMAGE:$BUILDTAG || (echo "❌ Failed to start image with tag: $BUILDIMAGE:$BUILDTAG" && exit 1)
+
+        - name: Perform Version Check
+          run: |
+            BUILDTAG=${{ needs.Generate-Tag.outputs.tag_name }}
+            BUILDIMAGE=${{ needs.Generate-Tag.outputs.image_name }}
+            timeout=20
+            while ! curl -s http://localhost:8888/healthcheck >/dev/null; do
+              ((timeout--))
+              if ((timeout <= 0)); then
+                echo "📜 Fetching container logs:"
+                docker logs proxy-router-test
+                docker stop proxy-router-test
+                docker rm proxy-router-test
+                echo "❌ Proxy-Router $BUILDIMAGE:$BUILDTAG failed to start in time"
+                exit 1
+              fi    
+              sleep 1
+            done
+            echo "✅ Proxy-Router $BUILDIMAGE:$BUILDTAG started successfully!"
+            VERSION_TAG=$(curl --silent http://localhost:8888/healthcheck | jq -r '.version')
+            echo "📜 Fetching container logs:"
+            docker logs proxy-router-test
+            if [ "$VERSION_TAG" == "$BUILDTAG" ]; then
+              docker stop proxy-router-test
+              docker rm proxy-router-test 
+              echo "✅ Version tag in container matches the expected tag: $VERSION_TAG"
+            else
+              docker stop proxy-router-test
+              docker rm proxy-router-test 
+              echo "❌ Version tag mismatch: Expected $BUILDTAG, but got $VERSION_TAG"
+              exit 1  # Prevent failure and continue
+            fi
+            echo "✅ Proxy-Router Test Run of $BUILDIMAGE:$BUILDTAG Successful!"
+
   OS-Build:
     if: |
       (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/cicd/') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
     runs-on: ubuntu-latest
-    needs: Generate-Tag
+    needs: Build-Test
     strategy:
       matrix:
         goos: [linux, darwin, windows]
@@ -191,87 +265,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  GHCR-Test:
-    if: |
-        (github.event_name == 'pull_request' && (github.base_ref == 'main' || github.base_ref == 'dev')) ||
-        (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/cicd/') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
-    runs-on: ubuntu-latest
-    needs: Generate-Tag
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-
-      - name: Build Docker Image to Test
-        run: |
-          BUILDTAG=${{ needs.Generate-Tag.outputs.tag_name }}
-          BUILDIMAGE=${{ needs.Generate-Tag.outputs.image_name }}
-          BUILDCOMMIT=${{ github.sha }}
-          docker build \
-            --platform linux/amd64 \
-            --build-arg TAG_NAME=$BUILDTAG \
-            --build-arg COMMIT=$BUILDCOMMIT \
-            --load \
-            -t $BUILDIMAGE:$BUILDTAG \
-            . || (echo "❌ Failed to build image with tag: $BUILDIMAGE:$BUILDTAG" && exit 1)
-          echo "✅ Proxy-Router Test Build of $BUILDIMAGE:$BUILDTAG Successful!"
-
-      - name: Run Docker Image to Test
-        run: |
-          BUILDTAG=${{ needs.Generate-Tag.outputs.tag_name }}
-          BUILDIMAGE=${{ needs.Generate-Tag.outputs.image_name }}
-          docker run -d \
-            -e CLONE_FACTORY_ADDRESS=${{ vars.CLONE_FACTORY_ADDRESS }} \
-            -e ETH_NODE_ADDRESS=${{ vars.ETH_NODE_ADDRESS }} \
-            -e POOL_ADDRESS=${{ vars.POOL_ADDRESS }} \
-            -e WEB_ADDRESS=${{ vars.WEB_ADDRESS }} \
-            -e WALLET_PRIVATE_KEY=${{ secrets.WALLET_PRIVATE_KEY }} \
-            -p 8888:8888 \
-            --name proxy-router-test \
-            $BUILDIMAGE:$BUILDTAG || (echo "❌ Failed to run image with tag: $BUILDIMAGE:$BUILDTAG" && exit 0)
-        
-      - name: Perform Version Check
-        if: success()  # This step runs only if the previous step is successful
-        run: |
-          BUILDTAG=${{ needs.Generate-Tag.outputs.tag_name }}
-          BUILDIMAGE=${{ needs.Generate-Tag.outputs.image_name }}
-                 timeout=10
-          while ! curl -s http://localhost:8888/healthcheck >/dev/null; do
-            ((timeout--))
-            if ((timeout <= 0)); then
-              echo "❌ Container failed to start in time"
-              docker logs proxy-router-test
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "✅ Proxy-Router started successfully!"
-          VERSION_TAG=$(curl --silent http://localhost:8888/healthcheck | jq -r '.version')
-          echo "📜 Fetching container logs:"
-          docker logs proxy-router-test
-          if [ "$VERSION_TAG" == "$BUILDTAG" ]; then
-            echo "✅ Version tag in container matches the expected tag: $VERSION_TAG"
-          else
-            echo "❌ Version tag mismatch: Expected $BUILDTAG, but got $VERSION_TAG"
-            exit 0  # Prevent failure and continue
-          fi
-      
-      - name: Stop and Remove Docker Container
-        run: |
-          # Redefine the variables for this step
-          BUILDTAG=${{ needs.Generate-Tag.outputs.tag_name }}
-          BUILDIMAGE=${{ needs.Generate-Tag.outputs.image_name }}
-          docker stop proxy-router-test
-          docker rm proxy-router-test
-          echo "✅ Proxy-Router Test Run of $BUILDIMAGE:$BUILDTAG Successful!"
-
   GHCR-Build-and-Push:
     if: |
       (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
-    needs: 
-      - GHCR-Test
+    needs: Build-Test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
