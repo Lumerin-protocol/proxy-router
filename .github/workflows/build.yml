@@ -112,14 +112,14 @@ jobs:
           run: |
             BUILDTAG=${{ needs.Generate-Tag.outputs.tag_name }}
             BUILDIMAGE=${{ needs.Generate-Tag.outputs.image_name }}
-            docker run -d \
+            docker run -d --name proxy-router-test \
               -e CLONE_FACTORY_ADDRESS=${{ vars.CLONE_FACTORY_ADDRESS }} \
               -e ETH_NODE_ADDRESS=${{ vars.ETH_NODE_ADDRESS }} \
               -e POOL_ADDRESS=${{ vars.POOL_ADDRESS }} \
-              -e WEB_ADDRESS=localhost:8080 \
+              -e WEB_ADDRESS=0.0.0.0:8080 \
               -e WALLET_PRIVATE_KEY=${{ secrets.WALLET_PRIVATE_KEY }} \
-              -p 8080:8080 \
-              --name proxy-router-test \
+              -p 8080:8080  \
+              -p 3333:3333 \
               $BUILDIMAGE:$BUILDTAG || (echo "❌ Failed to start image with tag: $BUILDIMAGE:$BUILDTAG" && exit 1)
             echo "✅ Proxy-Router $BUILDIMAGE:$BUILDTAG started successfully!"
             curl -s http://localhost:8080/healthcheck || (echo "❌ Failed to fetch healthcheck" && exit 0)
