@@ -18,10 +18,62 @@ defaults:
     shell: bash
 
 jobs:
+  Generate-Tag: 
+    runs-on: ubuntu-latest
+    name: Generate Tag Name
+    steps:
+      - name: Determine tag name
+        id: gen_tag_name
+        shell: bash
+        run: |
+          VMAJ_NEW=1
+          VMIN_NEW=2
+          VPAT_NEW=4
+          set +o pipefail
+          VLAST=$(git describe --tags --abbrev=0 --match='v[1-9]*' refs/remotes/origin/main 2>/dev/null | cut -c2-)
+          
+          if [ -n "$VLAST" ]; then
+              eval $(echo "$VLAST" | awk -F '.' '{print "VMAJ="$1" VMIN="$2" VPAT="$3}')
+          else
+              VMAJ=0
+              VMIN=0
+              VPAT=0
+          fi
+
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+              if [ "$VMAJ_NEW" -gt "$VMAJ" ]; then
+                  VMAJ=$VMAJ_NEW
+                  VMIN=$VMIN_NEW
+                  VPAT=$VPAT_NEW
+              else
+                  VMIN=$((VMIN+1))
+                  VPAT=0
+              fi
+              VFULL=${VMAJ}.${VMIN}.${VPAT}
+              VTAG=v$VFULL
+          else
+              MB=$(git merge-base refs/remotes/origin/main HEAD)
+              VPAT=$(git rev-list --count --no-merges ${MB}..HEAD)
+              VFULL=${VMAJ}.${VMIN}.${VPAT}
+              RNAME=${GITHUB_REF_NAME##*/}
+              [ "$GITHUB_EVENT_NAME" = "pull_request" ] && RNAME=pr${GITHUB_REF_NAME%/merge}
+              VTAG=v${VFULL}-${RNAME}
+          fi
+          # Output to GitHub Actions environment
+          echo "TAG_NAME=${VTAG}" >> $GITHUB_ENV
+          echo "VTAG=${VTAG}" >> $GITHUB_ENV
+          echo "VFULL=${VFULL}" >> $GITHUB_ENV
+          echo "IMAGE_NAME_BASE=ghcr.io/lumerin-protocol/proxy-router" >> $GITHUB_ENV
+          echo "IMAGE_NAME=ghcr.io/lumerin-protocol/proxy-router:${VTAG}" >> $GITHUB_ENV
+          # Output to log for confirmation
+          echo "✅ VLAST=$VLAST VMAJ=$VMAJ VMIN=$VMIN VPAT=$VPAT VFULL=$VFULL VTAG=$VTAG ✅"
+          echo "✅ IMAGE=ghcr.io/lumerin-protocol/proxy-router:${VTAG}                   ✅"
+
   OS-Build:
     if: |
       (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/cicd/') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
-    runs-on: ubuntu-latest  # Updated to use ubuntu-latest instead of ubuntu-22.04
+    runs-on: ubuntu-latest
+    needs: Generate-Tag
     strategy:
       matrix:
         goos: [linux, darwin, windows]
@@ -37,17 +89,6 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
-
-      - name: Generate Tag Name
-        uses: ./.github/actions/gen_tag_name
-
-      - name: Verify environment variables
-        run: |
-          echo "TAG_NAME=${{ env.TAG_NAME }}"
-          echo "VTAG=${{ env.VTAG }}"
-          echo "VFULL=${{ env.VFULL }}"
-          echo "IMAGE_NAME_BASE=${{ env.IMAGE_NAME_BASE }}"
-          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}"
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -87,7 +128,7 @@ jobs:
         with:
           path: ./proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
           name: proxy-router-${{ matrix.goos }}-${{ matrix.goarch }}
-          
+
   Release:
     if: |
       (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))  
@@ -100,17 +141,6 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
-
-      - name: Generate Tag Name
-        uses: ./.github/actions/gen_tag_name
-
-      - name: Verify environment variables
-        run: |
-          echo "TAG_NAME=${{ env.TAG_NAME }}"
-          echo "VTAG=${{ env.VTAG }}"
-          echo "VFULL=${{ env.VFULL }}"
-          echo "IMAGE_NAME_BASE=${{ env.IMAGE_NAME_BASE }}"
-          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}"
           
       - name: Download artifacts
         uses: actions/download-artifact@v4
@@ -150,17 +180,6 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
-
-      - name: Generate Tag Name
-        uses: ./.github/actions/gen_tag_name
-  
-      - name: Verify environment variables
-        run: |
-          echo "TAG_NAME=${{ env.TAG_NAME }}"
-          echo "VTAG=${{ env.VTAG }}"
-          echo "VFULL=${{ env.VFULL }}" 
-          echo "IMAGE_NAME_BASE=${{ env.IMAGE_NAME_BASE }}"
-          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}"      
   
       - name: Build Docker Image to Test
         run: |
@@ -179,6 +198,7 @@ jobs:
       (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
     needs: 
       - GHCR-Test
+      - Generate-Tag
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -186,17 +206,6 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
-
-      - name: Generate Tag Name
-        uses: ./.github/actions/gen_tag_name
-  
-      - name: Verify environment variables
-        run: |
-          echo "TAG_NAME=${{ env.TAG_NAME }}"
-          echo "VTAG=${{ env.VTAG }}"
-          echo "VFULL=${{ env.VFULL }}" 
-          echo "IMAGE_NAME_BASE=${{ env.IMAGE_NAME_BASE }}"
-          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}"      
   
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
@@ -252,17 +261,6 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update && sudo apt-get install -y jq
-
-      - name: Generate Tag Name
-        uses: ./.github/actions/gen_tag_name
-  
-      - name: Verify environment variables
-        run: |
-          echo "TAG_NAME=${{ env.TAG_NAME }}"
-          echo "VTAG=${{ env.VTAG }}"
-          echo "VFULL=${{ env.VFULL }}" 
-          echo "IMAGE_NAME_BASE=${{ env.IMAGE_NAME_BASE }}"
-          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}"      
 
       - name: Determine GitLab Target Branch
         id: set_target_branch
