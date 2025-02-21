@@ -272,7 +272,6 @@ jobs:
       (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
     needs: 
       - GHCR-Test
-      - Generate-Tag
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
