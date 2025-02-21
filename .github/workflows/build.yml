@@ -77,10 +77,9 @@ jobs:
           echo "::set-output name=vtag::${VTAG}"
           echo "::set-output name=vfull::${VFULL}"
           echo "::set-output name=image_name::${IMAGE_NAME}"
-          echo "Version/Tag Summary: " >> $GITHUB_STEP_SUMMARY
-          echo "✅ VLAST=$VLAST VMAJ=$VMAJ VMIN=$VMIN VPAT=$VPAT VFULL=$VFULL VTAG=$VTAG" >> $GITHUB_STEP_SUMMARY
-          echo "✅ IMAGE & Version=${IMAGE_NAME}:${VTAG}" >> $GITHUB_STEP_SUMMARY
-
+          echo "✅ New Build Tag: $VTAG" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Docker Image: ${IMAGE_NAME}:${VTAG}" >> $GITHUB_STEP_SUMMARY
+          echo "❌ Old Major Tag: $VLAST"  >> $GITHUB_STEP_SUMMARY
 
   OS-Build:
     if: |
