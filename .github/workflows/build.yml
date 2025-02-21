@@ -87,11 +87,12 @@ jobs:
         with:
           # path: ./proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
           # name: proxy-router-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
-          path: ./proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ./proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
           name: proxy-router-${{ matrix.goos }}-${{ matrix.goarch }}
   Release:
     if: |
-      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
+      (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/cicd/') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
+    # (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))  
     needs:
       - OS-Build
     runs-on: ubuntu-latest
