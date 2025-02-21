@@ -21,6 +21,12 @@ jobs:
   Generate-Tag: 
     runs-on: ubuntu-latest
     name: Generate Tag Name
+    outputs:
+      tag_name: ${{ steps.gen_tag_name.outputs.tag_name }}
+      vtag: ${{ steps.gen_tag_name.outputs.vtag }}
+      vfull: ${{ steps.gen_tag_name.outputs.vfull }}
+      image_name: ${{ steps.gen_tag_name.outputs.image_name }}
+      image_name_base: ${{ steps.gen_tag_name.outputs.image_name_base }}
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -65,15 +71,17 @@ jobs:
               [ "$GITHUB_EVENT_NAME" = "pull_request" ] && RNAME=pr${GITHUB_REF_NAME%/merge}
               VTAG=v${VFULL}-${RNAME}
           fi
-          # Output to GitHub Actions environment
-          echo "TAG_NAME=${VTAG}" >> $GITHUB_ENV
-          echo "VTAG=${VTAG}" >> $GITHUB_ENV
-          echo "VFULL=${VFULL}" >> $GITHUB_ENV
-          echo "IMAGE_NAME_BASE=ghcr.io/lumerin-protocol/proxy-router" >> $GITHUB_ENV
-          echo "IMAGE_NAME=ghcr.io/lumerin-protocol/proxy-router:${VTAG}" >> $GITHUB_ENV
+
+          # Output variables for use in subsequent jobs environment
+          echo "::set-output name=tag_name::${VTAG}"
+          echo "::set-output name=vtag::${VTAG}"
+          echo "::set-output name=vfull::${VFULL}"
+          echo "::set-output name=image_name::ghcr.io/lumerin-protocol/proxy-router:${VTAG}"
+          echo "::set-output name=image_name_base::ghcr.io/lumerin-protocol/proxy-router"
+
           # Output to log for confirmation
           echo "✅ VLAST=$VLAST VMAJ=$VMAJ VMIN=$VMIN VPAT=$VPAT VFULL=$VFULL VTAG=$VTAG ✅"
-          echo "✅ IMAGE=ghcr.io/lumerin-protocol/proxy-router:${VTAG}                   ✅"
+          echo "✅ IMAGE=ghcr.io/lumerin-protocol/proxy-router:${VTAG} ✅"
 
   OS-Build:
     if: |
@@ -118,12 +126,12 @@ jobs:
 
       - name: Pack artifacts
         run: |
-          echo "VFULL: ${{ env.VFULL }}"
+          echo "VFULL: ${{ needs.Generate-Tag.outputs.vfull }}"
           # Adjust artifact extension based on GOOS
           if [ "${{ matrix.goos }}" == "windows" ]; then
-            ARTIFACT="proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}.exe"
+            ARTIFACT="proxy-router-${{ needs.Generate-Tag.outputs.tag_name }}-${{ matrix.goos }}-${{ matrix.goarch }}.exe"
           else
-            ARTIFACT="proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}"
+            ARTIFACT="proxy-router-${{ needs.Generate-Tag.outputs.tag_name }}-${{ matrix.goos }}-${{ matrix.goarch }}"
           fi
           echo "Artifact: $ARTIFACT"
           mv ./proxy-router $ARTIFACT  # Rename to match OS/arch
@@ -132,7 +140,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          path: ./proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
+          path: ./proxy-router-${{ needs.Generate-Tag.outputs.tag_name }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
           name: proxy-router-${{ matrix.goos }}-${{ matrix.goarch }}
 
   Release:
@@ -164,13 +172,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ env.TAG_NAME }}
+          tag_name: ${{ needs.Generate-Tag.outputs.tag_name }}
           prerelease: ${{ github.ref != 'refs/heads/main' }}
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ env.TAG_NAME }} 
+          tag_name: ${{ needs.Generate-Tag.outputs.tag_name }} 
           files: ./artifact/release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -187,17 +195,16 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
-  
+
       - name: Build Docker Image to Test
         run: |
-          IMAGE_NAME=${{ env.IMAGE_NAME_BASE }}:${{ env.TAG_NAME }}
           docker build \
             --platform linux/amd64 \
-            --build-arg TAG_NAME=${{ env.TAG_NAME }} \
+            --build-arg TAG_NAME=${{ needs.Generate-Tag.outputs.tag_name }} \
             --build-arg COMMIT=${{ github.sha }} \
             --load \
-            -t ${{ env.IMAGE_NAME }} \
-            . || (echo "❌ Failed to build image with tag: $IMAGE_NAME" && exit 1)
+            -t ${{ needs.Generate-Tag.outputs.image_name }} \
+            . || (echo "❌ Failed to build image with tag: ${{ needs.Generate-Tag.outputs.image_name }}" && exit 1)
           echo "✅ Proxy-Router Build TEST Successful!"
 
   GHCR-Build-and-Push:
@@ -226,26 +233,24 @@ jobs:
 
       - name: Build and Push Multi-Platform Docker Image
         run: |
-          IMAGE_NAME=${{ env.IMAGE_NAME_BASE }}:${{ env.TAG_NAME }}
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
-            --build-arg TAG_NAME=${{ env.TAG_NAME }} \
+            --build-arg TAG_NAME=${{ needs.Generate-Tag.outputs.tag_name }} \
             --build-arg COMMIT=${{ github.sha }} \
             --push \
-            -t $IMAGE_NAME \
-            . || (echo "❌ Failed to push image with tag: $IMAGE_NAME" && exit 1)
+            -t ${{ needs.Generate-Tag.outputs.image_name }} \
+            . || (echo "❌ Failed to push image with tag: ${{ needs.Generate-Tag.outputs.image_name }}" && exit 1)
           echo "✅ Proxy-Router Build and Push Successful!"
 
       - name: Optionally Push Latest Tag
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
-          IMAGE_NAME=${{ env.IMAGE_NAME_BASE }}:${{ env.TAG_NAME }}
           echo "Pulling image before tagging as :latest"
-          docker pull $IMAGE_NAME || (echo "❌ Failed to pull image: $IMAGE_NAME" && exit 1)
+          docker pull ${{ needs.Generate-Tag.outputs.image_name }} || (echo "❌ Failed to pull image: ${{ needs.Generate-Tag.outputs.image_name }}" && exit 1)
           
           echo "Tagging image as :latest"
-          LATEST_IMAGE=${{ env.IMAGE_NAME_BASE }}:latest
-          docker tag $IMAGE_NAME $LATEST_IMAGE
+          LATEST_IMAGE=${{ needs.Generate-Tag.outputs.image_name_base }}:latest
+          docker tag ${{ needs.Generate-Tag.outputs.image_name }} $LATEST_IMAGE
           
           echo "Pushing image as :latest"
           docker push $LATEST_IMAGE || (echo "❌ Failed to push image as :latest" && exit 1)
@@ -283,7 +288,7 @@ jobs:
 
       - name: Trigger GitLab Pipeline
         run: |
-          echo "Triggering GitLab Build and Deploy for branch ${{ github.ref_name }} with tag ${{ env.TAG_NAME }}"
+          echo "Triggering GitLab Build and Deploy for branch ${{ github.ref_name }} with tag ${{ needs.Generate-Tag.outputs.tag_name }}"
       
           # Send request to GitLab
           response=$(curl --silent \
@@ -293,8 +298,8 @@ jobs:
             --form "ref=${{ env.gitlab_branch }}" \
             --form "variables[SOURCE_REPO]=${{ github.repository }}" \
             --form "variables[SOURCE_BRANCH]=${{ github.ref_name }}" \
-            --form "variables[GITHUB_VFULL]=${{ env.VFULL }}" \
-            --form "variables[GITHUB_TAG]=${{ env.TAG_NAME }}")
+            --form "variables[GITHUB_VFULL]=${{ needs.Generate-Tag.outputs.vfull }}" \
+            --form "variables[GITHUB_TAG]=${{ needs.Generate-Tag.outputs.tag_name }}")
       
           # Parse JSON response using jq
           gitlab_status=$(echo "$response" | jq -r '.status // "unknown"')
