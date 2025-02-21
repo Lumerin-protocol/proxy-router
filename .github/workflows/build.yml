@@ -129,10 +129,11 @@ jobs:
         with:
           tag_name: ${{ env.TAG_NAME }}
           prerelease: ${{ github.ref != 'refs/heads/main' }}
-          
+
       - name: Upload release assets
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ env.TAG_NAME }} 
           files: ./artifact/release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
