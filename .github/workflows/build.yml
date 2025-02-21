@@ -78,10 +78,13 @@ jobs:
           echo "::set-output name=vfull::${VFULL}"
           echo "::set-output name=image_name::ghcr.io/lumerin-protocol/proxy-router:${VTAG}"
           echo "::set-output name=image_name_base::ghcr.io/lumerin-protocol/proxy-router"
-
-          # Output to log for confirmation
-          echo "✅ VLAST=$VLAST VMAJ=$VMAJ VMIN=$VMIN VPAT=$VPAT VFULL=$VFULL VTAG=$VTAG ✅"
-          echo "✅ IMAGE=ghcr.io/lumerin-protocol/proxy-router:${VTAG} ✅"
+      
+      - name: Job Summary
+        run: | 
+          echo "#:rocket: CI-CD Pipeline Summary: :rocket:" > $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ VLAST=$VLAST VMAJ=$VMAJ VMIN=$VMIN VPAT=$VPAT VFULL=$VFULL VTAG=$VTAG" >> $GITHUB_STEP_SUMMARY
+          echo "✅ IMAGE=ghcr.io/lumerin-protocol/proxy-router:${VTAG}" >> $GITHUB_STEP_SUMMARY
 
   OS-Build:
     if: |
@@ -122,11 +125,20 @@ jobs:
 
       - name: Build
         run: |
-          make build
+          VERSION=${{ needs.Generate-Tag.outputs.tag_name }}
+          COMMIT=${{ github.sha }}
+          go mod tidy
+          go build \
+            -ldflags="-s -w \
+              -X 'github.com/Lumerin-protocol/proxy-router/internal/config.BuildVersion=$VERSION' \
+              -X 'github.com/Lumerin-protocol/proxy-router/internal/config.Commit=$COMMIT' \
+            " \
+            -o ./proxy-router ./cmd || (echo "❌ Failed to build binary" && exit 1)
+          echo "✅ Proxy-Router Build Successful!"
 
       - name: Pack artifacts
         run: |
-          echo "VFULL: ${{ needs.Generate-Tag.outputs.vfull }}"
+          echo "TagName: ${{ needs.Generate-Tag.outputs.tag_name }}"
           # Adjust artifact extension based on GOOS
           if [ "${{ matrix.goos }}" == "windows" ]; then
             ARTIFACT="proxy-router-${{ needs.Generate-Tag.outputs.tag_name }}-${{ matrix.goos }}-${{ matrix.goarch }}.exe"
@@ -142,6 +154,10 @@ jobs:
         with:
           path: ./proxy-router-${{ needs.Generate-Tag.outputs.tag_name }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
           name: proxy-router-${{ matrix.goos }}-${{ matrix.goarch }}
+      
+      - name: Job Summary
+        run: | 
+          echo "✅ Build for ${{ matrix.goos }}/${{ matrix.goarch }} Successful!" >> $GITHUB_STEP_SUMMARY
 
   Release:
     if: |
@@ -182,6 +198,10 @@ jobs:
           files: ./artifact/release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Job Summary
+        run: | 
+          echo "✅ Package Release ${{ needs.Generate-Tag.outputs.tag_name }} Successful!" >> $GITHUB_STEP_SUMMARY
 
   GHCR-Test:
     if: |
@@ -206,6 +226,7 @@ jobs:
             -t ${{ needs.Generate-Tag.outputs.image_name }} \
             . || (echo "❌ Failed to build image with tag: ${{ needs.Generate-Tag.outputs.image_name }}" && exit 1)
           echo "✅ Proxy-Router Build TEST Successful!"
+          echo "✅ Proxy-Router Container Build Test ${{ needs.Generate-Tag.outputs.tag_name }} Successful!" >> $GITHUB_STEP_SUMMARY
 
   GHCR-Build-and-Push:
     if: |
@@ -241,6 +262,7 @@ jobs:
             -t ${{ needs.Generate-Tag.outputs.image_name }} \
             . || (echo "❌ Failed to push image with tag: ${{ needs.Generate-Tag.outputs.image_name }}" && exit 1)
           echo "✅ Proxy-Router Build and Push Successful!"
+          echo "✅ Proxy-Router Container Build and Push ${{ needs.Generate-Tag.outputs.tag_name }} Successful!" >> $GITHUB_STEP_SUMMARY
 
       - name: Optionally Push Latest Tag
         if: ${{ github.ref == 'refs/heads/main' }}
@@ -255,6 +277,7 @@ jobs:
           echo "Pushing image as :latest"
           docker push $LATEST_IMAGE || (echo "❌ Failed to push image as :latest" && exit 1)
           echo "✅ Proxy-Router Push Latest Tag Successful!"
+          echo "✅ Proxy-Router Container Push Latest Tag Successful!" >> $GITHUB_STEP_SUMMARY
 
   GitLab-Deploy:
     if: |
@@ -317,3 +340,4 @@ jobs:
             echo "Pipeline details: $gitlab_web_url"
             exit 1
           fi
+          echo "✅ GitLab Pipeline Triggered Successfully!" >> $GITHUB_STEP_SUMMARY
