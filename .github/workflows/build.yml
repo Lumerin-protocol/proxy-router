@@ -26,7 +26,6 @@ jobs:
       vtag: ${{ steps.gen_tag_name.outputs.vtag }}
       vfull: ${{ steps.gen_tag_name.outputs.vfull }}
       image_name: ${{ steps.gen_tag_name.outputs.image_name }}
-      image_name_base: ${{ steps.gen_tag_name.outputs.image_name_base }}
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -38,6 +37,7 @@ jobs:
         id: gen_tag_name
         shell: bash
         run: |
+          IMAGE_NAME="ghcr.io/lumerin-protocol/proxy-router"
           VMAJ_NEW=1
           VMIN_NEW=2
           VPAT_NEW=4
@@ -76,15 +76,11 @@ jobs:
           echo "::set-output name=tag_name::${VTAG}"
           echo "::set-output name=vtag::${VTAG}"
           echo "::set-output name=vfull::${VFULL}"
-          echo "::set-output name=image_name::ghcr.io/lumerin-protocol/proxy-router:${VTAG}"
-          echo "::set-output name=image_name_base::ghcr.io/lumerin-protocol/proxy-router"
-      
-      - name: Job Summary
-        run: | 
-          echo "#:rocket: CI-CD Pipeline Summary: :rocket:" > $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "::set-output name=image_name::${IMAGE_NAME}"
+          echo "Version/Tag Summary: " >> $GITHUB_STEP_SUMMARY
           echo "✅ VLAST=$VLAST VMAJ=$VMAJ VMIN=$VMIN VPAT=$VPAT VFULL=$VFULL VTAG=$VTAG" >> $GITHUB_STEP_SUMMARY
-          echo "✅ IMAGE=ghcr.io/lumerin-protocol/proxy-router:${VTAG}" >> $GITHUB_STEP_SUMMARY
+          echo "✅ IMAGE & Version=${IMAGE_NAME}:${VTAG}" >> $GITHUB_STEP_SUMMARY
+
 
   OS-Build:
     if: |
@@ -125,12 +121,12 @@ jobs:
 
       - name: Build
         run: |
-          VERSION=${{ needs.Generate-Tag.outputs.tag_name }}
+          BUILDTAG=${{ needs.Generate-Tag.outputs.tag_name }}
           COMMIT=${{ github.sha }}
           go mod tidy
           go build \
             -ldflags="-s -w \
-              -X 'github.com/Lumerin-protocol/proxy-router/internal/config.BuildVersion=$VERSION' \
+              -X 'github.com/Lumerin-protocol/proxy-router/internal/config.BuildVersion=$BUILDTAG' \
               -X 'github.com/Lumerin-protocol/proxy-router/internal/config.Commit=$COMMIT' \
             " \
             -o ./proxy-router ./cmd || (echo "❌ Failed to build binary" && exit 1)
@@ -138,12 +134,12 @@ jobs:
 
       - name: Pack artifacts
         run: |
-          echo "TagName: ${{ needs.Generate-Tag.outputs.tag_name }}"
+          BUILDTAG="proxy-router-${{ needs.Generate-Tag.outputs.tag_name }}-${{ matrix.goos }}-${{ matrix.goarch }}"
           # Adjust artifact extension based on GOOS
           if [ "${{ matrix.goos }}" == "windows" ]; then
-            ARTIFACT="proxy-router-${{ needs.Generate-Tag.outputs.tag_name }}-${{ matrix.goos }}-${{ matrix.goarch }}.exe"
+            ARTIFACT="$BUILDTAG.exe"
           else
-            ARTIFACT="proxy-router-${{ needs.Generate-Tag.outputs.tag_name }}-${{ matrix.goos }}-${{ matrix.goarch }}"
+            ARTIFACT="$BUILDTAG"
           fi
           echo "Artifact: $ARTIFACT"
           mv ./proxy-router $ARTIFACT  # Rename to match OS/arch
@@ -154,10 +150,6 @@ jobs:
         with:
           path: ./proxy-router-${{ needs.Generate-Tag.outputs.tag_name }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
           name: proxy-router-${{ matrix.goos }}-${{ matrix.goarch }}
-      
-      - name: Job Summary
-        run: | 
-          echo "✅ Build for ${{ matrix.goos }}/${{ matrix.goarch }} Successful!" >> $GITHUB_STEP_SUMMARY
 
   Release:
     if: |
@@ -177,10 +169,11 @@ jobs:
         with:
           path: ./artifact
 
-      - name: Move artifacts
+      - name: Prepare artifacts
         run: |
           mkdir -p ./artifact/release
           mv ./artifact/*/* ./artifact/release
+          ls -lah ./artifact/release
 
       - name: Create release
         id: create_release
@@ -198,10 +191,6 @@ jobs:
           files: ./artifact/release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Job Summary
-        run: | 
-          echo "✅ Package Release ${{ needs.Generate-Tag.outputs.tag_name }} Successful!" >> $GITHUB_STEP_SUMMARY
 
   GHCR-Test:
     if: |
@@ -218,15 +207,17 @@ jobs:
 
       - name: Build Docker Image to Test
         run: |
+          BUILDTAG=${{ needs.Generate-Tag.outputs.tag_name }}
+          BUILDIMAGE=${{ needs.Generate-Tag.outputs.image_name }}
+          BUILDCOMMIT=${{ github.sha }}
           docker build \
             --platform linux/amd64 \
-            --build-arg TAG_NAME=${{ needs.Generate-Tag.outputs.tag_name }} \
-            --build-arg COMMIT=${{ github.sha }} \
+            --build-arg TAG_NAME=$BUILDTAG \
+            --build-arg COMMIT=$BUILDCOMMIT \
             --load \
-            -t ${{ needs.Generate-Tag.outputs.image_name }} \
-            . || (echo "❌ Failed to build image with tag: ${{ needs.Generate-Tag.outputs.image_name }}" && exit 1)
-          echo "✅ Proxy-Router Build TEST Successful!"
-          echo "✅ Proxy-Router Container Build Test ${{ needs.Generate-Tag.outputs.tag_name }} Successful!" >> $GITHUB_STEP_SUMMARY
+            -t $BUILDIMAGE:$BUILDTAG \
+            . || (echo "❌ Failed to build image with tag: $BUILDIMAGE:$BUILDTAG" && exit 1)
+          echo "✅ Proxy-Router Test Build of $BUILDIMAGE:$BUILDTAG Successful!"
 
   GHCR-Build-and-Push:
     if: |
@@ -254,30 +245,27 @@ jobs:
 
       - name: Build and Push Multi-Platform Docker Image
         run: |
+          BUILDTAG=${{ needs.Generate-Tag.outputs.tag_name }}
+          BUILDIMAGE=${{ needs.Generate-Tag.outputs.image_name }}
+          BUILDCOMMIT=${{ github.sha }}
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
-            --build-arg TAG_NAME=${{ needs.Generate-Tag.outputs.tag_name }} \
-            --build-arg COMMIT=${{ github.sha }} \
+            --build-arg TAG_NAME=$BUILDTAG \
+            --build-arg COMMIT=$BUILDCOMMIT \
             --push \
-            -t ${{ needs.Generate-Tag.outputs.image_name }} \
-            . || (echo "❌ Failed to push image with tag: ${{ needs.Generate-Tag.outputs.image_name }}" && exit 1)
-          echo "✅ Proxy-Router Build and Push Successful!"
-          echo "✅ Proxy-Router Container Build and Push ${{ needs.Generate-Tag.outputs.tag_name }} Successful!" >> $GITHUB_STEP_SUMMARY
+            -t $BUILDIMAGE:$BUILDTAG \
+            . || (echo "❌ Failed to push image with tag: $BUILDIMAGE:$BUILDTAG" && exit 1)
+          echo "✅ Proxy-Router Build and Push of $BUILDIMAGE:$BUILDTAG Successful!"
 
       - name: Optionally Push Latest Tag
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
-          echo "Pulling image before tagging as :latest"
-          docker pull ${{ needs.Generate-Tag.outputs.image_name }} || (echo "❌ Failed to pull image: ${{ needs.Generate-Tag.outputs.image_name }}" && exit 1)
-          
-          echo "Tagging image as :latest"
-          LATEST_IMAGE=${{ needs.Generate-Tag.outputs.image_name_base }}:latest
-          docker tag ${{ needs.Generate-Tag.outputs.image_name }} $LATEST_IMAGE
-          
-          echo "Pushing image as :latest"
-          docker push $LATEST_IMAGE || (echo "❌ Failed to push image as :latest" && exit 1)
-          echo "✅ Proxy-Router Push Latest Tag Successful!"
-          echo "✅ Proxy-Router Container Push Latest Tag Successful!" >> $GITHUB_STEP_SUMMARY
+          BUILDIMAGE=${{ needs.Generate-Tag.outputs.image_name }}
+          BUILDTAG=${{ needs.Generate-Tag.outputs.tag_name }}
+          docker pull $BUILDIMAGE:$BUILDTAG || (echo "❌ Failed to pull image: $BUILDIMAGE:$BUILDTAG" && exit 1)
+          docker tag $BUILDIMAGE:$BUILDTAG $BUILDBASE:latest || (echo "❌ Failed to tag image as :latest" && exit 1)
+          docker push $BUILDBASE:latest || (echo "❌ Failed to push image as :latest" && exit 1)
+          echo "✅ Proxy-Router Push $BUILDBASE:latest Tag Successful!"
 
   GitLab-Deploy:
     if: |
@@ -340,4 +328,3 @@ jobs:
             echo "Pipeline details: $gitlab_web_url"
             exit 1
           fi
-          echo "✅ GitLab Pipeline Triggered Successfully!" >> $GITHUB_STEP_SUMMARY
