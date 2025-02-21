@@ -72,13 +72,12 @@ jobs:
       - name: Pack artifacts
         run: |
           echo "VFULL: ${{ env.VFULL }}"
-          # # Adjust artifact extension based on GOOS
-          # if [ "${{ matrix.goos }}" == "windows" ]; then
-          #   ARTIFACT="proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}.exe"
-          # else
-          #   ARTIFACT="proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}"
-          # fi
-          ARTIFACT="proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}"
+          # Adjust artifact extension based on GOOS
+          if [ "${{ matrix.goos }}" == "windows" ]; then
+            ARTIFACT="proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}.exe"
+          else
+            ARTIFACT="proxy-router-${{ env.TAG_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}"
+          fi
           echo "Artifact: $ARTIFACT"
           mv ./proxy-router $ARTIFACT  # Rename to match OS/arch
           
