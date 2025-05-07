@@ -9,7 +9,7 @@ if [ -z "$TAG_NAME" ]; then
     echo "Using latest Git tag: $TAG_NAME"
   fi
 fi
-
+ 
 VERSION=$TAG_NAME
 echo VERSION=$VERSION
 # if commit is not set, use the latest commit
