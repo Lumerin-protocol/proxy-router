@@ -3,7 +3,7 @@ package contract
 import (
 	"context"
 
-	"github.com/Lumerin-protocol/contracts-go/implementation"
+	"github.com/Lumerin-protocol/contracts-go/v2/implementation"
 	"github.com/Lumerin-protocol/proxy-router/internal/repositories/contracts"
 	"github.com/Lumerin-protocol/proxy-router/internal/resources"
 	"github.com/ethereum/go-ethereum/common"
@@ -107,17 +107,17 @@ func (c *ControllerSeller) controller(ctx context.Context, event interface{}) er
 	switch e := event.(type) {
 	case *implementation.ImplementationContractPurchased:
 		return c.handleContractPurchased(ctx, e)
-	case *implementation.ImplementationContractClosed:
-		return c.handleContractClosed(ctx, e)
-	case *implementation.ImplementationCipherTextUpdated:
-		return c.handleCipherTextUpdated(ctx, e)
+	case *implementation.ImplementationClosedEarly:
+		return c.handleClosedEarly(ctx, e)
+	case *implementation.ImplementationDestinationUpdated:
+		return c.handleDestinationUpdated(ctx, e)
 	case *implementation.ImplementationPurchaseInfoUpdated:
 		return c.handlePurchaseInfoUpdated(ctx, e)
 	}
 	return nil
 }
 
-func (c *ControllerSeller) handleContractPurchased(ctx context.Context, event *implementation.ImplementationContractPurchased) error {
+func (c *ControllerSeller) handleContractPurchased(ctx context.Context, _ *implementation.ImplementationContractPurchased) error {
 	c.log.Debugf("got purchased event for contract")
 	if c.State() == resources.ContractStateRunning {
 		c.log.Infof("contract is running, ignore")
@@ -143,7 +143,7 @@ func (c *ControllerSeller) handleContractPurchased(ctx context.Context, event *i
 	return nil
 }
 
-func (c *ControllerSeller) handleContractClosed(ctx context.Context, event *implementation.ImplementationContractClosed) error {
+func (c *ControllerSeller) handleClosedEarly(ctx context.Context, _ *implementation.ImplementationClosedEarly) error {
 	c.log.Warnf("got closed event for contract")
 
 	if c.IsRunning() {
@@ -160,8 +160,8 @@ func (c *ControllerSeller) handleContractClosed(ctx context.Context, event *impl
 	return nil
 }
 
-func (c *ControllerSeller) handleCipherTextUpdated(ctx context.Context, event *implementation.ImplementationCipherTextUpdated) error {
-	c.log.Debugf("got cipherTextUpdated event for contract")
+func (c *ControllerSeller) handleDestinationUpdated(ctx context.Context, _ *implementation.ImplementationDestinationUpdated) error {
+	c.log.Debugf("got destinationUpdated event for contract")
 
 	currentDest := c.Dest()
 
@@ -195,7 +195,7 @@ func (c *ControllerSeller) handleCipherTextUpdated(ctx context.Context, event *i
 	return nil
 }
 
-func (c *ControllerSeller) handlePurchaseInfoUpdated(ctx context.Context, event *implementation.ImplementationPurchaseInfoUpdated) error {
+func (c *ControllerSeller) handlePurchaseInfoUpdated(ctx context.Context, _ *implementation.ImplementationPurchaseInfoUpdated) error {
 	c.log.Debugf("got purchaseInfoUpdated event for contract")
 
 	err := c.LoadTermsFromBlockchain(ctx)

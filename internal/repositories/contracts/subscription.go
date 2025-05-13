@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/Lumerin-protocol/contracts-go/clonefactory"
-	"github.com/Lumerin-protocol/contracts-go/implementation"
+	"github.com/Lumerin-protocol/contracts-go/v2/clonefactory"
+	"github.com/Lumerin-protocol/contracts-go/v2/implementation"
 	"github.com/Lumerin-protocol/proxy-router/internal/interfaces"
 	"github.com/Lumerin-protocol/proxy-router/internal/lib"
 	"github.com/ethereum/go-ethereum"
@@ -22,12 +22,16 @@ func implementationEventFactory(name string) interface{} {
 	switch name {
 	case "contractPurchased":
 		return new(implementation.ImplementationContractPurchased)
-	case "contractClosed":
-		return new(implementation.ImplementationContractClosed)
-	case "cipherTextUpdated":
-		return new(implementation.ImplementationCipherTextUpdated)
+	case "closedEarly":
+		return new(implementation.ImplementationClosedEarly)
 	case "purchaseInfoUpdated":
 		return new(implementation.ImplementationPurchaseInfoUpdated)
+	case "destinationUpdated":
+		return new(implementation.ImplementationDestinationUpdated)
+	case "fundsClaimed":
+		return new(implementation.ImplementationFundsClaimed)
+	case "fundsClaimedValidator":
+		return new(implementation.ImplementationFundsClaimedValidator)
 	default:
 		return nil
 	}
@@ -39,10 +43,10 @@ func clonefactoryEventFactory(name string) interface{} {
 		return new(clonefactory.ClonefactoryContractCreated)
 	case "clonefactoryContractPurchased":
 		return new(clonefactory.ClonefactoryClonefactoryContractPurchased)
-	case "purchaseInfoUpdated":
-		return new(clonefactory.ClonefactoryPurchaseInfoUpdated)
 	case "contractDeleteUpdated":
 		return new(clonefactory.ClonefactoryContractDeleteUpdated)
+	case "purchaseInfoUpdated":
+		return new(clonefactory.ClonefactoryPurchaseInfoUpdated)
 	default:
 		return nil
 	}

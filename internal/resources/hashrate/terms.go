@@ -213,12 +213,6 @@ func (b *BaseTerms) ProfitTarget() int8 {
 	return b.profitTarget
 }
 
-// PriceLMR returns price in LMR without decimals
-func (b *BaseTerms) PriceLMR() float64 {
-	price, _ := lib.NewRat(b.Price(), big.NewInt(1e8)).Float64()
-	return price
-}
-
 func (p *BaseTerms) BlockchainState() BlockchainState {
 	if p.isRunning() {
 		return BlockchainStateRunning

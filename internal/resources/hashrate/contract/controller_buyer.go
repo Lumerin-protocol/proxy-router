@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/Lumerin-protocol/contracts-go/implementation"
+	"github.com/Lumerin-protocol/contracts-go/v2/implementation"
 	"github.com/Lumerin-protocol/proxy-router/internal/lib"
 	"github.com/Lumerin-protocol/proxy-router/internal/repositories/contracts"
 	"github.com/Lumerin-protocol/proxy-router/internal/resources"
@@ -117,17 +117,17 @@ func (c *ControllerBuyer) controller(ctx context.Context, event interface{}) err
 	switch e := event.(type) {
 	case *implementation.ImplementationContractPurchased:
 		return c.handleContractPurchased(ctx, e)
-	case *implementation.ImplementationContractClosed:
-		return c.handleContractClosed(ctx, e)
-	case *implementation.ImplementationCipherTextUpdated:
-		return c.handleCipherTextUpdated(ctx, e)
+	case *implementation.ImplementationClosedEarly:
+		return c.handleClosedEarly(ctx, e)
+	case *implementation.ImplementationDestinationUpdated:
+		return c.handleDestinationUpdated(ctx, e)
 	case *implementation.ImplementationPurchaseInfoUpdated:
 		return c.handlePurchaseInfoUpdated(ctx, e)
 	}
 	return nil
 }
 
-func (c *ControllerBuyer) handleContractPurchased(ctx context.Context, event *implementation.ImplementationContractPurchased) error {
+func (c *ControllerBuyer) handleContractPurchased(ctx context.Context, _ *implementation.ImplementationContractPurchased) error {
 	c.log.Debugf("implementation contract purchased event, address %s", c.Terms.ID())
 
 	err := c.LoadTermsFromBlockchain(ctx)
@@ -137,7 +137,7 @@ func (c *ControllerBuyer) handleContractPurchased(ctx context.Context, event *im
 	return nil
 }
 
-func (c *ControllerBuyer) handleContractClosed(ctx context.Context, event *implementation.ImplementationContractClosed) error {
+func (c *ControllerBuyer) handleClosedEarly(_ context.Context, _ *implementation.ImplementationClosedEarly) error {
 	c.log.Warnf("got closed event for contract")
 	c.Terms.ResetStartTime()
 	if c.State() == resources.ContractStateRunning {
@@ -147,12 +147,12 @@ func (c *ControllerBuyer) handleContractClosed(ctx context.Context, event *imple
 	return nil
 }
 
-func (c *ControllerBuyer) handleCipherTextUpdated(ctx context.Context, event *implementation.ImplementationCipherTextUpdated) error {
+func (c *ControllerBuyer) handleDestinationUpdated(_ context.Context, _ *implementation.ImplementationDestinationUpdated) error {
 	// ignoring, if destination cipher is changed then there is going to be a different destination
 	return nil
 }
 
-func (c *ControllerBuyer) handlePurchaseInfoUpdated(ctx context.Context, event *implementation.ImplementationPurchaseInfoUpdated) error {
+func (c *ControllerBuyer) handlePurchaseInfoUpdated(_ context.Context, _ *implementation.ImplementationPurchaseInfoUpdated) error {
 	// this event is emitted only when contract is closed, so we can ignore it
 	// and pull updated terms on the next purchase
 	return nil
