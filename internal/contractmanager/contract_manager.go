@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/Lumerin-protocol/contracts-go/clonefactory"
+	"github.com/Lumerin-protocol/contracts-go/v2/clonefactory"
 	"github.com/Lumerin-protocol/proxy-router/internal/interfaces"
 	"github.com/Lumerin-protocol/proxy-router/internal/lib"
 	"github.com/Lumerin-protocol/proxy-router/internal/repositories/contracts"

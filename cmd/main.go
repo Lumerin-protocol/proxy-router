@@ -243,17 +243,24 @@ func start() error {
 	if err != nil {
 		return err
 	}
-	lumerinAddr, err := store.GetLumerinAddress(ctx)
+	paymentTokenAddr, err := store.GetPaymentToken(ctx)
+	if err != nil {
+		return err
+	}
+
+	feeTokenAddr, err := store.GetFeeToken(ctx)
 	if err != nil {
 		return err
 	}
 
 	appLog.Infof("wallet address: %s", walletAddr.String())
-	appLog.Infof("lumerin address: %s", lumerinAddr.String())
+	appLog.Infof("payment token address: %s", paymentTokenAddr.String())
+	appLog.Infof("fee token address: %s", feeTokenAddr.String())
 
 	derived := new(config.DerivedConfig)
 	derived.WalletAddress = walletAddr.String()
-	derived.LumerinAddress = lumerinAddr.String()
+	derived.PaymentTokenAddress = paymentTokenAddr.String()
+	derived.FeeTokenAddress = feeTokenAddr.String()
 
 	cm := contractmanager.NewContractManager(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), walletAddr, hrContractFactory.CreateContract, store, log.Named("MNG"))
 

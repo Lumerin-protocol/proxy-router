@@ -634,7 +634,7 @@ func (p *ContractWatcherSellerV2) SetTerms(terms *hashrate.Terms) {
 	p.Terms = terms
 	p.log.Infof(
 		"contract terms updated: price %.f LMR, hashrate %.f GHS, duration %s, state %s",
-		terms.PriceLMR(),
+		terms.Price().String(),
 		terms.HashrateGHS(),
 		terms.Duration().Round(time.Second),
 		terms.BlockchainState().String(),
