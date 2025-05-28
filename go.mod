@@ -3,7 +3,7 @@ module github.com/Lumerin-protocol/proxy-router
 go 1.23.2
 
 require (
-	github.com/Lumerin-protocol/contracts-go/v2 v2.0.4
+	github.com/Lumerin-protocol/contracts-go/v2 v2.0.6
 	github.com/ethereum/go-ethereum v1.15.11
 	github.com/gammazero/deque v0.2.1
 	github.com/gin-gonic/gin v1.9.1
