@@ -30,8 +30,6 @@ func implementationEventFactory(name string) interface{} {
 		return new(implementation.ImplementationDestinationUpdated)
 	case "fundsClaimed":
 		return new(implementation.ImplementationFundsClaimed)
-	case "fundsClaimedValidator":
-		return new(implementation.ImplementationFundsClaimedValidator)
 	default:
 		return nil
 	}
