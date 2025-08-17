@@ -323,6 +323,7 @@ func (p *HTTPHandler) mapContract(ctx context.Context, item resources.Contract) 
 		ApplicationStatus: item.State().String(),           // rw mutex canceable
 		BlockchainStatus:  item.BlockchainState().String(), // readonly
 		Error:             errString(item.Error()),         // atomic
+		IsUndeliverable:   item.IsUndeliverable(),          // atomic
 		Dest:              item.Dest(),                     // readonly
 		PoolDest:          item.PoolDest(),                 // readonly
 		// Miners:            p.allocator.GetMinersFulfillingContract(item.ID(), p.cycleDuration),

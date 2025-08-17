@@ -181,8 +181,12 @@ func (c *ControllerSeller) handleDestinationUpdated(ctx context.Context, _ *impl
 	newDest := terms.Dest().String()
 
 	if currentDest == newDest {
+		c.log.Debugf("destination not changed, %s", newDest)
 		return nil
 	}
+
+	c.log.Infof("destination changed,\n OLD: %s \n NEW: %s", currentDest, newDest)
+
 	if c.IsRunning() {
 		c.ContractWatcherSellerV2.StopFulfilling()
 		<-c.ContractWatcherSellerV2.Done()

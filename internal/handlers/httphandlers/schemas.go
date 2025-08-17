@@ -102,6 +102,7 @@ type Contract struct {
 	ApplicationStatus string
 	BlockchainStatus  string
 	Error             string
+	IsUndeliverable   bool
 	Dest              string
 	PoolDest          string
 	Miners            []*allocator.MinerItemJobScheduled

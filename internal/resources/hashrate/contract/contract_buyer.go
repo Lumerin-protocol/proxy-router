@@ -339,3 +339,7 @@ func (p *ContractWatcherBuyer) StarvingGHS() int {
 func (p *ContractWatcherBuyer) Error() error {
 	return p.contractErr.Load()
 }
+
+func (p *ContractWatcherBuyer) IsUndeliverable() bool {
+	return false
+}
