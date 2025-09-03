@@ -7,8 +7,9 @@ import (
 )
 
 type DerivedConfig struct {
-	WalletAddress  string
-	LumerinAddress string
+	WalletAddress       string
+	PaymentTokenAddress string
+	FeeTokenAddress     string
 }
 
 // Validation tags described here: https://pkg.go.dev/github.com/go-playground/validator/v10
@@ -209,6 +210,7 @@ func (cfg *Config) GetSanitized() interface{} {
 	publicCfg.Hashrate.ValidationTimeoutAppStart = cfg.Hashrate.ValidationTimeoutAppStart
 
 	publicCfg.Marketplace.CloneFactoryAddress = cfg.Marketplace.CloneFactoryAddress
+	publicCfg.Marketplace.ValidatorRegistryAddress = cfg.Marketplace.ValidatorRegistryAddress
 
 	publicCfg.Miner.NotPropagateWorkerName = cfg.Miner.NotPropagateWorkerName
 	publicCfg.Miner.IdleReadTimeout = cfg.Miner.IdleReadTimeout

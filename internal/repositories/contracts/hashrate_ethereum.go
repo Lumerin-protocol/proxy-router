@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Lumerin-protocol/contracts-go/clonefactory"
-	"github.com/Lumerin-protocol/contracts-go/implementation"
+	"github.com/Lumerin-protocol/contracts-go/v2/clonefactory"
+	"github.com/Lumerin-protocol/contracts-go/v2/implementation"
 	"github.com/Lumerin-protocol/proxy-router/internal/interfaces"
 	"github.com/Lumerin-protocol/proxy-router/internal/lib"
 	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate"
@@ -68,8 +68,12 @@ func (g *HashrateEthereum) SetLegacyTx(legacyTx bool) {
 	g.legacyTx = legacyTx
 }
 
-func (g *HashrateEthereum) GetLumerinAddress(ctx context.Context) (common.Address, error) {
-	return g.cloneFactory.Lumerin(&bind.CallOpts{Context: ctx})
+func (g *HashrateEthereum) GetPaymentToken(ctx context.Context) (common.Address, error) {
+	return g.cloneFactory.PaymentToken(&bind.CallOpts{Context: ctx})
+}
+
+func (g *HashrateEthereum) GetFeeToken(ctx context.Context) (common.Address, error) {
+	return g.cloneFactory.FeeToken(&bind.CallOpts{Context: ctx})
 }
 
 func (g *HashrateEthereum) GetContractsIDs(ctx context.Context) ([]string, error) {
@@ -146,96 +150,6 @@ func (g *HashrateEthereum) GetContract(ctx context.Context, contractID string) (
 	)
 
 	return terms, nil
-}
-
-func (g *HashrateEthereum) PurchaseContract(ctx context.Context, contractID string, privKey string, version int) error {
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
-	defer cancel()
-
-	opts, err := g.getTransactOpts(ctx, privKey)
-	if err != nil {
-		return err
-	}
-
-	_, err = g.cloneFactory.SetPurchaseRentalContract(opts, common.HexToAddress(contractID), "", uint32(version))
-	if err != nil {
-		g.log.Error(err)
-		return err
-	}
-
-	watchOpts := &bind.WatchOpts{
-		Context: ctx,
-	}
-	sink := make(chan *clonefactory.ClonefactoryClonefactoryContractPurchased)
-	sub, err := g.cloneFactory.WatchClonefactoryContractPurchased(watchOpts, sink, []common.Address{}, []common.Address{})
-	if err != nil {
-		return err
-	}
-	defer sub.Unsubscribe()
-
-	select {
-	case <-sink:
-		return nil
-	case err := <-sub.Err():
-		return err
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-
-}
-
-func (g *HashrateEthereum) CloseContract(ctx context.Context, contractID string, closeoutType CloseoutType, privKey string) error {
-	timeout := 2 * time.Minute
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	l := lib.NewMutex()
-
-	err := l.LockCtx(ctx)
-	if err != nil {
-		err = lib.WrapError(err, fmt.Errorf("close contract lock error %s", timeout))
-		g.log.Error(err)
-		return err
-	}
-	defer l.Unlock()
-
-	err = g.closeContract(ctx, contractID, closeoutType, privKey)
-	if err != nil {
-		if strings.Contains(err.Error(), "the contract is not in the running state") {
-			return ErrNotRunning
-		}
-		return lib.WrapError(fmt.Errorf("close contract error"), err)
-	}
-
-	return err
-}
-
-func (g *HashrateEthereum) closeContract(ctx context.Context, contractID string, closeoutType CloseoutType, privKey string) error {
-	instance, err := implementation.NewImplementation(common.HexToAddress(contractID), g.client)
-	if err != nil {
-		g.log.Error(err)
-		return err
-	}
-
-	transactOpts, err := g.getTransactOpts(ctx, privKey)
-	if err != nil {
-		g.log.Error(err)
-		return err
-	}
-
-	tx, err := instance.SetContractCloseOut(transactOpts, big.NewInt(int64(closeoutType)))
-	if err != nil {
-		return err
-	}
-	g.log.Debugf("closed contract id %s, closeoutType %d nonce %d", contractID, closeoutType, tx.Nonce())
-
-	_, err = bind.WaitMined(ctx, g.client, tx)
-	if err != nil {
-		g.log.Error(err)
-		return err
-	}
-
-	return nil
 }
 
 func (g *HashrateEthereum) EarlyClose(ctx context.Context, contractID string, reason CloseReason, privKey string) error {

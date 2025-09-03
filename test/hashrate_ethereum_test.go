@@ -6,9 +6,9 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/Lumerin-protocol/contracts-go/clonefactory"
-	"github.com/Lumerin-protocol/contracts-go/implementation"
-	"github.com/Lumerin-protocol/contracts-go/lumerintoken"
+	"github.com/Lumerin-protocol/contracts-go/v2/clonefactory"
+	"github.com/Lumerin-protocol/contracts-go/v2/ierc20"
+	"github.com/Lumerin-protocol/contracts-go/v2/implementation"
 	"github.com/Lumerin-protocol/proxy-router/internal/lib"
 	"github.com/Lumerin-protocol/proxy-router/internal/repositories/contracts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -63,7 +63,7 @@ func TestCloseContract(t *testing.T) {
 	ctx := context.Background()
 	ethGateway := makeEthGateway(t, makeEthClient(t))
 
-	err := ethGateway.CloseContract(ctx, CONTRACT_ID, 0, PRIVATE_KEY_2)
+	err := ethGateway.EarlyClose(ctx, CONTRACT_ID, 0, PRIVATE_KEY_2)
 	require.NoError(t, err)
 }
 
@@ -104,14 +104,14 @@ func TestImplementationContractClosed(t *testing.T) {
 
 	errCh := make(chan error)
 	go func() {
-		errCh <- ethGateway.CloseContract(ctx, CONTRACT_ID, 0, PRIVATE_KEY_2)
+		errCh <- ethGateway.EarlyClose(ctx, CONTRACT_ID, 0, PRIVATE_KEY_2)
 	}()
 
 	select {
 	case event := <-sub.Events():
-		closedEvent, ok := event.(*implementation.ImplementationContractClosed)
+		closedEvent, ok := event.(*implementation.ImplementationClosedEarly)
 		require.True(t, ok)
-		require.Equal(t, lib.MustPrivKeyStringToAddr(PRIVATE_KEY_2), closedEvent.Buyer)
+		require.Equal(t, 0, closedEvent.Reason)
 	case err := <-sub.Err():
 		require.NoError(t, err)
 	case err := <-errCh:
@@ -128,7 +128,7 @@ func transferLMR(t *testing.T, client contracts.EthereumClient, fromPrivateKey s
 	ethGateway := contracts.NewHashrateEthereum(common.HexToAddress(CLONEFACTORY_ADDR), client, &lib.LoggerMock{})
 	ethGateway.SetLegacyTx(true)
 
-	lumerin, err := lumerintoken.NewLumerintoken(common.HexToAddress(LUMERIN_ADDR), client)
+	lumerin, err := ierc20.NewIerc20(common.HexToAddress(LUMERIN_ADDR), client)
 	require.NoError(t, err)
 
 	opts, err := privateKeyToTransactOpts(ctx, fromPrivateKey, chainID)
@@ -148,13 +148,13 @@ func makeEthClient(t *testing.T) *ethclient.Client {
 	return client
 }
 
-func makeEthGateway(t *testing.T, client *ethclient.Client) *contracts.HashrateEthereum {
+func makeEthGateway(_ *testing.T, client *ethclient.Client) *contracts.HashrateEthereum {
 	ethGateway := contracts.NewHashrateEthereum(common.HexToAddress(CLONEFACTORY_ADDR), client, &lib.LoggerMock{})
 	ethGateway.SetLegacyTx(true)
 	return ethGateway
 }
 
-func privateKeyToTransactOpts(ctx context.Context, privKey string, chainID *big.Int) (*bind.TransactOpts, error) {
+func privateKeyToTransactOpts(_ context.Context, privKey string, chainID *big.Int) (*bind.TransactOpts, error) {
 	privateKey, err := crypto.HexToECDSA(privKey)
 	if err != nil {
 		return nil, err
@@ -164,7 +164,7 @@ func privateKeyToTransactOpts(ctx context.Context, privKey string, chainID *big.
 }
 
 func PurchaseContract(ctx context.Context, client contracts.EthereumClient, contractID string, privKey string) error {
-	lumerin, err := lumerintoken.NewLumerintoken(common.HexToAddress(LUMERIN_ADDR), client)
+	lumerin, err := ierc20.NewIerc20(common.HexToAddress(LUMERIN_ADDR), client)
 	if err != nil {
 		return err
 	}
@@ -226,7 +226,7 @@ func PurchaseContract(ctx context.Context, client contracts.EthereumClient, cont
 	}
 	defer sub.Unsubscribe()
 
-	_, err = cloneFactory.SetPurchaseRentalContract(transactOpts, common.HexToAddress(contractID), "", 0)
+	_, err = cloneFactory.SetPurchaseRentalContractV2(transactOpts, common.HexToAddress(contractID), common.HexToAddress("0x0"), "", "", 0)
 	if err != nil {
 		return err
 	}

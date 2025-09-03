@@ -7,7 +7,7 @@ import (
 	"net"
 	"time"
 
-	vr "github.com/Lumerin-protocol/contracts-go/validatorregistry"
+	vr "github.com/Lumerin-protocol/contracts-go/v2/validatorregistry"
 	"github.com/Lumerin-protocol/proxy-router/internal/interfaces"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"

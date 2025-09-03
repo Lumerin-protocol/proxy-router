@@ -7,8 +7,9 @@ output
 # binary folders
 dist
 bin 
-
 proxy-router
 
 
+# temp files
+.DS_Store
 
