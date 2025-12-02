@@ -51,13 +51,13 @@ type ContractWatcherSellerV2 struct {
 	contractErr    atomic.Error // keeps the last error that happened in the contract that prevents it from fulfilling correctly, like invalid destination
 
 	// deps
-	*hashrate.Terms
+	Terms
 	allocator *allocator.Allocator
 	hrFactory func() *hr.Hashrate
 	log       interfaces.ILogger
 }
 
-func NewContractWatcherSellerV2(terms *hashrateContract.Terms, cycleDuration time.Duration, hashrateFactory func() *hr.Hashrate, allocator *allocator.Allocator, log interfaces.ILogger) *ContractWatcherSellerV2 {
+func NewContractWatcherSellerV2(terms Terms, cycleDuration time.Duration, hashrateFactory func() *hr.Hashrate, allocator *allocator.Allocator, log interfaces.ILogger) *ContractWatcherSellerV2 {
 	return &ContractWatcherSellerV2{
 		contractCycleDuration: cycleDuration,
 		stats: &stats{
@@ -488,7 +488,7 @@ func (p *ContractWatcherSellerV2) getAdjustedDest() *url.URL {
 		return nil
 	}
 	dest := lib.CopyURL(p.Terms.Dest())
-	lib.SetUserName(dest, p.Terms.ID())
+	// lib.SetUserName(dest, p.Terms.ID())
 	return dest
 }
 
@@ -614,15 +614,15 @@ func (p *ContractWatcherSellerV2) PoolDest() string {
 }
 func (p *ContractWatcherSellerV2) ResourceEstimates() map[string]float64 {
 	return map[string]float64{
-		ResourceEstimateHashrateGHS: p.Terms.HashrateGHS(),
+		ResourceEstimateHashrateGHS: p.HashrateGHS(),
 	}
 }
 func (p *ContractWatcherSellerV2) ShouldBeRunning() bool {
-	return p.Terms.BlockchainState() == hashrate.BlockchainStateRunning
+	return p.BlockchainState() == hashrate.BlockchainStateRunning
 }
 
 // terms setters
-func (p *ContractWatcherSellerV2) SetTerms(terms *hashrate.Terms) {
+func (p *ContractWatcherSellerV2) SetTerms(terms Terms) {
 	p.isRunningMutex.RLock()
 	defer p.isRunningMutex.RUnlock()
 
@@ -633,8 +633,7 @@ func (p *ContractWatcherSellerV2) SetTerms(terms *hashrate.Terms) {
 
 	p.Terms = terms
 	p.log.Infof(
-		"contract terms updated: price %.f LMR, hashrate %.f GHS, duration %s, state %s",
-		terms.Price().String(),
+		"contract terms updated: hashrate %.f GHS, duration %s, state %s",
 		terms.HashrateGHS(),
 		terms.Duration().Round(time.Second),
 		terms.BlockchainState().String(),

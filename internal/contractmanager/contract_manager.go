@@ -28,11 +28,11 @@ type ContractManager struct {
 
 type CreateContractFn func(terms *hashrate.EncryptedTerms) (resources.Contract, error)
 
-func NewContractManager(clonefactoryAddr, ownerAddr common.Address, createContractFn CreateContractFn, store *contracts.HashrateEthereum, log interfaces.ILogger) *ContractManager {
+func NewContractManager(clonefactoryAddr, ownerAddr common.Address, createContractFn CreateContractFn, store *contracts.HashrateEthereum, contracts *lib.Collection[resources.Contract], log interfaces.ILogger) *ContractManager {
 	return &ContractManager{
 		cfAddr:         clonefactoryAddr,
 		ownerAddr:      ownerAddr,
-		contracts:      lib.NewCollection[resources.Contract](),
+		contracts:      contracts,
 		createContract: createContractFn,
 		store:          store,
 		contractsWG:    sync.WaitGroup{},
@@ -147,15 +147,12 @@ func (cm *ContractManager) AddContract(ctx context.Context, data *hashrate.Encry
 
 	cm.contracts.Store(cntr)
 
-	cm.contractsWG.Add(1)
-	go func() {
-		defer cm.contractsWG.Done()
-
+	cm.contractsWG.Go(func() {
 		err := cntr.Run(ctx)
 		cm.log.Warnw(fmt.Sprintf("exited from contract %s", err), "CtrAddr", lib.AddrShort(data.ID()))
 
 		cm.contracts.Delete(cntr.ID())
-	}()
+	})
 }
 
 func (cm *ContractManager) GetContracts() *lib.Collection[resources.Contract] {

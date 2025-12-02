@@ -42,7 +42,7 @@ type ContractWatcherBuyer struct {
 	doneCh chan struct{}
 
 	//deps
-	*hashrateContract.Terms
+	Terms
 	allocator      *allocator.Allocator
 	globalHashrate *hashrate.GlobalHashrate
 	log            interfaces.ILogger
@@ -55,7 +55,7 @@ var (
 )
 
 func NewContractWatcherBuyer(
-	terms *hashrateContract.Terms,
+	terms Terms,
 	hashrateFactory func() *hashrate.Hashrate,
 	allocator *allocator.Allocator,
 	globalHashrate *hashrate.GlobalHashrate,
@@ -128,7 +128,7 @@ func (p *ContractWatcherBuyer) Err() error {
 	return p.err
 }
 
-func (p *ContractWatcherBuyer) SetData(terms *hashrateContract.Terms) {
+func (p *ContractWatcherBuyer) SetData(terms Terms) {
 	p.Terms = terms
 }
 
@@ -325,7 +325,7 @@ func (p *ContractWatcherBuyer) Dest() string {
 }
 
 func (p *ContractWatcherBuyer) PoolDest() string {
-	url := p.Terms.DestinationURL
+	url := p.Terms.PoolDest()
 	if url == nil {
 		return p.defaultDest.String()
 	}

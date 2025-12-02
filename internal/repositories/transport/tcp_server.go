@@ -88,10 +88,7 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener net.Listener) e
 			continue
 		}
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			p.log.Debugf("incoming connection accepted: %s", conn.RemoteAddr().String())
 			p.handler(ctx, conn)
 
@@ -104,7 +101,7 @@ func (p *TCPServer) startAccepting(ctx context.Context, listener net.Listener) e
 				return
 			}
 			p.log.Debugf("incoming connection closed")
-		}()
+		})
 
 	}
 }
