@@ -1,6 +1,7 @@
 package contract
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"net/url"
@@ -14,6 +15,7 @@ import (
 	hashrateContract "github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate"
 	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/allocator"
 	hr "github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/hashrate"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/proxy"
 	"go.uber.org/atomic"
 	"golang.org/x/exp/slices"
 )
@@ -22,10 +24,17 @@ var (
 	ErrNotRunningBlockchain = fmt.Errorf("contract is not running in blockchain")
 	ErrStopped              = fmt.Errorf("contract is stopped")
 	ErrAlreadyRunning       = fmt.Errorf("contract is already running")
+	ErrUndeliverable        = fmt.Errorf("contract is undeliverable")
 )
 
 var (
 	AdjustmentThresholdGHS = 100.0
+	// max number of cycles without ability to connect to destination to treat contract as undeliverable
+	MaxConsequentCyclesWoDestConn int64         = 2
+	FulfillmentDelay              time.Duration = 10 * time.Second
+
+	FullMinerThresholdGHS    float64 = 1000.0 // min hashrate required for next cycle to allocate full miners (miners that stay for the entire contract duration)
+	PartialMinerThresholdGHS float64 = 100.0  // min hashrate required for next cycle to allocate partial miners (miners allocated for just one cycle)
 )
 
 type ContractWatcherSellerV2 struct {
@@ -40,15 +49,19 @@ type ContractWatcherSellerV2 struct {
 	cycleEndsAt       time.Time
 	minerDisconnectCh *lib.ChanRecvStop[allocator.MinerItem]
 	deliveryLog       *DeliveryLog
+	iter              int64
+
+	firstCycleWithoutDestConnection atomic.Int64
 
 	// shared state
 	fulfillmentStartedAt atomic.Value // time.Time
 	starvingGHS          atomic.Uint64
 	err                  *atomic.Error
 
-	isRunning      bool
-	isRunningMutex sync.RWMutex
-	contractErr    atomic.Error // keeps the last error that happened in the contract that prevents it from fulfilling correctly, like invalid destination
+	isRunning       bool
+	isRunningMutex  sync.RWMutex
+	contractErr     atomic.Error // keeps the last error that happened in the contract that prevents it from fulfilling correctly, like invalid destination
+	isUndeliverable atomic.Bool
 
 	// deps
 	*hashrate.Terms
@@ -63,16 +76,17 @@ func NewContractWatcherSellerV2(terms *hashrateContract.Terms, cycleDuration tim
 		stats: &stats{
 			actualHRGHS: hashrateFactory(),
 		},
-		isRunning:   false,
-		startCh:     make(chan struct{}),
-		stopCh:      make(chan struct{}),
-		doneCh:      make(chan struct{}),
-		err:         atomic.NewError(nil),
-		deliveryLog: NewDeliveryLog(),
-		Terms:       terms,
-		allocator:   allocator,
-		hrFactory:   hashrateFactory,
-		log:         log,
+		isRunning:                       false,
+		startCh:                         make(chan struct{}),
+		stopCh:                          make(chan struct{}),
+		doneCh:                          make(chan struct{}),
+		err:                             atomic.NewError(nil),
+		deliveryLog:                     NewDeliveryLog(),
+		Terms:                           terms,
+		allocator:                       allocator,
+		hrFactory:                       hashrateFactory,
+		log:                             log,
+		firstCycleWithoutDestConnection: *atomic.NewInt64(math.MaxInt64),
 	}
 }
 
@@ -141,6 +155,8 @@ func (p *ContractWatcherSellerV2) Reset() {
 	p.startCh = make(chan struct{})
 	p.stopCh = make(chan struct{})
 	p.doneCh = make(chan struct{})
+	p.iter = 0
+	p.firstCycleWithoutDestConnection.Store(math.MaxInt64)
 	p.err = atomic.NewError(nil)
 }
 
@@ -151,7 +167,7 @@ func (p *ContractWatcherSellerV2) run() error {
 	select {
 	case <-p.stopCh:
 		return ErrStopped
-	case <-time.After(10 * time.Second):
+	case <-time.After(FulfillmentDelay):
 	}
 
 	fullMiners := lib.NewSet()
@@ -177,13 +193,18 @@ func (p *ContractWatcherSellerV2) run() error {
 	p.stats.deliveryTargetGHS = p.HashrateGHS()
 
 CONTRACT_CYCLE:
-	for {
+	for p.iter = 0; ; p.iter++ {
 		p.log.Debugf("new contract cycle started")
 		if !p.isRunningBlockchain() {
 			return ErrNotRunningBlockchain
 		}
 		if p.isTimeExpired() {
 			return nil
+		}
+
+		if p.IsUndeliverable() {
+			p.log.Warnf("contract is undeliverable, exiting contract cycle")
+			return ErrUndeliverable
 		}
 
 		p.stats.partialMiners = p.stats.partialMiners[:0]
@@ -280,8 +301,6 @@ func (p *ContractWatcherSellerV2) onCycleEnd(cycleDuration time.Duration) {
 func (p *ContractWatcherSellerV2) adjustHashrate(hashrateGHS float64) (adjustedGHS float64) {
 	// TODO: move this function to allocator, optimize to make only one snapshot of miners
 	expectedAdjustmentGHS := hashrateGHS
-	fullMinerThresholdGHS := 1000.0
-	partialMinersThresholdGHS := 100.0
 
 	adjustmentRequired := math.Abs(hashrateGHS) > AdjustmentThresholdGHS
 	if !adjustmentRequired {
@@ -289,17 +308,17 @@ func (p *ContractWatcherSellerV2) adjustHashrate(hashrateGHS float64) (adjustedG
 		return 0
 	}
 
-	if hashrateGHS < -fullMinerThresholdGHS {
+	if hashrateGHS < -FullMinerThresholdGHS {
 		hashrateGHS += p.removeFullMiners(hashrateGHS)
 	}
 
-	if hashrateGHS > fullMinerThresholdGHS {
+	if hashrateGHS > FullMinerThresholdGHS {
 		hashrateGHS -= p.addFullMiners(hashrateGHS)
 	}
 
 	remainingCycleDuration := p.remainingCycleDuration()
 
-	if hashrateGHS > partialMinersThresholdGHS {
+	if hashrateGHS > PartialMinerThresholdGHS {
 		job := hr.GHSToJobSubmittedV2(hashrateGHS, remainingCycleDuration)
 		addedJob := p.addPartialMiners(job, remainingCycleDuration)
 		addedGHS := hr.JobSubmittedToGHSV2(addedJob, remainingCycleDuration)
@@ -337,8 +356,9 @@ func (p *ContractWatcherSellerV2) addFullMiners(hashrateGHS float64) (addedGHS f
 			})
 		},
 		func(ID string, HrGHS, remainingJob float64, err error) {
-			p.log.Warnf("full miner ended, id %s, hr %.f, remaining job %d, error %s", ID, HrGHS, remainingJob, err)
+			p.log.Warnf("full miner ended, id %s, hr %.f, remaining job %.f, error %s", ID, HrGHS, remainingJob, err)
 			p.stats.fullMiners.Remove(ID)
+			p.checkErrorForUndeliverable(err)
 		},
 	)
 	if len(fullMiners) > 0 {
@@ -350,27 +370,37 @@ func (p *ContractWatcherSellerV2) addFullMiners(hashrateGHS float64) (addedGHS f
 }
 
 // removeFullMiners removes full miners, cause they persist for the duration of the contract
+//
+// Expects hrGHS to be a negative number
 func (p *ContractWatcherSellerV2) removeFullMiners(hrGHS float64) (removedGHS float64) {
-	items := p.getFullMinersSorted()
-
-	if len(items) == 0 {
-		p.log.Warnf("no miners found to be removed")
+	if hrGHS >= 0 {
+		p.log.Warnf("removeFullMiners expects hrGHS to be a negative number, got %.f", hrGHS)
+		return 0
 	}
+
+	hrToRemove := -hrGHS
+
+	items := p.getFullMinersSorted()
 
 	for _, item := range items {
 		minerToRemove := item.ID
 		miner, ok := p.allocator.GetMiners().Load(minerToRemove)
 		if ok {
 			miner.RemoveTasksByID(p.ID())
-			removedGHS = +miner.HashrateGHS()
+			removedGHS += miner.HashrateGHS()
 		}
 		_ = p.stats.removeFullMiner(minerToRemove)
-		if hrGHS-removedGHS < 0 {
+		if removedGHS >= hrToRemove {
 			break
 		}
 	}
 
-	p.log.Debugf("removed %d full miners, removedGHS %.f", len(items)-p.stats.fullMiners.Len(), removedGHS)
+	if len(items) == 0 {
+		p.log.Warnf("no miners found to be removed")
+	} else {
+		p.log.Debugf("removed %d full miners, removedGHS %.f", len(items)-p.stats.fullMiners.Len(), removedGHS)
+	}
+
 	p.log.Debugf("full miners: %v", p.stats.fullMiners.ToSlice())
 	return removedGHS
 }
@@ -403,6 +433,7 @@ func (p *ContractWatcherSellerV2) addPartialMiners(job float64, cycleEndTimeout 
 		},
 		func(ID string, HrGHS, remainingJob float64, err error) {
 			p.log.Warnf("partial miner ended, id %s, hr %.f, remaining job %.f, error %s", ID, HrGHS, remainingJob, err)
+			p.checkErrorForUndeliverable(err)
 			p.stats.fullMiners.Remove(ID)
 			_ = p.stats.removePartialMiner(ID)
 		},
@@ -434,7 +465,6 @@ func (p *ContractWatcherSellerV2) removeAllFullMiners() {
 		miner.RemoveTasksByID(p.ID())
 		p.log.Debugf("full miner %s was removed from this contract", miner.ID())
 	}
-	return
 }
 
 func (p *ContractWatcherSellerV2) removeAllPartialMiners() {
@@ -471,6 +501,31 @@ func (p *ContractWatcherSellerV2) reportTotalStats() {
 
 	p.log.Infof("contract ended, undelivered work %d, undelivered fraction %.2f",
 		int(undeliveredJob), undeliveredFraction)
+}
+
+// checks if error is a destination error and if so, checks if conditions for undeliverable contract are met
+func (p *ContractWatcherSellerV2) checkErrorForUndeliverable(err error) {
+	if err == nil {
+		p.firstCycleWithoutDestConnection.Store(math.MaxInt64)
+		return
+	}
+
+	p.SetError(err)
+
+	if errors.Is(err, proxy.ErrDest) || errors.Is(err, proxy.ErrConnectDest) {
+		p.log.Warnf("contract cycle %d is undeliverable, destination error: %s", p.iter, err)
+
+		swapped := p.firstCycleWithoutDestConnection.CompareAndSwap(math.MaxInt64, p.iter)
+		if swapped {
+			return
+		}
+
+		if p.iter-p.firstCycleWithoutDestConnection.Load() >= MaxConsequentCyclesWoDestConn {
+			p.log.Warnf("contract is undeliverable, max cycles without destination connection reached")
+			p.isUndeliverable.Store(true)
+		}
+	}
+
 }
 
 func (p *ContractWatcherSellerV2) isRunningBlockchain() bool {
@@ -576,7 +631,11 @@ func (p *ContractWatcherSellerV2) ValidationStage() hashrateContract.ValidationS
 
 // state getters
 func (p *ContractWatcherSellerV2) FulfillmentStartTime() time.Time {
-	return p.fulfillmentStartedAt.Load().(time.Time)
+	startedAt, ok := p.fulfillmentStartedAt.Load().(time.Time)
+	if !ok {
+		return time.Time{}
+	}
+	return startedAt
 }
 func (p *ContractWatcherSellerV2) ResourceEstimatesActual() map[string]float64 {
 	return p.stats.actualHRGHS.GetHashrateAvgGHSAll()
@@ -598,6 +657,11 @@ func (p *ContractWatcherSellerV2) IsRunning() bool {
 	defer p.isRunningMutex.RUnlock()
 	return p.isRunning
 }
+
+func (p *ContractWatcherSellerV2) IsUndeliverable() bool {
+	return p.isUndeliverable.Load()
+}
+
 func (p *ContractWatcherSellerV2) StarvingGHS() int {
 	return int(p.starvingGHS.Load())
 }
@@ -632,12 +696,19 @@ func (p *ContractWatcherSellerV2) SetTerms(terms *hashrate.Terms) {
 	}
 
 	p.Terms = terms
+	var poolDestStr string
+	if terms.PoolDest() != nil {
+		poolDestStr = terms.PoolDest().String()
+	}
+
 	p.log.Infof(
-		"contract terms updated: price %.f LMR, hashrate %.f GHS, duration %s, state %s",
+		"contract terms updated: price %s LMR, hashrate %.f GHS, duration %s, state %s, dest %s, poolDest %s",
 		terms.Price().String(),
 		terms.HashrateGHS(),
 		terms.Duration().Round(time.Second),
 		terms.BlockchainState().String(),
+		terms.Dest().String(),
+		poolDestStr,
 	)
 }
 
