@@ -33,6 +33,7 @@ func NewControllerFuturesBuyer(contract *ContractWatcherBuyer, store *contracts.
 func (c *ControllerFuturesBuyer) Run(ctx context.Context) error {
 	defer func() {
 		_ = c.log.Close()
+		close(c.stopCh)
 	}()
 
 	deliveryAtTicker := time.NewTimer(time.Until(c.deliveryAt))

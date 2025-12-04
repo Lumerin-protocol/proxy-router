@@ -309,7 +309,7 @@ func start() error {
 	if walletAddr.Cmp(specs.ValidatorAddress) == 0 {
 		fm = contractmanager.NewFuturesManagerValidator(cfg.Marketplace.WalletPrivateKey, common.HexToAddress(cfg.Futures.Address), walletAddr, futuresStore, subgraph, cc, hrContractFactory.CreateFuturesContractBuyer, log.Named("FMV"))
 	} else {
-		fm = contractmanager.NewFuturesManagerSeller(common.HexToAddress(cfg.Futures.Address), walletAddr, futuresStore, subgraph, cc, hrContractFactory.CreateFuturesContractSeller, log.Named("FMG"))
+		fm = contractmanager.NewFuturesManagerSeller(cfg.Marketplace.WalletPrivateKey, common.HexToAddress(cfg.Futures.Address), walletAddr, futuresStore, subgraph, cc, hrContractFactory.CreateFuturesContractSeller, log.Named("FMG"))
 	}
 
 	tcpServer := transport.NewTCPServer(cfg.Proxy.Address, connLog.Named("TCP"))

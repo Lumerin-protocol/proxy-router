@@ -28,7 +28,7 @@ type ContractFactory struct {
 	defaultDest              *url.URL
 	validatorURL             *url.URL
 	contractDuration         time.Duration
-	contractHashrateHps      float64
+	contractHashrateGHPS     float64
 
 	// state
 	address common.Address // derived from private key
@@ -60,7 +60,7 @@ func NewContractFactory(
 	defaultDest *url.URL,
 	validatorURL *url.URL,
 	contractDuration time.Duration,
-	contractHashrate float64,
+	contractHashrateGHPS float64,
 ) (*ContractFactory, error) {
 	address, err := lib.PrivKeyStringToAddr(privateKey)
 	if err != nil {
@@ -87,7 +87,7 @@ func NewContractFactory(
 		defaultDest:              defaultDest,
 		validatorURL:             validatorURL,
 		contractDuration:         contractDuration,
-		contractHashrateHps:      contractHashrate,
+		contractHashrateGHPS:     contractHashrateGHPS,
 	}, nil
 }
 
@@ -237,7 +237,7 @@ func (c *ContractFactory) createTerms(contractData *contracts.FuturesContract) (
 			common.HexToAddress("0x0").String(),
 			contractData.DeliveryAt,
 			c.contractDuration,
-			c.contractHashrateHps/1e9,
+			c.contractHashrateGHPS,
 			big.NewInt(0),
 			0,
 			false,

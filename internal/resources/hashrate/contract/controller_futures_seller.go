@@ -21,11 +21,10 @@ func NewControllerFuturesSeller(contract *ContractWatcherSellerV2, deliveryAt ti
 func (c *ControllerFuturesSeller) Run(ctx context.Context) error {
 	defer func() {
 		_ = c.log.Close()
+		close(c.stopCh)
 	}()
 
 	c.log.Infof("started watching futures contract as seller, address %s", c.ID())
-
-	c.log.Debugf("syncing contract terms")
 
 	deliveryAtTicker := time.NewTimer(time.Until(c.deliveryAt))
 	defer deliveryAtTicker.Stop()
@@ -46,7 +45,6 @@ func (c *ControllerFuturesSeller) Run(ctx context.Context) error {
 				<-c.ContractWatcherSellerV2.Done()
 				c.log.Infof("contract watcher stopped")
 			}
-			close(c.stopCh)
 			return ctx.Err()
 		case <-c.ContractWatcherSellerV2.Done():
 			err := c.ContractWatcherSellerV2.Err()
@@ -54,14 +52,12 @@ func (c *ControllerFuturesSeller) Run(ctx context.Context) error {
 				// fulfillment error, buyer will close on underdelivery
 				c.log.Warnf("seller contract ended with error: %s", err)
 				c.ContractWatcherSellerV2.Reset()
-				close(c.stopCh)
 				return err
 			}
 
 			// no error, seller closes the contract after expiration
 			c.log.Infof("seller contract ended without error")
 			c.ContractWatcherSellerV2.Reset()
-			close(c.stopCh)
 			return nil
 		}
 	}

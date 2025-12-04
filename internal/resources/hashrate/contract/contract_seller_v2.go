@@ -82,6 +82,7 @@ func (p *ContractWatcherSellerV2) StartFulfilling() error {
 	p.Reset()
 
 	p.isRunning = true
+	close(p.startCh)
 
 	go func() {
 		p.log.Infof("contract %s started", p.ID())
@@ -100,6 +101,10 @@ func (p *ContractWatcherSellerV2) StartFulfilling() error {
 	}()
 
 	return nil
+}
+
+func (p *ContractWatcherSellerV2) Started() <-chan struct{} {
+	return p.startCh
 }
 
 func (p *ContractWatcherSellerV2) StopFulfilling() {

@@ -168,6 +168,7 @@ func (g *FuturesEthereum) BatchCloseDelivery(ctx context.Context, reqs []CloseDe
 
 	tx, err := g.futures.Multicall(transactOpts, calls)
 	if err != nil {
+		err = lib.TryConvertGethError(err, AllContractsMeta)
 		g.log.Error(err)
 		return err
 	}
@@ -206,7 +207,8 @@ func (g *FuturesEthereum) closeDelivery(ctx context.Context, positionID common.H
 
 	tx, err := g.futures.CloseDelivery(transactOpts, (positionID), blameSeller)
 	if err != nil {
-		return err
+		err = lib.TryConvertGethError(err, AllContractsMeta)
+
 	}
 
 	g.log.Debugf("closed delivery, position id %s, blame seller %b nonce %d", positionID, blameSeller, tx.Nonce())
@@ -262,6 +264,30 @@ func (g *FuturesEthereum) GetContractSpecs(ctx context.Context) (*ContractSpecs,
 		DeliveryDuration: time.Duration(deliveryDurationDays) * time.Hour * 24,
 		SpeedHps:         speedHps.Uint64(),
 	}, nil
+}
+
+func (g *FuturesEthereum) ClaimReward(ctx context.Context, deliveryDate time.Time, privKey string) error {
+	transactOpts, err := g.getTransactOpts(ctx, privKey)
+	if err != nil {
+		g.log.Error(err)
+		return err
+	}
+
+	tx, err := g.futures.WithdrawDeliveryPayment(transactOpts, big.NewInt(deliveryDate.Unix()))
+	if err != nil {
+		err = lib.TryConvertGethError(err, AllContractsMeta)
+
+	}
+
+	_, err = bind.WaitMined(ctx, g.client, tx)
+	if err != nil {
+		g.log.Error(err)
+		return err
+	}
+
+	g.log.Debugf("claimed reward, position id %s, nonce %d", deliveryDate.Format(time.RFC3339), tx.Nonce())
+
+	return nil
 }
 
 func (g *FuturesEthereum) CreateFuturesSubscription(ctx context.Context, futuresAddr common.Address) (*lib.Subscription, error) {

@@ -149,8 +149,7 @@ func (cm *ContractManager) AddContract(ctx context.Context, data *hashrate.Encry
 
 	cm.contractsWG.Go(func() {
 		err := cntr.Run(ctx)
-		cm.log.Warnw(fmt.Sprintf("exited from contract %s", err), "CtrAddr", lib.AddrShort(data.ID()))
-
+		cm.log.Warnw(fmt.Sprintf("exited from contract with error %s", err), "CtrAddr", lib.AddrShort(data.ID()))
 		cm.contracts.Delete(cntr.ID())
 	})
 }

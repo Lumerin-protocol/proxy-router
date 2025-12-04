@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/Lumerin-protocol/proxy-router/internal/interfaces"
@@ -35,6 +36,8 @@ type ContractWatcherBuyer struct {
 	starvingGHS          *atomic.Uint64
 	contractErr          atomic.Error // keeps the last error that happened in the contract that prevents it from fulfilling correctly, like invalid destination
 	contractErrCh        chan struct{}
+	startedCh            chan struct{}
+	fulfillMu            sync.Mutex
 
 	tsk    *lib.Task
 	cancel context.CancelFunc
@@ -85,6 +88,8 @@ func NewContractWatcherBuyer(
 		fulfillmentStartedAt: atomic.NewTime(time.Time{}),
 		starvingGHS:          atomic.NewUint64(0),
 		contractErrCh:        make(chan struct{}),
+		startedCh:            make(chan struct{}),
+		doneCh:               make(chan struct{}),
 
 		Terms:          terms,
 		allocator:      allocator,
@@ -94,17 +99,19 @@ func NewContractWatcherBuyer(
 }
 
 func (p *ContractWatcherBuyer) StartFulfilling(ctx context.Context) {
-	if p.state.Load() == resources.ContractStateRunning {
+	if !p.state.CompareAndSwap(resources.ContractStatePending, resources.ContractStateRunning) {
 		p.log.Infof("buyer contract already fulfilling")
 		return
 	}
-	p.log.Infof("buyer contract started fulfilling")
+	defer p.log.Infof("buyer contract started fulfilling")
 	ctx, cancel := context.WithCancel(ctx)
+	p.fulfillMu.Lock()
 	p.cancel = cancel
 	p.doneCh = make(chan struct{})
+	close(p.startedCh)
+	p.fulfillMu.Unlock()
 
 	go func() {
-		p.state.Store(resources.ContractStateRunning)
 		p.err = p.run(ctx)
 		close(p.doneCh)
 		p.state.Store(resources.ContractStatePending)
@@ -112,9 +119,23 @@ func (p *ContractWatcherBuyer) StartFulfilling(ctx context.Context) {
 }
 
 func (p *ContractWatcherBuyer) StopFulfilling() {
-	p.cancel()
-	<-p.doneCh
-	p.log.Infof("buyer contract stopped fulfilling")
+	p.log.Infof("buyer contract stopping fulfillment")
+	p.fulfillMu.Lock()
+	cancel := p.cancel
+	doneCh := p.doneCh
+	p.fulfillMu.Unlock()
+
+	if cancel != nil && doneCh != nil {
+		cancel()
+		<-doneCh
+		p.log.Infof("buyer contract stopped fulfilling")
+	} else {
+		p.log.Warnf("buyer contract never started")
+	}
+}
+
+func (p *ContractWatcherBuyer) Started() <-chan struct{} {
+	return p.startedCh
 }
 
 func (p *ContractWatcherBuyer) Done() <-chan struct{} {
