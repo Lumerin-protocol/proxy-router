@@ -114,7 +114,9 @@ jobs:
             BUILDTAG=${{ needs.Generate-Tag.outputs.tag_name }}
             BUILDIMAGE=${{ needs.Generate-Tag.outputs.image_name }}
             docker run -d --name proxy-router-test \
-              -e CLONE_FACTORY_ADDRESS=${{ vars.CLONE_FACTORY_ADDRESS }} \
+              -e FUTURES_SUBGRAPH_URL=${{ vars.FUTURES_SUBGRAPH_URL }} \
+              -e MULTICALL_ADDRESS=${{ vars.MULTICALL_ADDRESS }} \
+              -e FUTURES_ADDRESS=${{ vars.FUTURES_ADDRESS }} \
               -e ETH_NODE_ADDRESS=${{ vars.ETH_NODE_ADDRESS }} \
               -e POOL_ADDRESS=${{ vars.POOL_ADDRESS }} \
               -e WEB_ADDRESS=0.0.0.0:8888 \
