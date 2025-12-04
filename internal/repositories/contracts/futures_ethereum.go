@@ -238,14 +238,18 @@ func (g *FuturesEthereum) GetContractSpecs(ctx context.Context) (*ContractSpecs,
 		return nil, fmt.Errorf("validator address is not set on the futures contract")
 	}
 
+	// ValidatorURL is optional - if the contract doesn't have this method or it reverts,
+	// we'll use a placeholder that can be overridden via FUTURES_VALIDATOR_URL_OVERRIDE
+	var validatorURL *url.URL
 	validatorURLString, err := g.futures.ValidatorURL(&bind.CallOpts{Context: ctx})
 	if err != nil {
-		return nil, err
-	}
-
-	validatorURL, err := url.Parse(validatorURLString)
-	if err != nil {
-		return nil, err
+		g.log.Warnf("ValidatorURL() not available on futures contract, using placeholder: %s", err)
+		validatorURL, _ = url.Parse("http://placeholder-validator-url")
+	} else {
+		validatorURL, err = url.Parse(validatorURLString)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	deliveryDurationDays, err := g.futures.DeliveryDurationDays(&bind.CallOpts{Context: ctx})
