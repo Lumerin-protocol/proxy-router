@@ -18,7 +18,9 @@ import (
 	"github.com/Lumerin-protocol/proxy-router/internal/interfaces"
 	"github.com/Lumerin-protocol/proxy-router/internal/lib"
 	"github.com/Lumerin-protocol/proxy-router/internal/repositories/contracts"
+	"github.com/Lumerin-protocol/proxy-router/internal/repositories/subgraph"
 	"github.com/Lumerin-protocol/proxy-router/internal/repositories/transport"
+	"github.com/Lumerin-protocol/proxy-router/internal/resources"
 	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/allocator"
 	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/contract"
 	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/hashrate"
@@ -101,6 +103,11 @@ func start() error {
 	}
 
 	connLog, err := lib.NewLogger(cfg.Log.LevelConnection, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, mainLogFilePath)
+	if err != nil {
+		return err
+	}
+
+	rpcLog, err := lib.NewLogger(cfg.Log.LevelRPC, cfg.Log.Color, cfg.Log.IsProd, cfg.Log.JSON, mainLogFilePath)
 	if err != nil {
 		return err
 	}
@@ -209,21 +216,64 @@ func start() error {
 	if err != nil {
 		return lib.WrapError(ErrConnectToEthNode, err)
 	}
+	log.Infof("connected to ethereum node")
+
+	var logWatcher contracts.LogWatcher
+	if cfg.Blockchain.UseSubscriptions {
+		logWatcher = contracts.NewLogWatcherSubscription(ethClient, cfg.Blockchain.MaxReconnects, rpcLog)
+		appLog.Infof("using websocket log subscription for blockchain events")
+	} else {
+		logWatcher = contracts.NewLogWatcherPolling(ethClient, cfg.Blockchain.PollingInterval, cfg.Blockchain.MaxReconnects, rpcLog)
+		appLog.Infof("using polling for blockchain events")
+	}
 
 	publicUrl, err := url.Parse(cfg.Web.PublicUrl)
 	if err != nil {
 		return err
 	}
 
-	store := contracts.NewHashrateEthereum(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), ethClient, log)
+	store := contracts.NewHashrateEthereum(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), ethClient, logWatcher, log)
+	futuresStore := contracts.NewFuturesEthereum(common.HexToAddress(cfg.Futures.Address), common.HexToAddress(cfg.Blockchain.MulticallAddress), ethClient, logWatcher, log)
 
 	store.SetLegacyTx(cfg.Blockchain.EthLegacyTx)
+	futuresStore.SetLegacyTx(cfg.Blockchain.EthLegacyTx)
+
+	walletAddr, err := lib.PrivKeyStringToAddr(cfg.Marketplace.WalletPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	specs, err := futuresStore.GetContractSpecs(ctx)
+	if err != nil {
+		return err
+	}
+	if cfg.Futures.ValidatorURLOverride != "" {
+		validatorURL, err := url.Parse(cfg.Futures.ValidatorURLOverride)
+		if err != nil {
+			return err
+		}
+		specs.ValidatorURL = validatorURL
+	}
+
+	appLog.Infof("validator address: %s", specs.ValidatorAddress.String())
+	appLog.Infof("validator url: %s", specs.ValidatorURL.String())
+	appLog.Infof("delivery duration: %d days", specs.DeliveryDuration.Hours()/24)
+	appLog.Infof("speed ghps: %d", specs.SpeedHps/1e9)
+	appLog.Infof("wallet address: %s", walletAddr.String())
+
+	derived := new(config.DerivedConfig)
+	derived.WalletAddress = walletAddr.String()
+	derived.ValidatorAddress = specs.ValidatorAddress.String()
+	derived.ValidatorURL = specs.ValidatorURL.String()
+	derived.ContractDurationDays = int(specs.DeliveryDuration.Hours() / 24)
+	derived.ContractHashrateGHS = float64(specs.SpeedHps / 1e9)
 
 	hrContractFactory, err := contract.NewContractFactory(
 		alloc,
 		hashrateFactory,
 		globalHashrate,
 		store,
+		futuresStore,
 		contractLogFactory,
 
 		cfg.Marketplace.WalletPrivateKey,
@@ -234,35 +284,33 @@ func start() error {
 		cfg.Hashrate.ValidatorFlatness,
 		appStartTime.Add(cfg.Hashrate.ValidationTimeoutAppStart),
 		destUrl,
+		specs.ValidatorURL,
+		specs.DeliveryDuration,
+		float64(specs.SpeedHps)/1e9,
 	)
 	if err != nil {
 		return err
 	}
 
-	walletAddr, err := lib.PrivKeyStringToAddr(cfg.Marketplace.WalletPrivateKey)
-	if err != nil {
-		return err
-	}
-	paymentTokenAddr, err := store.GetPaymentToken(ctx)
-	if err != nil {
-		return err
-	}
-
-	feeTokenAddr, err := store.GetFeeToken(ctx)
-	if err != nil {
-		return err
+	cc := lib.NewCollection[resources.Contract]()
+	setErrorFn := func(contractID string, err error) bool {
+		ctr, ok := cc.Load(contractID)
+		if !ok {
+			return false
+		}
+		ctr.SetError(err)
+		return true
 	}
 
-	appLog.Infof("wallet address: %s", walletAddr.String())
-	appLog.Infof("payment token address: %s", paymentTokenAddr.String())
-	appLog.Infof("fee token address: %s", feeTokenAddr.String())
+	subgraph := subgraph.NewClient(cfg.Futures.SubgraphURL)
+	cm := contractmanager.NewContractManager(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), walletAddr, hrContractFactory.CreateContract, store, cc, log.Named("MNG"))
 
-	derived := new(config.DerivedConfig)
-	derived.WalletAddress = walletAddr.String()
-	derived.PaymentTokenAddress = paymentTokenAddr.String()
-	derived.FeeTokenAddress = feeTokenAddr.String()
-
-	cm := contractmanager.NewContractManager(common.HexToAddress(cfg.Marketplace.CloneFactoryAddress), walletAddr, hrContractFactory.CreateContract, store, log.Named("MNG"))
+	var fm interfaces.Runnable
+	if walletAddr.Cmp(specs.ValidatorAddress) == 0 {
+		fm = contractmanager.NewFuturesManagerValidator(cfg.Marketplace.WalletPrivateKey, common.HexToAddress(cfg.Futures.Address), walletAddr, futuresStore, subgraph, cc, hrContractFactory.CreateFuturesContractBuyer, log.Named("FMV"))
+	} else {
+		fm = contractmanager.NewFuturesManagerSeller(cfg.Marketplace.WalletPrivateKey, common.HexToAddress(cfg.Futures.Address), walletAddr, futuresStore, subgraph, cc, hrContractFactory.CreateFuturesContractSeller, log.Named("FMG"))
+	}
 
 	tcpServer := transport.NewTCPServer(cfg.Proxy.Address, connLog.Named("TCP"))
 	tcpHandler := tcphandlers.NewTCPHandler(
@@ -273,11 +321,12 @@ func start() error {
 		destFactory, hashrateFactory,
 		globalHashrate, HashrateCounterDefault,
 		alloc,
-		cm.GetContract,
+		setErrorFn,
+		cc.Load,
 	)
 	tcpServer.SetConnectionHandler(tcpHandler)
 
-	handl := httphandlers.NewHTTPHandler(alloc, cm, globalHashrate, sysConfig, publicUrl, HashrateCounterDefault, cfg.Hashrate.CycleDuration, &cfg, derived, appStartTime, contractLogStorage, log)
+	handl := httphandlers.NewHTTPHandler(cm, cc, alloc, globalHashrate, sysConfig, publicUrl, HashrateCounterDefault, cfg.Hashrate.CycleDuration, &cfg, derived, appStartTime, contractLogStorage, log)
 	httpServer := transport.NewServer(cfg.Web.Address, handl, log.Named("HTP"))
 
 	peerValidator, err := peervalidator.NewPeerValidator(common.HexToAddress(cfg.Marketplace.ValidatorRegistryAddress), walletAddr, ethClient, cfg.Hashrate.PeerValidationInterval, log)
@@ -291,14 +340,28 @@ func start() error {
 		return tcpServer.Run(errCtx)
 	})
 
-	g.Go(func() error {
-		return cm.Run(errCtx)
-	})
+	if cfg.Marketplace.CloneFactoryAddress != "" {
+		g.Go(func() error {
+			return cm.Run(errCtx)
+		})
+	} else {
+		appLog.Warnf("clonefactory address is not set, skipping contract manager")
+	}
+
+	if cfg.Futures.Address != "" {
+		g.Go(func() error {
+			return fm.Run(errCtx)
+		})
+	} else {
+		appLog.Warnf("futures address is not set, skipping futures manager")
+	}
 
 	if cfg.Marketplace.ValidatorRegistryAddress != "" {
 		g.Go(func() error {
 			return peerValidator.Run(errCtx)
 		})
+	} else {
+		appLog.Warnf("validator registry address is not set, skipping peer validator")
 	}
 
 	g.Go(func() error {

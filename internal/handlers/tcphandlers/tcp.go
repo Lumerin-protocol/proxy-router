@@ -15,6 +15,8 @@ import (
 	"github.com/Lumerin-protocol/proxy-router/internal/resources/hashrate/proxy"
 )
 
+type SetErrorFn func(contractID string, err error) bool
+
 func NewTCPHandler(
 	log, connLog, proxyLog interfaces.ILogger,
 	schedulerLogFactory func(contractID string) (interfaces.ILogger, error),
@@ -26,6 +28,7 @@ func NewTCPHandler(
 	globalHashrate *hashrate.GlobalHashrate,
 	hashrateCounterDefault string,
 	alloc *allocator.Allocator,
+	setErrorFn SetErrorFn,
 	getContractFromStoreFn proxy.GetContractFromStoreFn,
 ) transport.Handler {
 	return func(ctx context.Context, conn net.Conn) {
@@ -70,11 +73,10 @@ func NewTCPHandler(
 					log.Errorf("unset contractID in onDisconnect callback: %s", err)
 					return
 				}
-				ctr, ok := getContractFromStoreFn(*contractID)
+				ok := setErrorFn(*contractID, err)
 				if !ok {
-					log.Errorf("failed to get contract from store: %s", *contractID)
+					log.Errorf("failed to set error for contract: %s", *contractID)
 				}
-				ctr.SetError(err)
 			},
 			schedulerLog.With("SrcAddr", addr),
 		)

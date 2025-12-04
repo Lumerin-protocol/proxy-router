@@ -2,6 +2,7 @@ package contract
 
 import (
 	"fmt"
+	"math/big"
 	"net/url"
 	"time"
 
@@ -25,12 +26,16 @@ type ContractFactory struct {
 	validatorFlatness        time.Duration
 	validatorStartTime       time.Time
 	defaultDest              *url.URL
+	validatorURL             *url.URL
+	contractDuration         time.Duration
+	contractHashrateGHPS     float64
 
 	// state
 	address common.Address // derived from private key
 
 	// deps
 	store           *contracts.HashrateEthereum
+	futuresStore    *contracts.FuturesEthereum
 	allocator       *allocator.Allocator
 	globalHashrate  *hashrate.GlobalHashrate
 	hashrateFactory func() *hashrate.Hashrate
@@ -42,6 +47,7 @@ func NewContractFactory(
 	hashrateFactory func() *hashrate.Hashrate,
 	globalHashrate *hashrate.GlobalHashrate,
 	store *contracts.HashrateEthereum,
+	futuresStore *contracts.FuturesEthereum,
 	logFactory func(contractID string) (interfaces.ILogger, error),
 
 	privateKey string,
@@ -52,6 +58,9 @@ func NewContractFactory(
 	validatorFlatness time.Duration,
 	validatorStartTime time.Time,
 	defaultDest *url.URL,
+	validatorURL *url.URL,
+	contractDuration time.Duration,
+	contractHashrateGHPS float64,
 ) (*ContractFactory, error) {
 	address, err := lib.PrivKeyStringToAddr(privateKey)
 	if err != nil {
@@ -63,6 +72,7 @@ func NewContractFactory(
 		hashrateFactory: hashrateFactory,
 		globalHashrate:  globalHashrate,
 		store:           store,
+		futuresStore:    futuresStore,
 		logFactory:      logFactory,
 
 		address: address,
@@ -75,6 +85,9 @@ func NewContractFactory(
 		validatorFlatness:        validatorFlatness,
 		validatorStartTime:       validatorStartTime,
 		defaultDest:              defaultDest,
+		validatorURL:             validatorURL,
+		contractDuration:         contractDuration,
+		contractHashrateGHPS:     contractHashrateGHPS,
 	}, nil
 }
 
@@ -88,9 +101,9 @@ func (c *ContractFactory) CreateContract(contractData *hashrateContract.Encrypte
 
 	if contractData.Seller() == c.address.String() {
 		terms := &hashrateContract.Terms{
-			BaseTerms:      *contractData.Copy(),
-			DestinationURL: nil,
-			ValidatorURL:   nil,
+			BaseTerms:    *contractData.Copy(),
+			DestURL:      nil,
+			ValidatorURL: nil,
 		}
 
 		watcher := NewContractWatcherSellerV2(terms, c.cycleDuration, c.hashrateFactory, c.allocator, logNamed)
@@ -114,9 +127,9 @@ func (c *ContractFactory) CreateContract(contractData *hashrateContract.Encrypte
 		}
 
 		terms := &hashrateContract.Terms{
-			BaseTerms:      *contractData.Copy(),
-			DestinationURL: destUrl,
-			ValidatorURL:   nil,
+			BaseTerms:    *contractData.Copy(),
+			DestURL:      destUrl,
+			ValidatorURL: nil,
 		}
 		watcher := NewContractWatcherBuyer(
 			terms,
@@ -138,9 +151,52 @@ func (c *ContractFactory) CreateContract(contractData *hashrateContract.Encrypte
 		if destErr != nil {
 			watcher.contractErr.Store(destErr)
 		}
+
 		return NewControllerBuyer(watcher, c.store, c.privateKey, false), nil
 	}
 	return nil, fmt.Errorf("invalid terms %+v", contractData)
+}
+
+func (c *ContractFactory) CreateFuturesContractSeller(contractData *contracts.FuturesContract) (resources.Contract, error) {
+	logNamed, err := c.createLogger(contractData)
+	if err != nil {
+		return nil, err
+	}
+
+	terms, err := c.createTerms(contractData)
+	if err != nil {
+		return nil, err
+	}
+	watcher := NewContractWatcherSellerV2(terms, c.cycleDuration, c.hashrateFactory, c.allocator, logNamed)
+	return NewControllerFuturesSeller(watcher, contractData.DeliveryAt), nil
+}
+
+func (c *ContractFactory) CreateFuturesContractBuyer(contractData *contracts.FuturesContract) (resources.Contract, error) {
+	logNamed, err := c.createLogger(contractData)
+	if err != nil {
+		return nil, err
+	}
+
+	terms, err := c.createTerms(contractData)
+	if err != nil {
+		return nil, err
+	}
+	watcher := NewContractWatcherBuyer(
+		terms,
+		c.hashrateFactory,
+		c.allocator,
+		c.globalHashrate,
+		logNamed,
+		c.cycleDuration,
+		c.shareTimeout,
+		c.hrErrorThreshold,
+		c.hashrateCounterNameBuyer,
+		c.validatorFlatness,
+		c.validatorStartTime,
+		resources.ContractRoleBuyer,
+		c.defaultDest,
+	)
+	return NewControllerFuturesBuyer(watcher, c.futuresStore, contractData.DeliveryAt, c.privateKey, false), nil
 }
 
 func (c *ContractFactory) getDestURL(destEncrypted string) (*url.URL, error) {
@@ -158,4 +214,39 @@ func (c *ContractFactory) getDestURL(destEncrypted string) (*url.URL, error) {
 
 func (c *ContractFactory) GetType() resources.ResourceType {
 	return ResourceTypeHashrate
+}
+
+func (c *ContractFactory) createLogger(contractData *contracts.FuturesContract) (interfaces.ILogger, error) {
+	log, err := c.logFactory(contractData.ID())
+	if err != nil {
+		return nil, err
+	}
+	return log.Named("FTR").With("CtrAddr", lib.AddrShort(contractData.ID())), nil
+}
+
+func (c *ContractFactory) createTerms(contractData *contracts.FuturesContract) (Terms, error) {
+	destURL, err := url.Parse(contractData.DestURL)
+	if err != nil {
+		return nil, err
+	}
+	return &hashrateContract.Terms{
+		BaseTerms: *hashrateContract.NewBaseTerms(
+			contractData.ID(),
+			contractData.Seller.Hex(),
+			contractData.Buyer.Hex(),
+			common.HexToAddress("0x0").String(),
+			contractData.DeliveryAt,
+			c.contractDuration,
+			c.contractHashrateGHPS,
+			big.NewInt(0),
+			0,
+			false,
+			big.NewInt(0),
+			false,
+			0,
+		),
+		// TODO: remove hardcoded values
+		ValidatorURL: c.validatorURL,
+		DestURL:      destURL,
+	}, nil
 }
