@@ -257,8 +257,8 @@ func start() error {
 
 	appLog.Infof("validator address: %s", specs.ValidatorAddress.String())
 	appLog.Infof("validator url: %s", specs.ValidatorURL.String())
-	appLog.Infof("delivery duration: %d days", specs.DeliveryDuration.Hours()/24)
-	appLog.Infof("speed ghps: %d", specs.SpeedHps/1e9)
+	appLog.Infof("delivery duration: %d days", int(specs.DeliveryDuration.Hours()/24))
+	appLog.Infof("speed ghps: %.0f", float64(specs.SpeedHps)/1e9)
 	appLog.Infof("wallet address: %s", walletAddr.String())
 
 	derived := new(config.DerivedConfig)
