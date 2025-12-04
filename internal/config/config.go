@@ -4,22 +4,35 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/Lumerin-protocol/proxy-router/internal/repositories/multicall"
 )
 
 type DerivedConfig struct {
-	WalletAddress       string
-	PaymentTokenAddress string
-	FeeTokenAddress     string
+	WalletAddress        string
+	ValidatorAddress     string
+	ValidatorURL         string
+	ContractDurationDays int
+	ContractHashrateGHS  float64
 }
 
 // Validation tags described here: https://pkg.go.dev/github.com/go-playground/validator/v10
 type Config struct {
 	Blockchain struct {
-		EthNodeAddress string `env:"ETH_NODE_ADDRESS"   flag:"eth-node-address"   validate:"required,url"`
-		EthLegacyTx    bool   `env:"ETH_NODE_LEGACY_TX" flag:"eth-node-legacy-tx" desc:"use it to disable EIP-1559 transactions"`
+		EthNodeAddress   string        `env:"ETH_NODE_ADDRESS"   flag:"eth-node-address"   validate:"required,url"`
+		UseSubscriptions bool          `env:"ETH_USE_SUBSCRIPTIONS" flag:"eth-use-subscriptions" desc:"use websocket subscriptions for blockchain events"`
+		PollingInterval  time.Duration `env:"ETH_POLLING_INTERVAL" flag:"eth-polling-interval" validate:"omitempty,duration" desc:"interval between polling for blockchain events"`
+		MaxReconnects    int           `env:"ETH_MAX_RECONNECTS" flag:"eth-max-reconnects" validate:"omitempty,number" desc:"maximum number of reconnect attempts"`
+		EthLegacyTx      bool          `env:"ETH_NODE_LEGACY_TX" flag:"eth-node-legacy-tx" desc:"use it to disable EIP-1559 transactions"`
+		MulticallAddress string        `env:"MULTICALL_ADDRESS" flag:"multicall-address" validate:"required,eth_addr"`
 	}
 	Environment string `env:"ENVIRONMENT" flag:"environment"`
-	Hashrate    struct {
+	Futures     struct {
+		Address              string `env:"FUTURES_ADDRESS" flag:"futures-address" validate:"required,eth_addr"`
+		SubgraphURL          string `env:"FUTURES_SUBGRAPH_URL" flag:"futures-subgraph-url" validate:"required,url"`
+		ValidatorURLOverride string `env:"FUTURES_VALIDATOR_URL_OVERRIDE" flag:"futures-validator-url-override" validate:"omitempty,url"`
+	}
+	Hashrate struct {
 		CycleDuration             time.Duration `env:"HASHRATE_CYCLE_DURATION"               flag:"hashrate-cycle-duration"               validate:"omitempty,duration"  desc:"duration of the hashrate cycle, after which the hashrate is evaluated, applies to both seller and buyer"`
 		ErrorThreshold            float64       `env:"HASHRATE_ERROR_THRESHOLD"              flag:"hashrate-error-threshold"                                             desc:"hashrate relative error threshold for the contract to be considered fulfilling accurately, applies for buyer"`
 		PeerValidationInterval    time.Duration `env:"HASHRATE_PEER_VALIDATION_INTERVAL"     flag:"hashrate-peer-validation-interval"     validate:"omitempty,duration"  desc:"interval between peer validation attempts, applies for validator"`
@@ -49,6 +62,7 @@ type Config struct {
 		LevelProxy      string `env:"LOG_LEVEL_PROXY"      flag:"log-level-proxy"      validate:"omitempty,oneof=debug info warn error dpanic panic fatal"`
 		LevelScheduler  string `env:"LOG_LEVEL_SCHEDULER"  flag:"log-level-scheduler"  validate:"omitempty,oneof=debug info warn error dpanic panic fatal"`
 		LevelContract   string `env:"LOG_LEVEL_CONTRACT"   flag:"log-level-contract"   validate:"omitempty,oneof=debug info warn error dpanic panic fatal"`
+		LevelRPC        string `env:"LOG_LEVEL_RPC"        flag:"log-level-rpc"        validate:"omitempty,oneof=debug info warn error dpanic panic fatal"`
 	}
 	Pool struct {
 		Address          string        `env:"POOL_ADDRESS" flag:"pool-address" validate:"required,uri"`
@@ -77,6 +91,17 @@ type Config struct {
 func (cfg *Config) SetDefaults() {
 	if cfg.Environment == "" {
 		cfg.Environment = "development"
+	}
+
+	// Blockchain
+	if cfg.Blockchain.MaxReconnects == 0 {
+		cfg.Blockchain.MaxReconnects = 30
+	}
+	if cfg.Blockchain.PollingInterval == 0 {
+		cfg.Blockchain.PollingInterval = 10 * time.Second
+	}
+	if len(cfg.Blockchain.MulticallAddress) == 0 {
+		cfg.Blockchain.MulticallAddress = multicall.MULTICALL3_ADDR.Hex()
 	}
 
 	// Hashrate

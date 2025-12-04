@@ -17,8 +17,8 @@ var (
 // Terms holds the terms of the contract where destination is decrypted
 type Terms struct {
 	BaseTerms
-	ValidatorURL   *url.URL
-	DestinationURL *url.URL
+	ValidatorURL *url.URL
+	DestURL      *url.URL
 }
 
 func (p *Terms) Dest() *url.URL {
@@ -26,7 +26,17 @@ func (p *Terms) Dest() *url.URL {
 }
 
 func (p *Terms) PoolDest() *url.URL {
-	return lib.CopyURL(p.DestinationURL)
+	return lib.CopyURL(p.DestURL)
+}
+
+// No-op for unencrypted terms
+func (p *Terms) Decrypt(privateKey string) (*Terms, error) {
+	return p, nil
+}
+
+// No-op for unencrypted terms
+func (p *Terms) DecryptPoolDest(privateKey string) (*Terms, error) {
+	return p, nil
 }
 
 func (t *Terms) Encrypt(privateKey string) (*Terms, error) {
@@ -57,28 +67,6 @@ type EncryptedTerms struct {
 	BaseTerms
 	ValidatorUrlEncrypted string
 	DestEncrypted         string
-}
-
-func NewTerms(contractID, seller, buyer string, startsAt time.Time, duration time.Duration, hashrate float64, price *big.Int, profitTarget int8, state BlockchainState, isDeleted bool, balance *big.Int, hasFutureTerms bool, version uint32, validatorUrlEncrypted string, destEncrypted string, validatorAddress string) *EncryptedTerms {
-	return &EncryptedTerms{
-		BaseTerms: BaseTerms{
-			contractID:     contractID,
-			seller:         seller,
-			buyer:          buyer,
-			validator:      validatorAddress,
-			startsAt:       startsAt,
-			duration:       duration,
-			hashrate:       hashrate,
-			price:          price,
-			profitTarget:   profitTarget,
-			isDeleted:      isDeleted,
-			balance:        balance,
-			hasFutureTerms: hasFutureTerms,
-			version:        version,
-		},
-		ValidatorUrlEncrypted: validatorUrlEncrypted,
-		DestEncrypted:         destEncrypted,
-	}
 }
 
 // Decrypt decrypts the validator url, if error returns the terms with dest set to nil and error
@@ -135,7 +123,7 @@ func (t *EncryptedTerms) DecryptPoolDest(privateKey string) (*Terms, error) {
 		return terms, lib.WrapError(ErrInvalidDestURL, fmt.Errorf("%s: %s", err, dest))
 	}
 
-	terms.DestinationURL = destUrl
+	terms.DestURL = destUrl
 	return terms, returnErr
 }
 
@@ -154,6 +142,24 @@ type BaseTerms struct {
 	balance        *big.Int
 	hasFutureTerms bool
 	version        uint32
+}
+
+func NewBaseTerms(contractID, seller, buyer, validator string, startsAt time.Time, duration time.Duration, hashrateGHS float64, price *big.Int, profitTarget int8, isDeleted bool, balance *big.Int, hasFutureTerms bool, version uint32) *BaseTerms {
+	return &BaseTerms{
+		contractID:     contractID,
+		seller:         seller,
+		buyer:          buyer,
+		validator:      validator,
+		startsAt:       startsAt,
+		duration:       duration,
+		hashrate:       hashrateGHS,
+		price:          price,
+		profitTarget:   profitTarget,
+		isDeleted:      isDeleted,
+		balance:        balance,
+		hasFutureTerms: hasFutureTerms,
+		version:        version,
+	}
 }
 
 func (b *BaseTerms) ID() string {
@@ -237,23 +243,23 @@ func (b *BaseTerms) Version() uint32 {
 	return b.version
 }
 
-func (b *BaseTerms) Copy() *BaseTerms {
-	return &BaseTerms{
-		contractID:     b.ID(),
-		seller:         b.Seller(),
-		buyer:          b.Buyer(),
-		validator:      b.Validator(),
-		startsAt:       b.StartTime(),
-		duration:       b.Duration(),
-		hashrate:       b.HashrateGHS(),
-		price:          b.Price(),
-		isDeleted:      b.IsDeleted(),
-		balance:        b.Balance(),
-		hasFutureTerms: b.HasFutureTerms(),
-		version:        b.Version(),
-	}
-}
-
 func (b *BaseTerms) isRunning() bool {
 	return b.EndTime().After(time.Now())
+}
+
+func (b *BaseTerms) Copy() *BaseTerms {
+	return &BaseTerms{
+		contractID:     b.contractID,
+		seller:         b.seller,
+		buyer:          b.buyer,
+		validator:      b.validator,
+		startsAt:       b.startsAt,
+		duration:       b.duration,
+		hashrate:       b.hashrate,
+		price:          b.price,
+		isDeleted:      b.isDeleted,
+		balance:        b.balance,
+		hasFutureTerms: b.hasFutureTerms,
+		version:        b.version,
+	}
 }

@@ -37,10 +37,11 @@ type HashrateEthereum struct {
 	// deps
 	cloneFactory *clonefactory.Clonefactory
 	client       EthereumClient
+	logWatcher   LogWatcher
 	log          interfaces.ILogger
 }
 
-func NewHashrateEthereum(clonefactoryAddr common.Address, client EthereumClient, log interfaces.ILogger) *HashrateEthereum {
+func NewHashrateEthereum(clonefactoryAddr common.Address, client EthereumClient, logWatcher LogWatcher, log interfaces.ILogger) *HashrateEthereum {
 	cf, err := clonefactory.NewClonefactory(clonefactoryAddr, client)
 	if err != nil {
 		panic("invalid clonefactory ABI")
@@ -60,6 +61,7 @@ func NewHashrateEthereum(clonefactoryAddr common.Address, client EthereumClient,
 		cfABI:            cfABI,
 		implABI:          implABI,
 		mutex:            lib.NewMutex(),
+		logWatcher:       logWatcher,
 		log:              log,
 	}
 }
@@ -130,24 +132,25 @@ func (g *HashrateEthereum) GetContract(ctx context.Context, contractID string) (
 		}
 	}
 
-	terms := hashrate.NewTerms(
-		contractID,
-		data.Seller.Hex(),
-		buyer,
-		startsAt,
-		time.Duration(data.Terms.Length.Int64())*time.Second,
-		float64(hr.HSToGHS(float64(data.Terms.Speed.Int64()))),
-		data.Terms.Price,
-		data.Terms.ProfitTarget,
-		hashrate.BlockchainState(data.State),
-		data.IsDeleted,
-		data.Balance,
-		data.HasFutureTerms,
-		data.Terms.Version,
-		encryptedValidatorURL,
-		encryptedDestURL,
-		validatorAddr,
-	)
+	terms := &hashrate.EncryptedTerms{
+		BaseTerms: *hashrate.NewBaseTerms(
+			contractID,
+			data.Seller.Hex(),
+			buyer,
+			validatorAddr,
+			startsAt,
+			time.Duration(data.Terms.Length.Int64())*time.Second,
+			float64(hr.HSToGHS(float64(data.Terms.Speed.Int64()))),
+			data.Terms.Price,
+			data.Terms.ProfitTarget,
+			data.IsDeleted,
+			data.Balance,
+			data.HasFutureTerms,
+			data.Terms.Version,
+		),
+		ValidatorUrlEncrypted: encryptedValidatorURL,
+		DestEncrypted:         encryptedDestURL,
+	}
 
 	return terms, nil
 }
@@ -258,11 +261,11 @@ func (g *HashrateEthereum) claimValidatorReward(ctx context.Context, contractID 
 }
 
 func (s *HashrateEthereum) CreateCloneFactorySubscription(ctx context.Context, clonefactoryAddr common.Address) (*lib.Subscription, error) {
-	return WatchContractEvents(ctx, s.client, clonefactoryAddr, CreateEventMapper(clonefactoryEventFactory, s.cfABI), s.log)
+	return s.logWatcher.Watch(ctx, clonefactoryAddr, CreateEventMapper(clonefactoryEventFactory, s.cfABI), nil)
 }
 
 func (s *HashrateEthereum) CreateImplementationSubscription(ctx context.Context, contractAddr common.Address) (*lib.Subscription, error) {
-	return WatchContractEvents(ctx, s.client, contractAddr, CreateEventMapper(implementationEventFactory, s.implABI), s.log)
+	return s.logWatcher.Watch(ctx, contractAddr, CreateEventMapper(implementationEventFactory, s.implABI), nil)
 }
 
 func (g *HashrateEthereum) getTransactOpts(ctx context.Context, privKey string) (*bind.TransactOpts, error) {

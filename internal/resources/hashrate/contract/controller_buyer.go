@@ -179,3 +179,9 @@ func (c *ControllerBuyer) SyncState(ctx context.Context) error {
 func (c *ControllerBuyer) isValidator() bool {
 	return common.HexToAddress(c.Validator()) == lib.MustPrivKeyStringToAddr(c.privKey)
 }
+
+func (c *ControllerBuyer) Stop(ctx context.Context) error {
+	c.ContractWatcherBuyer.StopFulfilling()
+	<-c.Done()
+	return nil
+}

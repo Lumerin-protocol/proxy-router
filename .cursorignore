@@ -1,0 +1,8 @@
+secret.tfvars
+secret.* 
+secret.*.*
+secret.auto.tfvars
+# Environment files
+.env
+.env.*
+!.env.example

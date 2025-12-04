@@ -245,3 +245,9 @@ func (c *ControllerSeller) SyncState(ctx context.Context) error {
 	}
 	return nil
 }
+
+func (c *ControllerSeller) Stop(ctx context.Context) error {
+	c.ContractWatcherSellerV2.StopFulfilling()
+	<-c.Done()
+	return nil
+}

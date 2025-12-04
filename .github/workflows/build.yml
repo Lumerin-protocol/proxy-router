@@ -114,12 +114,21 @@ jobs:
             BUILDTAG=${{ needs.Generate-Tag.outputs.tag_name }}
             BUILDIMAGE=${{ needs.Generate-Tag.outputs.image_name }}
             docker run -d --name proxy-router-test \
+              -e FUTURES_SUBGRAPH_URL=${{ vars.FUTURES_SUBGRAPH_URL }} \
+              -e MULTICALL_ADDRESS=${{ vars.MULTICALL_ADDRESS }} \
+              -e FUTURES_ADDRESS=${{ vars.FUTURES_ADDRESS }} \
+              -e FUTURES_VALIDATOR_URL_OVERRIDE=${{ vars.FUTURES_VALIDATOR_URL_OVERRIDE }} \
               -e CLONE_FACTORY_ADDRESS=${{ vars.CLONE_FACTORY_ADDRESS }} \
               -e ETH_NODE_ADDRESS=${{ vars.ETH_NODE_ADDRESS }} \
               -e POOL_ADDRESS=${{ vars.POOL_ADDRESS }} \
               -e WEB_ADDRESS=0.0.0.0:8888 \
-              -e WEB_PUBLIC_ADDRESS=http://localhost:8888 \
+              -e WEB_PUBLIC_URL=http://localhost:8888 \
               -e WALLET_PRIVATE_KEY=${{ secrets.WALLET_PRIVATE_KEY }} \
+              -e LOG_IS_PROD=false \
+              -e LOG_LEVEL=debug \
+              -e LOG_JSON=true \
+              -e ENVIRONMENT=production \
+              -e HASHRATE_SHARE_TIMEOUT=20m \
               -p 8888:8888  \
               $BUILDIMAGE:$BUILDTAG || (echo "❌ Failed to start image with tag: $BUILDIMAGE:$BUILDTAG" && exit 1)
             timeout=10
@@ -314,13 +323,17 @@ jobs:
           docker push $BUILDIMAGE:latest || (echo "❌ Failed to push image as :latest" && exit 1)
           echo "✅ Proxy-Router Push $BUILDIMAGE:latest Tag Successful!"
 
-  GitLab-Deploy:
+  AWS-Deploy:
     if: |
       (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stg' || github.ref == 'refs/heads/dev'))
     needs:
       - Generate-Tag
       - GHCR-Build-and-Push
     runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'main' || github.ref_name }}
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - name: Clone
         id: checkout
@@ -333,48 +346,119 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Determine GitLab Target Branch
-        id: set_target_branch
+      - name: Determine AWS Environment
+        id: set_environment
         run: |
           if [ "${{ github.ref_name }}" == "dev" ]; then
-            echo "gitlab_branch=dev" >> $GITHUB_ENV
+            echo "aws_env=dev" >> $GITHUB_ENV
           elif [ "${{ github.ref_name }}" == "stg" ]; then
-            echo "gitlab_branch=stg" >> $GITHUB_ENV
+            echo "aws_env=stg" >> $GITHUB_ENV
           elif [ "${{ github.ref_name }}" == "main" ]; then
-            echo "gitlab_branch=main" >> $GITHUB_ENV
+            echo "aws_env=lmn" >> $GITHUB_ENV
           else
-            echo "This branch is not configured to trigger GitLab pipelines."
+            echo "This branch is not configured for AWS deployment."
             exit 1
           fi
+          echo "aws_region=us-east-1" >> $GITHUB_ENV
 
-      - name: Trigger GitLab Pipeline
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.aws_region }}
+          role-session-name: GitHubActions-ProxyRouter-Deploy
+
+      - name: Deploy Proxy Router to ECS
         run: |
-          echo "Triggering GitLab Build and Deploy for branch ${{ github.ref_name }} with tag ${{ needs.Generate-Tag.outputs.tag_name }}"
-      
-          # Send request to GitLab
-          response=$(curl --silent \
-            --request POST \
-            --url "${{ secrets.GITLAB_TRIGGER_URL }}" \
-            --form "token=${{ secrets.GITLAB_TRIGGER_TOKEN }}" \
-            --form "ref=${{ env.gitlab_branch }}" \
-            --form "variables[SOURCE_REPO]=${{ github.repository }}" \
-            --form "variables[SOURCE_BRANCH]=${{ github.ref_name }}" \
-            --form "variables[GITHUB_VFULL]=${{ needs.Generate-Tag.outputs.vfull }}" \
-            --form "variables[GITHUB_TAG]=${{ needs.Generate-Tag.outputs.tag_name }}")
-      
-          # Parse JSON response using jq
-          gitlab_status=$(echo "$response" | jq -r '.status // "unknown"')
-          gitlab_web_url=$(echo "$response" | jq -r '.web_url // "N/A"')
-      
-          # Log the response
-          echo "GitLab Response: $response"
-      
-          # Validate the status field
-          if [[ "$gitlab_status" =~ ^(created|preparing|success|running|scheduled)$ ]]; then
-            echo "✅ GitLab pipeline triggered successfully! Status: $gitlab_status"
-            echo "Pipeline details: $gitlab_web_url"
-          else
-            echo "❌ GitLab pipeline FAILED. Invalid status: $gitlab_status"
-            echo "Pipeline details: $gitlab_web_url"
-            exit 1
-          fi
+          BUILDTAG="${{ needs.Generate-Tag.outputs.tag_name }}"
+          BUILDIMAGE="${{ needs.Generate-Tag.outputs.image_name }}"
+          AWS_ENV="${{ env.aws_env }}"
+          AWS_REGION="${{ env.aws_region }}"
+          CLUSTER_NAME="ecs-proxy-router-${AWS_ENV}-use1"
+          SERVICE_NAME="svc-proxy-router-${AWS_ENV}-use1"
+          TASK_FAMILY="tsk-proxy-router"
+
+          echo "🚀 Deploying ${BUILDIMAGE}:${BUILDTAG} to ${AWS_ENV} environment"
+          echo "Cluster: ${CLUSTER_NAME}"
+          echo "Service: ${SERVICE_NAME}"
+
+          # Get current task definition
+          aws ecs describe-task-definition \
+            --task-definition ${TASK_FAMILY} \
+            --region ${AWS_REGION} \
+            --query 'taskDefinition' > task-def.json
+
+          # Update task definition with new image only
+          # Secrets are pulled at runtime by ECS from Secrets Manager
+          jq --arg IMAGE "${BUILDIMAGE}:${BUILDTAG}" \
+             '.containerDefinitions[0].image = $IMAGE |
+              del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            task-def.json > new-task-def.json
+
+          # Register new task definition
+          NEW_TASK_DEF=$(aws ecs register-task-definition \
+            --cli-input-json file://new-task-def.json \
+            --region ${AWS_REGION} \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          echo "✅ Registered new task definition: ${NEW_TASK_DEF}"
+
+          # Update ECS service
+          aws ecs update-service \
+            --cluster ${CLUSTER_NAME} \
+            --service ${SERVICE_NAME} \
+            --task-definition ${NEW_TASK_DEF} \
+            --region ${AWS_REGION} \
+            --force-new-deployment
+
+          echo "✅ Proxy Router service updated successfully!"
+
+      - name: Deploy Proxy Validator to ECS
+        run: |
+          BUILDTAG="${{ needs.Generate-Tag.outputs.tag_name }}"
+          BUILDIMAGE="${{ needs.Generate-Tag.outputs.image_name }}"
+          AWS_ENV="${{ env.aws_env }}"
+          AWS_REGION="${{ env.aws_region }}"
+          CLUSTER_NAME="ecs-proxy-router-${AWS_ENV}-use1"
+          SERVICE_NAME="svc-proxy-validator-${AWS_ENV}-use1"
+          TASK_FAMILY="tsk-proxy-validator"
+
+          echo "🚀 Deploying ${BUILDIMAGE}:${BUILDTAG} to ${AWS_ENV} validator"
+          echo "Cluster: ${CLUSTER_NAME}"
+          echo "Service: ${SERVICE_NAME}"
+
+          # Get current task definition
+          aws ecs describe-task-definition \
+            --task-definition ${TASK_FAMILY} \
+            --region ${AWS_REGION} \
+            --query 'taskDefinition' > validator-task-def.json
+
+          # Update task definition with new image only
+          # Secrets are pulled at runtime by ECS from Secrets Manager
+          jq --arg IMAGE "${BUILDIMAGE}:${BUILDTAG}" \
+             '.containerDefinitions[0].image = $IMAGE |
+              del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            validator-task-def.json > new-validator-task-def.json
+
+          # Register new task definition
+          NEW_TASK_DEF=$(aws ecs register-task-definition \
+            --cli-input-json file://new-validator-task-def.json \
+            --region ${AWS_REGION} \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          echo "✅ Registered new task definition: ${NEW_TASK_DEF}"
+
+          # Wait 5 minutes for router to stabilize before updating validator
+          echo "⏳ Waiting 5 minutes before deploying validator..."
+          sleep 300
+
+          # Update ECS service
+          aws ecs update-service \
+            --cluster ${CLUSTER_NAME} \
+            --service ${SERVICE_NAME} \
+            --task-definition ${NEW_TASK_DEF} \
+            --region ${AWS_REGION} \
+            --force-new-deployment
+
+          echo "✅ Proxy Validator service updated successfully!"
+          echo "🎉 Deployment to ${AWS_ENV} complete!"
