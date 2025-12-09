@@ -493,7 +493,7 @@ func (p *ContractWatcherSellerV2) getAdjustedDest() *url.URL {
 		return nil
 	}
 	dest := lib.CopyURL(p.Terms.Dest())
-	// lib.SetUserName(dest, p.Terms.ID())
+	lib.SetUserName(dest, p.Terms.ID())
 	return dest
 }
 
