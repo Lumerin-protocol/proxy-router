@@ -90,6 +90,8 @@ func (p *HandlerChangeDest) destHandshake(ctx context.Context, newDest *ConnDest
 		cfgMsg := m.NewMiningConfigure(msgID, nil)
 		_, minBits := p.proxy.source.GetVersionRolling()
 		cfgMsg.SetVersionRolling(p.proxy.source.GetNegotiatedVersionRollingMask(), minBits)
+
+		// TODO: replace with contractID from the proxy, deprecate passing user address as the worker name
 		cfgMsg.SetLMRContractAddress(user)
 
 		res, err := newDest.WriteAwaitRes(ctx, cfgMsg)
