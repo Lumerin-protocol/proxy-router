@@ -23,7 +23,7 @@ func NewClient(subgraphURL string) *SubgraphClient {
 
 func (c *SubgraphClient) GetAllPositions(ctx context.Context, deliveryAt time.Time) ([]contracts.FuturesContract, error) {
 	var query struct {
-		Positions []Position `graphql:"positions(where: {deliveryAt: $deliveryAt})"`
+		Positions []Position `graphql:"positions(where: {deliveryAt: $deliveryAt, closedAt: null})"`
 	}
 
 	var variables = map[string]any{
@@ -40,13 +40,12 @@ func (c *SubgraphClient) GetAllPositions(ctx context.Context, deliveryAt time.Ti
 
 func (c *SubgraphClient) GetPositionsBySeller(ctx context.Context, sellerAddr common.Address, deliveryAt time.Time) ([]contracts.FuturesContract, error) {
 	var query struct {
-		Positions []Position `graphql:"positions(where: {seller_: {address: $sellerAddr}, deliveryAt: $deliveryAt, closedAt: $closedAt})"`
+		Positions []Position `graphql:"positions(where: {seller_: {address: $sellerAddr}, deliveryAt: $deliveryAt, closedAt: null})"`
 	}
 
 	var variables = map[string]any{
 		"deliveryAt": graphql.Int(deliveryAt.Unix()),
 		"sellerAddr": graphql.String(sellerAddr.Hex()),
-		"closedAt":   graphql.Int(0),
 	}
 
 	err := c.client.Query(ctx, &query, variables)
