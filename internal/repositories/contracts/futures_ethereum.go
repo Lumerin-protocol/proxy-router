@@ -157,6 +157,8 @@ func (g *FuturesEthereum) BatchCloseDelivery(ctx context.Context, reqs []CloseDe
 		return err
 	}
 
+	g.log.Debugf("batch closing deliveries %+v", reqs)
+
 	calls := make([][]byte, len(reqs))
 	for i, req := range reqs {
 		calls[i], err = g.futuresABI.Pack("closeDelivery", req.PositionID, req.BlameSeller)
