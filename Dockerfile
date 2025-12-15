@@ -1,4 +1,4 @@
-FROM golang:1.23-bullseye as builder
+FROM golang:1.25.4-bookworm as builder
 
 # Capture the Git tag, commit hash, and architecture
 ARG TAG_NAME

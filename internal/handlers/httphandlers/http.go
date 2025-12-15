@@ -36,7 +36,6 @@ type Sanitizable interface {
 type HTTPHandler struct {
 	globalHashrate         *hr.GlobalHashrate
 	allocator              *allocator.Allocator
-	contractManager        *contractmanager.ContractManager
 	sysConfig              *system.SystemConfigurator
 	cfg                    Sanitizable
 	cycleDuration          time.Duration
@@ -49,12 +48,15 @@ type HTTPHandler struct {
 	validator              *validator.Validate
 	logStorage             *lib.Collection[*interfaces.LogStorage]
 	log                    interfaces.ILogger
+	contractCollection     *lib.Collection[resources.Contract]
+	cm                     *contractmanager.ContractManager
 }
 
-func NewHTTPHandler(allocator *allocator.Allocator, contractManager *contractmanager.ContractManager, globalHashrate *hr.GlobalHashrate, sysConfig *system.SystemConfigurator, publicUrl *url.URL, hashrateCounter string, cycleDuration time.Duration, config Sanitizable, derivedConfig *config.DerivedConfig, appStartTime time.Time, logStorage *lib.Collection[*interfaces.LogStorage], log interfaces.ILogger) *gin.Engine {
+func NewHTTPHandler(cm *contractmanager.ContractManager, contractCollection *lib.Collection[resources.Contract], allocator *allocator.Allocator, globalHashrate *hr.GlobalHashrate, sysConfig *system.SystemConfigurator, publicUrl *url.URL, hashrateCounter string, cycleDuration time.Duration, config Sanitizable, derivedConfig *config.DerivedConfig, appStartTime time.Time, logStorage *lib.Collection[*interfaces.LogStorage], log interfaces.ILogger) *gin.Engine {
 	handl := &HTTPHandler{
+		cm:                     cm,
+		contractCollection:     contractCollection,
 		allocator:              allocator,
-		contractManager:        contractManager,
 		globalHashrate:         globalHashrate,
 		sysConfig:              sysConfig,
 		publicUrl:              publicUrl,

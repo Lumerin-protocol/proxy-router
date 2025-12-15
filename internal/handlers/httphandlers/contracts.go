@@ -41,25 +41,26 @@ func (h *HTTPHandler) CreateContract(ctx *gin.Context) {
 		_ = ctx.AbortWithError(http.StatusInternalServerError, err)
 		return
 	}
-	terms := hashrate.NewTerms(
-		lib.GetRandomAddr().String(),
-		lib.GetRandomAddr().String(),
-		lib.GetRandomAddr().String(),
-		now,
-		duration,
-		float64(hrGHS)*1e9,
-		big.NewInt(0),
-		0,
-		hashrate.BlockchainStateRunning,
-		false,
-		big.NewInt(0),
-		false,
-		0,
-		destEnc,
-		"",
-		"",
-	)
-	h.contractManager.AddContract(context.Background(), terms)
+	terms := &hashrate.EncryptedTerms{
+		BaseTerms: *hashrate.NewBaseTerms(
+			lib.GetRandomAddr().String(),
+			lib.GetRandomAddr().String(),
+			lib.GetRandomAddr().String(),
+			lib.GetRandomAddr().String(),
+			now,
+			duration,
+			float64(hrGHS)*1e9,
+			big.NewInt(0),
+			0,
+			false,
+			big.NewInt(0),
+			false,
+			0,
+		),
+		ValidatorUrlEncrypted: "",
+		DestEncrypted:         destEnc,
+	}
+	h.cm.AddContract(context.Background(), terms)
 
 	ctx.JSON(200, gin.H{"status": "ok"})
 }
@@ -68,7 +69,7 @@ func (c *HTTPHandler) GetContracts(ctx *gin.Context) {
 	data := []Contract{}
 	var errOuter error
 
-	c.contractManager.GetContracts().Range(func(item resources.Contract) bool {
+	c.contractCollection.Range(func(item resources.Contract) bool {
 		contract, err := c.mapContract(ctx, item)
 		if err != nil {
 			errOuter = err
@@ -124,7 +125,7 @@ func (c *HTTPHandler) GetContractsV2(ctx *gin.Context) {
 
 	var errOuter error
 
-	c.contractManager.GetContracts().Range(func(item resources.Contract) bool {
+	c.contractCollection.Range(func(item resources.Contract) bool {
 		if qp.IsDeleted != nil && *qp.IsDeleted && !item.IsDeleted() {
 			return true
 		}
@@ -223,7 +224,7 @@ func (c *HTTPHandler) GetContract(ctx *gin.Context) {
 		ctx.JSON(400, gin.H{"error": "contract id is required"})
 		return
 	}
-	contract, ok := c.contractManager.GetContracts().Load(contractID)
+	contract, ok := c.contractCollection.Load(contractID)
 	if !ok {
 		ctx.JSON(404, gin.H{"error": "contract not found"})
 		return
@@ -264,7 +265,7 @@ func (c *HTTPHandler) GetDeliveryLogs(ctx *gin.Context) {
 		ctx.JSON(400, gin.H{"error": "contract id is required"})
 		return
 	}
-	contract, ok := c.contractManager.GetContracts().Load(contractID)
+	contract, ok := c.contractCollection.Load(contractID)
 	if !ok {
 		ctx.JSON(404, gin.H{"error": "contract not found"})
 		return
