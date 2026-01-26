@@ -1,0 +1,79 @@
+echo "########## START DEPENDENCY BUILD ##########" | tee -a /home/${node_admin}/nodeident.log
+echo "########## Optional Setup Second Drive ##########" | tee -a /home/${node_admin}/nodeident.log
+%{if second_vol_create == true}
+    (
+    echo o
+    echo n
+    echo p
+    echo 1
+    echo 
+    echo 
+    echo t
+    echo 83
+    echo w
+    ) | fdisk /dev/nvme1n1 && mkfs.ext4 /dev/nvme1n1p1
+%{endif}
+
+echo "########## Update Packages ##########" | tee -a /home/${node_admin}/nodeident.log
+${update_command} update -y | tee -a /home/${node_admin}/nodeident.log
+echo "########## Latest Upgrades ##########" | tee -a /home/${node_admin}/nodeident.log
+${update_command} upgrade -y | tee -a /home/${node_admin}/nodeident.log
+
+echo "########## Install Specific Dependencies ##########" | tee -a /home/${node_admin}/nodeident.log
+${update_command} install -y net-tools | tee -a /home/${node_admin}/nodeident.log
+${update_command} install -y iftop | tee -a /home/${node_admin}/nodeident.log
+${update_command} install -y atop | tee -a /home/${node_admin}/nodeident.log
+${update_command} install -y multitail | tee -a /home/${node_admin}/nodeident.log
+${update_command} install -y git-core curl python3 g++ make python3-pip npm | tee -a /home/${node_admin}/nodeident.log
+${update_command} install -y gcc | tee -a /home/${node_admin}/nodeident.log
+${update_command} install -y jq | tee -a /home/${node_admin}/nodeident.log
+
+echo "########## Update Packages ##########" | tee -a /home/${node_admin}/nodeident.log
+${update_command} update -y | tee -a /home/${node_admin}/nodeident.log
+echo "########## Latest Upgrades ##########" | tee -a /home/${node_admin}/nodeident.log
+${update_command} upgrade -y | tee -a /home/${node_admin}/nodeident.log
+echo "########## END OF  DEPENDENCY BUILD ##########" | tee -a /home/${node_admin}/nodeident.log
+
+# echo "########## GoLangVersion upgrade ##########" | tee -a /home/${node_admin}/nodeident.log
+# cd /home/${node_admin}
+# wget https://go.dev/dl/go1.19.linux-amd64.tar.gz | tee -a /home/${node_admin}/nodeident.log
+# rm -rf /usr/local/go | tee -a /home/${node_admin}/nodeident.log
+# tar -C /usr/local -xzf go1.19.linux-amd64.tar.gz | tee -a /home/${node_admin}/nodeident.log
+# export GOROOT=/usr/local/go
+# echo "export PATH=$GOROOT/bin:$PATH" >/etc/profile.d/go.sh
+# go version | tee -a /home/${node_admin}/nodeident.log
+# echo Path: $PATH | tee -a /home/${node_admin}/nodeident.log
+# echo "########## END OF GoLangVersion upgrade ##########" | tee -a /home/${node_admin}/nodeident.log
+
+# echo "########## Wire Installation ##########" | tee -a /home/${node_admin}/nodeident.log
+# # snap install wire | tee -a /home/${node_admin}/nodeident.log
+# # go install github.com/google/wire/cmd/wire@latest  | tee -a /home/${node_admin}/nodeident.log
+# echo "########## END OF Wire Installation ##########" | tee -a /home/${node_admin}/nodeident.log
+
+echo "########## Install Ubuntu Desktop Specifics ##########" | tee -a /home/${node_admin}/nodeident.log
+${update_command} install -y ubuntu-desktop | tee -a /home/${node_admin}/nodeident.log
+${update_command} install -y tasksel | tee -a /home/${node_admin}/nodeident.log
+tasksel install ubuntu-mate-desktop | tee -a /home/${node_admin}/nodeident.log
+${update_command} install -y xrdp | tee -a /home/${node_admin}/nodeident.log
+
+wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb | tee -a /home/${node_admin}/nodeident.log
+sudo dpkg -i google-chrome-stable_current_amd64.deb | tee -a /home/${node_admin}/nodeident.log
+
+#CloneBedrockScripts DIR
+git clone https://oauth2:${bedrock_glpat}@gitlab.com/TitanInd/bedrock/bedrock.git /home/${node_admin}/bedrock | tee -a /home/${node_admin}/nodeident.log
+
+echo "########## Set Local Passwords ##########" | tee -a /home/${node_admin}/nodeident.log
+yes ${node_password} | passwd ${node_admin} | tee -a /home/${node_admin}/nodeident.log
+yes ${node_password} | passwd ubuntu | tee -a /home/${node_admin}/nodeident.log
+yes ${node_password} | passwd root | tee -a /home/${node_admin}/nodeident.log
+
+# echo "########## START File Sys expansion ##########" | tee -a /home/${node_admin}/nodeident.log 
+# echo "fs.file-max = 65535" >> /etc/sysctl.conf
+# echo "soft     nofile         65535
+# hard     nofile         65535
+# root soft     nofile         65535
+# root hard     nofile         65535" >> /etc/security/limits.conf
+# echo "session required pam_limits.so" >> /etc/pam.d/common-session
+# echo "########## END OF File Sys Expansion script ##########" | tee -a /home/${node_admin}/nodeident.log
+# echo "########## FINAL REBOOT ##########" | tee -a /home/${node_admin}/nodeident.log 
+# init 6

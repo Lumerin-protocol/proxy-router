@@ -1,0 +1,243 @@
+name: Contracts Go Release
+
+on:
+  # Manual trigger with version bump selection
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      dry_run:
+        description: 'Dry run (skip push to contracts-go)'
+        required: false
+        default: false
+        type: boolean
+
+  # Auto-trigger on contract changes to main
+  push:
+    branches: [main]
+    paths:
+      - 'contracts/validator-registry/**'
+      - 'contracts/util/**'
+
+concurrency:
+  group: contracts-release-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CONTRACTS_GO_REPO: Lumerin-protocol/contracts-go
+  NODE_VERSION: '20.x'
+  GO_VERSION: '1.22.x'
+
+jobs:
+  Build-and-Release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout proxy-router
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'yarn'
+          cache-dependency-path: contracts/yarn.lock
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install abigen
+        run: |
+          go install github.com/ethereum/go-ethereum/cmd/abigen@latest
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+      - name: Install contract dependencies
+        working-directory: contracts
+        run: yarn install --frozen-lockfile
+
+      - name: Compile contracts
+        working-directory: contracts
+        run: yarn compile
+
+      - name: Verify ABI generated
+        working-directory: contracts
+        run: |
+          if [ ! -f "./abi/ValidatorRegistry.json" ]; then
+            echo "❌ ABI file not found: ./abi/ValidatorRegistry.json"
+            exit 1
+          fi
+          echo "✅ ABI file found"
+
+      - name: Fetch current version from contracts-go
+        id: current_version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Fetch latest tag from contracts-go repo
+          LATEST_TAG=$(gh api repos/${{ env.CONTRACTS_GO_REPO }}/tags --jq '.[0].name // "v0.0.0"' 2>/dev/null || echo "v0.0.0")
+          
+          # Remove 'v' prefix if present
+          CURRENT_VERSION="${LATEST_TAG#v}"
+          
+          # Handle empty or invalid version
+          if [[ ! "$CURRENT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            CURRENT_VERSION="0.0.0"
+          fi
+          
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Current contracts-go version: v$CURRENT_VERSION"
+
+      - name: Calculate new version
+        id: new_version
+        run: |
+          CURRENT="${{ steps.current_version.outputs.current_version }}"
+          BUMP="${{ github.event.inputs.version_bump || 'patch' }}"
+          
+          # Parse current version
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          
+          # Increment based on bump type
+          case "$BUMP" in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+          
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "major_version=$MAJOR" >> $GITHUB_OUTPUT
+          echo "🆕 New version: v$NEW_VERSION (bump: $BUMP)"
+          
+          # Summary
+          echo "## Version Bump" >> $GITHUB_STEP_SUMMARY
+          echo "- **Current:** v$CURRENT" >> $GITHUB_STEP_SUMMARY
+          echo "- **New:** v$NEW_VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bump type:** $BUMP" >> $GITHUB_STEP_SUMMARY
+
+      - name: Update VERSION file
+        working-directory: contracts
+        run: |
+          echo "${{ steps.new_version.outputs.new_version }}" > VERSION
+          cat VERSION
+
+      - name: Build Go bindings
+        working-directory: contracts
+        run: |
+          ./build-go.sh
+          echo "✅ Go bindings built successfully"
+
+      - name: Verify Go bindings
+        working-directory: contracts
+        run: |
+          if [ ! -f "./build-go/validatorregistry/validatorregistry.go" ]; then
+            echo "❌ Go bindings not found"
+            exit 1
+          fi
+          
+          # Test that the Go module is valid
+          cd build-go
+          go mod verify
+          echo "✅ Go module verified"
+
+      - name: Release to contracts-go
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        working-directory: contracts/build-go
+        env:
+          GH_TOKEN: ${{ secrets.CONTRACTS_GO_PAT }}
+          VERSION: ${{ steps.new_version.outputs.new_version }}
+        run: |
+          # Verify PAT is set
+          if [ -z "$GH_TOKEN" ]; then
+            echo "❌ CONTRACTS_GO_PAT secret is not set"
+            echo "Please create a PAT with repo scope and add it as a repository secret"
+            exit 1
+          fi
+          
+          # Configure git
+          git config --global user.email "lumerin@titan.io"
+          git config --global user.name "Lumerin Bot"
+          
+          # Initialize fresh git repo
+          rm -rf .git
+          git init
+          git checkout -b main
+          
+          # Add remote with PAT authentication
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${{ env.CONTRACTS_GO_REPO }}.git"
+          
+          # Add and commit
+          git add .
+          git commit -m "release: v${VERSION}"
+          
+          # Fetch and merge with existing history
+          git fetch origin main 2>/dev/null || true
+          
+          if git rev-parse origin/main >/dev/null 2>&1; then
+            git merge origin/main --strategy=ours --allow-unrelated-histories -m "release: v${VERSION}" || true
+          fi
+          
+          # Create tag
+          git tag -a "v${VERSION}" -m "release v${VERSION}"
+          
+          # Push
+          git push -u --tags --set-upstream origin main --force
+          
+          echo "✅ Released v${VERSION} to ${{ env.CONTRACTS_GO_REPO }}"
+          
+          # Summary
+          echo "## Release Complete" >> $GITHUB_STEP_SUMMARY
+          echo "- **Repository:** [${{ env.CONTRACTS_GO_REPO }}](https://github.com/${{ env.CONTRACTS_GO_REPO }})" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag:** [v${VERSION}](https://github.com/${{ env.CONTRACTS_GO_REPO }}/releases/tag/v${VERSION})" >> $GITHUB_STEP_SUMMARY
+
+      - name: Dry run summary
+        if: ${{ github.event.inputs.dry_run == 'true' }}
+        working-directory: contracts/build-go
+        run: |
+          echo "🔍 DRY RUN - No changes pushed"
+          echo ""
+          echo "Would have released v${{ steps.new_version.outputs.new_version }}"
+          echo ""
+          echo "Generated files:"
+          find . -type f -name "*.go" | head -20
+          echo ""
+          echo "go.mod contents:"
+          cat go.mod
+          
+          echo "## Dry Run Complete" >> $GITHUB_STEP_SUMMARY
+          echo "- **Would release:** v${{ steps.new_version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Files generated:** $(find . -type f -name '*.go' | wc -l) Go files" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: contracts-go-v${{ steps.new_version.outputs.new_version }}
+          path: contracts/build-go/
+          retention-days: 30
