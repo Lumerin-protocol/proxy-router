@@ -7,7 +7,7 @@ Terraform/Terragrunt infrastructure for deploying Lumerin Proxy Router to AWS EC
 This `.bedrock` directory contains the infrastructure code for the Lumerin Proxy Router and Validator services. The infrastructure is co-located with the application code in the [proxy-router](https://github.com/lumerin-protocol/proxy-router) repository.
 
 This provides:
-- Infrastructure as Code alongside application code in a single repository
+- Infrastructure as Code alongside application code and ci/cd pipeline in a single repository
 - Visibility into infrastructure configuration for developers
 - Slack notifications when infrastructure changes (see `.github/workflows/infra-update.yml`)
 
