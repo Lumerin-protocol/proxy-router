@@ -91,10 +91,11 @@ runs:
       run: |
         # Set environment emoji and label
         case "$ENVIRONMENT" in
-          dev)   ENV_EMOJI="🔧"; ENV_LABEL="DEV" ;;
-          stg)   ENV_EMOJI="🧪"; ENV_LABEL="STG" ;;
-          main)  ENV_EMOJI="🚀"; ENV_LABEL="PROD" ;;
-          *)     ENV_EMOJI="📦"; ENV_LABEL="${ENVIRONMENT^^}" ;;
+          dev)          ENV_EMOJI="🔧"; ENV_LABEL="DEV" ;;
+          stg)          ENV_EMOJI="🧪"; ENV_LABEL="STG" ;;
+          main)         ENV_EMOJI="🚀"; ENV_LABEL="PROD" ;;
+          infra|INFRA)  ENV_EMOJI="🏗️"; ENV_LABEL="INFRA" ;;
+          *)            ENV_EMOJI="📦"; ENV_LABEL="${ENVIRONMENT^^}" ;;
         esac
         
         # Set status emoji and color
@@ -103,6 +104,7 @@ runs:
           failure)   STATUS_EMOJI="❌"; COLOR="danger"; STATUS_TEXT="Deployment Failed" ;;
           cancelled) STATUS_EMOJI="⚠️"; COLOR="warning"; STATUS_TEXT="Deployment Cancelled" ;;
           skipped)   STATUS_EMOJI="⏭️"; COLOR="#808080"; STATUS_TEXT="Skipped" ;;
+          updated)   STATUS_EMOJI="📝"; COLOR="#4A90D9"; STATUS_TEXT="Code Updated" ;;
           *)         STATUS_EMOJI="ℹ️"; COLOR="#808080"; STATUS_TEXT="$STATUS" ;;
         esac
         
