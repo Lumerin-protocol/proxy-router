@@ -1,18 +1,23 @@
-# Proxy Router Foundation
+# Proxy Router Infrastructure
 
 Terraform/Terragrunt infrastructure for deploying Lumerin Proxy Router to AWS ECS across multiple environments.
 
 ## Overview
 
-This repository manages the AWS infrastructure for the Lumerin Proxy Router and Validator services using Terraform and Terragrunt. The actual application code lives in the [proxy-router GitHub repository](https://github.com/lumerin-protocol/proxy-router).
+This `.bedrock` directory contains the infrastructure code for the Lumerin Proxy Router and Validator services. The infrastructure is co-located with the application code in the [proxy-router](https://github.com/lumerin-protocol/proxy-router) repository.
+
+This provides:
+- Infrastructure as Code alongside application code in a single repository
+- Visibility into infrastructure configuration for developers
+- Slack notifications when infrastructure changes (see `.github/workflows/infra-update.yml`)
 
 ## Architecture
 
 The deployment architecture consists of:
 
-- **Source Code**: GitHub repository (`lumerin-protocol/proxy-router`)
+- **Source Code & Infrastructure**: GitHub repository (`lumerin-protocol/proxy-router`)
 - **Container Registry**: GitHub Container Registry (GHCR)
-- **Infrastructure**: Terraform/Terragrunt (this repository)
+- **Infrastructure**: Terraform/Terragrunt (this `.bedrock/` directory)
 - **Deployment**: GitHub Actions with AWS OIDC authentication
 - **Secrets**: AWS Secrets Manager
 - **Compute**: AWS ECS Fargate
@@ -55,7 +60,8 @@ AWS ECS: Rolling Deployment with Circuit Breaker
 
 1. **Clone the repository**
    ```bash
-   cd /path/to/proxy-router-foundation
+   git clone https://github.com/lumerin-protocol/proxy-router.git
+   cd proxy-router/.bedrock
    ```
 
 2. **Configure AWS profiles**
@@ -100,7 +106,7 @@ GitHub Actions will automatically:
 To update infrastructure (not application code):
 
 ```bash
-cd 02-dev  # or 03-stg, 04-lmn
+cd .bedrock/02-dev  # or 03-stg, 04-lmn
 terragrunt plan
 terragrunt apply
 ```
@@ -287,10 +293,10 @@ cd 02-dev  # Choose appropriate environment
 terragrunt destroy
 ```
 
-## Repository Structure
+## Directory Structure
 
 ```
-.
+.bedrock/
 ├── .ai-docs/                    # Architecture documentation
 ├── .terragrunt/                 # Terraform modules
 │   ├── 00_*.tf                  # Variables, providers, data sources
@@ -305,22 +311,21 @@ terragrunt destroy
 ├── 03-stg/                      # Staging environment
 ├── 04-lmn/                      # Production environment
 ├── root.hcl                     # Terragrunt root config
-└── README.md                    # This file
+└── README.md                    # This documentation
 ```
 
 ## Support
 
 For issues related to:
-- **Infrastructure**: Create issue in this repository
-- **Application Code**: Create issue in [proxy-router repository](https://github.com/lumerin-protocol/proxy-router)
+- **Infrastructure or Application Code**: Create issue in [proxy-router](https://github.com/lumerin-protocol/proxy-router)
 - **Deployment Issues**: Check GitHub Actions logs and ECS service events
 
 ## Contributing
 
-1. Create feature branch
-2. Make changes
+1. Create feature branch from `dev`
+2. Make changes (application code and/or infrastructure)
 3. Test in development environment
-4. Submit merge request
+4. Submit pull request
 5. Deploy to staging for validation
 6. Deploy to production after approval
 

@@ -14,14 +14,16 @@ on:
   
   pull_request:
     types: [opened, reopened, synchronize]
-    paths: [ 
-      'build.sh', 
-      'docker-compose.yml', 
-      'Dockerfile', 
-      '**/*.go', 
-      '**/*.ts', 
-      '**/*.js', 
-      '.github/workflows/build-deploy-proxy-router.yml']
+    branches:
+      - dev
+    paths:
+      - 'build.sh'
+      - 'docker-compose.yml'
+      - 'Dockerfile'
+      - '**/*.go'
+      - '**/*.ts'
+      - '**/*.js'
+      - '.github/workflows/build-deploy-proxy-router.yml'
 
 concurrency:
   group: ci-${{ github.ref }}
