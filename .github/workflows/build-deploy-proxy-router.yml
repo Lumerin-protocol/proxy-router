@@ -1,13 +1,27 @@
-name: CI-CD
+name: Build and Deploy Proxy Router 
 
 on:
   push:
     branches: [ main, stg, dev, cicd/* ]
-    paths: [ 'build.sh', 'docker-compose.yml', 'Dockerfile', '**/*.go', '**/*.ts', '**/*.js', '.github/workflows/**' ]
+    paths: [ 
+      'build.sh', 
+      'docker-compose.yml', 
+      'Dockerfile', 
+      '**/*.go', 
+      '**/*.ts', 
+      '**/*.js', 
+      '.github/workflows/build-deploy-proxy-router.yml']
   
   pull_request:
     types: [opened, reopened, synchronize]
-    paths: [ 'build.sh', 'docker-compose.yml', 'Dockerfile', '**/*.go', '**/*.ts', '**/*.js', '.github/workflows/**' ]
+    paths: [ 
+      'build.sh', 
+      'docker-compose.yml', 
+      'Dockerfile', 
+      '**/*.go', 
+      '**/*.ts', 
+      '**/*.js', 
+      '.github/workflows/build-deploy-proxy-router.yml']
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -526,7 +540,7 @@ jobs:
         with:
           status: ${{ steps.status.outputs.status }}
           environment: ${{ needs.Generate-Tag.outputs.environment }}
-          service_name: 'Proxy Router'
+          service_name: 'Proxy Seller & Validator'
           version: ${{ needs.Generate-Tag.outputs.tag_name }}
           slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
