@@ -24,14 +24,19 @@ jobs:
         id: changes
         run: |
           # Get list of changed files in .bedrock directory
-          CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r ${{ github.sha }} -- .bedrock/ | head -10)
-          CHANGED_COUNT=$(git diff-tree --no-commit-id --name-only -r ${{ github.sha }} -- .bedrock/ | wc -l | tr -d ' ')
+          # Use HEAD^..HEAD to handle merge commits (compares against first parent)
+          CHANGED_FILES=$(git diff --name-only HEAD^..HEAD -- .bedrock/ | head -10)
+          CHANGED_COUNT=$(git diff --name-only HEAD^..HEAD -- .bedrock/ | wc -l | tr -d ' ')
           
           # Build a compact list of changed paths
-          CHANGED_LIST=$(echo "$CHANGED_FILES" | sed 's/^/• `/' | sed 's/$/`/')
-          
-          if [ "$CHANGED_COUNT" -gt 10 ]; then
-            CHANGED_LIST=$(printf "%s\n• _...and %d more files_" "$CHANGED_LIST" "$((CHANGED_COUNT - 10))")
+          if [ "$CHANGED_COUNT" -gt 0 ]; then
+            CHANGED_LIST=$(echo "$CHANGED_FILES" | sed 's/^/• `/' | sed 's/$/`/')
+            
+            if [ "$CHANGED_COUNT" -gt 10 ]; then
+              CHANGED_LIST=$(printf "%s\n• _...and %d more files_" "$CHANGED_LIST" "$((CHANGED_COUNT - 10))")
+            fi
+          else
+            CHANGED_LIST="• _No files detected_"
           fi
           
           # Build the additional info markdown
