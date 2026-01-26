@@ -1,0 +1,18 @@
+# Terraform state files
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+.terragrunt-cache/
+
+# Sensitive variable files
+*.auto.tfvars
+secret.tfvars
+secret.*
+
+# Plan outputs
+*.plan
+*.out
+
+# Zip files for Lambda
+*.zip
