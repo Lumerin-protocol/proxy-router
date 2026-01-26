@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Hardhat files
+cache/
+artifacts/
+
+# TypeChain files
+typechain/
+typechain-types/
+
+# solidity-coverage files
+coverage/
+coverage.json
+
+# Generated code
+build-go/
+build-js/
+abi/
+
+# Foundry
+out/
+
+# Tests
+test-temp/
+
+# OS files
+.DS_Store
+
+# Editor
+.vscode/
+
+# Misc
+*.tmp
+*.log

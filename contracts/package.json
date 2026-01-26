@@ -1,0 +1,56 @@
+{
+  "name": "proxy-router-contracts",
+  "version": "1.0.0",
+  "description": "Smart contracts for proxy-router ValidatorRegistry",
+  "main": "index.js",
+  "author": "Lumerin",
+  "license": "MIT",
+  "engines": {
+    "node": "20.x"
+  },
+  "scripts": {
+    "install": "yarn",
+    "compile": "hardhat compile",
+    "clean": "rm -rf abi artifacts cache build-go build-js typechain typechain-types",
+    "format:sol": "forge fmt",
+    "format:ts": "biome format --write ./scripts ./lib",
+    "lint": "biome check ./scripts ./lib",
+    "lint:fix": "biome check --apply ./scripts ./lib",
+    "deploy:validator-registry": "hardhat run --network default ./scripts/deploy-validator-registry.ts",
+    "update:validator-registry": "hardhat run --network default ./scripts/update-validator-registry.ts",
+    "build:go": "./build-go.sh",
+    "test": "hardhat test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.2.4",
+    "@cyfrin/aderyn": "^0.5.13",
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
+    "@nomicfoundation/hardhat-ethers": "^3.0.0",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.12",
+    "@nomicfoundation/hardhat-verify": "^2.1.1",
+    "@nomicfoundation/hardhat-viem": "^2.1.1",
+    "@openzeppelin/contracts": "npm:@openzeppelin/contracts@5.1.0",
+    "@openzeppelin/contracts-upgradeable": "npm:@openzeppelin/contracts-upgradeable@5.1.0",
+    "@solarity/solidity-lib": "3.1.0",
+    "@typechain/ethers-v5": "^11.1.2",
+    "@types/chai": "^4.2.0",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.11.6",
+    "chai": "^4.2.0",
+    "ethers": "5.5.4",
+    "hardhat": "2.26.3",
+    "hardhat-gas-reporter": "2.3.0",
+    "hardhat-storage-layout": "^0.1.7",
+    "solidity-coverage": "^0.8.16",
+    "ts-node": "^10.9.2",
+    "typechain": "^8.3.0",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.0.5",
+    "@openzeppelin/hardhat-upgrades": "^1.25.0",
+    "dotenv": "^16.4.1",
+    "hardhat-abi-exporter": "^2.10.1",
+    "viem": "^2.42.1"
+  }
+}
