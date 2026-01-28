@@ -86,7 +86,6 @@ resource "aws_ecs_task_definition" "proxy_validator_use1_1" {
       launch_type = "FARGATE"
       essential   = true
       environment = [
-        { "name" : "FUTURES_SUBGRAPH_URL", "value" : var.account_lifecycle == "prd" ? "https://graph.lmn.lumerin.io/subgraphs/name/futures" : "https://graph.${var.account_lifecycle}.lumerin.io/subgraphs/name/futures" },
         { "name" : "MULTICALL_ADDRESS", "value" : "0xcA11bde05977b3631167028862bE2a173976CA11" },
         { "name" : "FUTURES_ADDRESS", "value" : var.futures_address },
         # { "name" : "FUTURES_VALIDATOR_URL_OVERRIDE", "value" : var.futures_validator_url_override },
@@ -131,7 +130,8 @@ resource "aws_ecs_task_definition" "proxy_validator_use1_1" {
       ]
       secrets = [
         { "name" : "WALLET_PRIVATE_KEY", "valueFrom" : "${aws_secretsmanager_secret.proxy_validator[0].arn}:wallet_private_key::" },
-        { "name" : "ETH_NODE_ADDRESS", "valueFrom" : "${aws_secretsmanager_secret.proxy_validator[0].arn}:eth_node_address::" }
+        { "name" : "ETH_NODE_ADDRESS", "valueFrom" : "${aws_secretsmanager_secret.proxy_validator[0].arn}:eth_node_address::" },
+        { "name" : "FUTURES_SUBGRAPH_URL", "valueFrom" : "${aws_secretsmanager_secret.proxy_validator[0].arn}:futures_subgraph_url::" }
       ]
       portMappings = [
         {
