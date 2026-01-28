@@ -101,8 +101,10 @@ jobs:
           run: |
             BUILDTAG=${{ needs.Generate-Tag.outputs.tag_name }}
             BUILDIMAGE=${{ needs.Generate-Tag.outputs.image_name }}
+            # Construct Graph URL from org secrets/vars (using DEV for CI testing)
+            FUTURES_SUBGRAPH_URL="https://gateway.thegraph.com/api/${{ secrets.DEV_GRAPH_APIKEY }}/subgraphs/id/${{ vars.DEV_FUTURES_SUBGRAPH_ID }}"
             docker run -d --name proxy-router-test \
-              -e FUTURES_SUBGRAPH_URL=${{ vars.FUTURES_SUBGRAPH_URL }} \
+              -e FUTURES_SUBGRAPH_URL="${FUTURES_SUBGRAPH_URL}" \
               -e MULTICALL_ADDRESS=${{ vars.MULTICALL_ADDRESS }} \
               -e FUTURES_ADDRESS=${{ vars.FUTURES_ADDRESS }} \
               -e FUTURES_VALIDATOR_URL_OVERRIDE=${{ vars.FUTURES_VALIDATOR_URL_OVERRIDE }} \
