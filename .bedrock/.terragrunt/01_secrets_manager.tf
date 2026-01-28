@@ -27,8 +27,9 @@ resource "aws_secretsmanager_secret_version" "proxy_router" {
   count     = var.proxy_router["create"] ? 1 : 0
   secret_id = aws_secretsmanager_secret.proxy_router[0].id
   secret_string = jsonencode({
-    wallet_private_key = var.proxy_wallet_private_key
-    eth_node_address   = var.proxy_eth_node_address
+    wallet_private_key   = var.proxy_wallet_private_key
+    eth_node_address     = var.proxy_eth_node_address
+    futures_subgraph_url = "https://gateway.thegraph.com/api/${var.graph_api_key}/subgraphs/id/${var.futures_subgraph_id}"
   })
 }
 
@@ -55,8 +56,9 @@ resource "aws_secretsmanager_secret_version" "proxy_validator" {
   count     = var.proxy_validator["create"] ? 1 : 0
   secret_id = aws_secretsmanager_secret.proxy_validator[0].id
   secret_string = jsonencode({
-    wallet_private_key = var.validator_wallet_private_key
-    eth_node_address   = var.validator_eth_node_address
+    wallet_private_key   = var.validator_wallet_private_key
+    eth_node_address     = var.validator_eth_node_address
+    futures_subgraph_url = "https://gateway.thegraph.com/api/${var.graph_api_key}/subgraphs/id/${var.futures_subgraph_id}"
   })
 }
 
