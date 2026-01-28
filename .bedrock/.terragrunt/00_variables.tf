@@ -330,3 +330,17 @@ variable "validator_eth_node_address" {
   sensitive   = true
   default     = ""
 }
+
+variable "graph_api_key" {
+  description = "The Graph API Key for accessing published subgraphs"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "futures_subgraph_id" {
+  description = "The Graph Subgraph ID for Futures (from published subgraph)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}

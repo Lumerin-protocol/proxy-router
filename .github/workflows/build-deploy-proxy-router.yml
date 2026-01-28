@@ -38,12 +38,13 @@ jobs:
     runs-on: ubuntu-latest
     name: Generate Tag Name
     outputs:
-      tag_name: ${{ steps.gen_tag_name.outputs.tag_name }}
-      vtag: ${{ steps.gen_tag_name.outputs.vtag }}
-      vfull: ${{ steps.gen_tag_name.outputs.vfull }}
-      image_name: ${{ steps.gen_tag_name.outputs.image_name }}
-      environment: ${{ steps.gen_tag_name.outputs.environment }}
-      is_cicd_branch: ${{ steps.gen_tag_name.outputs.is_cicd_branch }}
+      tag_name: ${{ steps.gen_tag.outputs.tag_name }}
+      vtag: ${{ steps.gen_tag.outputs.vtag }}
+      vfull: ${{ steps.gen_tag.outputs.vfull }}
+      version: ${{ steps.gen_tag.outputs.version }}
+      image_name: ${{ steps.config.outputs.image_name }}
+      environment: ${{ steps.gen_tag.outputs.environment }}
+      is_cicd_branch: ${{ steps.gen_tag.outputs.is_cicd_branch }}
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -51,70 +52,20 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Determine tag name
-        id: gen_tag_name
-        shell: bash
+      - name: Generate version tag
+        id: gen_tag
+        uses: ./.github/actions/gen-tag
+        with:
+          component: proxy-router
+          major_version: '3'
+
+      - name: Config
+        id: config
         run: |
           IMAGE_NAME="ghcr.io/lumerin-protocol/proxy-router"
-          VMAJ_NEW=1
-          VMIN_NEW=2
-          VPAT_NEW=4
-          IS_CICD="false"
-          set +o pipefail
-          VLAST=$(git describe --tags --abbrev=0 --match='v[1-9]*' refs/remotes/origin/main 2>/dev/null | cut -c2-)
-          
-          if [ -n "$VLAST" ]; then
-              eval $(echo "$VLAST" | awk -F '.' '{print "VMAJ="$1" VMIN="$2" VPAT="$3}')
-          else
-              VMAJ=0
-              VMIN=0
-              VPAT=0
-          fi
-
-          # Determine environment
-          if [ "$GITHUB_REF_NAME" = "main" ]; then
-              ENV="main"
-          elif [ "$GITHUB_REF_NAME" = "stg" ]; then
-              ENV="stg"
-          elif [[ "$GITHUB_REF_NAME" == cicd/* ]]; then
-              ENV="dev"
-              IS_CICD="true"
-              echo "🔧 CI/CD test branch detected - will run build test only"
-          else
-              ENV="dev"
-          fi
-
-          if [ "$GITHUB_REF_NAME" = "main" ]; then
-              if [ "$VMAJ_NEW" -gt "$VMAJ" ]; then
-                  VMAJ=$VMAJ_NEW
-                  VMIN=$VMIN_NEW
-                  VPAT=$VPAT_NEW
-              else
-                  VMIN=$((VMIN+1))
-                  VPAT=0
-              fi
-              VFULL=${VMAJ}.${VMIN}.${VPAT}
-              VTAG=v$VFULL
-          else
-              MB=$(git merge-base refs/remotes/origin/main HEAD)
-              VPAT=$(git rev-list --count --no-merges ${MB}..HEAD)
-              VFULL=${VMAJ}.${VMIN}.${VPAT}
-              RNAME=${GITHUB_REF_NAME##*/}
-              [ "$GITHUB_EVENT_NAME" = "pull_request" ] && RNAME=pr${GITHUB_REF_NAME%/merge}
-              VTAG=v${VFULL}-${RNAME}
-          fi
-
-          # Output variables for use in subsequent jobs environment
-          echo "tag_name=${VTAG}" >> $GITHUB_OUTPUT
-          echo "vtag=${VTAG}" >> $GITHUB_OUTPUT
-          echo "vfull=${VFULL}" >> $GITHUB_OUTPUT
           echo "image_name=${IMAGE_NAME}" >> $GITHUB_OUTPUT
-          echo "environment=${ENV}" >> $GITHUB_OUTPUT
-          echo "is_cicd_branch=${IS_CICD}" >> $GITHUB_OUTPUT
-          echo "✅ New Build Tag: $VTAG" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Docker Image: ${IMAGE_NAME}:${VTAG}" >> $GITHUB_STEP_SUMMARY
-          echo "🌍 Environment: ${ENV}" >> $GITHUB_STEP_SUMMARY
-          if [ "$IS_CICD" == "true" ]; then
+          echo "✅ Docker Image: ${IMAGE_NAME}:${{ steps.gen_tag.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.gen_tag.outputs.is_cicd_branch }}" == "true" ]; then
             echo "🔧 CI/CD Test Mode: Build test only" >> $GITHUB_STEP_SUMMARY
           fi
 
@@ -150,8 +101,10 @@ jobs:
           run: |
             BUILDTAG=${{ needs.Generate-Tag.outputs.tag_name }}
             BUILDIMAGE=${{ needs.Generate-Tag.outputs.image_name }}
+            # Construct Graph URL from org secrets/vars (using DEV for CI testing)
+            FUTURES_SUBGRAPH_URL="https://gateway.thegraph.com/api/${{ secrets.DEV_GRAPH_APIKEY }}/subgraphs/id/${{ vars.DEV_FUTURES_SUBGRAPH_ID }}"
             docker run -d --name proxy-router-test \
-              -e FUTURES_SUBGRAPH_URL=${{ vars.FUTURES_SUBGRAPH_URL }} \
+              -e FUTURES_SUBGRAPH_URL="${FUTURES_SUBGRAPH_URL}" \
               -e MULTICALL_ADDRESS=${{ vars.MULTICALL_ADDRESS }} \
               -e FUTURES_ADDRESS=${{ vars.FUTURES_ADDRESS }} \
               -e FUTURES_VALIDATOR_URL_OVERRIDE=${{ vars.FUTURES_VALIDATOR_URL_OVERRIDE }} \
