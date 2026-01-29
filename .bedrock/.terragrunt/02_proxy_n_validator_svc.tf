@@ -18,7 +18,7 @@ output "proxy_validator_api_target" { value = var.proxy_validator["create"] ? "u
 
 # Define Service (watch for conflict with Gitlab CI/CD)
 resource "aws_ecs_service" "proxy_validator_use1_1" {
-  # lifecycle {ignore_changes        = [desired_count, task_definition] }
+  lifecycle {ignore_changes        = [desired_count, task_definition] }
   count                  = var.proxy_validator["create"] ? 1 : 0
   provider               = aws.use1
   name                   = "svc-${var.proxy_validator["svc_name"]}-${substr(var.account_shortname, 8, 3)}-${var.region_shortname}"
@@ -65,9 +65,7 @@ resource "aws_ecs_service" "proxy_validator_use1_1" {
 
 # Define Task  
 resource "aws_ecs_task_definition" "proxy_validator_use1_1" {
-
-  # lifecycle {ignore_changes = [container_definitions]}
-  
+  lifecycle {ignore_changes = [container_definitions]}
   count                    = var.proxy_validator["create"] ? 1 : 0
   provider                 = aws.use1
   family                   = "tsk-${var.proxy_validator["svc_name"]}"

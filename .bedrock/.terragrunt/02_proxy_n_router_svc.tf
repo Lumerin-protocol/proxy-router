@@ -18,10 +18,7 @@ output "CI_AWS_ECR_CLUSTER_REGION" { value = var.proxy_router["create"] ? var.re
 
 # Define Service (watch for conflict with Gitlab CI/CD)
 resource "aws_ecs_service" "proxy_router_use1_1" {
-  # lifecycle {
-  #   ignore_changes        = [desired_count, task_definition] # May want to change this to kick update to prod when new task is replicated 
-  #   create_before_destroy = true
-  # }
+  lifecycle {ignore_changes        = [desired_count, task_definition]}
   count                  = var.proxy_router["create"] ? 1 : 0
   provider               = aws.use1
   name                   = "svc-${var.proxy_router["svc_name"]}-${substr(var.account_shortname, 8, 3)}-${var.region_shortname}"
@@ -68,7 +65,7 @@ resource "aws_ecs_service" "proxy_router_use1_1" {
 
 # Define Task  
 resource "aws_ecs_task_definition" "proxy_router_use1_1" {
-  # lifecycle {ignore_changes = [container_definitions]}
+  lifecycle {ignore_changes = [container_definitions]}
   count                    = var.proxy_router["create"] ? 1 : 0
   provider                 = aws.use1
   family                   = "tsk-${var.proxy_router["svc_name"]}"
