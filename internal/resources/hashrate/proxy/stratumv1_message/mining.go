@@ -59,6 +59,6 @@ func ParseStratumMessage(raw []byte) (interfaces.MiningMessageGeneric, error) {
 			return ParseMiningResult(raw)
 		}
 
-		return nil, ErrStratumV1Unknown
+		return msg, nil
 	}
 }
