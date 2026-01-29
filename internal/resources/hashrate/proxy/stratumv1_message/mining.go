@@ -51,6 +51,9 @@ func ParseStratumMessage(raw []byte) (interfaces.MiningMessageGeneric, error) {
 	case MethodMiningSetExtranonce:
 		return ParseMiningSetExtranonce(raw)
 
+	case MethodExtranonceSubscribe:
+		return ParseMiningExtranonceSubscribe(raw)
+
 	default:
 		if msg.Result != nil {
 			return ParseMiningResult(raw)
