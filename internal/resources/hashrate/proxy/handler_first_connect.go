@@ -137,28 +137,10 @@ func (p *HandlerFirstConnect) getPoolDest(contractID string) (*url.URL, error) {
 func (p *HandlerFirstConnect) onMiningConfigure(ctx context.Context, msgTyped *m.MiningConfigure) error {
 	p.proxy.source.SetVersionRolling(msgTyped.GetVersionRolling())
 
-	var destURL *url.URL
-	contractID := msgTyped.GetLMRContractAddress()
-	if contractID != "" {
-		poolDestStr, err := p.getPoolDest(contractID)
-		if err != nil {
-			return err
-		}
-		destURL = poolDestStr
-	}
-
-	if destURL == nil {
-		destURL = p.proxy.destURL.Load()
-	}
-
-	destConn, err := p.proxy.destFactory(ctx, destURL, p.proxy.GetSourceWorkerName(), p.proxy.source.conn.conn.RemoteAddr().String()) // set dest from contract store
+	err := p.maybeCreateDestConn(ctx, msgTyped)
 	if err != nil {
 		return err
 	}
-
-	p.proxy.dest = destConn
-	p.handshakePipe.SetStream2(destConn)
-	p.handshakePipe.StartStream2()
 
 	p.proxy.dest.onceResult(ctx, msgTyped.GetID(), func(res *sm.MiningResult) (msg i.MiningMessageWithID, err error) {
 		configureResult, err := m.ToMiningConfigureResult(res)
@@ -168,7 +150,7 @@ func (p *HandlerFirstConnect) onMiningConfigure(ctx context.Context, msgTyped *m
 		}
 
 		vr, mask := configureResult.GetVersionRolling(), configureResult.GetVersionRollingMask()
-		destConn.SetVersionRolling(vr, mask)
+		p.proxy.dest.SetVersionRolling(vr, mask)
 		p.proxy.source.SetNegotiatedVersionRollingMask(mask)
 
 		configureResult.SetID(msgTyped.GetID())
@@ -196,11 +178,26 @@ func (p *HandlerFirstConnect) onMiningConfigure(ctx context.Context, msgTyped *m
 	return nil
 }
 
-func (p *HandlerFirstConnect) onMiningSubscribe(ctx context.Context, msgTyped *m.MiningSubscribe) error {
-	minerSubscribeReceived = true
-
+func (p *HandlerFirstConnect) maybeCreateDestConn(ctx context.Context, msgTyped *sm.MiningConfigure) error {
 	if p.proxy.dest == nil {
-		destConn, err := p.proxy.destFactory(ctx, p.proxy.destURL.Load(), p.proxy.GetSourceWorkerName(), p.proxy.source.conn.conn.RemoteAddr().String())
+		var destURL *url.URL
+		var contractID string
+		if msgTyped != nil {
+			contractID = msgTyped.GetLMRContractAddress()
+		}
+		if contractID != "" {
+			poolDestStr, err := p.getPoolDest(contractID)
+			if err != nil {
+				return err
+			}
+			destURL = poolDestStr
+		}
+
+		if destURL == nil {
+			destURL = p.proxy.destURL.Load()
+		}
+
+		destConn, err := p.proxy.destFactory(ctx, destURL, p.proxy.GetSourceWorkerName(), p.proxy.source.conn.conn.RemoteAddr().String()) // set dest from contract store
 		if err != nil {
 			return err
 		}
@@ -208,6 +205,16 @@ func (p *HandlerFirstConnect) onMiningSubscribe(ctx context.Context, msgTyped *m
 		p.proxy.dest = destConn
 		p.handshakePipe.SetStream2(destConn)
 		p.handshakePipe.StartStream2()
+	}
+	return nil
+}
+
+func (p *HandlerFirstConnect) onMiningSubscribe(ctx context.Context, msgTyped *m.MiningSubscribe) error {
+	minerSubscribeReceived = true
+
+	err := p.maybeCreateDestConn(ctx, nil)
+	if err != nil {
+		return err
 	}
 
 	p.proxy.dest.onceResult(ctx, msgTyped.GetID(), func(res *sm.MiningResult) (msg i.MiningMessageWithID, err error) {
@@ -228,7 +235,7 @@ func (p *HandlerFirstConnect) onMiningSubscribe(ctx context.Context, msgTyped *m
 		return nil, nil
 	})
 
-	err := p.proxy.dest.Write(ctx, msgTyped)
+	err = p.proxy.dest.Write(ctx, msgTyped)
 	if err != nil {
 		return lib.WrapError(ErrHandshakeDest, err)
 	}
