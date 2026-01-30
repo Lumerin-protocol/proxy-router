@@ -11,7 +11,7 @@ import (
 )
 
 func TestGetAllPositions(t *testing.T) {
-	client := NewClient("https://graphidx.dev.lumerin.io/subgraphs/name/marketplace")
+	client := NewClient("https://api.studio.thegraph.com/query/1724245/lumerin-dev-futures/version/latest")
 	deliveryAt := time.Unix(1763679600, 0)
 	positions, err := client.GetAllPositions(context.Background(), deliveryAt)
 	fmt.Printf("%+v\n", positions)
@@ -20,7 +20,7 @@ func TestGetAllPositions(t *testing.T) {
 }
 
 func TestGetPositionsBySeller(t *testing.T) {
-	client := NewClient("https://graphidx.dev.lumerin.io/subgraphs/name/marketplace")
+	client := NewClient("https://api.studio.thegraph.com/query/1724245/lumerin-dev-futures/version/latest")
 	participantAddress := common.HexToAddress("0xb4b12a69fdbb70b31214d4d3c063752c186ff8de")
 	deliveryAt := time.Unix(1763679600, 0)
 	positions, err := client.GetPositionsBySeller(context.Background(), participantAddress, deliveryAt)
