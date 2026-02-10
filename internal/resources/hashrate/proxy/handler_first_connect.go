@@ -69,6 +69,11 @@ func (p *HandlerFirstConnect) handleSource(ctx context.Context, msg i.MiningMess
 	case *m.MiningAuthorize:
 		return nil, p.onMiningAuthorize(ctx, msgTyped)
 
+	case *m.MiningExtranonceSubscribe:
+		// Pass through extranonce subscription to pool
+		p.proxy.logDebugf("forwarding mining.extranonce.subscribe from source")
+		return nil, p.proxy.dest.Write(ctx, msgTyped)
+
 	case *m.MiningSubmit:
 		return nil, fmt.Errorf("unexpected handshake message from source: %s", string(msg.Serialize()))
 
