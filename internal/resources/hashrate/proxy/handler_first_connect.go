@@ -72,15 +72,22 @@ func (p *HandlerFirstConnect) handleSource(ctx context.Context, msg i.MiningMess
 	case *m.MiningExtranonceSubscribe:
 		// Pass through extranonce subscription to pool
 		p.proxy.logDebugf("forwarding mining.extranonce.subscribe from source")
-		return nil, p.proxy.dest.Write(ctx, msgTyped)
+		if p.proxy.dest != nil {
+			return nil, p.proxy.dest.Write(ctx, msgTyped)
+		}
+		return nil, nil
 
 	case *m.MiningSubmit:
 		return nil, fmt.Errorf("unexpected handshake message from source: %s", string(msg.Serialize()))
 
 	default:
 		p.proxy.logWarnf("unknown handshake message from source: %s", string(msg.Serialize()))
-		// todo: maybe just return message, so pipe will write it
-		return nil, p.proxy.dest.Write(ctx, msgTyped)
+		// Only forward if destination is initialized
+		if p.proxy.dest != nil {
+			return nil, p.proxy.dest.Write(ctx, msgTyped)
+		}
+		// Drop message if destination not ready
+		return nil, nil
 	}
 }
 
