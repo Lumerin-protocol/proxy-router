@@ -450,5 +450,21 @@ func (p *Proxy) logErrorf(template string, args ...interface{}) {
 	p.logWithContext(p.log.Errorw, template, args...)
 }
 func (p *Proxy) logWithContext(logFn func(t string, a ...interface{}), t string, a ...interface{}) {
-	logFn(fmt.Sprintf(t, a...), "DstAddr", p.dest.ID(), "DstPort", lib.ParsePort(p.dest.conn.conn.LocalAddr().String()))
+	logFields := []interface{}{}
+
+	// Add destination address if available
+	if p.dest != nil {
+		logFields = append(logFields, "DstAddr", p.dest.ID())
+
+		// Add port if connection is established
+		if p.dest.conn != nil && p.dest.conn.conn != nil {
+			logFields = append(logFields, "DstPort", lib.ParsePort(p.dest.conn.conn.LocalAddr().String()))
+		} else {
+			logFields = append(logFields, "DstPort", "not-connected")
+		}
+	} else {
+		logFields = append(logFields, "DstAddr", "not-initialized", "DstPort", "not-connected")
+	}
+
+	logFn(fmt.Sprintf(t, a...), logFields...)
 }
