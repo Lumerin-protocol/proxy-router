@@ -1,6 +1,6 @@
 ########### WALLET BALANCE MONITOR ###########
-# Monitors ETH, USDC, and LMR balances for specified wallets on Arbitrum
-# Publishes metrics to CloudWatch with wallet name dimensions for alerting
+# Monitors ETH and token balances for specified wallets on the configured chain.
+# Publishes metrics to CloudWatch with wallet name dimensions for alerting.
 
 import urllib.request
 import json
@@ -11,24 +11,24 @@ from datetime import datetime
 
 ########### CONFIGURATION ###########
 # Get environment variables
-eth_chain_id = os.environ.get("ETH_CHAIN", "42161")  # Default to Arbitrum One
+eth_chain_id = os.environ.get("ETH_CHAIN", "8453")  # Base mainnet
 eth_api_key = os.environ.get("ETH_API_KEY", "")
 cw_namespace = os.environ.get("CW_NAMESPACE", "wallet-monitor")
 region_name = os.environ.get("REGION_NAME", "us-east-1")
 
-# Token contract addresses by chain ID
-# These are the well-known token addresses for Arbitrum
+# Token contract addresses by chain ID. LMR is not deployed on Base, so that
+# balance stays zero unless an address is supplied.
 TOKEN_ADDRESSES = {
-    # Arbitrum One (mainnet)
-    "42161": {
-        "lmr": os.environ.get("LMR_TOKEN_ADDRESS", "0xaf5db6e1cc585ca312e8c8f7c499033590cf5c98"),
-        "usdc": os.environ.get("USDC_TOKEN_ADDRESS", "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"),
+    # Base mainnet
+    "8453": {
+        "lmr": os.environ.get("LMR_TOKEN_ADDRESS", "0x0000000000000000000000000000000000000000"),
+        "usdc": os.environ.get("USDC_TOKEN_ADDRESS", "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
     },
-    # Arbitrum Sepolia (testnet)
-    "421614": {
-        "lmr": os.environ.get("LMR_TOKEN_ADDRESS", "0x0000000000000000000000000000000000000000"),  # Test token
-        "usdc": os.environ.get("USDC_TOKEN_ADDRESS", "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d"),  # Circle test USDC
-    }
+    # Base Sepolia
+    "84532": {
+        "lmr": os.environ.get("LMR_TOKEN_ADDRESS", "0x0000000000000000000000000000000000000000"),
+        "usdc": os.environ.get("USDC_TOKEN_ADDRESS", "0xdd15eed84065a58c9e9ff9e95fb996be0fff22aa"),
+    },
 }
 
 # Token decimals
@@ -111,7 +111,13 @@ def get_wallet_balances(wallet_name, wallet_address):
     print(f"\n--- Fetching balances for {wallet_name} ({wallet_address[:10]}...) ---")
     
     # Get token addresses for current chain
-    tokens = TOKEN_ADDRESSES.get(eth_chain_id, TOKEN_ADDRESSES["42161"])
+    tokens = TOKEN_ADDRESSES.get(eth_chain_id)
+    if tokens is None:
+        print(f"No token map for chain {eth_chain_id}; skipping token balances")
+        tokens = {
+            "lmr": "0x0000000000000000000000000000000000000000",
+            "usdc": "0x0000000000000000000000000000000000000000",
+        }
     
     # Fetch ETH balance
     eth_raw = get_eth_balance(wallet_address)
@@ -308,7 +314,7 @@ def lambda_handler(event, context):
 # For local testing
 if __name__ == "__main__":
     # Set test environment variables
-    os.environ["ETH_CHAIN"] = "42161"
+    os.environ["ETH_CHAIN"] = "8453"
     os.environ["CW_NAMESPACE"] = "wallet-monitor-test"
     os.environ["WALLETS_TO_WATCH"] = json.dumps([
         {"walletName": "TestWallet", "walletId": "0x344C98E25F981976215669E048ECcb21be16aC8e"}

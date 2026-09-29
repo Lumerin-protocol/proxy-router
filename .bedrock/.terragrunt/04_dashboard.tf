@@ -85,8 +85,6 @@ resource "aws_cloudwatch_dashboard" "auto_lumerin" {
         height = 5
         properties = {
           metrics = [
-            ["wallet-monitor", "eth_balance", "WalletName", "Validator", { "region" : "us-east-1" }],
-            ["wallet-monitor", "eth_balance", "WalletName", "Seller", { "region" : "us-east-1" }],
             ["wallet-monitor", "eth_balance", "WalletName", "OracleUpdater", { "region" : "us-east-1" }],
             ["wallet-monitor", "eth_balance", "WalletName", "MarketMaker", { "region" : "us-east-1" }],
           ],

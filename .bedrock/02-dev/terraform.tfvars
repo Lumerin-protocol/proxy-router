@@ -91,13 +91,14 @@ proxy_validator = {
 }
 
 # Create Cloudwatch Metrics & Dashboards
+# The Arbitrum contract-query lambdas are off. The wallet monitor reads Base.
 monitoring_frequency        = "rate(1 minute)"
-financials_query_create     = "true"
-proxy_router_query_create   = "true"
-validator_query_create      = "true"
-indexer_query_create        = "true"
+financials_query_create     = "false"
+proxy_router_query_create   = "false"
+validator_query_create      = "false"
+indexer_query_create        = "false"
 monitoring_dashboard_create = "true"
-eth_chain                   = "421614"
+eth_chain                   = "84532" # Base Sepolia. Wallet monitor uses wallet_monitor_query.eth_chain.
 
 # Wallet Monitor Configuration
 wallet_monitor_query_create = "true"
@@ -105,28 +106,19 @@ wallet_monitor_frequency    = "rate(5 minutes)" # More frequent for dev/testing
 wallet_monitor_query = {
   name                     = "bedrock-wallet-monitor"
   cw_namespace             = "wallet-monitor"
-  lmr_token_address        = "0xC27DafaD85F199FD50dD3FD720654875D6815871" # Arbitrum Sepolia - update when deployed
-  usdc_token_address       = "0x217C835e751DD12E7f1824b7D8ee0fB159B6EE2B" # Arbitrum Sepolia USDC (Circle test)
+  eth_chain                = "84532" # Base Sepolia
+  lmr_token_address        = "0x0000000000000000000000000000000000000000"
+  usdc_token_address       = "0xdd15eed84065a58c9e9ff9e95fb996be0fff22aa" # Base Sepolia USDC mock
   alarm_evaluation_periods = 2
   alarm_period             = 900 # 5 minutes in seconds for dev
 }
 
-# Wallets to monitor for ETH, USDC, and LMR balances (dev environment)
+# Gas wallets for the exchange. The keeper signs with the market maker.
 wallets_to_watch = [
-  {
-    walletName          = "Seller"
-    walletId            = "0x1441Bc52156Cf18c12cde6A92aE6BDE8B7f775D4"
-    eth_alarm_threshold = 0.001 # Lower threshold for testnet
-  },
-  {
-    walletName          = "Validator"
-    walletId            = "0xc3acdae18291bfeb0671d1caab1d13fe04164f75"
-    eth_alarm_threshold = 0.001
-  },
   {
     walletName          = "MarketMaker"
     walletId            = "0x4040eEEfc184c1382d708E6fA53685Bc22992B44"
-    eth_alarm_threshold = 0.001 # Market maker needs more ETH for gas
+    eth_alarm_threshold = 0.001
   },
   {
     walletName          = "OracleUpdater"

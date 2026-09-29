@@ -144,7 +144,7 @@ variable "monitoring_dashboard_create" {
 }
 
 variable "eth_chain" {
-  description = "Ethereum Chain ID (42161 for Arbitrum One, 421614 for Arbitrum Sepolia)"
+  description = "Ethereum chain ID for the retired contract-query lambdas. The wallet monitor uses wallet_monitor_query.eth_chain."
   type        = string
   default     = ""
 }
@@ -248,8 +248,9 @@ variable "wallet_monitor_query" {
   default = {
     name                     = "bedrock-wallet-monitor"
     cw_namespace             = "wallet-monitor"
-    lmr_token_address        = "0xaf5db6e1cc585ca312e8c8f7c499033590cf5c98" # Arbitrum One LMR
-    usdc_token_address       = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831" # Arbitrum One USDC (native)
+    eth_chain                = "8453" # Base mainnet
+    lmr_token_address        = "0x0000000000000000000000000000000000000000"
+    usdc_token_address       = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" # Base USDC
     alarm_evaluation_periods = 2
     alarm_period             = 900 # 15 minutes in seconds
   }
