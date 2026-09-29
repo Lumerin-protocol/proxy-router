@@ -17,8 +17,8 @@ titanio_net_edge_vpn = "172.18.16.0/20"
 
 # To call mapped vars in code: `var.proxy_ecs["create"]`
 proxy_ecs = {
-  create          = "true"
-  protect         = "true"
+  create          = "false"
+  protect         = "false"
   task_worker_qty = "1"
   name            = "proxy-router"
 }
@@ -38,8 +38,8 @@ validator_registry_address     = "0xa6354b657d8a42f2006c4ad0df670a831a610ca8"
 # validator_url                = "validator.stg.lumerin.io:7301"
 
 proxy_router = {
-  create                 = "true"
-  monitor_metric_filters = "true"
+  create                 = "false"
+  monitor_metric_filters = "false"
   protect                = "false"
   svca_cnt_port          = "3333"
   svca_hst_port          = "3333"
@@ -65,8 +65,8 @@ proxy_router = {
 }
 
 proxy_validator = {
-  create                 = "true"
-  monitor_metric_filters = "true"
+  create                 = "false"
+  monitor_metric_filters = "false"
   protect                = "false"
   svca_cnt_port          = "3333"
   svca_hst_port          = "3333"
@@ -97,11 +97,11 @@ financials_query_create     = "false"
 proxy_router_query_create   = "false"
 validator_query_create      = "false"
 indexer_query_create        = "false"
-monitoring_dashboard_create = "true"
+monitoring_dashboard_create = "false"
 eth_chain                   = "8453" # Base. Wallet monitor uses wallet_monitor_query.eth_chain.
 
 # Wallet Monitor Configuration
-wallet_monitor_query_create = "true"
+wallet_monitor_query_create = "false"
 wallet_monitor_frequency    = "rate(15 minutes)"
 wallet_monitor_query = {
   name                     = "bedrock-wallet-monitor"
