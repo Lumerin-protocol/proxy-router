@@ -17,8 +17,8 @@ titanio_net_edge_vpn = "172.18.16.0/20"
 
 # To call mapped vars in code: `var.proxy_ecs["create"]`
 proxy_ecs = {
-  create          = "true"
-  protect         = "true"
+  create          = "false"
+  protect         = "false"
   task_worker_qty = "1"
   name            = "proxy-router"
 }
@@ -38,8 +38,8 @@ validator_registry_address     = "0xa6354b657d8a42f2006c4ad0df670a831a610ca8"
 # validator_url                = "validator.stg.lumerin.io:7301"
 
 proxy_router = {
-  create                 = "true"
-  monitor_metric_filters = "true"
+  create                 = "false"
+  monitor_metric_filters = "false"
   protect                = "false"
   svca_cnt_port          = "3333"
   svca_hst_port          = "3333"
@@ -65,8 +65,8 @@ proxy_router = {
 }
 
 proxy_validator = {
-  create                 = "true"
-  monitor_metric_filters = "true"
+  create                 = "false"
+  monitor_metric_filters = "false"
   protect                = "false"
   svca_cnt_port          = "3333"
   svca_hst_port          = "3333"
@@ -91,55 +91,39 @@ proxy_validator = {
 }
 
 # Create Cloudwatch Metrics & Dashboards
+# The Arbitrum contract-query lambdas are off. The wallet monitor reads Base.
 monitoring_frequency        = "rate(1 minute)"
-financials_query_create     = "true"
-proxy_router_query_create   = "true"
-validator_query_create      = "true"
-indexer_query_create        = "true"
-monitoring_dashboard_create = "true"
-eth_chain                   = "42161"
+financials_query_create     = "false"
+proxy_router_query_create   = "false"
+validator_query_create      = "false"
+indexer_query_create        = "false"
+monitoring_dashboard_create = "false"
+eth_chain                   = "8453" # Base. Wallet monitor uses wallet_monitor_query.eth_chain.
 
 # Wallet Monitor Configuration
-wallet_monitor_query_create = "true"
+wallet_monitor_query_create = "false"
 wallet_monitor_frequency    = "rate(15 minutes)"
 wallet_monitor_query = {
   name                     = "bedrock-wallet-monitor"
   cw_namespace             = "wallet-monitor"
-  lmr_token_address        = "0x0FC0c323Cf76E188654D63D62e668caBeC7a525b" # Arbitrum One LMR
-  usdc_token_address       = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831" # Arbitrum One USDC (native)
+  eth_chain                = "8453" # Base
+  lmr_token_address        = "0x0000000000000000000000000000000000000000"
+  usdc_token_address       = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" # Base USDC
   alarm_evaluation_periods = 2
   alarm_period             = 900 # 15 minutes in seconds
 }
 
-# Wallets to monitor for ETH, USDC, and LMR balances (staging)
+# Gas wallets for the exchange. The keeper signs with the market maker.
 wallets_to_watch = [
   {
-    walletName           = "Seller"
-    walletId             = "0x99DFe1a2f99058B99FDc74177dBf53A93EBe3F48"
-    eth_alarm_threshold  = 0.025
-    # usdc_alarm_threshold = 200
-    # lmr_alarm_threshold  = 1000
+    walletName          = "MarketMaker"
+    walletId            = "0xdb8873E738C51eD3C59308ae666FB6bd9240D563"
+    eth_alarm_threshold = 0.025
   },
   {
-    walletName           = "Validator"
-    walletId             = "0x06bA6986F7B71B9115670aedFE0de759b708d599"
-    eth_alarm_threshold  = 0.025
-    # usdc_alarm_threshold = 1
-    # lmr_alarm_threshold  = 1000
-  },
-  {
-    walletName           = "MarketMaker"
-    walletId             = "0xdb8873E738C51eD3C59308ae666FB6bd9240D563"
-    eth_alarm_threshold  = 0.025   # Market maker needs more ETH for gas
-    # usdc_alarm_threshold = 40    # Market maker needs more USDC
-    # lmr_alarm_threshold  = 1000
-  },
-  {
-    walletName           = "OracleUpdater"
-    walletId             = "0x67C1A7737e0C47E53FD4a828c9c7d81401ce912b"
-    eth_alarm_threshold  = 0.025   
-    # usdc_alarm_threshold = 1    
-    # lmr_alarm_threshold  = 1000
+    walletName          = "OracleUpdater"
+    walletId            = "0x67C1A7737e0C47E53FD4a828c9c7d81401ce912b"
+    eth_alarm_threshold = 0.025
   }
 ]
 

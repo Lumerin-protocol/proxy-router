@@ -46,7 +46,7 @@ resource "aws_lambda_function" "wallet_monitor_lambda" {
 
   environment {
     variables = {
-      ETH_CHAIN          = var.eth_chain
+      ETH_CHAIN          = var.wallet_monitor_query["eth_chain"]
       ETH_API_KEY        = var.eth_api_key
       CW_NAMESPACE       = var.wallet_monitor_query["cw_namespace"]
       REGION_NAME        = var.default_region
