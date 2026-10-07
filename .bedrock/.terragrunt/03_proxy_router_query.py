@@ -128,11 +128,14 @@ def get_contractsv2_data():
 
         else:
             print("No contract data found in the response.")
-            return 0, 0, 0, 0, 0, 0, 0, 0    
+            return None
 
-    except urllib.error.HTTPError as e:
+    except urllib.error.URLError as e:
             print(f"Error occurred while querying contract data: {e}")
-            return 0, 0, 0, 0, 0, 0, 0, 0
+            return None
+    except Exception as e:
+            print(f"Unexpected error while querying contract data: {e}")
+            return None
     
 # Get Overall miner data from /miners api - returns 13 values (hashrate_available, hashrate_used, hashrate_free, miners_total, miners_vetting, miners_busy, miners_partial, miners_free, miners_average_difficulty, miners_accepted_shares, miners_accepted_they_rejected, miners_rejected_shares, miners_rejected_they_accepted)
 def get_miner_data():
@@ -183,10 +186,13 @@ def get_miner_data():
             return hashrate_available, hashrate_used, hashrate_free, miners_total, miners_vetting, miners_busy, miners_partial, miners_free, miners_average_difficulty, miners_accepted_shares, miners_accepted_they_rejected, miners_rejected_shares, miners_rejected_they_accepted
         else:
             print("No miner data found in the response.")
-            return 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-    except urllib.error.HTTPError as e:
+            return None
+    except urllib.error.URLError as e:
         print(f"Error occurred while querying miners data: {e}")
-        return 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        return None
+    except Exception as e:
+        print(f"Unexpected error while querying miners data: {e}")
+        return None
     
  ###########
 
@@ -348,49 +354,102 @@ def get_usdc_balance(eth_address, token_address):
     
 ########### SEND METRICS TO CLOUDWATCH ###########
 def lambda_handler(event, context):
-    # Get the data from the ProxyAPI 
+    # Wallet balances are published by the spot wallet monitor, not this poller.
     healthcheck_status, healthcheck_uptime, healthcheck_version = get_healthcheck_data()
     config_version, config_commit, config_wallet, config_lumerin, config_usdc, config_clonefactory = get_config_data()
-    seller_hashrate_offered, seller_hashrate_purchased, seller_contracts_offered, seller_contracts_active, validator_hashrate_purchased, validator_hashrate_actual, validator_contracts_active, buyers_unique   = get_contractsv2_data()
-    hashrate_available, hashrate_used, hashrate_free, miners_total, miners_vetting, miners_busy, miners_partial, miners_free, miners_average_difficulty, miners_accepted_shares, miners_accepted_they_rejected, miners_rejected_shares, miners_rejected_they_accepted = get_miner_data()
-    # Get financial data using API V2 (better rate limits, more reliable)
-    seller_eth_balance = get_eth_balance(config_wallet)
-    # Smaller delay needed with V2 API (5 calls/sec vs 2 calls/sec)
-    time.sleep(0.3)
-    seller_token_balance = get_lmr_token_balance(config_wallet, config_lumerin)
-    time.sleep(0.3)
-    seller_usdc_balance = get_usdc_balance(config_wallet, config_usdc)
-    time.sleep(0.3)
-    oracle_eth_balance = get_eth_balance(oracle_address)
+    contracts = get_contractsv2_data()
+    miners = get_miner_data()
 
-    # Send metrics to CloudWatch
+    seller_hashrate_offered = None
+    seller_hashrate_purchased = None
+    seller_contracts_offered = None
+    seller_contracts_active = None
+    buyers_unique = None
+    hashrate_available = None
+    hashrate_used = None
+    hashrate_free = None
+    miners_total = None
+    miners_vetting = None
+    miners_busy = None
+    miners_partial = None
+    miners_free = None
+    miners_average_difficulty = None
+    miners_accepted_shares = None
+    miners_accepted_they_rejected = None
+    miners_rejected_shares = None
+    miners_rejected_they_accepted = None
+
+    metric_data = []
+    if contracts is not None:
+        (
+            seller_hashrate_offered,
+            seller_hashrate_purchased,
+            seller_contracts_offered,
+            seller_contracts_active,
+            _validator_hashrate_purchased,
+            _validator_hashrate_actual,
+            _validator_contracts_active,
+            buyers_unique,
+        ) = contracts
+        metric_data.extend([
+            {"MetricName": cw_metric1, "Value": seller_contracts_offered, "Unit": "Count"},
+            {"MetricName": cw_metric2, "Value": seller_contracts_active, "Unit": "Count"},
+            {"MetricName": cw_metric3, "Value": seller_hashrate_offered, "Unit": "Count"},
+            {"MetricName": cw_metric12, "Value": buyers_unique, "Unit": "Count"},
+            {"MetricName": cw_metric13, "Value": seller_hashrate_purchased, "Unit": "Count"},
+        ])
+    else:
+        print("skipping contract metrics: /contracts-v2 unavailable")
+
+    if miners is not None:
+        (
+            hashrate_available,
+            hashrate_used,
+            hashrate_free,
+            miners_total,
+            miners_vetting,
+            miners_busy,
+            miners_partial,
+            miners_free,
+            miners_average_difficulty,
+            miners_accepted_shares,
+            miners_accepted_they_rejected,
+            miners_rejected_shares,
+            miners_rejected_they_accepted,
+        ) = miners
+        metric_data.extend([
+            {"MetricName": cw_metric7, "Value": miners_total, "Unit": "Count"},
+            {"MetricName": cw_metric8, "Value": miners_vetting, "Unit": "Count"},
+            {"MetricName": cw_metric9, "Value": miners_busy, "Unit": "Count"},
+            {"MetricName": cw_metric10, "Value": miners_partial, "Unit": "Count"},
+            {"MetricName": cw_metric11, "Value": miners_free, "Unit": "Count"},
+            {"MetricName": cw_metric16, "Value": round(int(miners_average_difficulty), 4), "Unit": "Count"},
+            {"MetricName": cw_metric17, "Value": int(miners_accepted_shares), "Unit": "Count"},
+            {"MetricName": cw_metric18, "Value": int(miners_accepted_they_rejected), "Unit": "Count"},
+            {"MetricName": cw_metric19, "Value": int(miners_rejected_shares), "Unit": "Count"},
+            {"MetricName": cw_metric20, "Value": int(miners_rejected_they_accepted), "Unit": "Count"},
+        ])
+        # A failed or empty miner list used to publish available=0 and blow the
+        # offered/available alarm up to thousands of percent.
+        if miners_total:
+            metric_data.extend([
+                {"MetricName": cw_metric4, "Value": hashrate_available, "Unit": "Count"},
+                {"MetricName": cw_metric5, "Value": hashrate_used, "Unit": "Count"},
+                {"MetricName": cw_metric6, "Value": hashrate_free, "Unit": "Count"},
+            ])
+        else:
+            print("skipping hashrate capacity metrics: seller reported no miners")
+    else:
+        print("skipping miner metrics: /miners unavailable")
+
+    if not metric_data:
+        print("no seller metrics to publish")
+        return {"statusCode": 500, "body": "Seller API unavailable"}
+
     cloudwatch = boto3.client("cloudwatch")
     cloudwatch.put_metric_data(
-        Namespace= cw_namespace,
-        MetricData=[
-            {"MetricName": cw_metric1, "Value": seller_contracts_offered, "Unit": "Count" },
-            {"MetricName": cw_metric2, "Value": seller_contracts_active, "Unit": "Count" },
-            {"MetricName": cw_metric3, "Value": seller_hashrate_offered, "Unit": "Count" },
-            {"MetricName": cw_metric4, "Value": hashrate_available, "Unit": "Count" },
-            {"MetricName": cw_metric5, "Value": hashrate_used, "Unit": "Count" },
-            {"MetricName": cw_metric6, "Value": hashrate_free, "Unit": "Count" },
-            {"MetricName": cw_metric7, "Value": miners_total, "Unit": "Count" },
-            {"MetricName": cw_metric8, "Value": miners_vetting, "Unit": "Count" },
-            {"MetricName": cw_metric9, "Value": miners_busy, "Unit": "Count" },
-            {"MetricName": cw_metric10, "Value": miners_partial, "Unit": "Count" },
-            {"MetricName": cw_metric11, "Value": miners_free, "Unit": "Count" },
-            {"MetricName": cw_metric12, "Value": buyers_unique, "Unit": "Count" }, 
-            {"MetricName": cw_metric13, "Value": seller_hashrate_purchased, "Unit": "Count"},
-            {"MetricName": cw_metric14, "Value": round((int(seller_eth_balance or "0")/10**18),8), "Unit": "None" },
-            {"MetricName": cw_metric15, "Value": round((int(seller_token_balance or "0")/10**8),4), "Unit": "None" },
-            {"MetricName": cw_metric16, "Value": round(int(miners_average_difficulty),4), "Unit": "Count" },
-            {"MetricName": cw_metric17, "Value": int(miners_accepted_shares), "Unit": "Count" },
-            {"MetricName": cw_metric18, "Value": int(miners_accepted_they_rejected), "Unit": "Count" },
-            {"MetricName": cw_metric19, "Value": int(miners_rejected_shares), "Unit": "Count" },
-            {"MetricName": cw_metric20, "Value": int(miners_rejected_they_accepted), "Unit": "Count" }, 
-            {"MetricName": cw_metric21, "Value": round((int(seller_usdc_balance or "0")/10**6),4), "Unit": "None" },
-            {"MetricName": cw_metric22, "Value": round((int(oracle_eth_balance or "0")/10**18),8), "Unit": "None" }
-        ]
+        Namespace=cw_namespace,
+        MetricData=metric_data,
     )
     
     # Log the metrics in Lambda output or logs
@@ -410,7 +469,7 @@ def lambda_handler(event, context):
     print(f"\nContracts:")
     print(f"  -Offered: {seller_contracts_offered}")
     print(f"  -Active: {seller_contracts_active}")
-    print(f"  -Unique Buyers: {buyers_unique}")  
+    print(f"  -Unique Buyers: {buyers_unique}")
     print(f"\nHashrate (PH/s):")
     print(f"  -Available: {hashrate_available}")
     print(f"  -Offered: {seller_hashrate_offered}")
@@ -423,17 +482,13 @@ def lambda_handler(event, context):
     print(f"  -Busy: {miners_busy}")
     print(f"  -Parital Busy: {miners_partial}")
     print(f"  -Free: {miners_free}")
-    print(f"\nFinancial:")
-    print(f"  -ETH Balance: {round((int(seller_eth_balance or '0')/10**18),8)}")
-    print(f"  -LMR Balance: {round((int(seller_token_balance or '0')/10**8),4)}")
-    print(f"  -USDC Balance: {round((int(seller_usdc_balance or '0')/10**6),4)}")   
-    print(f"  -Oracle ETH Balance: {round((int(oracle_eth_balance or '0')/10**18),8)}")
-    print(f"\nMiner Stats:")
-    print(f"  -Average Difficulty: {round(int(miners_average_difficulty),4)}")
-    print(f"  -Accepted Shares: {int(miners_accepted_shares)}")
-    print(f"  -Accepted They Rejected: {int(miners_accepted_they_rejected)}")
-    print(f"  -Rejected Shares: {int(miners_rejected_shares)}")
-    print(f"  -Rejected They Accepted: {int(miners_rejected_they_accepted)}")
+    if miners is not None:
+        print(f"\nMiner Stats:")
+        print(f"  -Average Difficulty: {round(int(miners_average_difficulty),4)}")
+        print(f"  -Accepted Shares: {int(miners_accepted_shares)}")
+        print(f"  -Accepted They Rejected: {int(miners_accepted_they_rejected)}")
+        print(f"  -Rejected Shares: {int(miners_rejected_shares)}")
+        print(f"  -Rejected They Accepted: {int(miners_rejected_they_accepted)}")
     
     # Return any desired response from the Lambda function
     return {

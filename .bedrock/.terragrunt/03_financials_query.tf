@@ -1,12 +1,7 @@
-# Create zip file when Python file changes
-resource "null_resource" "financials_zip" {
-  triggers = {
-    python_file = filemd5("03_financials_query.py")
-  }
-
-  provisioner "local-exec" {
-    command = "zip -j 03_financials_query.zip 03_financials_query.py"
-  }
+data "archive_file" "financials_query" {
+  type        = "zip"
+  source_file = "${path.module}/03_financials_query.py"
+  output_path = "${path.module}/03_financials_query.zip"
 }
 
 ##### Define Lambda Function #####
@@ -20,9 +15,8 @@ resource "aws_lambda_function" "financials_lambda" {
   timeout          = 180
   memory_size      = 256
   publish          = true
-  filename         = "03_financials_query.zip"         # Replace with the actual ZIP file name of your Lambda code
-  source_code_hash = filemd5("03_financials_query.py") # Use Python file hash to trigger updates
-  depends_on       = [null_resource.financials_zip]
+  filename         = data.archive_file.financials_query.output_path
+  source_code_hash = data.archive_file.financials_query.output_base64sha256
 
   vpc_config {
     subnet_ids         = [for n in data.aws_subnet.middle : n.id]

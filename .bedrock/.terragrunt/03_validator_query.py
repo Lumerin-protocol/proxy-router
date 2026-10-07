@@ -339,16 +339,8 @@ def lambda_handler(event, context):
     config_version, config_commit, config_wallet, config_lumerin, config_usdc, config_clonefactory = get_config_data()
     seller_hashrate_offered, seller_hashrate_purchased, seller_contracts_offered, seller_contracts_active, validator_hashrate_purchased, validator_hashrate_actual, validator_contracts_active, buyers_unique   = get_contractsv2_data()
     hashrate_available, hashrate_used, hashrate_free, miners_total, miners_vetting, miners_busy, miners_partial, miners_free, miners_average_difficulty, miners_accepted_shares, miners_accepted_they_rejected, miners_rejected_shares, miners_rejected_they_accepted = get_miner_data()
-    
-    # Get financial data using API V2 (better rate limits, more reliable)
-    seller_eth_balance = get_eth_balance(config_wallet)
-    # Smaller delay needed with V2 API (5 calls/sec vs 2 calls/sec)
-    time.sleep(0.3)
-    seller_token_balance = get_lmr_token_balance(config_wallet, config_lumerin)
-    time.sleep(0.3)
-    seller_usdc_balance = get_usdc_balance(config_wallet, config_usdc)
 
-    # Send metrics to CloudWatch - map returned data from API calls to outbound metrics
+    # Wallet balances are published by the spot wallet monitor, not this poller.
     cloudwatch = boto3.client("cloudwatch")
     cloudwatch.put_metric_data(
         Namespace= cw_namespace,
@@ -358,14 +350,11 @@ def lambda_handler(event, context):
             {"MetricName": cw_metric3, "Value": validator_hashrate_actual, "Unit": "Count" },
             {"MetricName": cw_metric4, "Value": buyers_unique, "Unit": "Count" },
             {"MetricName": cw_metric5, "Value": miners_total, "Unit": "Count" },
-            {"MetricName": cw_metric6, "Value": round((int(seller_eth_balance or "0")/10**18),8), "Unit": "None" },
-            {"MetricName": cw_metric7, "Value": round((int(seller_token_balance or "0")/10**8),4), "Unit": "None" }, 
             {"MetricName": cw_metric8, "Value": round(int(miners_average_difficulty),4), "Unit": "Count" },
             {"MetricName": cw_metric9, "Value": int(miners_accepted_shares), "Unit": "Count" },
             {"MetricName": cw_metric10, "Value": int(miners_accepted_they_rejected), "Unit": "Count" },
             {"MetricName": cw_metric11, "Value": int(miners_rejected_shares), "Unit": "Count" },
-            {"MetricName": cw_metric12, "Value": int(miners_rejected_they_accepted), "Unit": "Count" }, 
-            {"MetricName": cw_metric13, "Value": round((int(seller_usdc_balance or "0")/10**6),4), "Unit": "None" }
+            {"MetricName": cw_metric12, "Value": int(miners_rejected_they_accepted), "Unit": "Count" },
         ]
     )
     
@@ -389,10 +378,6 @@ def lambda_handler(event, context):
     print(f"  -Actual: {validator_hashrate_actual}")
     print(f"\nBuyers: {buyers_unique}")
     print(f"\nMiners: {miners_total}")
-    print(f"\nFinancial:")
-    print(f"  -ETH Balance: {round((int(seller_eth_balance or '0')/10**18),8)}")
-    print(f"  -LMR Balance: {round((int(seller_token_balance or '0')/10**8),4)}")
-    print(f"  -USDC Balance: {round((int(seller_usdc_balance or '0')/10**6),4)}")    
     print(f"\nMiner Stats:")
     print(f"  -Average Difficulty: {round(int(miners_average_difficulty),4)}")
     print(f"  -Accepted Shares: {int(miners_accepted_shares)}")
