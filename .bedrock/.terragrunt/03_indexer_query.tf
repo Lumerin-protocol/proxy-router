@@ -1,14 +1,9 @@
 # Defines the AWS resources to run a Lambda Python function to call Foreman API for specific address 
 
-# Create zip file when Python file changes
-resource "null_resource" "indexer_zip" {
-  triggers = {
-    python_file = filemd5("03_indexer_query.py")
-  }
-
-  provisioner "local-exec" {
-    command = "zip -j 03_indexer_query.zip 03_indexer_query.py"
-  }
+data "archive_file" "indexer_query" {
+  type        = "zip"
+  source_file = "${path.module}/03_indexer_query.py"
+  output_path = "${path.module}/03_indexer_query.zip"
 }
 
 ##### Define Lambda Function #####
@@ -22,9 +17,8 @@ resource "aws_lambda_function" "indexer_lambda" {
   timeout          = 180
   memory_size      = 256
   publish          = true
-  filename         = "03_indexer_query.zip"         # Replace with the actual ZIP file name of your Lambda code
-  source_code_hash = filemd5("03_indexer_query.py") # Use Python file hash to trigger updates
-  depends_on       = [null_resource.indexer_zip]
+  filename         = data.archive_file.indexer_query.output_path
+  source_code_hash = data.archive_file.indexer_query.output_base64sha256
 
   vpc_config {
     subnet_ids         = [for n in data.aws_subnet.middle : n.id]
