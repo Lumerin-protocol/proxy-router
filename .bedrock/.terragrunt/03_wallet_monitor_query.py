@@ -29,6 +29,11 @@ TOKEN_ADDRESSES = {
         "lmr": os.environ.get("LMR_TOKEN_ADDRESS", "0x0000000000000000000000000000000000000000"),
         "usdc": os.environ.get("USDC_TOKEN_ADDRESS", "0xdd15eed84065a58c9e9ff9e95fb996be0fff22aa"),
     },
+    # Arbitrum One. Used by the spot seller and validator monitor, not HPDX.
+    "42161": {
+        "lmr": os.environ.get("LMR_TOKEN_ADDRESS", "0x0FC0c323Cf76E188654D63D62e668caBeC7a525b"),
+        "usdc": os.environ.get("USDC_TOKEN_ADDRESS", "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"),
+    },
 }
 
 # Token decimals

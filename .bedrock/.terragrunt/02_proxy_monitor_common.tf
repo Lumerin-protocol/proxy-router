@@ -7,7 +7,7 @@ data "aws_kms_alias" "secretsmanager" {
 ##### Define Lambda IAM Role  #####
 # Create if at least one of the queries that need to execute lambda are true
 resource "aws_iam_role" "lumerin_monitoring_lambda_role" {
-  count              = var.proxy_router_query_create || var.validator_query_create || var.financials_query_create || var.wallet_monitor_query_create ? 1 : 0
+  count              = var.proxy_router_query_create || var.validator_query_create || var.financials_query_create || var.wallet_monitor_query_create || var.spot_wallet_monitor_create ? 1 : 0
   provider           = aws.use1
   name               = "lmr-monitoring-role"
   assume_role_policy = <<EOF
@@ -37,7 +37,7 @@ EOF
 
 ##### Define Lambda IAM Policy #####
 resource "aws_iam_policy" "lumerin_monitoring_lambda_policy" {
-  count       = var.proxy_router_query_create || var.validator_query_create || var.financials_query_create || var.wallet_monitor_query_create ? 1 : 0
+  count       = var.proxy_router_query_create || var.validator_query_create || var.financials_query_create || var.wallet_monitor_query_create || var.spot_wallet_monitor_create ? 1 : 0
   provider    = aws.use1
   name        = "lumerin-monitoring-policy"
   description = "Policy for the lumerin monitoring lambda function"
@@ -105,7 +105,7 @@ EOF
 
 ##### Attach Lambda IAM Policy to Role #####
 resource "aws_iam_role_policy_attachment" "lumerin_monitoring_policy_attachment" {
-  count      = var.proxy_router_query_create || var.validator_query_create || var.financials_query_create || var.wallet_monitor_query_create ? 1 : 0
+  count      = var.proxy_router_query_create || var.validator_query_create || var.financials_query_create || var.wallet_monitor_query_create || var.spot_wallet_monitor_create ? 1 : 0
   provider   = aws.use1
   role       = aws_iam_role.lumerin_monitoring_lambda_role[0].name
   policy_arn = aws_iam_policy.lumerin_monitoring_lambda_policy[0].arn
@@ -113,7 +113,7 @@ resource "aws_iam_role_policy_attachment" "lumerin_monitoring_policy_attachment"
 
 ##### Define Cloudwatch Event Rule #####
 resource "aws_cloudwatch_event_rule" "lumerin_monitoring_schedule_event" {
-  count               = var.proxy_router_query_create || var.validator_query_create || var.financials_query_create || var.wallet_monitor_query_create ? 1 : 0
+  count               = var.proxy_router_query_create || var.validator_query_create || var.financials_query_create || var.wallet_monitor_query_create || var.spot_wallet_monitor_create ? 1 : 0
   provider            = aws.use1
   name                = "lmr-monitoring-schedule-event"
   description         = "Schedule event to trigger the Lambda function every 5 minutes"

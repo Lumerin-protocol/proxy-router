@@ -89,14 +89,39 @@ proxy_validator = {
 }
 
 # Create Cloudwatch Metrics & Dashboards
-# The Arbitrum contract-query lambdas are off. The wallet monitor reads Base.
+# Spot node pollers. HPDX gas wallets stay on the Base wallet monitor below.
 monitoring_frequency        = "rate(5 minutes)"
-financials_query_create     = "false"
-proxy_router_query_create   = "false"
-validator_query_create      = "false"
-indexer_query_create        = "false"
+financials_query_create     = "true"
+proxy_router_query_create   = "true"
+validator_query_create      = "true"
+indexer_query_create        = "true"
 monitoring_dashboard_create = "true"
-eth_chain                   = "8453" # Base. Wallet monitor uses wallet_monitor_query.eth_chain.
+eth_chain                   = "8453" # Unused by the spot pollers. HPDX wallet monitor uses wallet_monitor_query.eth_chain.
+
+# Spot seller and validator gas on Arbitrum. Own function and metric namespace.
+spot_wallet_monitor_create    = true
+spot_wallet_monitor_frequency = "rate(15 minutes)"
+spot_wallet_monitor_query = {
+  name                     = "bedrock-spot-wallet-monitor"
+  cw_namespace             = "spot-wallet-monitor"
+  eth_chain                = "42161" # Arbitrum One
+  lmr_token_address        = "0x0FC0c323Cf76E188654D63D62e668caBeC7a525b"
+  usdc_token_address       = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
+  alarm_evaluation_periods = 2
+  alarm_period             = 900
+}
+spot_wallets_to_watch = [
+  {
+    walletName          = "Seller"
+    walletId            = "0x06fdcc64548a490664D8b4EC308E907a6fC38766"
+    eth_alarm_threshold = 0.025
+  },
+  {
+    walletName          = "Validator"
+    walletId            = "0x344C98E25F981976215669E048ECcb21be16aC8e"
+    eth_alarm_threshold = 0.025
+  },
+]
 
 # Wallet Monitor Configuration
 wallet_monitor_query_create = "true"

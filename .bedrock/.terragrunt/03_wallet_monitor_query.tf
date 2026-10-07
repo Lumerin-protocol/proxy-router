@@ -8,20 +8,15 @@ locals {
 }
 
 data "aws_sns_topic" "wallet_alerts" {
-  count    = var.wallet_monitor_query_create ? 1 : 0
+  count    = var.wallet_monitor_query_create || var.spot_wallet_monitor_create ? 1 : 0
   provider = aws.use1
   name     = "titanio-${local.env_suffix}-dev-alerts"
 }
 
-# Create zip file when Python file changes
-resource "null_resource" "wallet_monitor_zip" {
-  triggers = {
-    python_file = filemd5("03_wallet_monitor_query.py")
-  }
-
-  provisioner "local-exec" {
-    command = "zip -j 03_wallet_monitor_query.zip 03_wallet_monitor_query.py"
-  }
+data "archive_file" "wallet_monitor_query" {
+  type        = "zip"
+  source_file = "${path.module}/03_wallet_monitor_query.py"
+  output_path = "${path.module}/03_wallet_monitor_query.zip"
 }
 
 ##### Define Lambda Function #####
@@ -35,9 +30,8 @@ resource "aws_lambda_function" "wallet_monitor_lambda" {
   timeout          = 300 # 5 minutes - may need more time for multiple wallets
   memory_size      = 256
   publish          = true
-  filename         = "03_wallet_monitor_query.zip"
-  source_code_hash = filemd5("03_wallet_monitor_query.py")
-  depends_on       = [null_resource.wallet_monitor_zip]
+  filename         = data.archive_file.wallet_monitor_query.output_path
+  source_code_hash = data.archive_file.wallet_monitor_query.output_base64sha256
 
   vpc_config {
     subnet_ids         = [for n in data.aws_subnet.middle : n.id]
@@ -241,6 +235,128 @@ resource "aws_cloudwatch_metric_alarm" "wallet_lmr_low" {
     {
       Name        = "Wallet ${each.key} LMR Low Alarm",
       Application = var.wallet_monitor_query["name"]
+    }
+  )
+}
+
+##### Spot marketplace wallet monitor #####
+# Same program as the HPDX monitor, its own function, schedule, and namespace.
+# Arbitrum seller and validator balances stay out of wallet-monitor.
+
+resource "aws_lambda_function" "spot_wallet_monitor_lambda" {
+  count            = var.spot_wallet_monitor_create ? 1 : 0
+  provider         = aws.use1
+  function_name    = "${var.spot_wallet_monitor_query["name"]}-lambda"
+  role             = aws_iam_role.lumerin_monitoring_lambda_role[0].arn
+  runtime          = "python3.13"
+  handler          = "03_wallet_monitor_query.lambda_handler"
+  timeout          = 300
+  memory_size      = 256
+  publish          = true
+  filename         = data.archive_file.wallet_monitor_query.output_path
+  source_code_hash = data.archive_file.wallet_monitor_query.output_base64sha256
+
+  vpc_config {
+    subnet_ids         = [for n in data.aws_subnet.middle : n.id]
+    security_group_ids = [for s in data.aws_security_group.proxy_query : s.id]
+  }
+
+  environment {
+    variables = {
+      ETH_CHAIN          = var.spot_wallet_monitor_query["eth_chain"]
+      ETH_API_KEY        = var.eth_api_key
+      CW_NAMESPACE       = var.spot_wallet_monitor_query["cw_namespace"]
+      REGION_NAME        = var.default_region
+      WALLETS_TO_WATCH   = jsonencode(var.spot_wallets_to_watch)
+      LMR_TOKEN_ADDRESS  = var.spot_wallet_monitor_query["lmr_token_address"]
+      USDC_TOKEN_ADDRESS = var.spot_wallet_monitor_query["usdc_token_address"]
+    }
+  }
+
+  tags = merge(
+    var.default_tags,
+    var.foundation_tags,
+    {
+      Name        = "${var.spot_wallet_monitor_query["name"]} - Lambda Function",
+      Application = var.spot_wallet_monitor_query["name"]
+    }
+  )
+}
+
+resource "aws_cloudwatch_event_rule" "spot_wallet_monitor_schedule" {
+  count               = var.spot_wallet_monitor_create ? 1 : 0
+  provider            = aws.use1
+  name                = "${var.spot_wallet_monitor_query["name"]}-schedule"
+  description         = "Schedule for the spot seller and validator wallet monitor"
+  schedule_expression = var.spot_wallet_monitor_frequency
+
+  tags = merge(
+    var.default_tags,
+    var.foundation_tags,
+    {
+      Name        = "${var.spot_wallet_monitor_query["name"]} - Event Schedule",
+      Application = var.spot_wallet_monitor_query["name"]
+    }
+  )
+}
+
+resource "aws_cloudwatch_event_target" "spot_wallet_monitor_lambda" {
+  count     = var.spot_wallet_monitor_create ? 1 : 0
+  provider  = aws.use1
+  rule      = aws_cloudwatch_event_rule.spot_wallet_monitor_schedule[0].name
+  target_id = "${var.spot_wallet_monitor_query["name"]}-lambda-target"
+  arn       = aws_lambda_function.spot_wallet_monitor_lambda[0].arn
+}
+
+resource "aws_lambda_permission" "spot_wallet_monitor_allow_cloudwatch" {
+  count         = var.spot_wallet_monitor_create ? 1 : 0
+  provider      = aws.use1
+  statement_id  = "AllowExecutionFromCloudWatch"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.spot_wallet_monitor_lambda[0].function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.spot_wallet_monitor_schedule[0].arn
+}
+
+resource "aws_cloudwatch_metric_alarm" "spot_wallet_eth_low" {
+  for_each = var.spot_wallet_monitor_create ? {
+    for wallet in var.spot_wallets_to_watch : wallet.walletName => wallet
+    if wallet.eth_alarm_threshold != null
+  } : {}
+
+  provider            = aws.use1
+  alarm_name          = "spot-wallet-${lower(each.key)}-eth-low"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = var.spot_wallet_monitor_query["alarm_evaluation_periods"]
+  metric_name         = "eth_balance"
+  namespace           = var.spot_wallet_monitor_query["cw_namespace"]
+  period              = var.spot_wallet_monitor_query["alarm_period"]
+  statistic           = "Average"
+  threshold           = each.value.eth_alarm_threshold
+  treat_missing_data  = "notBreaching"
+
+  alarm_description = <<-EOT
+    ${upper(local.env_suffix)} - SPOT ${upper(each.key)} - ETH - LOW
+
+    Please add ETH on Arbitrum to the ${each.value.walletId} wallet to bring it back to ${each.value.eth_alarm_threshold} ETH.
+
+    Wallet Name: ${each.key}
+    Environment: ${local.env_suffix}
+  EOT
+
+  alarm_actions = [data.aws_sns_topic.wallet_alerts[0].arn]
+  ok_actions    = [data.aws_sns_topic.wallet_alerts[0].arn]
+
+  dimensions = {
+    WalletName = each.key
+  }
+
+  tags = merge(
+    var.default_tags,
+    var.foundation_tags,
+    {
+      Name        = "Spot Wallet ${each.key} ETH Low Alarm",
+      Application = var.spot_wallet_monitor_query["name"]
     }
   )
 }

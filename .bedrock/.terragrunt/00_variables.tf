@@ -256,6 +256,46 @@ variable "wallet_monitor_query" {
   }
 }
 
+# Spot marketplace wallets (Arbitrum). Separate from the HPDX Base wallet monitor
+# so the two stacks can be removed independently.
+variable "spot_wallet_monitor_create" {
+  description = "Create the spot seller and validator wallet monitor"
+  type        = bool
+  default     = false
+}
+
+variable "spot_wallet_monitor_frequency" {
+  description = "Schedule for the spot wallet monitor"
+  type        = string
+  default     = "rate(15 minutes)"
+}
+
+variable "spot_wallet_monitor_query" {
+  description = "Spot wallet monitor. Arbitrum One, its own CloudWatch namespace."
+  type        = map(any)
+  default = {
+    name                     = "bedrock-spot-wallet-monitor"
+    cw_namespace             = "spot-wallet-monitor"
+    eth_chain                = "42161"
+    lmr_token_address        = "0x0FC0c323Cf76E188654D63D62e668caBeC7a525b"
+    usdc_token_address       = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
+    alarm_evaluation_periods = 2
+    alarm_period             = 900
+  }
+}
+
+variable "spot_wallets_to_watch" {
+  description = "Spot seller and validator wallets. Same object shape as wallets_to_watch."
+  type = list(object({
+    walletName           = string
+    walletId             = string
+    eth_alarm_threshold  = optional(number)
+    usdc_alarm_threshold = optional(number)
+    lmr_alarm_threshold  = optional(number)
+  }))
+  default = []
+}
+
 
 #### SENSITIVE VARIABLES 
 # Must have file secret.auto.tfvars in same folder locally and ensure same is in the .gitignore file
